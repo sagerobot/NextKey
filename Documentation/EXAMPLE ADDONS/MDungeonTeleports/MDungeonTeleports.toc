@@ -1,0 +1,40 @@
+## Interface: 110200, 110205, 110207
+## Title: |cff7c4fd6M+ Dungeon Teleports |cff808080by peepoStudy|r
+## Notes: Mythic+ Dungeon Teleports for The War Within Season 3.
+## Author: peepoStudy
+## Version: 5.1.7
+## X-Curse-Project-ID: 1096955
+## X-Wago-ID: 56n9Y5N9
+## SavedVariables: MDungeonTeleports
+## IconTexture: Interface\Addons\MDungeonTeleports\Media\icon.blp
+
+## Libraries
+libs/libs.xml
+
+## Locales
+locales/enUS.lua
+## locales/deDE.lua
+## locales/esES.lua
+## locales/frFR.lua
+## locales/itIT.lua
+## locales/koKR.lua
+## locales/ptBR.lua
+locales/ruRU.lua
+locales/zhCN.lua
+locales/zhTW.lua
+
+## Data
+Data/DungeonPortals.lua
+Data/Presets.lua
+
+## Core
+Core/Settings.lua
+Core/Season1.lua
+Core/Season2.lua
+Core/Season3.lua
+Core/PortalLibrary.lua
+Core/PortalLibraryRaid.lua
+
+## Extensions
+Extensions/KeyTracker.lua
+Extensions/Feature.lua
