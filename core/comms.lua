@@ -1,125 +1,129 @@
-local _, NS = ...
-local NextKey = NS.Addon
-local Utils = NS.Utils
-local Keystones = NS.Keystones
+-- MARK: Communications Module (Simplified - LibOpenRaid handles keystones)
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
+local AceSerializer = LibStub:GetLibrary("AceSerializer-3.0")
 
-local Comms = {}
+-- Communications module for NextKey-specific data (preferences, settings, etc.)
+local Communications = {
+    throttleTimers = {},
+    messageQueue = {},
+    isProcessing = false
+}
+
+NextKey222.Communications = Communications
+NextKey222.RegisterModule("Communications", Communications)
 
 -- MARK: Message Serialization
-local function serializeSyncPayload(key)
-    if not key then
-        return Utils.encodeTuple({ NS.COMM_OPCODE.SYNC })
-    end
-    return Utils.encodeTuple({
-        NS.COMM_OPCODE.SYNC,
-        key.dungeonID or "",
-        key.level or "",
-        key.ownerName or "",
-        key.class or "",
-        key.io or "",
-    })
+function Communications:SerializeSyncPayload(data)
+    local payload = {
+        opcode = NextKey222.Constants.COMM_OPCODES.SYNC,
+        version = NextKey.version or "1.0.0",
+        timestamp = NextKey222.Utils.GetTime(),
+        data = data
+    }
+    
+    return AceSerializer:Serialize(payload)
 end
 
-local function parseSyncPayload(parts)
-    local mapID = tonumber(parts[2])
-    local level = tonumber(parts[3])
-    local owner = parts[4] ~= "" and parts[4] or nil
-    local class = parts[5] ~= "" and parts[5] or nil
-    local ioScore = tonumber(parts[6])
-    if not mapID or not level then
+function Communications:ParseSyncPayload(message)
+    local success, payload = AceSerializer:Deserialize(message)
+    if not success or not payload.opcode then
         return nil
     end
-    return {
-        dungeonID = mapID,
-        level = level,
-        ownerName = owner,
-        ownerShort = owner and owner:match("^[^%-]+") or owner,
-        class = class,
-        io = ioScore,
-        source = "comm",
-        timestamp = Utils.currentTime(),
+    return payload
+end
+
+-- MARK: Preference Sharing
+function Communications:SharePreferences()
+    if not IsInGroup() then
+        NextKey222.Debug:Print("comms", "Not in group, cannot share preferences")
+        return false
+    end
+    
+    local preferences = NextKey.db and NextKey.db.char and NextKey.db.char.preferences
+    if not preferences then
+        NextKey222.Debug:Print("comms", "No preferences to share")
+        return false
+    end
+    
+    local channel = IsInRaid() and "RAID" or "PARTY"
+    local payload = {
+        opcode = NextKey222.Constants.COMM_OPCODES.PREFERENCE_UPDATE,
+        version = NextKey.version or "1.0.0",
+        timestamp = NextKey222.Utils.GetTime(),
+        sender = NextKey.playerFullName,
+        preferences = preferences
     }
+    
+    local serialized = AceSerializer:Serialize(payload)
+    NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel)
+    NextKey222.Debug:Print("comms", "Shared preferences to", channel)
+    return true
 end
 
--- MARK: Communication Functions
-function NextKey:BroadcastTeleportSelection(target)
-    local data = target or self.teleportTargetKey
-    if not data then
+-- MARK: Message Processing
+function Communications:ProcessMessage(prefix, message, distribution, sender)
+    if prefix ~= NextKey222.Constants.COMM_PREFIX then
         return
     end
-
-    local channel = Utils.chooseCommChannel()
-    if not channel then
+    
+    if sender == NextKey.playerFullName then
         return
     end
-
-    local payload = Utils.encodeTuple({
-        NS.COMM_OPCODE.SELECT,
-        data.dungeonID or "",
-        data.level or "",
-        data.ownerName or "",
-        data.class or "",
-    })
-
-    self:SendCommMessage(NS.COMM_PREFIX, payload, channel)
-end
-
-function NextKey:BuildSyncPayload()
-    return self:ScanPlayerKeystone()
-end
-
-function NextKey:SendSync()
-    local channel = Utils.chooseCommChannel()
-    if not channel then
-        self:Print("No group channel available for sync.")
+    
+    local payload = self:ParseSyncPayload(message)
+    if not payload then
+        NextKey222.Debug:Print("comms", "Failed to parse message from", sender)
         return
     end
-    local key = self:BuildSyncPayload()
-    local payload = serializeSyncPayload(key)
-    self:SendCommMessage(NS.COMM_PREFIX, payload, channel)
-    self:Print("Sync broadcast sent.")
-end
-
--- MARK: Message Handling
-function NextKey:OnCommReceived(prefix, message, distribution, sender)
-    if prefix ~= NS.COMM_PREFIX then
-        return
-    end
-
-    local parts = Utils.decodeTuple(message)
-    local opcode = parts[1]
-
-    if opcode == NS.COMM_OPCODE.SELECT then
-        local mapID = tonumber(parts[2])
-        local level = tonumber(parts[3])
-        local owner = parts[4]
-        local class = parts[5]
-        if mapID and level then
-            self:SetTeleportTargetKey({
-                dungeonID = mapID,
-                level = level,
-                ownerName = owner,
-                ownerShort = owner and owner:match("^[^%-]+") or owner,
-                class = class,
-                source = "comm",
-            }, {
-                broadcast = false,
-                source = "comm",
-                receivedFrom = sender,
-            })
-        end
-    elseif opcode == NS.COMM_OPCODE.SYNC then
-        local entry = parseSyncPayload(parts)
-        if entry then
-            entry.receivedFrom = sender
-            self.receivedKeys = self.receivedKeys or {}
-            self.receivedKeys[sender] = entry
-            if type(self.RenderResults) == "function" then
-                self:RenderResults()
-            end
-        end
+    
+    -- Handle different message types
+    if payload.opcode == NextKey222.Constants.COMM_OPCODES.SYNC then
+        self:ProcessSync(payload, sender)
+    elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.PREFERENCE_UPDATE then
+        self:ProcessPreferenceUpdate(payload, sender)
+    else
+        NextKey222.Debug:Print("comms", "Unknown opcode:", payload.opcode, "from", sender)
     end
 end
 
-NS.Comms = Comms
-return Comms
+function Communications:ProcessSync(payload, sender)
+    NextKey222.Debug:Print("comms", "Received sync from", sender)
+    -- Handle general sync data if needed
+end
+
+function Communications:ProcessPreferenceUpdate(payload, sender)
+    NextKey222.Debug:Print("comms", "Received preference update from", sender)
+    
+    if payload.preferences then
+        -- Store or process received preferences if needed
+        -- This could be used for group-wide preference sharing/voting
+        NextKey222.Debug:Print("comms", "Preferences received from", sender, "- count:", self:CountTable(payload.preferences))
+    end
+end
+
+-- MARK: Utility Functions
+function Communications:CountTable(tbl)
+    local count = 0
+    for _ in pairs(tbl) do
+        count = count + 1
+    end
+    return count
+end
+
+-- MARK: Throttling (if needed for future features)
+function Communications:CanSendMessage(messageType)
+    local now = GetTime()
+    local lastSent = self.throttleTimers[messageType] or 0
+    local throttleInterval = 5 -- 5 seconds between messages of the same type
+    
+    if now - lastSent < throttleInterval then
+        NextKey222.Debug:Print("comms", "Message throttled:", messageType, "- wait", throttleInterval - (now - lastSent), "seconds")
+        return false
+    end
+    
+    self.throttleTimers[messageType] = now
+    return true
+end
+
+return Communications

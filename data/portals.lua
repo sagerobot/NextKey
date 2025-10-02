@@ -1,8 +1,8 @@
 -- MARK: Initialization
 -- This file defines all seasonal dungeon and teleport data for the addon.
 
-local _, NS = ...
-local NextKey = NS.Addon
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
 
 if not NextKey then return end
 

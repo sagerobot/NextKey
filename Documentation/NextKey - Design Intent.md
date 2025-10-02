@@ -1,5 +1,34 @@
 # NextKey - Addon Design Document
 
+## Architectural Foundation
+
+NextKey is built using the **Details! Damage Meter architectural patterns**, ensuring robust, scalable, and maintainable code:
+
+### NextKey222 Namespace System
+- **Centralized Organization**: All modules organized under NextKey222 namespace
+- **Module Registration**: Standardized module registration and initialization system
+- **Error Resilience**: SafeRun wrapper ensures individual module failures don't crash the entire addon
+- **Performance Monitoring**: Built-in profiling system tracks performance bottlenecks
+- **Debug Framework**: Centralized logging system with module-specific debug categories
+
+### Boot System
+- **Single Entry Point**: boot.lua replaces multiple initialization files
+- **Phased Startup**: Five-phase initialization ensures proper dependency loading
+- **Dependency Management**: Proper TOC ordering and module interdependency handling
+
+#### Architectural Consolidation (✅ COMPLETED)
+**Previous State**: NextKey used three-file boot process (preboot.lua → boot.lua → startup.lua)
+**Current State**: Consolidated single boot.lua following industry standards
+**Analysis**: Major WoW addons (RaiderIO, Details, WeakAuras) all use single initialization files
+**Implementation Benefits**: ✅ Simplified architecture, ✅ Better performance, ✅ Industry alignment, ✅ Easier maintenance
+**Migration**: Original files backed up as .bak extensions for rollback capability
+
+### Core Design Principles
+1. **Modularity**: Each major feature is a self-contained module
+2. **Error Isolation**: Module failures are contained and logged, not propagated
+3. **Performance Focus**: All critical paths are profiled and optimized
+4. **Maintainability**: Clear namespace organization and standardized patterns
+
 ## Problem Statement
 
 In World of Warcraft's Mythic+ dungeon system, groups often waste time deciding which keystone to run next. This decision involves multiple factors:
@@ -67,11 +96,21 @@ NextKey should make the "what key should we run next?" decision automatic and op
    - Easy key announcements to group to enable basic integration with non-addon users
 
 ### Information Display
-- Each key shows:
+- **Dungeon Cards**
+  - Visual card-based interface for each available key
+  - Card includes dungeon artwork and color-coded difficulty indicators
+  - Interactive preference toggles for quick sorting adjustments
+  - Individual sections for scores, loot, and group benefits
+  - Smart hover tooltips with detailed breakdowns
+  - Color-coded borders indicating completion status and timing potential
+
+- Each card shows:
   - Dungeon name and key level
-  - How many players would improve their score displayed as a + icon with the number of players next to it, tooltip gover shows witch players and a +xx showing how much score they could get if the key was 3 chested, the avaliable score from the key eg "Hunter-Hyjal (+115)"
+  - How many players would improve their score displayed as a + icon with the number of players next to it, tooltip shows which players and a +xx showing how much score they could get if the key was 3 chested, the available score from the key eg "Hunter-Hyjal (+115)"
   - Which players need items from it, displayed as a chest icon with a number beside it
   - Key owner name and server in class color
+  - Personal preference indicators for quick filtering
+  - Visual progress indicators for "bad luck protection" on desired loot
 
 ## Key Features
 
@@ -87,7 +126,16 @@ Multiple sorting algorithms that can be switched between:
 - **Score Impact**: IO gained total, could be all from 1 player. Ideal setting for a group with players boosting fresh alts or low scored players. 
 - **Loot Value**: Based on player-marked desired items
 - **Smart Sort**: Smart Sort (The All-Arounder): Uses a Borda Count points-based system. Run all four other sorts in the background. For each sorted list, award points based on rank (e.g., for 5 keys, 1st place gets 5 points, 2nd gets 4, etc.). The rank for each category must be stored in the key's data table for tooltip use. Sum the points for each key across all four lists The final ranking is ordered by the total accumulated points (descending).
+- **Preference Based**: Sorts based on individual and group dungeon preferences, synced across the party
 - **Manual**: Ignore the sorting and enable buttons for the group leader only that allow them to manually select a dungeon, that dungeon will be sent to the travel assistant for the group
+
+### 2.1 Preference System
+- **Individual Preferences**: Players can mark dungeons they prefer or want to avoid
+- **Group Sync**: Preferences are automatically shared with party members
+- **Visual Indicators**: Clear icons showing group member preferences on dungeon cards
+- **Smart Weighting**: Preferences factor into scoring algorithms
+- **Persistence**: Preferences saved per-character and per-season
+- **Quick Toggle**: One-click preference changes from dungeon cards
 
 
 ### 2. Real-Time Score Tracking

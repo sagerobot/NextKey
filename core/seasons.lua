@@ -1,6 +1,6 @@
-local _, NS = ...
-local NextKey = NS.Addon
-local Utils = NS.Utils
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
+local Utils = NextKey222.Utils
 
 local Seasons = {}
 
@@ -162,5 +162,12 @@ function NextKey:EstimateRunScore(level, timed, fractionalTime)
     return math.floor(base + 0.5)
 end
 
-NS.Seasons = Seasons
+NextKey222.Seasons = Seasons
+NextKey222.RegisterModule("Seasons", Seasons)
+
+-- Module interface
+function Seasons:Initialize()
+    return true
+end
+
 return Seasons

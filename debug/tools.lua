@@ -1,7 +1,7 @@
 -- MARK: Debug Tools & Add Form Management
-local _, NS = ...
-local NextKey = NS.Addon
-local Utils = NS.Utils
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
+local Utils = NextKey222.Utils
 
 -- Helper Functions
 local function normalizeMapID(mapID)

@@ -1,15 +1,27 @@
 -- NextKey constants and configuration
-local _, NS = ...
+local _, NextKey222 = ...
 
--- Communication constants
-NS.COMM_PREFIX = "NKEY1"
-NS.COMM_OPCODE = {
-    SELECT = "SELECT",
-    SYNC = "SYNC"
+-- Constants module
+local Constants = {
+    COMM_PREFIX = "NKEY1",
+    COMM_OPCODES = {
+        SELECT = "SELECT",
+        SYNC = "SYNC",
+        KEYSTONE_UPDATE = "KEYSTONE_UPDATE", -- Deprecated - LibOpenRaid handles keystones
+        PREFERENCE_UPDATE = "PREFERENCE_UPDATE"
+    }
 }
 
+NextKey222.Constants = Constants
+NextKey222.RegisterModule("Constants", Constants)
+
+-- Module interface
+function Constants:Initialize()
+    return true
+end
+
 -- Default settings
-NS.DEFAULTS = {
+Constants.DEFAULTS = {
     global = {
         leaderSettings = {
             autoSuggestEnabled = false,
@@ -19,7 +31,7 @@ NS.DEFAULTS = {
             showHearthstone = false,
         },
         debug = {
-            enabled = false,
+            enabled = true,  -- Enable debug by default for testing
             players = {},
             addForm = { best = {} },
         },
@@ -35,4 +47,4 @@ NS.DEFAULTS = {
     },
 }
 
-return NS
+return Constants

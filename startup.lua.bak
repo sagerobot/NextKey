@@ -1,0 +1,114 @@
+﻿-- Minimal startup.lua - focusing on main functionality
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
+
+-- Basic initialization
+if NextKey222 then
+    print("NextKey startup.lua loaded successfully")
+end
+
+-- MARK: Startup Phase Handlers
+-- Register handlers for the startup system to initialize modules properly
+
+-- Phase 3: PostInit - Initialize UI and other systems
+NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
+    NextKey222.Debug:Print("startup", "=== PostInit Phase ===")
+    
+    -- Initialize UI system
+    if NextKey222.UI and NextKey222.UI.Initialize then
+        NextKey222.Debug:Print("startup", "Initializing UI system")
+        NextKey.SafeRun(NextKey222.UI.Initialize, "Initialize UI system")
+    else
+        NextKey222.Debug:Print("startup", "Warning: UI system not available for initialization")
+    end
+    
+    -- Initialize Communications
+    if NextKey222.Communications and NextKey222.Communications.Initialize then
+        NextKey222.Debug:Print("startup", "Initializing Communications")
+        NextKey.SafeRun(NextKey222.Communications.Initialize, "Initialize Communications")
+    end
+    
+    NextKey222.Debug:Print("startup", "PostInit phase completed")
+end)
+
+-- Phase 4: Enable - Activate systems
+NextKey222.StartUp:RegisterPhaseHandler("Enable", function()
+    NextKey222.Debug:Print("startup", "=== Enable Phase ===")
+    
+    -- Enable event systems
+    if NextKey222.Events and NextKey222.Events.Enable then
+        NextKey222.Debug:Print("startup", "Enabling Events system")
+        NextKey.SafeRun(NextKey222.Events.Enable, "Enable Events system")
+    end
+    
+    NextKey222.Debug:Print("startup", "Enable phase completed")
+end)
+
+-- MARK: Slash Command Registration
+-- Register slash commands for NextKey
+SLASH_NEXTKEY1 = "/nextkey"
+SLASH_NEXTKEY2 = "/nk"
+
+SlashCmdList["NEXTKEY"] = function(input)
+    local command = string.lower(string.trim and string.trim(input) or input or "")
+    
+    if command == "" or command == "show" then
+        -- Show main UI
+        if NextKey222.UI and NextKey222.UI.ToggleMainFrame then
+            NextKey222.UI:ToggleMainFrame()
+        elseif NextKey222.UI and NextKey222.UI.CreateMainFrame then
+            NextKey222.UI:CreateMainFrame()
+        else
+            print("NextKey: UI not ready yet")
+        end
+    elseif command == "hide" then
+        -- Hide main UI
+        if NextKey222.UI and NextKey222.UI.mainFrame then
+            NextKey222.UI.mainFrame:Hide()
+            print("NextKey: Main frame hidden")
+        else
+            print("NextKey: No frame to hide")
+        end
+    elseif command == "config" or command == "options" or command == "opt" then
+        -- Open config
+        if NextKey222.Options and NextKey222.Options.Open then
+            NextKey222.Options:Open()
+        else
+            print("NextKey: Config not ready yet")
+        end
+    elseif command == "debug" then
+        -- Toggle debug
+        if NextKey222.Debug and NextKey222.Debug.ToggleLevel then
+            NextKey222.Debug:ToggleLevel()
+        else
+            print("NextKey: Debug system not ready yet")
+        end
+    elseif command == "version" then
+        -- Show version
+        local version = NextKey.version or GetAddOnMetadata("NextKey", "Version") or "Unknown"
+        print("NextKey version:", version)
+    elseif command == "status" then
+        -- Show status
+        print("NextKey Status:")
+        print("- UI Ready:", NextKey222.UI and "Yes" or "No")
+        print("- Events Ready:", NextKey222.Events and "Yes" or "No")
+        print("- Communications Ready:", NextKey222.Communications and "Yes" or "No")
+        print("- Debug Ready:", NextKey222.Debug and "Yes" or "No")
+        print("- IOCalculator Ready:", NextKey222.IOCalculator and "Yes" or "No")
+    elseif command == "reload" then
+        -- Reload UI
+        ReloadUI()
+    else
+        -- Help text
+        print("NextKey Commands:")
+        print("  /nk (or show) - Toggle/show the main window")
+        print("  /nk hide - Hide the main window") 
+        print("  /nk config (or opt) - Open configuration")
+        print("  /nk debug - Toggle debug mode")
+        print("  /nk version - Show version")
+        print("  /nk status - Show system status")
+        print("  /nk reload - Reload UI")
+    end
+end
+
+print("NextKey: Slash commands /nk and /nextkey registered")

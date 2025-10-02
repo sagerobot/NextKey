@@ -1,6 +1,20 @@
-# NextKey - Addon Design Document
+# NextKey - Addon Design Doc#### Architectural Consolidation Status
+**✅ IMPLEMENTED**: Consolidated single-file boot system following industry best practices
+**Previous**: Three-file boot process (preboot.lua → boot.lua → startup.lua)
+**Current**: Single boot.lua file with all initialization logic
 
-## 1. Project Overview
+**Industry Analysis Findings**:
+- RaiderIO: Single core.lua entry point
+- Details-Damage-Meter: Comprehensive boot.lua handling all phases
+- WeakAuras: Init.lua + WeakAuras.lua pattern with single-phase boot
+
+**Implementation Results**:
+1. ✅ Merged preboot.lua, boot.lua, and startup.lua into single boot.lua
+2. ✅ Maintained existing phase handlers within consolidated file
+3. ✅ Followed Details pattern for comprehensive initialization
+4. ✅ Preserved NextKey222 module system architecture
+5. ✅ Improved performance through reduced file loading overhead
+6. ✅ Backup files created for rollback capability (.bak extensions)Project Overview
 
 ### 1.1. Addon Name
 
@@ -10,11 +24,41 @@ NextKey
 
 NextKey is a World of Warcraft addon designed to help Mythic+ groups intelligently select the best keystone to run next. It aggregates keystone, player score, and loot preference data from all party members, processes this data through various customizable ranking algorithms, and presents a clear, ranked list of suggestions to the group.
 
-### 1.3. Core Philosophy
+### 1.3. Architectural Foundation
 
-The addon will be built upon the Ace3 library suite. This approach ensures stability, efficiency, and a familiar user experience for configuration. All major systems—initialization, saved variables, inter-addon communication, and UI configuration—will leverage the Ace3 framework.
+NextKey follows the **Details! Damage Meter architectural patterns** for enterprise-grade addon development:
 
-### 1.4. Hard Dependency
+#### 1.3.1. NextKey222 Namespace System
+- **Unified Organization**: All components organized under NextKey222 namespace
+- **Module Registration**: `NextKey222.RegisterModule()` system for consistent module management  
+- **Error Resilience**: `NextKey222.SafeRun()` wrapper prevents individual component failures from crashing the addon
+- **Performance Monitoring**: `NextKey222.Performance` system profiles critical code paths
+- **Centralized Debugging**: `NextKey222.Debug` provides module-specific logging with configurable verbosity
+
+#### 1.3.2. Boot System
+- **Consolidated Initialization**: Single boot.lua entry point replaces fragmented initialization
+- **Phased Startup**: Five-phase system (PreInit → Init → PostInit → Enable → Finalize) ensures proper dependency resolution
+- **TOC Optimization**: Proper loading order ensures all dependencies are available when needed
+
+#### 1.3.3. Architectural Consolidation Status
+**Current Implementation**: Three-file boot process (preboot.lua → boot.lua → startup.lua)
+**Industry Analysis**: Research of major WoW addons reveals all use single initialization files:
+- RaiderIO: Single core.lua entry point
+- Details-Damage-Meter: Comprehensive boot.lua handling all phases
+- WeakAuras: Init.lua + WeakAuras.lua pattern with single-phase boot
+
+**Consolidation Plan**:
+1. Merge preboot.lua, boot.lua, and startup.lua into single boot.lua
+2. Maintain existing phase handlers within consolidated file
+3. Follow Details pattern for comprehensive initialization
+4. Preserve NextKey222 module system architecture
+5. Improve performance through reduced file loading overhead
+
+### 1.4. Core Philosophy
+
+The addon leverages the Ace3 library suite while implementing Details!-inspired patterns. This approach ensures stability, efficiency, scalability, and maintainability. All major systems—initialization, saved variables, inter-addon communication, and UI configuration—use proven architectural patterns.
+
+### 1.5. Hard Dependency
 
 The addon must read player score data from the Raider.IO Mythic Plus Addon's SavedVariables. This is a non-negotiable dependency for score-based calculations.
 
@@ -30,6 +74,14 @@ The addon's communication system will be handled by AceComm-3.0 to ensure reliab
     - `scores`: A table of the player's best runs per dungeon, sourced from Raider.IO.
     - `liveRun`: A table containing the last completed run's data (dungeonID, level, timedSuccess) to ensure calculations are up-to-the-second accurate.
     - `lootTargets`: An array of ItemIDs the player has marked as needed.
+    - `preferences`: `{
+        [dungeonID] = {
+            liked = boolean,
+            disliked = boolean,
+            reason = string,
+            lastUpdated = timestamp
+        }
+    }` -- The player's dungeon preferences.
 - **Communication Triggers**:
     - **Proactive Broadcast**: On the `CHALLENGE_MODE_COMPLETED` event, each client will automatically broadcast its full data payload to the `PARTY` channel. This ensures all clients have the latest data (new key, updated live score) without a manual request.
     - **Sync on Roster Change**: On `GROUP_ROSTER_UPDATE`, a request for data is sent to synchronize all party members.
@@ -43,10 +95,19 @@ All persistent data will be managed by AceDB-3.0.
 - **Default Profile Structure**:
     - `db.global`: Global settings accessible by all characters.
         - `leaderSettings`: `{ autoSuggestEnabled = false, defaultSortMode = "SmartSort" }`
+        - `cardSettings`: `{ viewMode = "grid", animationsEnabled = true }`
     - `db.char`: Character-specific data.
         - `liveRuns`: `{}` -- Stores recently completed runs not yet in Raider.IO data.
         - `targetedItems`: `{}` -- List of targeted ItemIDs.
         - `dungeonRunCounts`: `{}` -- Maps dungeonID to run counts for loot tracking.
+        - `dungeonPreferences`: `{
+            [dungeonID] = {
+                liked = boolean,
+                disliked = boolean,
+                reason = string,
+                lastUpdated = timestamp
+            }
+        }` -- Per-dungeon preference settings.
 
 ### 2.3. Ranking & Sorting Algorithms
 
@@ -113,14 +174,74 @@ local options = {
 }
 ```
 
-### 2.7. Main UI (AceGUI-3.0)
+### 2.7. DungeonCards System
+
+The DungeonCards system provides a visual, card-based interface for viewing and managing dungeon information.
+
+#### 2.7.1. Card Data Structure
+```lua
+local cardData = {
+    dungeonID = number,
+    keyLevel = number,
+    owner = string,
+    preferences = {
+        [playerGUID] = {
+            liked = boolean,
+            disliked = boolean,
+            reason = string
+        }
+    },
+    scores = {
+        totalGain = number,
+        affectedPlayers = table,
+        potentialGains = table
+    },
+    loot = {
+        targetedItems = number,
+        interestedPlayers = table,
+        dropChances = table
+    }
+}
+```
+
+#### 2.7.2. Card UI Components (AceGUI-3.0)
+- **Frame**: Custom frame template inheriting from AceGUI Frame
+- **Artwork**: Dungeon-specific background artwork
+- **Score Section**: Visual representation of score gains
+- **Loot Section**: Item icons and drop chances
+- **Preference Controls**: Like/Dislike buttons with tooltips
+- **Progress Indicators**: Timer and completion status
+- **Interactive Elements**: Hover effects and click handlers
+
+#### 2.7.3. Card Layout Manager
+- Grid-based layout system for responsive card positioning
+- Smooth animations for sorting and filtering
+- Efficient frame recycling for performance
+- Dynamic scaling based on screen size
+
+#### 2.7.4. Preference Sync System
+- Real-time preference updates via AceComm
+- Conflict resolution for simultaneous updates
+- Efficient payload structure for minimal network usage
+- Visual feedback for preference changes
+
+### 2.8. Main UI (AceGUI-3.0)
 
 The main ranking window will be built with AceGUI-3.0 widgets.
 
-- **Frame**: A movable, closable Frame widget.
-- **Controls**: A SimpleGroup containing Button widgets for each of the 5 sort modes.
-- **Results Panel**: A ScrollFrame containing a list of ranked keys. Each key will be an InteractiveLabel or Button widget that shows the enhanced tooltip on hover.
-- **Action Buttons**: Button widgets for "Refresh" and "Dice Roll". The "Set Loot" button is removed, as this is now handled in the options panel.
+- **Frame**: A movable, closable Frame widget with custom background
+- **Controls**: 
+  - SimpleGroup containing Button widgets for sort modes
+  - Preference filter toggles
+  - View mode switcher (list/card view)
+- **Results Panel**: 
+  - ScrollFrame containing either DungeonCards or list view
+  - Smooth transitions between view modes
+  - Responsive grid layout for cards
+- **Action Buttons**: 
+  - "Refresh" and "Dice Roll" buttons
+  - View mode toggle
+  - Preference filter controls
 
 ## 3. Technical Specifications
 

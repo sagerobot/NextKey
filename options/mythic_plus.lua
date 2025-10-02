@@ -1,5 +1,6 @@
 -- MARK: Initialization
-local addon = LibStub("AceAddon-3.0"):GetAddon("NextKey", true)
+local _, NextKey222 = ...
+local addon = NextKey222.Addon
 if not addon then return end
 
 -- MARK: Options Configuration
@@ -54,7 +55,11 @@ local function createMythicPlusDataOptions()
                         name = "Fetch from Blizzard",
                         desc = "Import your Mythic+ data from Blizzard API",
                         func = function()
-                            addon:SyncWithBlizzardAPI({announceNoChange = true})
+                            -- SyncWithBlizzardAPI doesn't exist, use CollectPartyKeys instead
+                            if addon.CollectPartyKeys then
+                                addon:CollectPartyKeys()
+                                print("NextKey: Refreshed keystone data")
+                            end
                             if addon.RenderResults then
                                 addon:RenderResults()
                             end

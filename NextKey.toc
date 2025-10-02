@@ -2,11 +2,50 @@
 ## Title: NextKey
 ## Notes: Intelligently ranks Mythic+ keys for your group.
 ## Author: Gemini & User
-## Version: 0.0.2
+## Version: 0.1.0
 ## X-Category: Dungeons
 ## SavedVariables: NextKeyDB
 ## OptionalDeps: RaiderIO
 
+# Libraries
 embeds.xml
 
+# Core System - Consolidated Boot
+boot.lua
 
+# Data
+data\portals.lua
+
+# Core Modules
+core\constants.lua
+core\utils.lua
+core\config.lua
+core\season.lua
+core\libopenraid.lua
+core\ioCalculator.lua
+core\keystones.lua
+core\raiderio.lua
+core\scoring.lua
+core\comms.lua
+core\dungeonCards.lua
+
+# Events
+events\handlers.lua
+
+# Debug
+debug\init.lua
+debug\tools.lua
+
+# UI Components
+ui\main.lua
+ui\teleport.lua
+ui\dungeonCards.lua
+ui\lootWindow.lua
+
+# Options
+options\main.lua
+options\mythic_plus.lua
+
+# Testing (remove before release)
+boot_test.lua
+test_integration.lua

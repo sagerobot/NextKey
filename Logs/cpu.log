@@ -1,0 +1,6 @@
+9/30 16:15:39.495  vendor: AuthenticAMD
+9/30 16:15:39.495  branding: AMD Ryzen 7 7800X3D 8-Core Processor           
+9/30 16:15:39.495  features: lahf64 cmpxchg16b sse sse2 sse3 ssse3 sse41 sse42 avx avx2 avx512f aesni clmul sha rdrand 
+9/30 16:15:39.495  sockets: 1
+9/30 16:15:39.495  cores: 8
+9/30 16:15:39.495  threads: 16

@@ -1,0 +1,23 @@
+-- NextKey Pre-Boot - Module Registration Bootstrap
+-- This file runs before boot.lua to set up the module registration system
+
+local addonName, NextKey222 = ...
+NextKey222 = NextKey222 or {}
+_G.NextKey222 = NextKey222
+
+-- Initialize basic module registry immediately
+NextKey222.moduleRegistry = {}
+
+-- Simple RegisterModule function available immediately  
+function NextKey222.RegisterModule(name, moduleTable)
+    NextKey222.moduleRegistry = NextKey222.moduleRegistry or {}
+    NextKey222.moduleRegistry[name] = moduleTable
+    return true
+end
+
+function NextKey222.GetModule(name)
+    return NextKey222.moduleRegistry and NextKey222.moduleRegistry[name]
+end
+
+-- Store for later use by boot system
+NextKey222.BootReady = false

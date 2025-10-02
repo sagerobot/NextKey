@@ -1,6 +1,10 @@
 -- MARK: Score Calculation Functions
-local _, NS = ...
-local NextKey = NS.Addon
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
+
+if not NextKey then
+    return
+end
 
 -- MARK: Run Time Functions
 function NextKey:ApproximateFractionalFromChests(chests)

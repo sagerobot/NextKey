@@ -1,5 +1,6 @@
 -- MARK: Debug Initialization & Setup
-local NextKey = LibStub("AceAddon-3.0"):GetAddon("NextKey")
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
 
 -- MARK: Core Debug Functions
 function NextKey:EnsureDebug()
@@ -22,7 +23,7 @@ function NextKey:GetFakePlayerBest(playerIndex, mapID)
     if not player or type(player.best) ~= "table" then
         return nil
     end
-    return player.best[self.utils.normalizeMapID(mapID)]
+    return player.best[NextKey222.Utils.normalizeMapID(mapID)]
 end
 
 function NextKey:SetFakePlayerBest(playerIndex, mapID, level, chests)

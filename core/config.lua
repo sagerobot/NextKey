@@ -1,5 +1,5 @@
-local NextKey = LibStub("AceAddon-3.0"):GetAddon("NextKey")
-local _, NS = ...
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
 
 -- MARK: Configuration Functions
 -- Configuration access and management
@@ -34,7 +34,7 @@ end
 
 -- MARK: Default Settings
 -- Default configuration values used during initialization
-NS.Defaults = {
+NextKey222.Defaults = {
     global = {
         leaderSettings = {
             autoSuggestEnabled = false,
@@ -53,6 +53,7 @@ NS.Defaults = {
         liveRuns = {},
         targetedItems = {},
         dungeonRunCounts = {},
+        preferences = {},
         mythicPlus = {
             activeSeason = nil,
             seasons = {},
@@ -60,4 +61,4 @@ NS.Defaults = {
     },
 }
 
-return NS.Defaults
+return NextKey222.Defaults

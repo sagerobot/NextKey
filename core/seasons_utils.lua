@@ -1,4 +1,5 @@
-local NextKey = LibStub("AceAddon-3.0"):GetAddon("NextKey")
+local _, NextKey222 = ...
+local NextKey = NextKey222.Addon
 
 -- MARK: RaiderIO Integration
 function NextKey:TryLoadRaiderIO(opts)
@@ -29,8 +30,8 @@ function NextKey:ClearMythicPlusData()
     seasonData.bestLevels = {}
     seasonData.lastSyncTime = nil
     seasonData.lastSyncSource = nil
-    if type(self.RenderResults) == "function" then
-        self:RenderResults()
+    if NextKey222.UI and NextKey222.UI.RenderResults and NextKey222.UI.mainFrame then
+        NextKey222.UI:RenderResults()
     end
     self:Print("Cleared all Mythic+ score data.")
 end

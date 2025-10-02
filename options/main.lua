@@ -1,12 +1,15 @@
 -- Options.lua - AceConfig options registration for NextKey
 
-local addon = LibStub("AceAddon-3.0"):GetAddon("NextKey", true)
+local _, NextKey222 = ...
+local addon = NextKey222.Addon
 if not addon then return end
 
 local function refreshUI()
-    if addon.RenderResults then
-        addon:RenderResults()
+    -- Refresh main UI if it exists and is visible
+    if NextKey222.UI and NextKey222.UI.RenderResults and NextKey222.UI.mainFrame then
+        NextKey222.UI:RenderResults()
     end
+    -- Refresh teleport window if it exists  
     if addon.RefreshTeleportWindow then
         addon:RefreshTeleportWindow()
     end
@@ -71,7 +74,13 @@ local function updateDungeonScore(mapID, level, timed)
 end
 
 local function fetchBlizzardData()
-    addon:SyncWithBlizzardAPI({announceNoChange = true})
+    -- SyncWithBlizzardAPI function doesn't exist, use CollectPartyKeys instead
+    if addon.CollectPartyKeys then
+        addon:CollectPartyKeys()
+        print("NextKey: Refreshed keystone data")
+    else
+        print("NextKey: Keystone refresh function not available")
+    end
 end
 
 local function fetchRaiderIOData()
@@ -88,7 +97,12 @@ local function fetchRaiderIOData()
     end
     
     local seasonData = addon:EnsureSeasonData()
-    seasonData.currentScore = profile.mythicKeystoneProfile.currentScore or 0
+    if seasonData then
+        seasonData.currentScore = profile.mythicKeystoneProfile.currentScore or 0
+    else
+        print("NextKey: Could not initialize season data")
+        return
+    end
     
     -- Update UI
     refreshUI()
@@ -218,7 +232,11 @@ function addon:InjectDebugOptions(options)
             name = "Scan Raider.IO Now",
             desc = "Attempts to detect Raider.IO saved variables and report status.",
             func = function()
-                addon:TryLoadRaiderIO({ silent = false })
+                if addon.TryLoadRaiderIO then
+                    addon:TryLoadRaiderIO({ silent = false })
+                else
+                    print("NextKey: TryLoadRaiderIO function not available")
+                end
             end,
             order = 5,
         },

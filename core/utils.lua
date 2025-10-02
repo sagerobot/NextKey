@@ -1,7 +1,9 @@
-local _, NS = ...
+local _, NextKey222 = ...
 
 -- MARK: Utility Functions
 local Utils = {}
+NextKey222.Utils = Utils
+NextKey222.RegisterModule("Utils", Utils)
 
 function Utils.currentTime()
     if type(GetServerTime) == "function" then
@@ -82,5 +84,31 @@ function Utils.chooseCommChannel()
     return nil
 end
 
-NS.Utils = Utils
+function Utils.getShortName(fullName)
+    if not fullName or fullName == "" then
+        return "Unknown"
+    end
+    return fullName:match("^([^%-]+)") or fullName
+end
+
+function Utils.tableCount(tbl)
+    if not tbl or type(tbl) ~= "table" then
+        return 0
+    end
+    local count = 0
+    for _ in pairs(tbl) do
+        count = count + 1
+    end
+    return count
+end
+
+-- Module interface
+function Utils:Initialize()
+    return true
+end
+
+function Utils:GetTime()
+    return self.currentTime()
+end
+
 return Utils

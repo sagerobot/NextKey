@@ -1,5 +1,6 @@
 -- MARK: Initialization
-local addon = LibStub("AceAddon-3.0"):GetAddon("NextKey", true)
+local _, NextKey222 = ...
+local addon = NextKey222.Addon
 if not addon then return end
 
 -- MARK: Constants
