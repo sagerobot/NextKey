@@ -71,7 +71,8 @@
         "UIDropDownMenu_AddButton",
         "UIDropDownMenu_CreateInfo",
         "PlayerSpellsFrame",
-        "LinkUtil"
+        "LinkUtil",
+        "NEW"
     ],
     "Lua.type.weakUnionCheck": true,
     "Lua.diagnostics.disable": [

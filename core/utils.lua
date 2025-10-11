@@ -102,6 +102,102 @@ function Utils.tableCount(tbl)
     return count
 end
 
+-- MARK: Dungeon ID Conversion Functions
+-- Helper function to get season dungeon index for RaiderIO array access
+function Utils:GetSeasonDungeonIndex(dungeonID)
+    -- TWW Season 3 dungeon mapping using NextKey dungeon IDs as keys
+    -- Maps NextKey IDs to RaiderIO array positions (1-8)
+    local dungeonOrder = {
+        [503] = 1,  -- Ara-Kara, City of Echoes (NextKey: 503 → RaiderIO keystone_instance: 503)
+        [524] = 2,  -- The Dawnbreaker (NextKey: 524 → RaiderIO keystone_instance: 505)
+        [526] = 3,  -- Eco-Dome Al'dani (NextKey: 526 → RaiderIO keystone_instance: 542)
+        [377] = 4,  -- Halls of Atonement (NextKey: 377 → RaiderIO keystone_instance: 378)
+        [525] = 5,  -- Operation: Floodgate (NextKey: 525 → RaiderIO keystone_instance: 525)
+        [523] = 6,  -- Priory of the Sacred Flame (NextKey: 523 → RaiderIO keystone_instance: 499)
+        [401] = 7,  -- Tazavesh: Streets of Wonder (NextKey: 401 → RaiderIO keystone_instance: 391)
+        [402] = 8,  -- Tazavesh: So'leah's Gambit (NextKey: 402 → RaiderIO keystone_instance: 392)
+    }
+    return dungeonOrder[dungeonID]
+end
+
+-- Helper to convert NextKey dungeon IDs to RaiderIO keystone_instance IDs
+function Utils:ConvertToRaiderIOKeystoneID(dungeonID)
+    -- Mapping from NextKey dungeon IDs to RaiderIO keystone_instance IDs
+    local idMapping = {
+        [503] = 503,  -- Ara-Kara, City of Echoes
+        [524] = 505,  -- The Dawnbreaker: NextKey uses 524, RaiderIO uses 505
+        [526] = 542,  -- Eco-Dome Al'dani: NextKey uses 526, RaiderIO uses 542  
+        [377] = 378,  -- Halls of Atonement
+        [525] = 525,  -- Operation: Floodgate (same)
+        [523] = 499,  -- Priory of the Sacred Flame: NextKey uses 523, RaiderIO uses 499
+        [401] = 391,  -- Tazavesh: Streets of Wonder: NextKey uses 401, RaiderIO uses 391
+        [402] = 392,  -- Tazavesh: So'leah's Gambit: NextKey uses 402, RaiderIO uses 392
+        [2441] = 392, -- Tazavesh: So'leah's Gambit (keystone form): Maps to same RaiderIO ID as 402
+    }
+    return idMapping[dungeonID] or dungeonID
+end
+
+-- Convert Challenge Mode Map ID back to keystone dungeon ID for IOCalculator compatibility
+function Utils:ConvertChallengeMapToKeystoneID(challengeMapID)
+    -- Use centralized ID mapper if available
+    if NextKey222.IDMapper then
+        return NextKey222.IDMapper:ConvertChallengeMapToKeystoneID(challengeMapID)
+    end
+    
+    -- Legacy fallback mapping
+    local challengeToKeystone = {
+        [503] = 503,   -- Ara-Kara (same)
+        [505] = 542,   -- The Dawnbreaker 
+        [542] = 542,   -- Eco-Dome Al'dani (same)
+        [378] = 378,   -- Halls of Atonement (same)  
+        [525] = 525,   -- Operation: Floodgate (same)
+        [499] = 499,   -- Priory of the Sacred Flame (same)
+        [391] = 391,   -- Tazavesh: Streets (same)
+        [392] = 392,   -- Tazavesh: So'leah's (same)
+        [402] = 2441,  -- So'leah's Gambit -> Keystone ID 2441
+        [401] = 391,   -- Streets of Wonder -> 391
+        [377] = 378,   -- Halls -> 378
+        [526] = 542,   -- Eco-Dome -> 542
+        [524] = 505,   -- Dawnbreaker -> 505  
+        [523] = 499,   -- Priory -> 499
+    }
+    
+    return challengeToKeystone[challengeMapID] or challengeMapID
+end
+
+-- Reverse mapping: Find NextKey dungeon ID from RaiderIO dungeon data
+function Utils:FindNextKeyDungeonID(rioData)
+    if not rioData or not rioData.dungeon then
+        return nil
+    end
+    
+    local dungeon = rioData.dungeon
+    
+    -- Create reverse mapping: RaiderIO keystone_instance/id -> NextKey dungeon ID
+    local reverseMapping = {
+        [503] = 503,  -- Ara-Kara, City of Echoes
+        [505] = 524,  -- The Dawnbreaker  
+        [542] = 526,  -- Eco-Dome Al'dani
+        [378] = 377,  -- Halls of Atonement
+        [525] = 525,  -- Operation: Floodgate
+        [499] = 523,  -- Priory of the Sacred Flame
+        [391] = 401,  -- Tazavesh: Streets of Wonder
+        [392] = 402,  -- Tazavesh: So'leah's Gambit
+        
+        -- RaiderIO id field -> NextKey dungeon ID
+        [15093] = 503,  -- Ara-Kara
+        [14971] = 524,  -- The Dawnbreaker
+        [16104] = 526,  -- Eco-Dome Al'dani
+        [12831] = 377,  -- Halls of Atonement
+        [15452] = 525,  -- Operation: Floodgate
+        [14954] = 523,  -- Priory of the Sacred Flame
+        [1000001] = 402,  -- Tazavesh: So'leah's Gambit
+        [1000000] = 401,  -- Tazavesh: Streets of Wonder
+    }
+    
+    return reverseMapping[dungeon.keystone_instance] or reverseMapping[dungeon.id]
+end
+
 -- Module interface
 function Utils:Initialize()
     return true

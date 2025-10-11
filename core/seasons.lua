@@ -147,20 +147,9 @@ function NextKey:GetSeasonBestLevels(seasonKey)
     return seasonData.bestLevels
 end
 
-function NextKey:EstimateRunScore(level, timed, fractionalTime)
-    level = tonumber(level) or 0
-    if level <= 0 then
-        return 0
-    end
-    local base = level * 10
-    if not timed then
-        base = base * 0.5
-    end
-    if fractionalTime and fractionalTime > 0 then
-        base = base + math.max(0, 100 - fractionalTime)
-    end
-    return math.floor(base + 0.5)
-end
+-- MARK: Deprecated - Removed duplicate EstimateRunScore function
+-- Use NextKey222.IOCalculator:EstimateRunScore() or NextKey:EstimateRunScore() instead
+-- The duplicate implementation has been consolidated to avoid drift
 
 NextKey222.Seasons = Seasons
 NextKey222.RegisterModule("Seasons", Seasons)

@@ -1,20 +1,10 @@
-# NextKey - Addon Design Doc#### Architectural Consolidation Status
-**✅ IMPLEMENTED**: Consolidated single-file boot system following industry best practices
-**Previous**: Three-file boot process (preboot.lua → boot.lua → startup.lua)
-**Current**: Single boot.lua file with all initialization logic
+# NextKey - Feature Specifications
 
-**Industry Analysis Findings**:
-- RaiderIO: Single core.lua entry point
-- Details-Damage-Meter: Comprehensive boot.lua handling all phases
-- WeakAuras: Init.lua + WeakAuras.lua pattern with single-phase boot
+> **📋 For Technical Implementation**: See `AI_DEVELOPMENT_GUIDE.md` for all architectural standards, coding patterns, and technical requirements.
 
-**Implementation Results**:
-1. ✅ Merged preboot.lua, boot.lua, and startup.lua into single boot.lua
-2. ✅ Maintained existing phase handlers within consolidated file
-3. ✅ Followed Details pattern for comprehensive initialization
-4. ✅ Preserved NextKey222 module system architecture
-5. ✅ Improved performance through reduced file loading overhead
-6. ✅ Backup files created for rollback capability (.bak extensions)Project Overview
+This document provides detailed **feature specifications** and **implementation requirements** for NextKey functionality.
+
+## Project Overview
 
 ### 1.1. Addon Name
 
@@ -24,39 +14,9 @@ NextKey
 
 NextKey is a World of Warcraft addon designed to help Mythic+ groups intelligently select the best keystone to run next. It aggregates keystone, player score, and loot preference data from all party members, processes this data through various customizable ranking algorithms, and presents a clear, ranked list of suggestions to the group.
 
-### 1.3. Architectural Foundation
+### 1.3. Technical Foundation
 
-NextKey follows the **Details! Damage Meter architectural patterns** for enterprise-grade addon development:
-
-#### 1.3.1. NextKey222 Namespace System
-- **Unified Organization**: All components organized under NextKey222 namespace
-- **Module Registration**: `NextKey222.RegisterModule()` system for consistent module management  
-- **Error Resilience**: `NextKey222.SafeRun()` wrapper prevents individual component failures from crashing the addon
-- **Performance Monitoring**: `NextKey222.Performance` system profiles critical code paths
-- **Centralized Debugging**: `NextKey222.Debug` provides module-specific logging with configurable verbosity
-
-#### 1.3.2. Boot System
-- **Consolidated Initialization**: Single boot.lua entry point replaces fragmented initialization
-- **Phased Startup**: Five-phase system (PreInit → Init → PostInit → Enable → Finalize) ensures proper dependency resolution
-- **TOC Optimization**: Proper loading order ensures all dependencies are available when needed
-
-#### 1.3.3. Architectural Consolidation Status
-**Current Implementation**: Three-file boot process (preboot.lua → boot.lua → startup.lua)
-**Industry Analysis**: Research of major WoW addons reveals all use single initialization files:
-- RaiderIO: Single core.lua entry point
-- Details-Damage-Meter: Comprehensive boot.lua handling all phases
-- WeakAuras: Init.lua + WeakAuras.lua pattern with single-phase boot
-
-**Consolidation Plan**:
-1. Merge preboot.lua, boot.lua, and startup.lua into single boot.lua
-2. Maintain existing phase handlers within consolidated file
-3. Follow Details pattern for comprehensive initialization
-4. Preserve NextKey222 module system architecture
-5. Improve performance through reduced file loading overhead
-
-### 1.4. Core Philosophy
-
-The addon leverages the Ace3 library suite while implementing Details!-inspired patterns. This approach ensures stability, efficiency, scalability, and maintainability. All major systems—initialization, saved variables, inter-addon communication, and UI configuration—use proven architectural patterns.
+> **📋 Architecture Details**: All NextKey222 architectural patterns, module registration requirements, error handling, and performance monitoring standards are documented in `AI_DEVELOPMENT_GUIDE.md`.
 
 ### 1.5. Hard Dependency
 

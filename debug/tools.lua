@@ -32,7 +32,7 @@ function NextKey:SetAddFormBest(mapID, level, chests)
         level = level,
         timed = (chests or 0) > 0,
         chests = chests or 0,
-        fractionalTime = (chests or 0) > 0 and self:ApproximateFractionalFromChests(chests) or nil,
+        fractionalTime = (chests or 0) > 0 and (NextKey222.IOCalculator and NextKey222.IOCalculator:ApproximateFractionalFromChests(chests) or 1.0) or nil,
     }
 end
 
@@ -47,7 +47,7 @@ function NextKey:SetAddFormAllBest(level, timed)
             level = level,
             timed = timed == true,
             chests = timed and 1 or 0,
-            fractionalTime = timed and self:ApproximateFractionalFromChests(1) or nil,
+            fractionalTime = timed and (NextKey222.IOCalculator and NextKey222.IOCalculator:ApproximateFractionalFromChests(1) or 0.9) or nil,
         }
     end
 end

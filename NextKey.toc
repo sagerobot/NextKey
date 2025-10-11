@@ -1,8 +1,8 @@
-## Interface: 100205
+## Interface: 110200
 ## Title: NextKey
 ## Notes: Intelligently ranks Mythic+ keys for your group.
 ## Author: Gemini & User
-## Version: 0.1.0
+## Version: 0.2.0.1
 ## X-Category: Dungeons
 ## SavedVariables: NextKeyDB
 ## OptionalDeps: RaiderIO
@@ -10,16 +10,29 @@
 # Libraries
 embeds.xml
 
-# Core System - Consolidated Boot
+# Configuration (must load before boot.lua)
+core\config.lua
+
+# Core System - Consolidated Boot  
 boot.lua
+
+# UI Components (after boot)
+ui\components.lua
 
 # Data
 data\portals.lua
 
 # Core Modules
 core\constants.lua
+core\ids.lua
+core\uiConfig.lua
+core\profiles.lua
+core\playerIOData.lua
+core\adapters\debug.lua
+core\adapters\blizzard.lua
+core\adapters\libopenraid.lua
+core\adapters\raiderio.lua
 core\utils.lua
-core\config.lua
 core\season.lua
 core\libopenraid.lua
 core\ioCalculator.lua
@@ -46,6 +59,4 @@ ui\lootWindow.lua
 options\main.lua
 options\mythic_plus.lua
 
-# Testing (remove before release)
-boot_test.lua
-test_integration.lua
+# Core functionality only - all tests removed

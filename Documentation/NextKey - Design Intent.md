@@ -1,33 +1,8 @@
-# NextKey - Addon Design Document
+# NextKey - Design Intent & User Experience
 
-## Architectural Foundation
+> **📋 For Technical Implementation**: See `AI_DEVELOPMENT_GUIDE.md` for all architectural standards, coding patterns, and technical requirements.
 
-NextKey is built using the **Details! Damage Meter architectural patterns**, ensuring robust, scalable, and maintainable code:
-
-### NextKey222 Namespace System
-- **Centralized Organization**: All modules organized under NextKey222 namespace
-- **Module Registration**: Standardized module registration and initialization system
-- **Error Resilience**: SafeRun wrapper ensures individual module failures don't crash the entire addon
-- **Performance Monitoring**: Built-in profiling system tracks performance bottlenecks
-- **Debug Framework**: Centralized logging system with module-specific debug categories
-
-### Boot System
-- **Single Entry Point**: boot.lua replaces multiple initialization files
-- **Phased Startup**: Five-phase initialization ensures proper dependency loading
-- **Dependency Management**: Proper TOC ordering and module interdependency handling
-
-#### Architectural Consolidation (✅ COMPLETED)
-**Previous State**: NextKey used three-file boot process (preboot.lua → boot.lua → startup.lua)
-**Current State**: Consolidated single boot.lua following industry standards
-**Analysis**: Major WoW addons (RaiderIO, Details, WeakAuras) all use single initialization files
-**Implementation Benefits**: ✅ Simplified architecture, ✅ Better performance, ✅ Industry alignment, ✅ Easier maintenance
-**Migration**: Original files backed up as .bak extensions for rollback capability
-
-### Core Design Principles
-1. **Modularity**: Each major feature is a self-contained module
-2. **Error Isolation**: Module failures are contained and logged, not propagated
-3. **Performance Focus**: All critical paths are profiled and optimized
-4. **Maintainability**: Clear namespace organization and standardized patterns
+This document focuses on the **user experience design** and **feature intent** behind NextKey.
 
 ## Problem Statement
 

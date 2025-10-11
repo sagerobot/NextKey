@@ -71,6 +71,15 @@ function Events:OnGroupRosterUpdate()
         end)
     end
     
+    -- Update and share dungeon scores for IOCalculator
+    if NextKey222.IOCalculator then
+        C_Timer.After(1, function()
+            NextKey.SafeRun(function()
+                NextKey222.IOCalculator:UpdateCurrentPlayerScores()
+            end, "Update dungeon scores on roster change")
+        end)
+    end
+    
     -- Refresh UI if visible (party changes affect keystone display and IO calculations)
     if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
         -- Add extra notice for IO Gain Potential mode
@@ -96,6 +105,13 @@ function Events:OnGroupJoined()
     -- Force immediate keystone scan when joining group
     if NextKey.Keystones and NextKey.Keystones.ScanAllKeystones then
         NextKey.SafeRun(NextKey.Keystones.ScanAllKeystones, "Scan all keystones on group join")
+    end
+    
+    -- Update and share dungeon scores immediately
+    if NextKey222.IOCalculator then
+        NextKey.SafeRun(function()
+            NextKey222.IOCalculator:UpdateCurrentPlayerScores()
+        end, "Update and share scores on group join")
     end
     
     -- Refresh UI immediately if visible

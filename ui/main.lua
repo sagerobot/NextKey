@@ -1,73 +1,6 @@
--- MARK: UI Main Module
--- =====================================================
--- Main UI module for NextKey addon
--- Handles player keystone cards, dungeon information display,
--- and view toggling between players and dungeons & loot
--- =====================================================
---
--- MARK: UI SIZE CONFIGURATION GUIDE
--- =================================
--- ALL UI DIMENSIONS ARE NOW CENTRALIZED BELOW!
--- Simply edit the values in the "UI SIZE CONFIGURATION VARIABLES" 
--- section (lines 44-70) to customize all dimensions at once.
---
--- No need to search through the entire file - everything is
--- in one convenient location for easy editing!
---
--- =====================================================
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
 local AceGUI = LibStub("AceGUI-3.0")
-
--- MARK: UI SIZE CONFIGURATION VARIABLES
--- =====================================================
--- Edit these values to customize all UI dimensions in one place
--- All sizes are in pixels unless otherwise noted
--- =====================================================
-
--- Main Window Dimensions
-local WINDOW_WIDTH = 550               -- Overall window width
-local WINDOW_HEIGHT = 625               -- Base window height (changes dynamically)
-
--- Dynamic View Heights  
-local DUNGEON_VIEW_HEIGHT = 775         -- Height when showing dungeon cards
-local PLAYER_VIEW_HEIGHT = 625        -- Height when showing player keystones
-
--- Dungeon Card Layout
-local DUNGEON_CARD_HEIGHT = 45          -- Height of each individual dungeon card
-local CARD_HEIGHT_CALC = 45             -- Used for height calculations (should match above)
-local HEADER_PADDING = 20               -- Extra space for headers and padding
-
--- Icon Configuration
-local ICON_SIZE = 32                    -- Dungeon icon image size (32x32px)
-local ICON_WIDTH = 40                   -- Icon container width
-
--- Text Element Widths
-local NAME_LABEL_WIDTH = 180            -- Dungeon name display width
-local SCORE_LABEL_WIDTH = 90            -- IO score display width
-
--- Button Dimensions
-local BUTTON_HEIGHT = 28                -- Standard height for all buttons
-local TELEPORT_WIDTH = 100               -- Teleport button width
-local LOOT_WIDTH = 75                  -- Loot button width  
-local PREFERENCE_WIDTH = 50             -- Like/Dislike button width
-
--- Card Spacing & Layout
-local CARD_VERTICAL_SPACING = 0         -- Vertical space between dungeon cards (0 = no gap)
-local CARD_MARGIN = 0                   -- Margin around each card
-local CONTAINER_PADDING = 0             -- Padding inside the main results container
-local USE_TIGHT_LAYOUT = true           -- Use SimpleGroup for minimal padding (true = tight, false = styled)
-local USE_ULTRA_TIGHT = false            -- Use raw frames for absolute minimal padding (requires USE_TIGHT_LAYOUT = true)
-
--- Button Configuration
-local CLOSE_BUTTON_WIDTH = 80            -- Width of the close button
-local CLOSE_BUTTON_HEIGHT = 25           -- Height of the close button
-local TOGGLE_BUTTON_WIDTH = 120          -- Width of the toggle button (wider for longer text)
-local TOGGLE_BUTTON_HEIGHT = 25          -- Height of the toggle button
-
--- =====================================================
--- END CONFIGURATION SECTION
--- =====================================================
 
 -- UI module with view mode state
 local UI = {
@@ -142,8 +75,8 @@ function UI:CreateMainFrame()
     frame:SetTitle("NextKey")
     frame:SetStatusText("UI skeleton - M0.6")
     frame:SetLayout("Flow")
-    frame:SetWidth(WINDOW_WIDTH)  -- Use centralized width variable
-    frame:SetHeight(WINDOW_HEIGHT) -- Use centralized height variable  
+    frame:SetWidth(NextKey222.UIConfig.WINDOW.WIDTH)
+    frame:SetHeight(NextKey222.UIConfig.WINDOW.BASE_HEIGHT)  
     frame:EnableResize(true)
 
     -- Standard close button behavior
@@ -168,11 +101,14 @@ function UI:CreateMainFrame()
 
     local sortDrop = AceGUI:Create("Dropdown")
     sortDrop:SetLabel("Sort Mode")
-    sortDrop:SetList({ 
-        HighestKeyLevel = "Highest Key Level", 
-        LowestKeyLevel = "Lowest Key Level",
-        IOGainPotential = "IO Gain Potential"
-    })
+    
+    -- Store reference to dropdown for updates
+    self.sortDropdown = sortDrop
+    
+    -- Set initial dropdown options based on current view (defaults to keystone view)
+    self.viewMode = self.viewMode or "keystones"
+    self:UpdateSortDropdownOptions()
+    
     sortDrop:SetValue(self:GetCurrentSortMode())
     sortDrop:SetCallback("OnValueChanged", function(_, _, key)
         self:SetCurrentSortMode(key)
@@ -209,7 +145,22 @@ function UI:CreateMainFrame()
     syncBtn:SetText("Sync")
     syncBtn:SetAutoWidth(true)
     syncBtn:SetCallback("OnClick", function()
-        NextKey222.Addon:SendSync()
+        if NextKey222.Communications then
+            -- Ensure current player's IO data is refreshed
+            NextKey222.Communications:EnsureCurrentPlayerIOData()
+            
+            -- Send sync to request data from others
+            if NextKey222.Communications.SendSync then
+                NextKey222.Communications:SendSync()
+            end
+            
+            -- Request IO data from party members  
+            if NextKey222.Communications.RequestPartyIOData then
+                NextKey222.Communications:RequestPartyIOData()
+            end
+        else
+            NextKey222.Addon:Print("Communications not available")
+        end
     end)
     controls:AddChild(syncBtn)
 
@@ -218,6 +169,22 @@ function UI:CreateMainFrame()
     guildToggleBtn:SetText(self.showGuildKeys and "Guild Keys" or "Party Keys")
     guildToggleBtn:SetAutoWidth(true)
     guildToggleBtn:SetCallback("OnClick", function()
+        -- Enhanced guild toggle with immediate feedback
+        if not self.showGuildKeys and IsInGuild() then
+            -- Switching to guild mode - show immediate feedback
+            NextKey222.Addon:Print("Requesting guild keystones... (requires LibOpenRaid-compatible addons)")
+            
+            -- Try direct LibOpenRaid request as well as our integration
+            if LibStub then
+                local lib = LibStub:GetLibrary("LibOpenRaid-1.0", true)
+                if lib then
+                    lib.RequestKeystoneDataFromGuild()
+                end
+            end
+        elseif not self.showGuildKeys and not IsInGuild() then
+            NextKey222.Addon:Print("Not in a guild - cannot show guild keystones")
+        end
+        
         self:ToggleGuildFilter()
     end)
     controls:AddChild(guildToggleBtn)
@@ -304,6 +271,21 @@ function UI:ToggleMainFrame()
     end
 end
 
+-- Get fake player data (addon status, profiles) from DebugAdapter
+function UI:GetFakePlayerData(playerName)
+    if not playerName or not NextKey222.ProfilesService then
+        return nil
+    end
+    
+    -- Check if this is a fake player by getting their debug profile
+    local debugProfile = NextKey222.ProfilesService:GetDebugProfile(playerName)
+    if debugProfile and debugProfile.addonStatus then
+        return debugProfile
+    end
+    
+    return nil
+end
+
 -- MARK: Individual Player Analysis
 --
 -- Functions for analyzing and displaying individual player IO improvement potential
@@ -311,7 +293,151 @@ end
 -- Individual Player Recommendations function removed - no longer needed
 -- Now focusing on group-based keystone ranking by IO gain potential
 
--- MARK: Data Management & Sorting
+-- MARK: Data Management
+
+-- Create dungeon ranking system (1-8) for cross-addon comparison
+-- Lower rank = weaker dungeon, Higher rank = stronger dungeon
+function UI:GetDungeonRankings(playerName)
+    local rankings = {}
+    local dungeonData = {}
+    
+    -- Get current season dungeons
+    local dungeons = NextKey222.Addon.PortalData and NextKey222.Addon.PortalData.dungeons or {}
+    
+    -- Check if this is current player (use NextKey/WoW API data)
+    local currentPlayerName = UnitName("player")
+    local isCurrentPlayer = (playerName == currentPlayerName) or 
+                           (playerName:match("^([^%-]+)") == currentPlayerName)
+    
+    if isCurrentPlayer then
+        NextKey222.Debug:Print("ui", "Creating IO score rankings for current player:", playerName)
+        
+        -- For current player: rank by IO scores (NextKey method)
+        for dungeonID, dungeonInfo in pairs(dungeons) do
+            local ioScore = self:GetRaiderIODungeonScore(dungeonID)
+            table.insert(dungeonData, {
+                dungeonID = dungeonID,
+                value = ioScore,
+                name = dungeonInfo.name
+            })
+        end
+        
+        -- Sort by IO score (lowest to highest for ranking)
+        table.sort(dungeonData, function(a, b) return a.value < b.value end)
+        
+    else
+        NextKey222.Debug:Print("ui", "Creating key level rankings for party member:", playerName)
+        
+        -- For party members: try RaiderIO key levels as fallback
+        if RaiderIO and RaiderIO.GetProfile then
+            local profile = RaiderIO.GetProfile(playerName)
+            if profile and profile.mythicKeystoneProfile and profile.mythicKeystoneProfile.sortedDungeons then
+                
+                -- Map RaiderIO dungeons to NextKey IDs and get levels
+                for i, rioData in ipairs(profile.mythicKeystoneProfile.sortedDungeons) do
+                    local nextKeyID = self:FindNextKeyIDFromRaiderIO(rioData)
+                    if nextKeyID and dungeons[nextKeyID] then
+                        table.insert(dungeonData, {
+                            dungeonID = nextKeyID,
+                            value = rioData.level or 0,
+                            name = dungeons[nextKeyID].name
+                        })
+                    end
+                end
+                
+                -- Sort by key level (lowest to highest for ranking)
+                table.sort(dungeonData, function(a, b) return a.value < b.value end)
+            end
+        end
+        
+        -- If no RaiderIO data, check for NextKey communication
+        if #dungeonData == 0 and NextKey222.Communications then
+            NextKey222.Debug:Print("ui", "Trying NextKey communication for", playerName)
+            
+            if NextKey222.Communications:HasScoresForPlayer(playerName) then
+                local partyScores = NextKey222.Communications:GetPartyMemberScores(playerName)
+                
+                for dungeonID, scoreData in pairs(partyScores) do
+                    if dungeons[dungeonID] then
+                        table.insert(dungeonData, {
+                            dungeonID = dungeonID,
+                            value = scoreData.score or 0,
+                            name = dungeons[dungeonID].name
+                        })
+                    end
+                end
+                
+                -- Sort by IO score (lowest to highest for ranking)
+                table.sort(dungeonData, function(a, b) return a.value < b.value end)
+            end
+        end
+    end
+    
+    -- Create 1-8 rankings (1 = weakest/lowest, 8 = strongest/highest)
+    for rank, data in ipairs(dungeonData) do
+        rankings[data.dungeonID] = {
+            rank = rank,
+            value = data.value,
+            dungeonName = data.name,
+            dataType = isCurrentPlayer and "io_score" or "key_level"
+        }
+        
+        NextKey222.Debug:Print("ui", string.format("Player %s dungeon %s: rank %d (value: %d %s)",
+            playerName, data.name, rank, data.value, isCurrentPlayer and "IO" or "level"))
+    end
+    
+    NextKey222.Debug:Print("ui", string.format("Created rankings for %s: %d dungeons ranked", 
+        playerName, #dungeonData))
+    
+    return rankings
+end
+
+-- Compare two players by their dungeon rankings
+function UI:CompareDungeonRankings(playerA, playerB, dungeonID)
+    local rankingsA = self:GetDungeonRankings(playerA)
+    local rankingsB = self:GetDungeonRankings(playerB)
+    
+    local rankA = rankingsA[dungeonID] and rankingsA[dungeonID].rank or 0
+    local rankB = rankingsB[dungeonID] and rankingsB[dungeonID].rank or 0
+    
+    NextKey222.Debug:Print("ui", string.format("Dungeon comparison - %s: rank %d, %s: rank %d", 
+        playerA, rankA, playerB, rankB))
+    
+    return rankA, rankB
+end
+
+
+
+-- Get RaiderIO keystone levels as fallback for score estimation
+
+
+-- Find NextKey dungeon ID from RaiderIO dungeon data
+function UI:FindNextKeyIDFromRaiderIO(dungeonData)
+    if not dungeonData or not dungeonData.name then
+        return nil
+    end
+    
+    -- Map RaiderIO dungeon names to NextKey IDs
+    local nameMapping = {
+        ["Ara-Kara, City of Echoes"] = 1,
+        ["City of Threads"] = 2, 
+        ["The Stonevault"] = 3,
+        ["The Dawnbreaker"] = 4,
+        ["Mists of Tirna Scithe"] = 5,
+        ["The Necrotic Wake"] = 6,
+        ["Siege of Boralus"] = 7,
+        ["Grim Batol"] = 8
+    }
+    
+    local nextKeyID = nameMapping[dungeonData.name]
+    if not nextKeyID then
+        NextKey222.Debug:Print("ui", "Unknown RaiderIO dungeon name:", dungeonData.name)
+    end
+    
+    return nextKeyID
+end
+
+-- MARK: Sorting
 --
 -- Functions responsible for sorting keystone data, managing display modes,
 -- and organizing data for presentation in the UI.
@@ -348,6 +474,41 @@ function UI:SortKeys(keys, mode)
     return sorted
 end
 
+--- Updates sort dropdown options based on current view mode
+function UI:UpdateSortDropdownOptions()
+    if not self.sortDropdown then
+        return
+    end
+    
+    if self.viewMode == "dungeons" then
+        -- Dungeon view: Alphabetical, Highest IO, Lowest IO
+        self.sortDropdown:SetList({
+            Alphabetical = "Alphabetical",
+            HighestIO = "Highest IO Score", 
+            LowestIO = "Lowest IO Score"
+        })
+        -- Set default sort for dungeons if current sort isn't valid
+        local currentSort = self:GetCurrentSortMode()
+        if currentSort ~= "Alphabetical" and currentSort ~= "HighestIO" and currentSort ~= "LowestIO" then
+            self:SetCurrentSortMode("Alphabetical")
+            self.sortDropdown:SetValue("Alphabetical")
+        end
+    else
+        -- Keystone view: original options
+        self.sortDropdown:SetList({ 
+            HighestKeyLevel = "Highest Key Level", 
+            LowestKeyLevel = "Lowest Key Level",
+            IOGainPotential = "IO Gain Potential"
+        })
+        -- Set default sort for keystones if current sort isn't valid
+        local currentSort = self:GetCurrentSortMode()
+        if currentSort ~= "HighestKeyLevel" and currentSort ~= "LowestKeyLevel" and currentSort ~= "IOGainPotential" then
+            self:SetCurrentSortMode("HighestKeyLevel")
+            self.sortDropdown:SetValue("HighestKeyLevel")
+        end
+    end
+end
+
 -- MARK: Main Rendering Functions
 --
 -- Core functions responsible for rendering the primary UI content,
@@ -382,18 +543,16 @@ function UI:RenderResults()
 
     -- Update status text
     local mode = self:GetCurrentSortMode()
-    if self.mainFrame and self.mainFrame.SetStatusText then
-        local count = keys and #keys or 0
-        local statusText = string.format("Mode: %s | Keys: %d | M0.6", tostring(mode), count)
-        
-        -- Add extra info for IO Gain mode
-        if mode == "IOGainPotential" then
-            local partySize = #(NextKey:GetPartyMemberNames() or {})
-            statusText = statusText .. string.format(" | Party: %d", partySize)
-        end
-        
-        self.mainFrame:SetStatusText(statusText)
+    local count = keys and #keys or 0
+    local statusText = string.format("Mode: %s | Keys: %d | M0.6", tostring(mode), count)
+    
+    -- Add extra info for IO Gain mode
+    if mode == "IOGainPotential" then
+        local partySize = #(NextKey:GetPartyMemberNames() or {})
+        statusText = statusText .. string.format(" | Party: %d", partySize)
     end
+    
+    NextKey222.Addon:Print(statusText)
 
     if not keys or #keys == 0 then
         local none = AceGUI:Create("Label")
@@ -441,111 +600,45 @@ end
 -- @param entry table The keystone data containing player info, key details, and scores
 -- Handles both real player keystones and fake player data for testing
 function UI:AddKeyRow(entry)
-    -- AddKeyRow processing
     local keyInfo = entry.key
-    local dungeonName
-    -- Enhanced dungeon name debugging
-    NextKey222.Addon:Print(string.format("[DUNGEON DEBUG] %s: dungeonID=%s, level=%s", 
-        keyInfo.ownerName or "Unknown", tostring(keyInfo.dungeonID), tostring(keyInfo.level)))
     
+    -- Get dungeon name
+    local dungeonName = "No Keystone"
     if keyInfo.dungeonID and keyInfo.dungeonID > 0 then
         dungeonName = NextKey222.Addon:GetDungeonName(keyInfo.dungeonID)
-        NextKey222.Addon:Print(string.format("[DUNGEON DEBUG] GetDungeonName(%d) returned: %s", 
-            keyInfo.dungeonID, tostring(dungeonName)))
         if not dungeonName or dungeonName == "" then
             dungeonName = "Unknown Dungeon (ID:" .. keyInfo.dungeonID .. ")"
         end
     else
-        dungeonName = "No Keystone"
-        NextKey222.Addon:Print(string.format("[DUNGEON DEBUG] %s has dungeonID=%s (showing 'No Keystone')", 
-            keyInfo.ownerName or "Unknown", tostring(keyInfo.dungeonID)))
+        keyInfo.level = 0
     end
-    -- Always use full name with realm (ownerName) for display
-    local ownerName = keyInfo.ownerName or "Unknown"
-    -- If ownerName doesn't have realm, try to add current realm for same-server players
-    if ownerName and not string.find(ownerName, "-") then
-        local currentRealm = GetRealmName()
-        if currentRealm and currentRealm ~= "" then
-            ownerName = ownerName .. "-" .. currentRealm
-        end
+    
+    -- Normalize player name and get score using components
+    if not NextKey222.UIComponents then
+        NextKey222.Addon:Print("ERROR: UIComponents not loaded! Check load order.")
+        return
     end
+    
+    local ownerName = NextKey222.UIComponents:NormalizePlayerName(keyInfo.ownerName)
+    local score = NextKey222.UIComponents:GetPlayerScore(keyInfo)
     local classToken = keyInfo.class or "WARRIOR"
     
-    -- Get player IO score (enhanced retrieval)
-    local score = 0
-    -- Try multiple sources for IO score (LibOpenRaid uses 'rating' field)
-    score = keyInfo.rating or keyInfo.rioScore or keyInfo.io or keyInfo.score or 0
-    
-    -- IO score retrieval (debug logging removed for performance)
-    
-    -- For the actual player, also try getting current RaiderIO data
-    if NextKey222.Addon.IsPlayerOwner and NextKey222.Addon:IsPlayerOwner(ownerName) then
-        if self.GetTotalIOScore then
-            local playerScore = self:GetTotalIOScore()
-            if playerScore and playerScore > score then
-                score = playerScore
-            end
-        end
-    end
-    
-    -- Final score calculated (debug logging removed for performance)
-    
-    -- Check for RaiderIO data specifically using the proper API
-    if RaiderIO and RaiderIO.GetProfile then
-        local profile = RaiderIO.GetProfile(ownerName)
-        if profile and profile.mythicKeystoneProfile then
-            local rioScore = profile.mythicKeystoneProfile.currentScore
-            -- Update score if RaiderIO has a better value
-            if rioScore and rioScore > score then
-                score = rioScore
-            end
-        end
-    end
-    
-    -- KeyInfo properties available for debugging if needed
-    local classColor = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]
-    local ownerColor = classColor and classColor.colorStr or "ffffffff"
-
-    local container = AceGUI:Create("SimpleGroup")
-    container:SetFullWidth(true)
-    container:SetLayout("Fill")
-    container:SetAutoAdjustHeight(false)
-    container:SetHeight(88)
+    -- Create container using component factory
+    local container = NextKey222.UIComponents:CreateCardContainer(88, false)
     self.resultsFrame:AddChild(container)
-
-    local frame = CreateFrame("Frame", nil, container.frame, "BackdropTemplate")
-    frame:SetAllPoints(container.frame)
-    frame:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    frame:SetBackdropColor(0, 0, 0, 0.55)
-    frame:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+    
+    -- Create backdrop using component factory
+    local frame = NextKey222.UIComponents:CreateBackdrop(container.frame, "keystone")
     trackAuxFrame(self, frame)
-
-    local icon = frame:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(32, 32)
+    
+    -- Create class icon using component factory
+    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 32)
     icon:SetPoint("LEFT", 12, 0)
-    icon:SetTexture("Interface/TargetingFrame/UI-Classes-Circles")
-    local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classToken]
-    if coords then
-        icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-    end
-
+    
+    -- Create formatted player name text
     local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, -2)
-    
-    -- Score was calculated above, now display it
-    
-    local nameDisplay = string.format("|c%s%s|r", ownerColor, ownerName)
-    if score > 0 then
-        nameDisplay = string.format("%s |cffFFD700(%d)|r", nameDisplay, score)
-    end
-    nameText:SetText(nameDisplay)
+    nameText:SetText(NextKey222.UIComponents:FormatPlayerNameWithScore(ownerName, classToken, score))
     nameText:SetJustifyH("LEFT")
 
     -- Add prominent IO gain display for IOGainPotential sort mode
@@ -558,8 +651,8 @@ function UI:AddKeyRow(entry)
             ioGainText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
             ioGainText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -8)
             
-            -- Use dynamic formatting based on display mode
-            local displayText = self:FormatIOGainDisplay(ioRange)
+            -- Format IO gain display (simple range format)
+            local displayText = string.format("+%d IO", math.floor(ioRange.expected))
             ioGainText:SetText(string.format("|cff00ff00%s|r", displayText))
             ioGainText:SetJustifyH("RIGHT")
             
@@ -568,17 +661,113 @@ function UI:AddKeyRow(entry)
             ioGainButton:SetAllPoints(ioGainText)
             ioGainButton:SetScript("OnEnter", function(btn)
                 GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-                GameTooltip:SetText("Group IO Gain Breakdown")
-                GameTooltip:AddLine(string.format("Expected: +%d IO", math.floor(ioRange.expected)), 0, 1, 0)
-                GameTooltip:AddLine(string.format("Range: +%d to +%d IO", math.floor(ioRange.min), math.floor(ioRange.max)), 1, 1, 1)
-                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
                 
-                -- Add player breakdown
+                -- Debug: Check where ioRange comes from
+                local usedPreCalculated = entry.ioGainRange ~= nil
+                print("NextKey TOOLTIP DEBUG: Using", usedPreCalculated and "pre-calculated" or "recalculated", "ioRange")
+                if ioRange.playerBreakdown then
+                    -- Count players in breakdown
+                    local playerCount = 0
+                    for _ in pairs(ioRange.playerBreakdown) do
+                        playerCount = playerCount + 1
+                    end
+                    print("NextKey TOOLTIP DEBUG: Player breakdown has", playerCount, "players")
+                    for playerName, _ in pairs(ioRange.playerBreakdown) do
+                        print("NextKey TOOLTIP DEBUG: Breakdown includes player:", playerName)
+                    end
+                else
+                    print("NextKey TOOLTIP DEBUG: No player breakdown available")
+                end
+                
+                -- Get dungeon name and owner info for enhanced header
+                local dungeonName = "Unknown Dungeon"
+                local ownerName = keyInfo and keyInfo.ownerName or "Unknown"
+                if keyInfo and keyInfo.dungeonID and keyInfo.dungeonID > 0 then
+                    dungeonName = NextKey222.Addon:GetDungeonName(keyInfo.dungeonID) or ("Dungeon " .. keyInfo.dungeonID)
+                end
+                
+                -- Enhanced header with dungeon, level, and owner information
+                local keystoneLevel = keyInfo and keyInfo.level or 0
+                local headerText = string.format("%s (+%d) - %s's Key", dungeonName, keystoneLevel, ownerName:match("^([^%-]+)") or ownerName)
+                GameTooltip:SetText(headerText, 1, 1, 1, 1, true)
+                GameTooltip:AddLine("Group IO Gain Potential", 0.9, 0.9, 1)
+                
+                -- Show simple group IO summary
+                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                GameTooltip:AddLine(string.format("Group IO Gain: +%d", math.floor(ioRange.expected)), 0, 1, 0)
+                GameTooltip:AddLine(string.format("Range: +%d to +%d", math.floor(ioRange.min), math.floor(ioRange.max)), 0.8, 0.8, 0.8)
+                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                GameTooltip:AddLine("Individual Player Breakdown:", 0.9, 0.9, 0.9)
+                
+                -- Add enhanced player breakdown with improved format
                 if ioRange.playerBreakdown then
                     for playerName, breakdown in pairs(ioRange.playerBreakdown) do
                         local shortName = playerName:match("^([^%-]+)") or playerName
-                        local gainText = string.format("%s: %s", shortName, breakdown.gainText)
-                        GameTooltip:AddLine(gainText, 0.8, 0.8, 0.8)
+                        
+                        -- Check if this player has valid NextKey data
+                        local minGain = breakdown.min or 0
+                        local maxGain = breakdown.max or 0
+                        
+                        -- Get current dungeon-specific IO score using IOCalculator (handles all player types)
+                        local currentDungeonIO = 0
+                        local dungeonID = keyInfo and keyInfo.dungeonID
+                        
+                        if dungeonID and NextKey222.IOCalculator then
+                            -- IOCalculator handles fake players, communications, and real players properly
+                            currentDungeonIO = NextKey222.IOCalculator:GetPlayerDungeonScore(playerName, dungeonID) or 0
+                            NextKey222.Debug:Print("tooltip", "Current dungeon IO for", playerName, "dungeon", dungeonID .. ":", currentDungeonIO)
+                        end
+                        
+                        -- Check for fake player addon status first
+                        local fakePlayerData = self:GetFakePlayerData(playerName)
+                        local hasNextKey = false
+                        
+                        if fakePlayerData and fakePlayerData.addonStatus then
+                            hasNextKey = fakePlayerData.addonStatus.nextkey or false
+                        else
+                            -- Determine if player has NextKey (valid score data)
+                            hasNextKey = (minGain > 0 or maxGain > 0 or currentDungeonIO > 0)
+                        end
+                        
+                        if hasNextKey then
+                            -- NextKey user: Single line format with colors
+                            local potentialColor = "|cff00ff00" -- Green by default
+                            if math.floor(minGain) == 0 and math.floor(maxGain) == 0 then
+                                potentialColor = "|cff999999" -- Grey when no potential gain
+                            end
+                            
+                            -- Get highest key level completed for this dungeon
+                            local bestLevel = 0
+                            local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
+                            local isCurrentPlayer = (playerName == currentPlayer) or 
+                                                  (playerName:match("^([^%-]+)") == UnitName("player"))
+                            
+                            if isCurrentPlayer and dungeonID then
+                                -- For current player, use GetBestLevel method
+                                bestLevel = self:GetBestLevel(dungeonID) or 0
+                            elseif fakePlayerData and fakePlayerData.best and dungeonID then
+                                -- For fake players, find their highest completed level for this dungeon
+                                local bestRun = fakePlayerData.best[dungeonID]
+                                if bestRun and bestRun.level then
+                                    bestLevel = bestRun.level
+                                end
+                            end
+                            
+                            -- Build the player line with best level info
+                            local bestLevelText = bestLevel > 0 and string.format(" |cff4aa3ff+%d|r", bestLevel) or ""
+                            local playerLine = string.format("%s: %s(+%d-%d Potential IO)|r |cffffff00(Current IO: %d)|r%s", 
+                                shortName, 
+                                potentialColor,
+                                math.floor(minGain), 
+                                math.floor(maxGain), 
+                                math.floor(currentDungeonIO),
+                                bestLevelText)
+                            GameTooltip:AddLine(playerLine, 1, 1, 1) -- White text for name
+                        else
+                            -- Non-NextKey user: Grey "NextKey Not Installed" message
+                            local playerLine = string.format("%s: NextKey Not Installed", shortName)
+                            GameTooltip:AddLine(playerLine, 0.6, 0.6, 0.6) -- Grey text
+                        end
                     end
                 end
                 
@@ -605,21 +794,19 @@ function UI:AddKeyRow(entry)
         bestText:SetJustifyH("LEFT")
     end
 
-    local selectBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    selectBtn:SetSize(80, 22)
+    -- Create select button using component factory
+    local selectBtn = NextKey222.UIComponents:CreateButton(frame, "select", nil, nil)
     selectBtn:SetPoint("RIGHT", frame, "RIGHT", -12, 0)
-    selectBtn:SetText("Select")
-    selectBtn:SetMotionScriptsWhileDisabled(true)
     trackAuxFrame(self, selectBtn)
-
+    
+    -- Configure button state and behavior
     local isLeader = NextKey222.Addon:IsLeaderOrSolo()
     local isSelected = NextKey222.Addon.IsKeySelected and NextKey222.Addon:IsKeySelected(keyInfo)
-
+    
     if isSelected then
         selectBtn:SetText("Selected")
         selectBtn:Disable()
         selectBtn:SetAlpha(0.85)
-        selectBtn:SetScript("OnClick", nil)
         selectBtn:SetScript("OnEnter", function(btn)
             GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
             GameTooltip:SetText("This keystone is currently selected for teleports.")
@@ -627,7 +814,6 @@ function UI:AddKeyRow(entry)
         end)
     elseif isLeader then
         selectBtn:Enable()
-        selectBtn:SetAlpha(1)
         selectBtn:SetScript("OnClick", function()
             NextKey222.Addon:SetTeleportTargetKey(keyInfo, { broadcast = true })
         end)
@@ -640,7 +826,6 @@ function UI:AddKeyRow(entry)
     else
         selectBtn:Disable()
         selectBtn:SetAlpha(0.4)
-        selectBtn:SetScript("OnClick", nil)
         selectBtn:SetScript("OnEnter", function(btn)
             GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
             GameTooltip:SetText("Only the party leader can select a key.")
@@ -654,118 +839,48 @@ end
 -- @param entry table The keystone data containing player info, key details, and scores
 -- Uses aliases and condensed layout to save vertical space
 function UI:AddKeyRowCompact(entry)
-    -- AddKeyRowCompact processing
     local keyInfo = entry.key
-    -- Use FULL dungeon names in compact mode (we have horizontal room)
-    local dungeonName = "No Key"
-    NextKey222.Addon:Print(string.format("[DUNGEON DEBUG COMPACT] %s: dungeonID=%s, level=%s", 
-        keyInfo.ownerName or "Unknown", tostring(keyInfo.dungeonID), tostring(keyInfo.level)))
     
+    -- Get dungeon name
+    local dungeonName = "No Key"
     if keyInfo.dungeonID and keyInfo.dungeonID > 0 then
-        NextKey222.Addon:Print(string.format("[DUNGEON DEBUG COMPACT] Calling GetDungeonName with dungeonID: %d", keyInfo.dungeonID))
         dungeonName = NextKey222.Addon:GetDungeonName(keyInfo.dungeonID)
-        NextKey222.Addon:Print(string.format("[DUNGEON DEBUG COMPACT] GetDungeonName(%d) returned: %s (type: %s)", 
-            keyInfo.dungeonID, tostring(dungeonName), type(dungeonName)))
-        
-        -- Also try the Blizzard API directly for comparison
-        local blizzardName = C_ChallengeMode.GetMapUIInfo(keyInfo.dungeonID)
-        NextKey222.Addon:Print(string.format("[DUNGEON DEBUG COMPACT] C_ChallengeMode.GetMapUIInfo(%d) returned: %s", 
-            keyInfo.dungeonID, tostring(blizzardName)))
-        
         if not dungeonName or dungeonName == "" then
             dungeonName = "Unknown Dungeon (ID:" .. keyInfo.dungeonID .. ")"
         end
-    else
-        NextKey222.Addon:Print(string.format("[DUNGEON DEBUG COMPACT] Skipping GetDungeonName - dungeonID is %s", tostring(keyInfo.dungeonID)))
     end
-    -- Always use full name with realm (ownerName) for display  
-    local ownerName = keyInfo.ownerName or "Unknown"
-    -- If ownerName doesn't have realm, try to add current realm for same-server players
-    if ownerName and not string.find(ownerName, "-") then
-        local currentRealm = GetRealmName()
-        if currentRealm and currentRealm ~= "" then
-            ownerName = ownerName .. "-" .. currentRealm
-        end
+    
+    -- Use component system for consistent processing
+    if not NextKey222.UIComponents then
+        NextKey222.Addon:Print("ERROR: UIComponents not loaded! Check load order.")
+        return
     end
+    
+    local ownerName = NextKey222.UIComponents:NormalizePlayerName(keyInfo.ownerName)
+    local score = NextKey222.UIComponents:GetPlayerScore(keyInfo)
     local classToken = keyInfo.class or "WARRIOR"
     
-    -- Enhanced IO score retrieval (same as regular mode)
-    local score = 0
-    -- Try multiple sources for IO score (LibOpenRaid uses 'rating' field)
-    score = keyInfo.rating or keyInfo.rioScore or keyInfo.io or keyInfo.score or 0
-    
-    -- IO score retrieval (debug logging removed for performance)
-    
-    -- For the actual player, also try getting current RaiderIO data
-    if NextKey222.Addon.IsPlayerOwner and NextKey222.Addon:IsPlayerOwner(ownerName) then
-        if self.GetTotalIOScore then
-            local playerScore = self:GetTotalIOScore()
-            if playerScore and playerScore > score then
-                score = playerScore
-            end
-        end
-    end
-    
-    -- Final score calculated for compact view (debug logging removed for performance)
-    
-    -- Check for RaiderIO data specifically using the proper API (compact view)
-    if RaiderIO and RaiderIO.GetProfile then
-        local profile = RaiderIO.GetProfile(ownerName)
-        if profile and profile.mythicKeystoneProfile then
-            local rioScore = profile.mythicKeystoneProfile.currentScore
-            -- Update score if RaiderIO has a better value
-            if rioScore and rioScore > score then
-                score = rioScore
-            end
-        end
-    end
-    
-    local classColor = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]
-    local ownerColor = classColor and classColor.colorStr or "ffffffff"
-
-    local container = AceGUI:Create("SimpleGroup")
-    container:SetFullWidth(true)
-    container:SetLayout("Fill")
-    container:SetAutoAdjustHeight(false)
-    container:SetHeight(28) -- Much smaller height for compact mode
+    -- Create compact container
+    local container = NextKey222.UIComponents:CreateCardContainer(28, true)
     self.resultsFrame:AddChild(container)
-
-    local frame = CreateFrame("Frame", nil, container.frame, "BackdropTemplate")
-    frame:SetAllPoints(container.frame)
-    frame:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 8, -- Thinner border
-        insets = { left = 2, right = 2, top = 2, bottom = 2 }, -- Smaller insets
-    })
-    frame:SetBackdropColor(0, 0, 0, 0.45)
-    frame:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+    
+    -- Create compact backdrop
+    local frame = NextKey222.UIComponents:CreateBackdrop(container.frame, "keystone_compact")
     trackAuxFrame(self, frame)
-
-    -- Smaller class icon
-    local icon = frame:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(20, 20)
+    
+    -- Create smaller class icon
+    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 20)
     icon:SetPoint("LEFT", 8, 0)
-    icon:SetTexture("Interface/TargetingFrame/UI-Classes-Circles")
-    local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classToken]
-    if coords then
-        icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-    end
-
-    -- Single line with all info: "PlayerName (1234) | Ara +15" 
+    
+    -- Create compact single-line text
     local mainText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mainText:SetPoint("LEFT", icon, "RIGHT", 8, 0)
     
-    local nameDisplay = string.format("|c%s%s|r", ownerColor, ownerName)
-    if score > 0 then
-        nameDisplay = string.format("%s |cffFFD700(%d)|r", nameDisplay, score)
-    end
+    -- Format combined display text
+    local nameDisplay = NextKey222.UIComponents:FormatPlayerNameWithScore(ownerName, classToken, score)
+    local keyDisplay = NextKey222.UIComponents:FormatKeystoneDisplay(dungeonName, keyInfo.level)
     
-    local keyDisplay = string.format("|cff4aa3ff%s +%d|r", dungeonName, keyInfo.level or 0)
-    
-    -- Add IO gain potential display when using that sort mode
+    -- Add IO gain if in IO gain mode
     local currentSortMode = self:GetCurrentSortMode()
     local fullText
     if currentSortMode == "IOGainPotential" and entry.ioGainPotential then
@@ -777,23 +892,19 @@ function UI:AddKeyRowCompact(entry)
     mainText:SetText(fullText)
     mainText:SetJustifyH("LEFT")
 
-    -- Smaller select button
-    local selectBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    selectBtn:SetSize(50, 18)
+    -- Create compact select button
+    local selectBtn = NextKey222.UIComponents:CreateButton(frame, "select_compact", nil, nil)
     selectBtn:SetPoint("RIGHT", frame, "RIGHT", -6, 0)
-    selectBtn:SetText("Select")
-    selectBtn:SetMotionScriptsWhileDisabled(true)
     trackAuxFrame(self, selectBtn)
-
-    -- Same selection logic as regular mode
+    
+    -- Configure compact button state
     local isLeader = NextKey222.Addon:IsLeaderOrSolo()
     local isSelected = NextKey222.Addon.IsKeySelected and NextKey222.Addon:IsKeySelected(keyInfo)
-
+    
     if isSelected then
         selectBtn:SetText("✓")
         selectBtn:Disable()
         selectBtn:SetAlpha(0.85)
-        selectBtn:SetScript("OnClick", nil)
         selectBtn:SetScript("OnEnter", function(btn)
             GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
             GameTooltip:SetText("This keystone is currently selected for teleports.")
@@ -801,7 +912,6 @@ function UI:AddKeyRowCompact(entry)
         end)
     elseif isLeader then
         selectBtn:Enable()
-        selectBtn:SetAlpha(1)
         selectBtn:SetScript("OnClick", function()
             NextKey222.Addon:SetTeleportTargetKey(keyInfo, { broadcast = true })
         end)
@@ -814,7 +924,6 @@ function UI:AddKeyRowCompact(entry)
     else
         selectBtn:Disable()
         selectBtn:SetAlpha(0.4)
-        selectBtn:SetScript("OnClick", nil)
         selectBtn:SetScript("OnEnter", function(btn)
             GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
             GameTooltip:SetText("Only the party leader can select a key.")
@@ -860,18 +969,22 @@ end
 --- Toggles between keystone view and dungeon information view
 -- Updates the toggle button text and triggers appropriate rendering function
 function UI:ToggleViewMode()
+    NextKey222.Addon:Print("ToggleViewMode called, current mode:", self.viewMode or "nil")
     if self.viewMode == "keystones" then
         self.viewMode = "dungeons"
+        NextKey222.Addon:Print("Switching to dungeon view")
         if self.viewToggleBtn then
             self.viewToggleBtn:SetText("Switch to Keystone View")  -- Show what clicking will do
         end
+        -- Update sort dropdown options for dungeon view
+        self:UpdateSortDropdownOptions()
         -- Show total score in dungeon view
         if self.totalScoreLabel then
-            self.totalScoreLabel:SetText("|cFFFFD100Total IO: " .. self:GetTotalIOScore() .. "|r")
+            self.totalScoreLabel:SetText(self:FormatColoredTotalScore(NextKey222.Addon:GetRaiderIOTotalScore()))
         end
         -- Use centralized dungeon view height
         if self.mainFrame then
-            self.mainFrame:SetHeight(DUNGEON_VIEW_HEIGHT)
+            self.mainFrame:SetHeight(NextKey222.UIConfig.WINDOW.DUNGEON_VIEW_HEIGHT)
         end
         self:RenderDungeonCards()
     else
@@ -879,13 +992,15 @@ function UI:ToggleViewMode()
         if self.viewToggleBtn then
             self.viewToggleBtn:SetText("Switch to Dungeons View")  -- Show what clicking will do
         end
+        -- Update sort dropdown options for keystone view
+        self:UpdateSortDropdownOptions()
         -- Hide total score in keystone view
         if self.totalScoreLabel then
             self.totalScoreLabel:SetText("")
         end
         -- Use centralized keystone view height
         if self.mainFrame then
-            self.mainFrame:SetHeight(PLAYER_VIEW_HEIGHT)
+            self.mainFrame:SetHeight(NextKey222.UIConfig.WINDOW.PLAYER_VIEW_HEIGHT)
         end
         self:RenderResults()
     end
@@ -900,12 +1015,65 @@ function UI:ToggleGuildFilter()
     end
     
     NextKey222.Debug:Print("ui", "Guild filter toggled:", self.showGuildKeys and "showing guild keys" or "showing party only")
+    print("NextKey TOGGLE DEBUG: Guild keys mode:", self.showGuildKeys and "ENABLED" or "DISABLED")
     
-    -- Refresh the current view
-    if self.viewMode == "dungeons" then
-        self:RenderDungeonCards()
+    -- When switching to guild mode, request guild keystones
+    if self.showGuildKeys then
+        print("NextKey TOGGLE DEBUG: Switching to guild mode, requesting guild keystones...")
+        
+        -- Request guild keystones from multiple sources
+        local success = false
+        if NextKey222.LibOpenRaidIntegration then
+            success = NextKey222.LibOpenRaidIntegration:RequestGuildKeystones()
+            NextKey222.Debug:Print("ui", "LibOpenRaid guild keystone request sent:", success and "success" or "failed")
+            print("NextKey TOGGLE DEBUG: LibOpenRaid request result:", success and "SUCCESS" or "FAILED")
+        end
+        
+        -- Also request via addon's own guild communication system
+        local NextKey = NextKey222.Addon
+        if NextKey and NextKey.RequestGuildKeystones then
+            local commSuccess = NextKey:RequestGuildKeystones()
+            NextKey222.Debug:Print("ui", "Communication guild keystone request sent:", commSuccess and "success" or "failed")
+            print("NextKey TOGGLE DEBUG: Communication request result:", commSuccess and "SUCCESS" or "FAILED")
+            success = success or commSuccess
+        end
+        
+        -- Clear cached keystones to force refresh
+        if NextKey then
+            NextKey.cachedKeys = nil
+        end
+        
+        -- Add multiple refresh attempts to catch incoming data
+        local refreshAttempts = 0
+        local maxAttempts = 3
+        
+        local function refreshUI()
+            refreshAttempts = refreshAttempts + 1
+            NextKey222.Debug:Print("ui", "Refreshing UI after guild keystone request - attempt", refreshAttempts)
+            print("NextKey TOGGLE DEBUG: Refreshing UI - attempt", refreshAttempts)
+            
+            if self.viewMode == "dungeons" then
+                self:RenderDungeonCards()
+            else
+                self:RenderResults()
+            end
+            
+            -- Schedule next refresh if we have more attempts
+            if refreshAttempts < maxAttempts then
+                C_Timer.After(1.5, refreshUI)
+            end
+        end
+        
+        -- First refresh after a short delay
+        C_Timer.After(0.5, refreshUI)
     else
-        self:RenderResults()
+        -- Immediate refresh when switching to party mode
+        print("NextKey TOGGLE DEBUG: Switching to party mode")
+        if self.viewMode == "dungeons" then
+            self:RenderDungeonCards()
+        else
+            self:RenderResults()
+        end
     end
 end
 
@@ -917,13 +1085,11 @@ end
 --- Renders dungeon information cards for the current season
 -- Displays dungeon names, best scores, levels, and completion data
 function UI:RenderDungeonCards()
-    NextKey222.Addon:Print("Debug: RenderDungeonCards called")
     if not self.resultsFrame then
         return
     end
 
     -- Clear existing content completely
-    NextKey222.Addon:Print("Debug: Clearing results frame for dungeon view")
     self:ClearAuxFrames()
     self.resultsFrame:ReleaseChildren()
     
@@ -932,11 +1098,9 @@ function UI:RenderDungeonCards()
     local seasonName = NextKey222.Addon.PortalData and NextKey222.Addon.PortalData.name or "Unknown Season"
     
     -- Update status text (removed season text to save space)
-    if self.mainFrame and self.mainFrame.SetStatusText then
-        local count = 0
-        for _ in pairs(dungeons) do count = count + 1 end
-        self.mainFrame:SetStatusText(string.format("Mode: Dungeons | Count: %d", count))
-    end
+    local count = 0
+    for _ in pairs(dungeons) do count = count + 1 end
+    NextKey222.Addon:Print(string.format("Dungeon Cards: Mode: Dungeons | Count: %d", count))
     
     if not next(dungeons) then
         local none = AceGUI:Create("Label")
@@ -946,25 +1110,39 @@ function UI:RenderDungeonCards()
         return
     end
     
-    -- Sort dungeons by name for consistent display
+    -- Sort dungeons based on current sort mode
     local sortedDungeons = {}
     for dungeonID, data in pairs(dungeons) do
-        table.insert(sortedDungeons, {id = dungeonID, data = data})
+        -- Get IO score for each dungeon for sorting
+        local ioScore = self:GetRaiderIODungeonScore(dungeonID)
+        table.insert(sortedDungeons, {id = dungeonID, data = data, ioScore = ioScore})
     end
-    table.sort(sortedDungeons, function(a, b) return a.data.name < b.data.name end)
+    
+    -- Apply sorting based on current mode
+    local currentSort = self:GetCurrentSortMode()
+    if currentSort == "Alphabetical" then
+        table.sort(sortedDungeons, function(a, b) return a.data.name < b.data.name end)
+    elseif currentSort == "HighestIO" then
+        table.sort(sortedDungeons, function(a, b) return (a.ioScore or 0) > (b.ioScore or 0) end)
+    elseif currentSort == "LowestIO" then
+        table.sort(sortedDungeons, function(a, b) return (a.ioScore or 0) < (b.ioScore or 0) end)
+    else
+        -- Default to alphabetical if unknown sort mode
+        table.sort(sortedDungeons, function(a, b) return a.data.name < b.data.name end)
+    end
     
     -- Calculate total IO score from all dungeons
-    local totalIOScore = self:GetTotalIOScore(sortedDungeons)
+    local totalIOScore = NextKey222.Addon:GetRaiderIOTotalScore()
     
     -- Update total score display
     if self.totalScoreLabel then
-        self.totalScoreLabel:SetText(string.format("Total IO: %.0f", totalIOScore or 0))
+        self.totalScoreLabel:SetText(self:FormatColoredTotalScore(totalIOScore))
     end
     
     -- Create enhanced dungeon cards with preferences
     local useCompact = true -- Always use compact for better layout
     -- Use centralized height calculation variables
-    local expectedHeight = #sortedDungeons * CARD_HEIGHT_CALC + HEADER_PADDING
+    local expectedHeight = #sortedDungeons * NextKey222.UIConfig.CARD.HEIGHT + NextKey222.UIConfig.CARD.HEADER_PADDING
     
     NextKey222.Addon:Print("Debug: Rendering", #sortedDungeons, "enhanced dungeons with preferences")
     NextKey222.Addon:Print("Debug: Expected total height:", expectedHeight, "px (window height: 640px)")
@@ -983,20 +1161,20 @@ end
 -- Enhanced dungeon card with icons and IO scores
 function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     -- Use configurable container type for different spacing options
-    local containerType = USE_TIGHT_LAYOUT and "SimpleGroup" or "InlineGroup"
+    local containerType = NextKey222.UIConfig.LAYOUT.USE_TIGHT_LAYOUT and "SimpleGroup" or "InlineGroup"
     local container = AceGUI:Create(containerType)
     
-    if not USE_TIGHT_LAYOUT then
+    if not NextKey222.UIConfig.LAYOUT.USE_TIGHT_LAYOUT then
         container:SetTitle("") -- Only needed for InlineGroup
     end
     
     container:SetFullWidth(true)
     -- Use centralized dungeon card height
-    container:SetHeight(DUNGEON_CARD_HEIGHT)
+    container:SetHeight(NextKey222.UIConfig.CARD.HEIGHT)
     container:SetLayout("Flow")
     
     -- Apply ultra-tight spacing by modifying frame properties
-    if USE_TIGHT_LAYOUT and USE_ULTRA_TIGHT and container.content then
+    if NextKey222.UIConfig.LAYOUT.USE_TIGHT_LAYOUT and NextKey222.UIConfig.LAYOUT.USE_ULTRA_TIGHT and container.content then
         -- Remove extra padding from the container's content frame
         local content = container.content
         if content then
@@ -1013,15 +1191,17 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     -- Dungeon icon
     local iconWidget = AceGUI:Create("Icon")
     if dungeonData.mapArtID then
-        -- Try to get dungeon icon from map art or challenge mode
-        local iconTexture = select(4, C_ChallengeMode.GetMapUIInfo(dungeonID)) or "Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider"
+        -- Convert NextKey dungeon ID to proper Challenge Mode map ID for icon lookup
+        local challengeModeMapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
+        -- Try to get dungeon icon from challenge mode using converted map ID
+        local iconTexture = select(4, C_ChallengeMode.GetMapUIInfo(challengeModeMapID)) or "Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider"
         iconWidget:SetImage(iconTexture)
     else
         iconWidget:SetImage("Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider") -- Default dungeon icon
     end
     -- Use centralized icon size variables
-    iconWidget:SetImageSize(ICON_SIZE, ICON_SIZE)
-    iconWidget:SetWidth(ICON_WIDTH)
+    iconWidget:SetImageSize(NextKey222.UIConfig.ICON.SIZE, NextKey222.UIConfig.ICON.SIZE)
+    iconWidget:SetWidth(NextKey222.UIConfig.ICON.WIDTH)
     container:AddChild(iconWidget)
     
     -- Dungeon name (use full name with more space)
@@ -1030,7 +1210,7 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     nameLabel:SetText(displayName)
     nameLabel:SetFontObject(GameFontNormal)
     -- Use centralized text width variables
-    nameLabel:SetWidth(NAME_LABEL_WIDTH)
+    nameLabel:SetWidth(NextKey222.UIConfig.TEXT.NAME_LABEL_WIDTH)
     nameLabel:SetColor(1, 1, 1)
     container:AddChild(nameLabel)
     
@@ -1038,78 +1218,119 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     local infoText = ""
     local infoColor = {0.7, 0.7, 0.7}
     
-    if ioScore and ioScore > 0 then
-        if bestLevel and bestLevel > 0 then
-            infoText = string.format("%.0f | +%d", ioScore, bestLevel)
-        else
-            infoText = string.format("%.0f", ioScore)
+    local scoreToDisplay = ioScore or playerScore or 0
+    
+    if scoreToDisplay > 0 then
+        -- Get level and chests info for enhanced display
+        local level, chests = self:GetDungeonLevelAndChests(dungeonID)
+        
+        -- Format with chest indicators: + for 1 chest, ++ for 2 chests, +++ for 3+ chests
+        local chestIndicator = ""
+        if level > 0 then
+            if chests >= 3 then
+                chestIndicator = " | +++" .. level
+            elseif chests >= 2 then
+                chestIndicator = " | ++" .. level
+            elseif chests >= 1 then
+                chestIndicator = " | +" .. level
+            else
+                chestIndicator = " | " .. level -- No chests (barely timed or untimed)
+            end
         end
-        infoColor = {0, 1, 0}
-    elseif playerScore and playerScore > 0 then
-        if bestLevel and bestLevel > 0 then
-            infoText = string.format("%.0f | +%d", playerScore, bestLevel)
-        else
-            infoText = string.format("%.0f", playerScore)
-        end
-        infoColor = {0, 1, 0}
+        
+        -- Display IO score with level and chest information
+        infoText = string.format("%.0f IO%s", scoreToDisplay, chestIndicator)
+        
+        -- Use specialized individual dungeon coloring (proportional system)
+        infoColor = self:GetDungeonScoreColor(scoreToDisplay)
     else
-        infoText = "No runs"
+        -- Show "0 IO" to clearly indicate no IO earned for this dungeon
+        infoText = "0 IO"
+        infoColor = {0.5, 0.5, 0.5} -- Gray for zero score
     end
     
     local scoreLabel = AceGUI:Create("Label")
     scoreLabel:SetText(infoText)
     scoreLabel:SetFontObject(GameFontNormalSmall)
     -- Use centralized score display width
-    scoreLabel:SetWidth(SCORE_LABEL_WIDTH)
+    scoreLabel:SetWidth(NextKey222.UIConfig.TEXT.SCORE_LABEL_WIDTH)
     scoreLabel:SetColor(infoColor[1], infoColor[2], infoColor[3])
     container:AddChild(scoreLabel)
     
     -- Use centralized button size variables for all buttons
     
-    -- Action buttons first (teleport and loot)
+    -- Action buttons (teleport and loot)
     local teleBtn = AceGUI:Create("Button")
     teleBtn:SetText("Teleport")
-    teleBtn:SetWidth(TELEPORT_WIDTH)
-    teleBtn:SetHeight(BUTTON_HEIGHT)
+    teleBtn:SetWidth(NextKey222.UIConfig.BUTTON.TELEPORT_WIDTH)
+    teleBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
+    
+    -- Debug: verify button creation
+    NextKey222.Debug:Print("teleport", "Creating teleport button for dungeonID:", dungeonID)
     teleBtn:SetCallback("OnClick", function()
-        NextKey222.Addon:HandleTeleportClick(dungeonID, dungeonData)
+        NextKey222.Debug:Print("teleport", "Teleport button clicked for dungeonID:", dungeonID)
+        
+        -- Create a fake keystone that mimics a real keystone for teleport selection
+        -- This uses the exact same logic path as working keystone selection
+        local fakeKeyInfo = {
+            dungeonID = dungeonID,
+            level = 0,  -- No level for dungeon portals
+            ownerName = "Dungeon Portal",  -- Clear indication this is not a player keystone
+            ownerShort = "Portal",
+            source = "dungeon_portal",
+            class = "MAGE",  -- Neutral class for portals
+            io = 0  -- Default IO
+        }
+        
+        -- Debug: check what GetDungeonName returns for this dungeonID
+        local dungeonName = NextKey222.Addon:GetDungeonName(dungeonID)
+        NextKey222.Debug:Print("teleport", "Fake keystone created - dungeonID:", dungeonID, "dungeonName:", dungeonName or "nil")
+        
+        NextKey222.Debug:Print("teleport", "Setting fake keystone as teleport target:", fakeKeyInfo.dungeonID, fakeKeyInfo.ownerName)
+        
+        -- Use the exact same method that works for keystone selection
+        -- The "dungeon_portal" source prevents automatic UI refresh in SetTeleportTargetKey
+        NextKey222.Addon:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
+        
+        -- Open teleport window which should now show the correct spell
+        NextKey222.Addon:ToggleTeleportWindow()
     end)
     container:AddChild(teleBtn)
-    
+
     local lootBtn = AceGUI:Create("Button")
     lootBtn:SetText("Loot")
-    lootBtn:SetWidth(LOOT_WIDTH)
-    lootBtn:SetHeight(BUTTON_HEIGHT)
+    lootBtn:SetWidth(NextKey222.UIConfig.BUTTON.LOOT_WIDTH)
+    lootBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
     lootBtn:SetCallback("OnClick", function()
         NextKey222.Addon:HandleLootClick(dungeonID, dungeonData)
     end)
     container:AddChild(lootBtn)
     
     -- Preference buttons after action buttons
-    local preference = self:GetDungeonPreference(dungeonID)
+    local preference = NextKey222.ProfilesService:GetDungeonPreference(dungeonID)
     
     local likeBtn = AceGUI:Create("Button")
     likeBtn:SetText("+")
-    likeBtn:SetWidth(PREFERENCE_WIDTH)
-    likeBtn:SetHeight(BUTTON_HEIGHT)
+    likeBtn:SetWidth(NextKey222.UIConfig.BUTTON.PREFERENCE_WIDTH)
+    likeBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
     if preference and preference.liked then
         likeBtn:SetText("|cFF00FF00+|r") -- Green if liked
     end
     likeBtn:SetCallback("OnClick", function()
-        self:ToggleDungeonPreference(dungeonID, true)
+        NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, true)
         self:RenderDungeonCards() -- Refresh to show updated preference
     end)
     container:AddChild(likeBtn)
     
     local dislikeBtn = AceGUI:Create("Button")
     dislikeBtn:SetText("-")
-    dislikeBtn:SetWidth(PREFERENCE_WIDTH)
-    dislikeBtn:SetHeight(BUTTON_HEIGHT)
+    dislikeBtn:SetWidth(NextKey222.UIConfig.BUTTON.PREFERENCE_WIDTH)
+    dislikeBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
     if preference and preference.disliked then
         dislikeBtn:SetText("|cFFFF0000-|r") -- Red if disliked
     end
     dislikeBtn:SetCallback("OnClick", function()
-        self:ToggleDungeonPreference(dungeonID, false)
+        NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, false)
         self:RenderDungeonCards() -- Refresh to show updated preference
     end)
     container:AddChild(dislikeBtn)
@@ -1118,11 +1339,11 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     self.resultsFrame:AddChild(container)
     
     -- Add configurable vertical spacing between cards
-    if CARD_VERTICAL_SPACING > 0 then
+    if NextKey222.UIConfig.CARD.VERTICAL_SPACING > 0 then
         local spacer = AceGUI:Create("Label")
         spacer:SetText(" ")
         spacer:SetFullWidth(true)
-        spacer:SetHeight(CARD_VERTICAL_SPACING)
+        spacer:SetHeight(NextKey222.UIConfig.CARD.VERTICAL_SPACING)
         self.resultsFrame:AddChild(spacer)
     end
 end
@@ -1158,7 +1379,8 @@ function UI:AddDungeonRow(dungeonID, dungeonData)
             scoreText = scoreText .. string.format(" | Best: +%d", bestLevel)
         end
     else
-        scoreText = "No runs completed"
+        -- Show "Score: 0" instead of "No runs completed" to indicate earned IO
+        scoreText = "Score: 0"
     end
     
     -- Loot tracking info (placeholder)
@@ -1176,10 +1398,19 @@ function UI:AddDungeonRow(dungeonID, dungeonData)
     nameLabel:SetFullWidth(true)
     content:AddChild(nameLabel)
     
-    -- Score info  
+    -- Score info with proper coloring
     local scoreLabel = AceGUI:Create("Label")
     scoreLabel:SetText(scoreText)
     scoreLabel:SetFullWidth(true)
+    
+    -- Apply RaiderIO color to the score if available
+    if playerScore and playerScore > 0 and NextKey222.RaiderIO then
+        local r, g, b = NextKey222.RaiderIO:GetScoreColor(playerScore)
+        scoreLabel:SetColor(r, g, b)
+    elseif playerScore == 0 then
+        scoreLabel:SetColor(0.5, 0.5, 0.5) -- Gray for zero score
+    end
+    
     content:AddChild(scoreLabel)
     
     -- Loot info
@@ -1193,16 +1424,243 @@ function UI:AddDungeonRow(dungeonID, dungeonData)
     self.resultsFrame:AddChild(container)
 end
 
--- MARK: Score & Data Retrieval
---
--- Utility functions for retrieving player scores, dungeon levels,
--- and other data from saved variables and RaiderIO.
+-- MARK: Score & Data Functions Moved
+-- Score functions moved to core/scoring.lua
+-- ID conversion functions moved to core/utils.lua
+
+--- Gets appropriate color for individual dungeon scores (proportional system)
+-- @param score number The individual dungeon IO score
+-- @return table RGB color values {r, g, b} (0-1)
+function UI:GetDungeonScoreColor(score)
+    if not score or score <= 0 then
+        return {0.5, 0.5, 0.5} -- Gray for no score
+    end
+    
+    -- Option 1: Try RaiderIO's system but scale appropriately for individual dungeons
+    -- RaiderIO expects total scores, so multiply individual score to fit their ranges
+    if NextKey222.RaiderIO and NextKey222.RaiderIO.GetScoreColor then
+        -- Scale individual score to RaiderIO's total score range
+        -- Typical individual: 0-300, typical total: 0-4000
+        -- So multiply by ~13 to get proportional coloring
+        local scaledScore = score * 13
+        local r, g, b = NextKey222.RaiderIO:GetScoreColor(scaledScore)
+        return {r, g, b}
+    end
+    
+    -- Option 2: Use WoW's built-in dungeon score color system
+    local color = C_ChallengeMode.GetDungeonScoreRarityColor(score * 13) -- Scale for better colors
+    if color then
+        return {color.r, color.g, color.b}
+    end
+    
+    -- Option 3: Custom gradient system based on typical individual dungeon score ranges
+    -- Individual dungeon scores typically range from 0-300+
+    if score >= 250 then
+        -- Legendary (orange/gold) - very high individual score
+        return {1.0, 0.5, 0.0}
+    elseif score >= 200 then
+        -- Epic (purple) - high score  
+        return {0.64, 0.21, 0.93}
+    elseif score >= 150 then
+        -- Rare (blue) - good score
+        return {0.0, 0.44, 0.87}
+    elseif score >= 100 then
+        -- Uncommon (green) - decent score
+        return {0.12, 1.0, 0.0}
+    elseif score >= 50 then
+        -- Common (white) - low score
+        return {1.0, 1.0, 1.0}
+    else
+        -- Poor (gray) - very low score
+        return {0.62, 0.62, 0.62}
+    end
+end
+
+--- Gets the best level and chests for a dungeon (for display purposes)
+-- @param dungeonID number The dungeon ID
+-- @return number, number level, chests (0 if not found)
+function UI:GetDungeonLevelAndChests(dungeonID)
+    -- Check cache first (populated during score calculation)
+    if self.dungeonLevelCache and self.dungeonLevelCache[dungeonID] then
+        local cached = self.dungeonLevelCache[dungeonID]
+        return cached.level or 0, cached.chests or 0
+    end
+    
+    -- Try to get from RaiderIO directly
+    if _G.RaiderIO and _G.RaiderIO.GetProfile then
+        local playerName = UnitName("player")
+        local realmName = GetRealmName()
+        local profile = _G.RaiderIO.GetProfile(playerName, realmName)
+        
+        if profile and profile.mythicKeystoneProfile then
+            local mp = profile.mythicKeystoneProfile
+            local bestLevel = 0
+            local bestChests = 0
+            
+            -- Use sortedDungeons to find best level and chests
+            if mp.sortedDungeons and type(mp.sortedDungeons) == "table" then
+                local rioKeystoneID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
+                for _, dungeonProfile in ipairs(mp.sortedDungeons) do
+                    if dungeonProfile.dungeon then
+                        local dungeon = dungeonProfile.dungeon
+                        if dungeon.keystone_instance == rioKeystoneID then
+                            local level = dungeonProfile.level or 0
+                            local chests = dungeonProfile.chests or 0
+                            if level > bestLevel then
+                                bestLevel = level
+                                bestChests = chests
+                            end
+                        end
+                    end
+                end
+            end
+            
+            return bestLevel, bestChests
+        end
+    end
+    
+    return 0, 0
+end
+
+--- Formats total IO score with appropriate coloring (no scaling for total scores)
+-- @param totalScore number The total IO score
+-- @return string Colored total score text
+function UI:FormatColoredTotalScore(totalScore)
+    if not totalScore or totalScore <= 0 then
+        return "|cFF808080Total IO: 0|r" -- Gray for zero
+    end
+    
+    -- Get color for total score (no scaling needed for total scores)
+    local color
+    
+    -- Try RaiderIO's color system first (designed for total scores)
+    if NextKey222.RaiderIO and NextKey222.RaiderIO.GetScoreColor then
+        local r, g, b = NextKey222.RaiderIO:GetScoreColor(totalScore)
+        color = {r, g, b}
+    else
+        -- Try WoW's built-in system
+        local colorObj = C_ChallengeMode.GetDungeonScoreRarityColor(totalScore)
+        if colorObj then
+            color = {colorObj.r, colorObj.g, colorObj.b}
+        else
+            -- Fallback to custom ranges for total scores
+            if totalScore >= 3000 then
+                color = {1.0, 0.5, 0.0} -- Legendary Orange
+            elseif totalScore >= 2500 then
+                color = {0.64, 0.21, 0.93} -- Epic Purple
+            elseif totalScore >= 2000 then
+                color = {0.0, 0.44, 0.87} -- Rare Blue
+            elseif totalScore >= 1500 then
+                color = {0.12, 1.0, 0.0} -- Uncommon Green
+            elseif totalScore >= 1000 then
+                color = {1.0, 1.0, 1.0} -- Common White
+            else
+                color = {0.62, 0.62, 0.62} -- Poor Gray
+            end
+        end
+    end
+    
+    -- Convert to hex color string
+    local r, g, b = color[1] * 255, color[2] * 255, color[3] * 255
+    local hexColor = string.format("%02x%02x%02x", r, g, b)
+    
+    return string.format("|cFF%sTotal IO: %.0f|r", hexColor, totalScore)
+end
 
 --- Retrieves the player's best score for a specific dungeon
 -- @param dungeonID number The dungeon ID to get the score for
 -- @return number The best score achieved for this dungeon (0 if none)
+--- Helper function to get dungeon score from WoW API (MrMythical approach)
+-- @param dungeonID number The dungeon ID to get the score for
+-- @return number The best score for this dungeon from WoW API (0 if none)
+function UI:GetRaiderIODungeonScore(dungeonID)
+    -- Debug: Only for Ara-Kara to see WoW API data structure  
+    local shouldDebug = (dungeonID == 503) -- Only Ara-Kara for cleaner output
+    
+    -- Convert NextKey dungeon ID to Challenge Mode map ID
+    local mapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
+    
+    if shouldDebug then
+        local playerName = UnitName("player")
+        NextKey222.Addon:Print("[Score Debug] Getting scores for dungeon " .. dungeonID .. " (mapID: " .. mapID .. ") for " .. playerName)
+    end
+    
+    -- Use official WoW API to get season best scores (MrMythical addon approach)
+    -- This is much simpler and more reliable than parsing RaiderIO data structures!
+    local intimeInfo, overtimeInfo = C_MythicPlus.GetSeasonBestForMap(mapID)
+    
+    if shouldDebug then
+        NextKey222.Addon:Print("[Score Debug] C_MythicPlus.GetSeasonBestForMap(" .. mapID .. ") Results:")
+        if intimeInfo then
+            NextKey222.Addon:Print("[Score Debug]   intimeInfo: level=" .. (intimeInfo.level or "nil") .. ", score=" .. (intimeInfo.dungeonScore or "nil"))
+            if intimeInfo.durationSec then
+                NextKey222.Addon:Print("[Score Debug]   intimeInfo: duration=" .. intimeInfo.durationSec .. " seconds")
+            end
+        else
+            NextKey222.Addon:Print("[Score Debug]   intimeInfo: nil")
+        end
+        if overtimeInfo then
+            NextKey222.Addon:Print("[Score Debug]   overtimeInfo: level=" .. (overtimeInfo.level or "nil") .. ", score=" .. (overtimeInfo.dungeonScore or "nil"))
+            if overtimeInfo.durationSec then
+                NextKey222.Addon:Print("[Score Debug]   overtimeInfo: duration=" .. overtimeInfo.durationSec .. " seconds")
+            end
+        else
+            NextKey222.Addon:Print("[Score Debug]   overtimeInfo: nil")
+        end
+    end
+    
+    -- Find the highest score between in-time and overtime runs
+    local bestScore = 0
+    local bestLevel = 0
+    local isInTime = false
+    
+    if intimeInfo and intimeInfo.dungeonScore then
+        bestScore = intimeInfo.dungeonScore
+        bestLevel = intimeInfo.level or 0
+        isInTime = true
+    end
+    
+    if overtimeInfo and overtimeInfo.dungeonScore and overtimeInfo.dungeonScore > bestScore then
+        bestScore = overtimeInfo.dungeonScore
+        bestLevel = overtimeInfo.level or 0
+        isInTime = false
+    end
+    
+    if shouldDebug and bestScore > 0 then
+        NextKey222.Addon:Print("[Score Debug] Best score found: " .. bestScore .. " (level +" .. bestLevel .. ", " .. (isInTime and "in-time" or "overtime") .. ")")
+    elseif shouldDebug then
+        NextKey222.Addon:Print("[Score Debug] No runs found for this dungeon")
+    end
+    
+    -- Store level info for display formatting if we found data
+    if bestScore > 0 then
+        self.dungeonLevelCache = self.dungeonLevelCache or {}
+        -- Estimate chests based on timing: in-time = at least 1 chest, overtime = 0 chests
+        local estimatedChests = isInTime and 1 or 0
+        self.dungeonLevelCache[dungeonID] = {level = bestLevel, chests = estimatedChests}
+        
+        if shouldDebug then
+            NextKey222.Addon:Print("[Score Debug] Cached level info: +" .. bestLevel .. " (" .. estimatedChests .. " chests)")
+        end
+        
+        return bestScore
+    end
+    
+    if shouldDebug then
+        NextKey222.Addon:Print("[Score Debug] No score found via WoW API for dungeon " .. dungeonID)
+    end
+    
+    return 0
+end
+
 function UI:GetDungeonScore(dungeonID)
-    -- Get player's best score for this dungeon from saved data
+    -- First try to get score from RaiderIO data (most current)
+    local raiderIOScore = self:GetRaiderIODungeonScore(dungeonID)
+    if raiderIOScore and raiderIOScore > 0 then
+        return raiderIOScore
+    end
+    
+    -- Fallback to saved data if RaiderIO data not available
     local addon = NextKey222.Addon
     if not (addon.db and addon.db.char and addon.db.char.mythicPlus) then
         if addon.db and addon.db.global and addon.db.global.debug and addon.db.global.debug.enabled then
@@ -1223,6 +1681,73 @@ function UI:GetDungeonScore(dungeonID)
             return math.max(fort, tyr)
         end
     end
+    return 0
+end
+
+--- Helper function to get best key level from RaiderIO profile data
+-- @param dungeonID number The dungeon ID to get the level for
+-- @return number The best key level for this dungeon from RaiderIO data (0 if none)
+function UI:GetRaiderIOBestLevel(dungeonID)
+    -- Try direct RaiderIO API access first
+    if _G.RaiderIO and _G.RaiderIO.GetProfile then
+        local playerName = UnitName("player")
+        local realmName = GetRealmName()
+        local profile = _G.RaiderIO.GetProfile(playerName, realmName)
+        
+        if profile and profile.mythicKeystoneProfile then
+            local mp = profile.mythicKeystoneProfile
+            
+            -- Method 1: Try sortedDungeons (most reliable)
+            if mp.sortedDungeons and type(mp.sortedDungeons) == "table" then
+                for _, dungeonProfile in ipairs(mp.sortedDungeons) do
+                    if dungeonProfile.dungeon then
+                        local dungeon = dungeonProfile.dungeon
+                        -- Try multiple ID matching strategies
+                        local matches = (
+                            dungeon.keystone_instance == dungeonID or
+                            dungeon.id == dungeonID or
+                            dungeon.instance_map_id == dungeonID
+                        )
+                        
+                        if matches then
+                            return dungeonProfile.level or 0
+                        end
+                    end
+                end
+            end
+            
+            -- Method 2: Try dungeon level arrays
+            if mp.dungeonTimes and mp.dungeonUpgrades then
+                local seasonIndex = NextKey222.Utils:GetSeasonDungeonIndex(dungeonID)
+                if seasonIndex then
+                    -- Get level from upgrades (which correlates to key level)
+                    local upgrades = mp.dungeonUpgrades[seasonIndex] or 0
+                    if upgrades > 0 then
+                        -- Upgrades typically correspond to key levels in some fashion
+                        return upgrades + 1 -- Rough approximation
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Fallback to NextKey222 RaiderIO module
+    if NextKey222.RaiderIO then
+        local profile = NextKey222.RaiderIO:GetProfile(UnitName("player"), GetRealmName())
+        if profile and profile.mythicKeystoneProfile then
+            local mp = profile.mythicKeystoneProfile
+            local bestLevel = 0
+            
+            if mp.fortifiedDungeonScores and mp.fortifiedDungeonScores[dungeonID] then
+                bestLevel = math.max(bestLevel, mp.fortifiedDungeonScores[dungeonID].level or 0)
+            end
+            if mp.tyrannicalDungeonScores and mp.tyrannicalDungeonScores[dungeonID] then
+                bestLevel = math.max(bestLevel, mp.tyrannicalDungeonScores[dungeonID].level or 0)
+            end
+            
+            return bestLevel
+        end
+    end
     
     return 0
 end
@@ -1231,7 +1756,13 @@ end
 -- @param dungeonID number The dungeon ID to get the best level for
 -- @return number The highest key level completed for this dungeon (0 if none)
 function UI:GetBestLevel(dungeonID)
-    -- Get player's best key level for this dungeon
+    -- First try to get level from RaiderIO data (most current)
+    local raiderIOLevel = self:GetRaiderIOBestLevel(dungeonID)
+    if raiderIOLevel and raiderIOLevel > 0 then
+        return raiderIOLevel
+    end
+    
+    -- Fallback to saved data if RaiderIO data not available
     local addon = NextKey222.Addon
     if not (addon.db and addon.db.char and addon.db.char.mythicPlus) then
         return 0
@@ -1257,486 +1788,71 @@ end
 -- @param dungeonID number The dungeon ID to get the IO score for
 -- @return number The IO score from this dungeon (0 if none)
 function UI:GetDungeonIOScore(dungeonID)
-    -- Try to get IO score from RaiderIO if available
-    local addon = NextKey222.Addon
-    if NextKey222.RaiderIO then
-        local profile = NextKey222.RaiderIO:GetProfile(addon.playerFullName)
-        if profile and profile.mythicKeystoneProfile then
-            local keystoneProfile = profile.mythicKeystoneProfile
-            
-            -- Check for dungeon-specific scores
-            if keystoneProfile.fortifiedDungeonScores and keystoneProfile.fortifiedDungeonScores[dungeonID] then
-                local fortScore = keystoneProfile.fortifiedDungeonScores[dungeonID].score or 0
-                local tyrScore = 0
-                if keystoneProfile.tyrannicalDungeonScores and keystoneProfile.tyrannicalDungeonScores[dungeonID] then
-                    tyrScore = keystoneProfile.tyrannicalDungeonScores[dungeonID].score or 0
-                end
-                -- Return higher of the two scores (IO uses best score)
-                return math.max(fortScore, tyrScore)
-            end
+    local currentPlayerName = UnitName("player")
+    
+    -- Use IOCalculator unified method if available
+    if NextKey222.IOCalculator and currentPlayerName then
+        local score = NextKey222.IOCalculator:GetPlayerDungeonScore(currentPlayerName, dungeonID)
+        if score > 0 then
+            return score
         end
     end
     
-    -- Fallback to regular dungeon score if IO not available
-    return self:GetDungeonScore(dungeonID)
-end
-
---- Calculates total IO score from all dungeons
--- @param sortedDungeons table Optional array of dungeon data (if nil, gets current season dungeons)
--- @return number Total IO score across all dungeons
-function UI:GetTotalIOScore(sortedDungeons)
-    local total = 0
+    -- Fallback to direct RaiderIO integration for current player
+    local ioScore = self:GetRaiderIODungeonScore(dungeonID)
     
-    if sortedDungeons then
-        -- Use provided sorted dungeons
-        for _, dungeon in ipairs(sortedDungeons) do
-            total = total + self:GetDungeonIOScore(dungeon.id)
+    if ioScore and ioScore > 0 then
+        -- Store in IOCalculator for future use
+        if NextKey222.IOCalculator and currentPlayerName then
+            NextKey222.IOCalculator:StorePlayerDungeonScore(currentPlayerName, dungeonID, ioScore)
         end
-    else
-        -- Get dungeons for current season directly from PortalData
-        local dungeons = NextKey222.Addon.PortalData and NextKey222.Addon.PortalData.dungeons or {}
-        for dungeonID, _ in pairs(dungeons) do
-            total = total + self:GetDungeonIOScore(dungeonID)
-        end
+        return ioScore
     end
     
-    return total
+    -- Final fallback to regular dungeon score
+    return self:GetDungeonScore(dungeonID) or 0
 end
 
--- MARK: Dungeon Preference Management
---
--- Functions for managing user dungeon preferences (liked/disliked dungeons)
+-- MARK: IO Calculation Functions Moved
+-- IO calculation logic moved to core/ioCalculator.lua
+-- Dungeon preference functions moved to core/profiles.lua
 
---- Gets the current preference for a specific dungeon
--- @param dungeonID number The dungeon ID
--- @return table|nil Preference table with liked/disliked flags
-function UI:GetDungeonPreference(dungeonID)
-    if not NextKey.db or not NextKey.db.char or not NextKey.db.char.preferences then
-        return nil
-    end
-    return NextKey.db.char.preferences[dungeonID]
-end
-
---- Toggles dungeon preference (like/dislike)
--- @param dungeonID number The dungeon ID
--- @param isLike boolean True for like, false for dislike
-function UI:ToggleDungeonPreference(dungeonID, isLike)
-    if not NextKey.db or not NextKey.db.char then
-        return
+--- Calculate IO gain range for a keystone using existing IOCalculator
+-- @param keystoneData table The keystone data (with dungeonID, level, ownerName)
+-- @return table IO gain range with min, max, expected values
+function UI:CalculateIOGainRange(keystoneData)
+    if not keystoneData or not NextKey222.IOCalculator then
+        return { min = 0, max = 0, expected = 0 }
     end
     
-    -- Initialize preferences table if needed
-    if not NextKey.db.char.preferences then
-        NextKey.db.char.preferences = {}
-    end
+    -- Get party member names for group calculation
+    local partyMembers = NextKey222.Addon:GetPartyMemberNames() or {}
     
-    local current = NextKey.db.char.preferences[dungeonID] or {}
-    
-    if isLike then
-        -- Toggle like preference
-        if current.liked then
-            current.liked = nil -- Remove like if already liked
+    -- Build party profiles using existing profile building logic
+    local partyProfiles = {}
+    for _, memberName in pairs(partyMembers) do
+        if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
+            partyProfiles[memberName] = NextKey222.ProfilesService:GetProfile(memberName)
         else
-            current.liked = true
-            current.disliked = nil -- Clear dislike if setting like
-        end
-    else
-        -- Toggle dislike preference
-        if current.disliked then
-            current.disliked = nil -- Remove dislike if already disliked
-        else
-            current.disliked = true
-            current.liked = nil -- Clear like if setting dislike
+            -- Fallback to simple profile
+            partyProfiles[memberName] = { playerName = memberName }
         end
     end
     
-    -- Update timestamp
-    current.lastUpdated = time()
+    -- Use IOCalculator's existing group range calculation
+    local groupRange = NextKey222.IOCalculator:CalculateGroupIORange(keystoneData, partyProfiles)
     
-    -- Save preference (remove empty tables)
-    if not current.liked and not current.disliked then
-        NextKey.db.char.preferences[dungeonID] = nil
-    else
-        NextKey.db.char.preferences[dungeonID] = current
-    end
-    
-    NextKey222.Addon:Print(string.format("Dungeon preference updated: %s", 
-        current.liked and "Liked" or (current.disliked and "Disliked" or "Neutral")))
-end
-
--- MARK: IO Display Mode Management
---
--- Functions for managing the IO gain display mode (Range/Expected/Min/Max)
-
---- Gets the current IO display mode
--- @return string The current display mode
-function UI:GetIODisplayMode()
-    return self.ioDisplayMode or "Range"
-end
-
---- Sets the IO display mode and updates UI
--- @param mode string The new display mode ("Range", "Expected", "Min", "Max")
-function UI:SetIODisplayMode(mode)
-    self.ioDisplayMode = mode
-    
-    -- Update button text
-    if self.ioDisplayModeBtn then
-        self.ioDisplayModeBtn:SetText(mode)
-    end
-    
-    -- Refresh results to update IO displays
-    if self:GetCurrentSortMode() == "IOGainPotential" then
-        self:RenderResults()
-    end
-end
-
---- Cycles through IO display modes
-function UI:CycleIODisplayMode()
-    local modes = {"Range", "Expected", "Min", "Max"}
-    local current = self:GetIODisplayMode()
-    
-    -- Find current mode index
-    local currentIndex = 1
-    for i, mode in ipairs(modes) do
-        if mode == current then
-            currentIndex = i
-            break
-        end
-    end
-    
-    -- Cycle to next mode
-    local nextIndex = (currentIndex % #modes) + 1
-    self:SetIODisplayMode(modes[nextIndex])
-end
-
---- Formats IO gain display based on current mode
--- @param ioRange table The IO range data {min, max, expected}
--- @return string Formatted display text
-function UI:FormatIOGainDisplay(ioRange)
-    local mode = self:GetIODisplayMode()
-    
-    if mode == "Range" then
-        return string.format("+%d-%d IO", math.floor(ioRange.min), math.floor(ioRange.max))
-    elseif mode == "Min" then
-        return string.format("+%d IO", math.floor(ioRange.min))
-    elseif mode == "Max" then
-        return string.format("+%d IO", math.floor(ioRange.max))
-    else -- Expected
-        return string.format("+%d IO", math.floor(ioRange.expected))
-    end
-end
-
--- MARK: IO Gain Potential Calculation
---
--- Functions for calculating IO gain potential for group optimization.
-
---- Calculates the IO gain potential range using MythicPlanner.com logic
--- @param keystone table The keystone data to analyze
--- @return table Range data with min/max/expected and player breakdown
-function UI:CalculateIOGainRange(keystone)
-    if not keystone or not keystone.dungeonID or not keystone.level then
-        return { min = 0, max = 0, expected = 0, playerBreakdown = {} }
-    end
-
-    -- Cache key for performance (cache for 1 minute)
-    local cacheKey = string.format("range_%d-%d-%d", keystone.dungeonID, keystone.level, math.floor(GetTime() / 60))
-    if self.ioRangeCache and self.ioRangeCache[cacheKey] then
-        return self.ioRangeCache[cacheKey]
-    end
-
-    local groupRange = { min = 0, max = 0, expected = 0, playerBreakdown = {} }
-    
-    -- Use IOCalculator for accurate range calculation
-    if NextKey222.IOCalculator then
-        NextKey222.Addon:Print(string.format("[IO DEBUG] IOCalculator available for keystone %s +%d", 
-            tostring(keystone.dungeonID), keystone.level or 0))
-        
-        local partyMembers = NextKey:GetPartyMemberNames()
-        NextKey222.Addon:Print(string.format("[IO DEBUG] Party members: %d", #partyMembers))
-        
-        -- Add keystone owner if not in party (for cross-realm keys)
-        if keystone.ownerName then
-            local ownerInParty = false
-            for _, member in pairs(partyMembers) do
-                local memberShort = member:match("^([^%-]+)") or member
-                local ownerShort = keystone.ownerName:match("^([^%-]+)") or keystone.ownerName
-                if member == keystone.ownerName or memberShort == ownerShort then
-                    ownerInParty = true
-                    break
-                end
-            end
-            if not ownerInParty then
-                table.insert(partyMembers, keystone.ownerName)
-            end
-        end
-
-        -- Build party profiles for IOCalculator
-        local partyProfiles = {}
-        for _, memberName in pairs(partyMembers) do
-            partyProfiles[memberName] = self:GetPlayerProfileForIOCalculation(memberName)
-        end
-        
-        -- Calculate group range
-        local success, result = pcall(NextKey222.IOCalculator.CalculateGroupIORange, NextKey222.IOCalculator, keystone, partyProfiles)
-        if success and result then
-            groupRange = result
-            NextKey222.Addon:Print(string.format("[IO DEBUG] IOCalculator returned: expected=%s", tostring(groupRange.expected)))
-        else
-            NextKey222.Addon:Print("[IO DEBUG] IOCalculator failed, using fallback")
-            groupRange.expected = keystone.level * 15 -- Simple fallback
-            groupRange.min = keystone.level * 10
-            groupRange.max = keystone.level * 25
-        end
-    else
-        NextKey222.Addon:Print("[IO DEBUG] IOCalculator not available, using fallback")
-        -- Fallback to simple calculation if IOCalculator not available
-        groupRange.expected = keystone.level * 15 -- Simple fallback
-        groupRange.min = keystone.level * 10
-        groupRange.max = keystone.level * 25
-    end
-
-    -- Cache the result
-    if not self.ioRangeCache then
-        self.ioRangeCache = {}
-    end
-    self.ioRangeCache[cacheKey] = groupRange
-
-    return groupRange
-end
-
---- Legacy function for backward compatibility - returns expected value
--- @param keystone table The keystone data to analyze
--- @return number The expected IO gain potential
-function UI:CalculateIOGainPotential(keystone)
-    local range = self:CalculateIOGainRange(keystone)
-    return range.expected
-end
-
---- Gets player profile data formatted for IOCalculator
--- @param playerName string The player name
--- @return table Player profile data for IO calculations
-function UI:GetPlayerProfileForIOCalculation(playerName)
-    if not NextKey222.RaiderIO then
-        NextKey222.Debug:Print("ui", "RaiderIO module not available for", playerName)
-        return { dungeonScores = {} }
-    end
-
-    -- Try multiple methods to get player profile
-    local profile, err
-    
-    -- First try RaiderIO module
-    if NextKey222.RaiderIO then
-        profile, err = NextKey222.RaiderIO:GetProfile(playerName)
-    end
-    
-    -- If that fails, try the global RaiderIO addon
-    if not profile and RaiderIO and RaiderIO.GetProfile then
-        profile = RaiderIO.GetProfile(playerName)
-    end
-    
-    -- Check if this is a fake player
-    local fakePlayerData = self:GetFakePlayerData(playerName)
-    if fakePlayerData then
-        NextKey222.Debug:Print("ui", "Using fake player data for", playerName)
-        return self:ConvertFakePlayerDataToProfile(fakePlayerData)
-    end
-    
-    NextKey222.Debug:Print("ui", "Profile for", playerName, ":", profile and "found" or "not found")
-    
-    if not profile or not profile.mythicKeystoneProfile then
-        NextKey222.Debug:Print("ui", "No mythic keystone profile for", playerName)
-        return { dungeonScores = {} }
-    end
-
-    local keystoneProfile = profile.mythicKeystoneProfile
-    local dungeonScores = keystoneProfile.fortifiedDungeonScores or {}
-    local tyrannicalScores = keystoneProfile.tyrannicalDungeonScores or {}
-    
-    local fortCount = 0
-    for _ in pairs(dungeonScores) do fortCount = fortCount + 1 end
-    local tyrCount = 0  
-    for _ in pairs(tyrannicalScores) do tyrCount = tyrCount + 1 end
-    NextKey222.Debug:Print("ui", "Fort dungeons for", playerName, ":", fortCount)
-    NextKey222.Debug:Print("ui", "Tyr dungeons for", playerName, ":", tyrCount)
-    
-    -- Combine fort and tyr scores, taking the best of each dungeon
-    local combinedScores = {}
-    
-    -- Process fortified scores
-    for dungeonId, scoreData in pairs(dungeonScores) do
-        if not combinedScores[dungeonId] then
-            combinedScores[dungeonId] = {
-                bestScore = scoreData.score or 0,
-                bestLevel = scoreData.level or 0,
-                timeLimit = scoreData.timeLimit or 1800000 -- Default 30 min in ms
-            }
-        else
-            if (scoreData.score or 0) > combinedScores[dungeonId].bestScore then
-                combinedScores[dungeonId].bestScore = scoreData.score or 0
-                combinedScores[dungeonId].bestLevel = scoreData.level or 0
-            end
-        end
-    end
-    
-    -- Process tyrannical scores
-    for dungeonId, scoreData in pairs(tyrannicalScores) do
-        if not combinedScores[dungeonId] then
-            combinedScores[dungeonId] = {
-                bestScore = scoreData.score or 0,
-                bestLevel = scoreData.level or 0,
-                timeLimit = scoreData.timeLimit or 1800000 -- Default 30 min in ms
-            }
-        else
-            if (scoreData.score or 0) > combinedScores[dungeonId].bestScore then
-                combinedScores[dungeonId].bestScore = scoreData.score or 0
-                combinedScores[dungeonId].bestLevel = scoreData.level or 0
-            end
-        end
-    end
-
-    return {
-        dungeonScores = combinedScores
-    }
-end
-
---- Gets fake player data if the player is a fake player
--- @param playerName string The player name to check
--- @return table|nil Fake player data or nil if not a fake player
-function UI:GetFakePlayerData(playerName)
-    if not NextKey222.Addon.db then return nil end
-    local dbg = NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug
-    if not dbg or not dbg.players then return nil end
-    
-    for _, player in ipairs(dbg.players) do
-        if player.name == playerName then
-            return player
-        end
-    end
-    return nil
-end
-
---- Converts fake player data to IOCalculator-compatible format
--- @param fakePlayerData table The fake player data
--- @return table Profile data formatted for IOCalculator
-function UI:ConvertFakePlayerDataToProfile(fakePlayerData)
-    local dungeonScores = {}
-    
-    -- Convert fake player 'best' data to IOCalculator format
-    if fakePlayerData.best then
-        for dungeonId, bestData in pairs(fakePlayerData.best) do
-            if bestData.level and bestData.level > 0 then
-                -- Estimate score based on level and timing
-                local baseScore = self:EstimateScoreFromLevel(bestData.level, bestData.timed, bestData.chests or 0)
-                
-                dungeonScores[dungeonId] = {
-                    bestScore = baseScore,
-                    bestLevel = bestData.level,
-                    timeLimit = 1800000 -- Default 30 min
-                }
-            end
-        end
-    end
-    
-    return {
-        dungeonScores = dungeonScores
-    }
-end
-
---- Estimates IO score from key level and completion quality
--- @param level number The key level
--- @param timed boolean Whether the key was timed
--- @param chests number Number of chests (0-3)
--- @return number Estimated IO score
-function UI:EstimateScoreFromLevel(level, timed, chests)
-    -- Use our IOCalculator to get proper base scores
-    if NextKey222.IOCalculator then
-        local metrics = NextKey222.IOCalculator:GetDungeonMetrics(level)
-        if metrics then
-            if not timed then
-                return metrics.min -- Untimed
-            elseif chests >= 3 then
-                return metrics.max -- 3-chest
-            elseif chests >= 1 then
-                return metrics.base + ((chests - 1) * 5) -- 1-2 chest progression
-            else
-                return metrics.base -- Barely timed
-            end
-        end
-    end
-    
-    -- Fallback calculation if IOCalculator not available
-    local baseScore = level * 15 + 100
-    if not timed then
-        return baseScore * 0.8
-    elseif chests >= 3 then
-        return baseScore * 1.1
-    else
-        return baseScore
-    end
-end
-
---- Legacy function kept for compatibility - now uses IOCalculator internally
--- @param playerName string The player name  
--- @param dungeonID number The dungeon ID
--- @param keyLevel number The keystone level
--- @return number The potential IO gain for this player
-function UI:CalculatePlayerIOGain(playerName, dungeonID, keyLevel)
-    if NextKey222.IOCalculator then
-        local playerProfile = self:GetPlayerProfileForIOCalculation(playerName)
-        local keystone = {
-            dungeonID = dungeonID,
-            level = keyLevel
+    if groupRange then
+        return {
+            min = groupRange.min or 0,
+            max = groupRange.max or 0,
+            expected = groupRange.expected or 0,
+            playerBreakdown = groupRange.playerBreakdown
         }
-        return NextKey222.IOCalculator:CalculateKeystoneValue(keystone, playerProfile)
-    else
-        -- Simple fallback if IOCalculator not available
-        return keyLevel * 5
     end
+    
+    return { min = 0, max = 0, expected = 0 }
 end
-
---- Test function for IO gain potential calculation using new IOCalculator
--- Creates mock data to test the MythicPlanner.com algorithm
-function UI:TestIOGainPotential()
-    NextKey222.Addon:Print("=== MythicPlanner.com IO Algorithm Test ===")
-    
-    if not NextKey222.IOCalculator then
-        NextKey222.Addon:Print("ERROR: IOCalculator module not loaded")
-        return
-    end
-    
-    -- Test the base calculation formulas
-    NextKey222.Addon:Print("Testing base score calculations:")
-    local testCases = {
-        { level = 10, runTime = 1800000, timeLimit = 1980000, expected = "~334" }, -- Under time
-        { level = 7, runTime = 1667000, timeLimit = 1980000, expected = "~271" },  -- MythicPlanner example
-        { level = 12, runTime = 2100000, timeLimit = 1800000, expected = "~321" }  -- Overtime
-    }
-    
-    for _, test in ipairs(testCases) do
-        local score = NextKey222.IOCalculator:CalculateDungeonScore(test.runTime, test.timeLimit, test.level)
-        NextKey222.Addon:Print(string.format("Level %d: %.1f score (expected %s)", test.level, score, test.expected))
-    end
-    
-    -- Test keystone value calculation with mock party data
-    local mockKeystones = {
-        { dungeonID = 2526, level = 10, ownerName = "TestPlayer1-Stormrage" },
-        { dungeonID = 2515, level = 12, ownerName = "TestPlayer2-Stormrage" }, 
-        { dungeonID = 2527, level = 8, ownerName = "TestPlayer3-Stormrage" }
-    }
-    
-    NextKey222.Addon:Print("\nTesting keystone values:")
-    for i, keystone in ipairs(mockKeystones) do
-        local value = self:CalculateIOGainPotential(keystone)
-        NextKey222.Addon:Print(string.format("Key %d: +%d dungeon -> %.1f value", 
-            i, keystone.level, value))
-    end
-    
-    NextKey222.Addon:Print("=== Test Complete ===")
-end
-
--- MARK: UI State Management
---
--- Functions for managing UI visibility and refresh state.
 
 --- Checks if the main frame is currently visible
 -- @return boolean true if the main frame is visible and shown
@@ -1810,6 +1926,10 @@ function UI:SetCurrentSortMode(mode)
         NextKey.db.char.sortMode = mode
     end
 end
+
+-- MARK: Fake Keystone Teleport System
+--
+-- Uses the existing working keystone selection logic for dungeon teleports
 
 -- MARK: Module Initialization
 --

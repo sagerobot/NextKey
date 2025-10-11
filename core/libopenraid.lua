@@ -204,22 +204,49 @@ function LibOpenRaidIntegration:RequestGuildKeystones()
     return success
 end
 
+-- Expose LibOpenRaid instance for direct access
+function LibOpenRaidIntegration:GetLibOpenRaid()
+    return openRaidLib
+end
+
 -- MARK: Callback Handlers
 function LibOpenRaidIntegration:OnKeystoneUpdate(unitName, keystoneInfo, allKeystoneInfo)
     NextKey222.Debug:Print("libopenraid", "Keystone update received from", unitName)
     
-    if keystoneInfo and keystoneInfo.mythicPlusMapID then
+    if keystoneInfo and keystoneInfo.level and keystoneInfo.level > 0 then
         local mapName = ""
-        if C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+        if keystoneInfo.mythicPlusMapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
             mapName = C_ChallengeMode.GetMapUIInfo(keystoneInfo.mythicPlusMapID) or "Unknown"
         end
         NextKey222.Debug:Print("libopenraid", unitName, "has", keystoneInfo.level, mapName, "keystone")
+        
+        -- Store guild keystone in NextKey's guild cache (like Details! does)
+        local NextKey = NextKey222.Addon
+        if NextKey and NextKey.StoreGuildKeystone then
+            local dungeonID = keystoneInfo.mythicPlusMapID or keystoneInfo.mapID or 0
+            NextKey:StoreGuildKeystone(unitName, dungeonID, keystoneInfo.level, "libopenraid")
+            print("NextKey LIBOPENRAID: Stored guild keystone from", unitName, "- Level", keystoneInfo.level)
+            
+            -- Clear cached keys to force refresh
+            NextKey.cachedKeys = nil
+        end
     end
     
     -- Trigger UI update if main window is open
     local NextKey = NextKey222.Addon
-    if NextKey and NextKey222.UI and NextKey222.UI.MainFrame and NextKey222.UI.MainFrame:IsShown() then
-        NextKey222.UI:RenderResults()
+    if NextKey then
+        -- Clear cached keys to force refresh
+        NextKey.cachedKeys = nil
+        
+        -- Update UI if it's visible
+        if NextKey222.UI and NextKey222.UI.mainFrame and NextKey222.UI.mainFrame:IsShown() then
+            print("NextKey LIBOPENRAID: Refreshing UI due to keystone update")
+            if NextKey222.UI.viewMode == "dungeons" then
+                NextKey222.UI:RenderDungeonCards()
+            else
+                NextKey222.UI:RenderResults()
+            end
+        end
     end
 end
 
@@ -228,8 +255,19 @@ function LibOpenRaidIntegration:OnKeystoneWipe(allKeystoneInfo)
     
     -- Trigger UI update if main window is open
     local NextKey = NextKey222.Addon
-    if NextKey and NextKey222.UI and NextKey222.UI.MainFrame and NextKey222.UI.MainFrame:IsShown() then
-        NextKey222.UI:RenderResults()
+    if NextKey then
+        -- Clear cached keys to force refresh
+        NextKey.cachedKeys = nil
+        
+        -- Update UI if it's visible
+        if NextKey222.UI and NextKey222.UI.mainFrame and NextKey222.UI.mainFrame:IsShown() then
+            print("NextKey LIBOPENRAID: Refreshing UI due to keystone wipe")
+            if NextKey222.UI.viewMode == "dungeons" then
+                NextKey222.UI:RenderDungeonCards()
+            else
+                NextKey222.UI:RenderResults()
+            end
+        end
     end
 end
 

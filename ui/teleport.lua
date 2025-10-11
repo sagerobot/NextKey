@@ -122,12 +122,25 @@ local function getKeystoneTeleportData()
         return nil
     end
     local dungeonName = addon:GetDungeonName(keyInfo.dungeonID)
+    NextKey222.Debug:Print("teleport", "getKeystoneTeleportData - dungeonID:", keyInfo.dungeonID, "dungeonName:", dungeonName or "nil")
     if not dungeonName then return nil end
     local portal
-    for _, data in pairs(SEASON_PORTALS) do
-        if data.name == dungeonName then
-            portal = data
-            break
+    -- First try to match by dungeonID directly (more reliable)
+    if SEASON_PORTALS[keyInfo.dungeonID] then
+        portal = SEASON_PORTALS[keyInfo.dungeonID]
+        NextKey222.Debug:Print("teleport", "Found portal by dungeonID:", keyInfo.dungeonID, "spellID:", portal.spellID)
+    else
+        -- Fallback to name matching
+        for _, data in pairs(SEASON_PORTALS) do
+            NextKey222.Debug:Print("teleport", "Checking SEASON_PORTALS entry:", data.name, "vs dungeonName:", dungeonName)
+            if data.name == dungeonName then
+                portal = data
+                NextKey222.Debug:Print("teleport", "Found matching portal for:", dungeonName, "spellID:", data.spellID)
+                break
+            end
+        end
+        if not portal then
+            NextKey222.Debug:Print("teleport", "No portal found for dungeonName:", dungeonName, "or dungeonID:", keyInfo.dungeonID, "in SEASON_PORTALS")
         end
     end
     -- If not found in SEASON_PORTALS, try to find it in NextKey_DungeonNames and then get the spell from NextKey_PortalDB
@@ -177,7 +190,7 @@ local function getKeystoneTeleportData()
         spellName = spellName or dungeonName,
         icon = spellTexture,
         dungeonName = dungeonName,
-        destination = dungeonName,
+        destination = portal.destination or portal.name or dungeonName,  -- Use portal destination first
         alias = portal.alias or (NextKey_DungeonAliases and NextKey_DungeonAliases[portal.mapID]),
     }
 end
@@ -228,10 +241,16 @@ local function updateTeleportLayout(window)
     local levelLabel = window.keystoneLevelLabel
     local noteLabel = window.keystoneOwnerNoteLabel
     local showHearth = isHearthstoneEnabled()
-
-    local leftPadding = 14
-    local rightPadding = 14
-    local betweenPadding = 12
+    
+    -- Get teleport data to determine window sizing
+    local data = getKeystoneTeleportData()
+    local isDungeonPortal = data and data.source == "dungeon_portal"
+    
+    -- Use configuration values for dynamic sizing
+    local config = isDungeonPortal and NextKey222.UIConfig.TELEPORT_WINDOW.COMPACT or NextKey222.UIConfig.TELEPORT_WINDOW.STANDARD
+    local leftPadding = config.LEFT_PADDING
+    local rightPadding = config.RIGHT_PADDING
+    local betweenPadding = config.BETWEEN_PADDING
     local topPadding = 12
     local titleHeight = (titleLabel and titleLabel:GetStringHeight()) or 14
     local contentTop = topPadding + titleHeight + 6
@@ -326,14 +345,16 @@ local function updateTeleportLayout(window)
         end
     end
 
+    -- Dynamic sizing using configuration values
     local contentWidth = leftPadding + iconColumnWidth + betweenPadding + levelColumnWidth + rightPadding
-    local frameWidth = math.max(160, math.ceil(contentWidth))
-
-    local aliasExtra = aliasHeight > 0 and (aliasHeight + 6) or 0
-    local noteExtra = noteHeight > 0 and (noteHeight + 6) or 0
+    local frameWidth = math.max(config.MIN_WIDTH, math.ceil(contentWidth))
+    
+    local aliasExtra = aliasHeight > 0 and (aliasHeight + config.ELEMENT_SPACING) or 0
+    local noteExtra = noteHeight > 0 and (noteHeight + config.ELEMENT_SPACING) or 0
     local extraHeight = math.max(aliasExtra, noteExtra)
-    local baseHeight = contentTop + 48 + extraHeight + 12
-
+    
+    local baseHeight = contentTop + 48 + extraHeight + config.BOTTOM_PADDING
+    
     frame:SetSize(frameWidth, math.ceil(baseHeight))
 
     if closeButton then
@@ -360,7 +381,8 @@ local function updateKeystoneButton(window)
     setButtonTexture(button, data and data.icon)
 
     local isPlayersKey = false
-    if data and data.ownerName and data.ownerName ~= "" then
+    -- Don't treat dungeon portals as player keys, even if they have the player's name
+    if data and data.source ~= "dungeon_portal" and data.ownerName and data.ownerName ~= "" then
         local ownerName = data.ownerName
         if strtrim then
             ownerName = strtrim(ownerName)
@@ -386,6 +408,9 @@ local function updateKeystoneButton(window)
         if data and (data.alias or data.dungeonName or data.destination) then
             aliasLabel:SetText(data.alias or data.dungeonName or data.destination)
             aliasLabel:Show()
+        elseif data and data.source == "dungeon_portal" then
+            aliasLabel:SetText("Dungeon Portal")
+            aliasLabel:Show()
         else
             aliasLabel:SetText("No keystone selected.")
             aliasLabel:Show()
@@ -397,13 +422,13 @@ local function updateKeystoneButton(window)
         if isPlayersKey then
             lines[#lines + 1] = "*YOUR KEY*"
             noteLabel:SetTextColor(0.1, 1, 0.4)
+        elseif data and data.source == "dungeon_portal" then
+            lines[#lines + 1] = "Direct Portal Access"
+            noteLabel:SetTextColor(0.85, 0.85, 0.85)
         else
             noteLabel:SetTextColor(0.85, 0.85, 0.85)
         end
-        local ioScore = data and tonumber(data.io)
-        if ioScore and ioScore > 0 then
-            lines[#lines + 1] = string.format("IO: %d", ioScore)
-        end
+        
         if #lines > 0 then
             noteLabel:SetText(table.concat(lines, "\n"))
             noteLabel:Show()
@@ -420,7 +445,10 @@ local function updateKeystoneButton(window)
         local tex = button:GetNormalTexture()
         if tex then tex:SetDesaturated(false) end
         if levelLabel then
-            if data.level and data.level > 0 then
+            if data and data.source == "dungeon_portal" then
+                levelLabel:SetText("Portal")
+                levelLabel:SetTextColor(0.4, 1, 0.9)  -- Cyan color for portals
+            elseif data.level and data.level > 0 then
                 levelLabel:SetFormattedText("+%d", data.level)
                 levelLabel:SetTextColor(1, 0.82, 0)
             else
@@ -434,7 +462,10 @@ local function updateKeystoneButton(window)
         local tex = button:GetNormalTexture()
         if tex then tex:SetDesaturated(true) end
         if levelLabel then
-            if data and data.level and data.level > 0 then
+            if data and data.source == "dungeon_portal" then
+                levelLabel:SetText("Portal")
+                levelLabel:SetTextColor(0.3, 0.7, 0.6)  -- Dimmed cyan for disabled portals
+            elseif data and data.level and data.level > 0 then
                 levelLabel:SetFormattedText("+%d", data.level)
                 levelLabel:SetTextColor(0.7, 0.7, 0.7)
             else
@@ -445,11 +476,14 @@ local function updateKeystoneButton(window)
 end
 
 local function showKeystoneTooltip(button)
+    print("NextKey TELEPORT DEBUG: showKeystoneTooltip called")
     if not button then
+        print("NextKey TELEPORT DEBUG: No button provided")
         return
     end
     GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
     local data = button.keystoneData or getKeystoneTeleportData()
+    print("NextKey TELEPORT DEBUG: Got tooltip data:", data and "yes" or "nil")
     local ioScore = data and tonumber(data.io)
     if data and data.spellID then
         GameTooltip:SetSpellByID(data.spellID)
@@ -457,22 +491,36 @@ local function showKeystoneTooltip(button)
             GameTooltip:AddLine(string.format("Destination: %s", data.destination), 0.8, 0.8, 0.8)
         end
         if data.ownerName and data.ownerName ~= "" then
-            GameTooltip:AddLine(string.format("Selected key: %s", data.ownerName), 0.9, 0.9, 0.9)
+            GameTooltip:AddLine(string.format("Source: %s", data.ownerName), 0.9, 0.9, 0.9)
         end
-        if data.level and data.level > 0 then
-            GameTooltip:AddLine(string.format("Keystone +%d", data.level), 1, 0.82, 0)
-        end
-        local mapID = data.dungeonID or data.mapID
-        if mapID and addon.GetSeasonBestEntry then
-            local bestEntry = addon:GetSeasonBestEntry(mapID)
-            if bestEntry and bestEntry.level and bestEntry.level > 0 then
-                local timed = bestEntry.timed == true or (bestEntry.chests or 0) > 0
-                local status = timed and "timed" or "depleted"
-                GameTooltip:AddLine(string.format("Your best: +%d (%s)", bestEntry.level, status), 0.6, 0.9, 1)
+        
+        -- Calculate and display Gainable IO range using existing methods
+        local ioRange = nil
+        if NextKey222.IOCalculator and data then
+            -- Create keystone data structure for IO calculation
+            local keystoneData = {
+                dungeonID = data.dungeonID or data.mapID,
+                level = data.level or 0
+            }
+            
+            -- Get player profiles (simplified for single player calculation)
+            local currentPlayer = UnitName("player")
+            local playerProfiles = {}
+            if NextKey222.IOCalculator.GetPlayerProfile then
+                playerProfiles[currentPlayer] = NextKey222.IOCalculator:GetPlayerProfile(currentPlayer)
+            end
+            
+            -- Calculate group IO range (which includes individual player calculation)
+            if keystoneData.dungeonID and keystoneData.level > 0 then
+                ioRange = NextKey222.IOCalculator:CalculateGroupIORange(keystoneData, playerProfiles)
             end
         end
-        if ioScore and ioScore > 0 then
-            GameTooltip:AddLine(string.format("IO Score: %d", ioScore), 0.8, 0.8, 1)
+        
+        -- Display Gainable IO range, but skip if min is 0 to avoid showing "0-X" ranges
+        if ioRange and ioRange.expected and ioRange.expected > 0 and ioRange.max and ioRange.max > ioRange.min then
+            GameTooltip:AddLine(string.format("Gainable IO: %d-%d", math.floor(ioRange.min), math.floor(ioRange.max)), 0.8, 0.8, 1)
+        elseif ioRange and ioRange.expected and ioRange.expected > 0 then
+            GameTooltip:AddLine(string.format("Gainable IO: %d", math.floor(ioRange.expected)), 0.8, 0.8, 1)
         end
         if not playerKnowsSpell(data.spellID) then
             GameTooltip:AddLine("You have not learned this teleport yet.", 1, 0.2, 0.2)
@@ -480,21 +528,8 @@ local function showKeystoneTooltip(button)
     elseif data then
         GameTooltip:SetText(data.destination or data.dungeonName or "No keystone teleport available")
         if data.ownerName and data.ownerName ~= "" then
-            GameTooltip:AddLine(string.format("Selected key: %s", data.ownerName), 0.9, 0.9, 0.9)
+            GameTooltip:AddLine(string.format("Source: %s", data.ownerName), 0.9, 0.9, 0.9)
         end
-        local mapID = data.dungeonID or data.mapID
-        if mapID and addon.GetSeasonBestEntry then
-            local bestEntry = addon:GetSeasonBestEntry(mapID)
-            if bestEntry and bestEntry.level and bestEntry.level > 0 then
-                local timed = bestEntry.timed == true or (bestEntry.chests or 0) > 0
-                local status = timed and "timed" or "depleted"
-                GameTooltip:AddLine(string.format("Your best: +%d (%s)", bestEntry.level, status), 0.6, 0.9, 1)
-            end
-        end
-        if ioScore and ioScore > 0 then
-            GameTooltip:AddLine(string.format("IO Score: %d", ioScore), 0.8, 0.8, 1)
-        end
-        GameTooltip:AddLine("No teleport is configured for this dungeon.", 1, 0.82, 0)
     else
         GameTooltip:SetText("No keystone teleport available")
     end

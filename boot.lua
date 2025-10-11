@@ -36,6 +36,18 @@ local AceDB = LibStub("AceDB-3.0")
 -- Store reference to addon in namespace (available immediately)
 NextKey222.Addon = NextKey
 
+-- MARK: Attach Configuration Functions
+-- Attach config functions that were loaded before the addon was created
+if NextKey222.ConfigFunctions then
+    for funcName, func in pairs(NextKey222.ConfigFunctions) do
+        NextKey[funcName] = func
+    end
+end
+
+-- MARK: Module Aliases
+-- Provide convenient access to commonly used modules  
+NextKey.LibOpenRaid = NextKey222.LibOpenRaidIntegration
+
 -- MARK: Version Information
 -- Store version information
 local version, build, date, tvs = GetBuildInfo()
@@ -141,9 +153,17 @@ NextKey222.Debug = {
     categories = {
         keystones = false,
         communications = false,
+        comms = false,
         ui = false,
+        options = false,
         raiderio = false,
-        performance = false
+        performance = false,
+        events = false,
+        startup = false,
+        season = false,
+        libopenraid = false,
+        IOCalculator = false,
+        ioc = false
     },
     
     Print = function(self, category, ...)
@@ -178,94 +198,11 @@ NextKey222.Debug = {
     end
 }
 
--- MARK: Configuration Defaults
-NextKey222.Defaults = {
-    global = {
-        -- Leader settings
-        leaderSettings = {
-            autoSuggestEnabled = false,
-            defaultSortMode = "smart",
-            suggestionDelay = 3
-        },
-        
-        -- UI preferences
-        ui = {
-            cardViewEnabled = true,
-            showAnimations = true,
-            colorblindMode = false,
-            framePosition = { x = 0, y = 0 },
-            scale = 1.0
-        },
-        
-        -- Communication settings
-        communications = {
-            throttleInterval = 2,
-            maxRetries = 3,
-            debugLevel = 0,
-            autoSync = true
-        },
-        
-        -- Debug settings
-        debug = {
-            enabled = false,
-            categories = {
-                keystones = false,
-                communications = false,
-                ui = false,
-                raiderio = false,
-                performance = false
-            }
-        },
-        
-        -- Performance monitoring
-        performance = {
-            enabled = false,
-            profileFunctions = false
-        }
-    },
-    
-    char = {
-        -- Personal keystone history
-        keystoneHistory = {},
-        
-        -- Dungeon preferences
-        preferences = {},
-        
-        -- Loot tracking
-        lootTargets = {},
-        
-        -- Season data
-        seasonData = {
-            currentSeason = nil,
-            dungeonScores = {},
-            runCounts = {}
-        }
-    }
-}
+-- MARK: Configuration Defaults  
+-- Defaults loaded from core/config.lua (loaded before this file in .toc)
+-- NextKey222.Defaults should be available from core/config.lua
 
--- MARK: Constants
-NextKey222.Constants = {
-    COMM_PREFIX = "NKEY2",
-    COMM_OPCODES = {
-        SYNC = "SYNC",
-        KEYSTONE_UPDATE = "KEYUP",
-        PREFERENCE_UPDATE = "PREFUP",
-        TELEPORT_REQUEST = "TELEREQ"
-    },
-    
-    EVENTS = {
-        KEYSTONE_UPDATED = "NEXTKEY_KEYSTONE_UPDATED",
-        PREFERENCES_CHANGED = "NEXTKEY_PREFERENCES_CHANGED",
-        SEASON_DATA_UPDATED = "NEXTKEY_SEASON_DATA_UPDATED"
-    },
-    
-    SORT_MODES = {
-        SMART = "smart",
-        SCORE = "score", 
-        LEVEL = "level",
-        PREFERENCE = "preference"
-    }
-}
+-- Constants are defined in core/constants.lua; avoid duplicating here
 
 -- MARK: Initialization Flags
 NextKey.isInitialized = false
@@ -322,6 +259,11 @@ NextKey222.StartUp = {
             self:ExecutePhase(phase)
         end
         
+        -- Setup options interface
+        if NextKey.SetupOptions then
+            NextKey.SafeRun(NextKey.SetupOptions, "Setup Options", NextKey)
+        end
+        
         NextKey.isInitialized = true
         print("NextKey v" .. NextKey.version .. " initialized successfully")
         NextKey:Print("NextKey v" .. NextKey.version .. " initialized successfully")
@@ -333,47 +275,19 @@ NextKey.eventFrame = CreateFrame("Frame", "NextKeyEventFrame", UIParent)
 NextKey.eventFrame:SetFrameStrata("LOW")
 NextKey.eventFrame:SetFrameLevel(1)
 
--- MARK: Utility Functions
-NextKey222.Utils = {
-    -- Safe player name getter
-    GetSafePlayerName = function()
-        local name = UnitName("player")
-        local realm = GetRealmName()
-        if name and realm then
-            return name .. "-" .. realm
-        end
-        return name or "Unknown"
-    end,
-    
-    -- Safe class getter
-    GetSafePlayerClass = function()
-        local _, class = UnitClass("player")
-        return class or "UNKNOWN"
-    end,
-    
-    -- Current time with higher precision
-    GetTime = function()
-        return GetServerTime()
-    end,
-    
-    -- Deep table copy
-    DeepCopy = function(original)
-        local copy = {}
-        for key, value in pairs(original) do
-            if type(value) == "table" then
-                copy[key] = NextKey222.Utils.DeepCopy(value)
-            else
-                copy[key] = value
-            end
-        end
-        return copy
-    end
-}
+-- Utility functions live in core/utils.lua; avoid duplicating here
 
 -- MARK: Initialization Phase Handlers
 -- Register database initialization for Init phase
 NextKey222.StartUp:RegisterPhaseHandler("Init", function()
     NextKey222.Debug:Print("startup", "=== Init Phase ===")
+    
+    -- Verify configuration defaults are available
+    if NextKey222.Defaults then
+        NextKey222.Debug:Print("startup", "✅ NextKey222.Defaults loaded from core/config.lua")
+    else
+        NextKey222.Debug:Print("startup", "❌ NextKey222.Defaults not available - check core/config.lua loading")
+    end
     
     -- Initialize AceDB database
     if not NextKey.db then
@@ -382,6 +296,14 @@ NextKey222.StartUp:RegisterPhaseHandler("Init", function()
         NextKey222.Debug:Print("startup", "Database initialized successfully")
     else
         NextKey222.Debug:Print("startup", "Database already initialized")
+    end
+    
+    -- Initialize LibOpenRaid integration
+    if NextKey222.LibOpenRaidIntegration and NextKey222.LibOpenRaidIntegration.Initialize then
+        NextKey222.Debug:Print("startup", "Initializing LibOpenRaidIntegration")
+        NextKey.SafeRun(function() 
+            NextKey222.LibOpenRaidIntegration:Initialize() 
+        end, "Initialize LibOpenRaidIntegration")
     end
     
     NextKey222.Debug:Print("startup", "Init phase completed")
@@ -402,7 +324,9 @@ NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
     -- Initialize Communications
     if NextKey222.Communications and NextKey222.Communications.Initialize then
         NextKey222.Debug:Print("startup", "Initializing Communications")
-        NextKey.SafeRun(NextKey222.Communications.Initialize, "Initialize Communications")
+        NextKey.SafeRun(function() 
+            NextKey222.Communications:Initialize() 
+        end, "Initialize Communications")
     end
     
     NextKey222.Debug:Print("startup", "PostInit phase completed")
@@ -447,11 +371,12 @@ SlashCmdList["NEXTKEY"] = function(input)
             print("NextKey: No frame to hide")
         end
     elseif command == "config" or command == "options" or command == "opt" then
-        -- Open config
-        if NextKey222.Options and NextKey222.Options.Open then
-            NextKey222.Options:Open()
+        -- Open config using AceConfigDialog
+        local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
+        if AceConfigDialog then
+            AceConfigDialog:Open("NextKey")
         else
-            print("NextKey: Config not ready yet")
+            print("NextKey: Config interface not available")
         end
     elseif command == "debug" then
         -- Toggle debug
@@ -475,6 +400,61 @@ SlashCmdList["NEXTKEY"] = function(input)
     elseif command == "reload" then
         -- Reload UI
         ReloadUI()
+        elseif command == "rio" then
+        -- Debug RaiderIO data structure (safe subset)
+        if _G.RaiderIO and _G.RaiderIO.GetProfile then
+            local playerName = UnitName("player")
+            local realmName = GetRealmName()
+            print("NextKey: Checking RaiderIO for", playerName .. "-" .. realmName)
+            local profile = _G.RaiderIO.GetProfile(playerName, realmName)
+            if profile and profile.mythicKeystoneProfile then
+                local mp = profile.mythicKeystoneProfile
+                print("NextKey: RaiderIO Profile found!")
+                print("  currentScore:", mp.currentScore or "nil")
+            else
+                print("NextKey: No RaiderIO profile found")
+            end
+        else
+            print("NextKey: RaiderIO addon not found")
+        end
+    elseif command:match("^test") then
+        -- Enhanced fake player testing commands
+        local args = {strsplit(" ", command)}
+        local subcommand = args[2] or ""
+        
+        if subcommand == "realistic" or subcommand == "" then
+            -- Generate 4 realistic fake players with mixed addon status
+            NextKey222.Addon:AddRandomFakePlayers(4, { nextkey = 2, raiderio = 1, none = 1 })
+            print("NextKey: Generated 4 realistic fake players")
+            print("  - 2 with NextKey addon")
+            print("  - 1 with RaiderIO only") 
+            print("  - 1 with no addons")
+        elseif subcommand == "mixed" then
+            -- Custom mixed party based on args: /nk test mixed 2 1 1 (nextkey, rio, none)
+            local nextkey_count = tonumber(args[3]) or 2
+            local rio_count = tonumber(args[4]) or 1  
+            local none_count = tonumber(args[5]) or 1
+            local total = nextkey_count + rio_count + none_count
+            
+            NextKey222.Addon:AddRandomFakePlayers(total, { 
+                nextkey = nextkey_count, 
+                raiderio = rio_count, 
+                none = none_count 
+            })
+            print(string.format("NextKey: Generated %d fake players (%d NextKey, %d RaiderIO, %d None)", 
+                  total, nextkey_count, rio_count, none_count))
+        elseif subcommand == "clear" then
+            -- Clear all fake players
+            NextKey222.Addon:ClearFakePlayers()
+            print("NextKey: Cleared all fake players")
+        elseif subcommand == "help" then
+            print("NextKey Test Commands:")
+            print("  /nk test (or realistic) - Generate 4 realistic fake players")
+            print("  /nk test mixed X Y Z - Generate X NextKey + Y RaiderIO + Z None players")
+            print("  /nk test clear - Clear all fake players")
+        else
+            print("NextKey: Unknown test command. Use '/nk test help' for options.")
+        end
     else
         -- Help text
         print("NextKey Commands:")
@@ -485,6 +465,8 @@ SlashCmdList["NEXTKEY"] = function(input)
         print("  /nk version - Show version")
         print("  /nk status - Show system status")
         print("  /nk reload - Reload UI")
+        print("  /nk rio - Debug RaiderIO data structure")
+        print("  /nk test - Generate realistic fake players for testing")
     end
 end
 

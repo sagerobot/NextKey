@@ -2,6 +2,7 @@
 
 local _, NextKey222 = ...
 local addon = NextKey222.Addon
+local NextKey = NextKey222.Addon  -- Add NextKey alias for debug functions
 if not addon then return end
 
 local function refreshUI()
@@ -12,6 +13,11 @@ local function refreshUI()
     -- Refresh teleport window if it exists  
     if addon.RefreshTeleportWindow then
         addon:RefreshTeleportWindow()
+    end
+    -- Notify AceConfig that options changed
+    local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+    if reg then
+        reg:NotifyChange("NextKey")
     end
 end
 
@@ -28,20 +34,20 @@ end
 
 local function ensureForm()
     if addon.EnsureDebugAddForm then
-        return addon:EnsureDebugAddForm()
+        return NextKey:EnsureDebugAddForm()
     end
-    addon:EnsureDebug()
+    NextKey:EnsureDebug()
     addon.db.global.debug.addForm = addon.db.global.debug.addForm or { best = {} }
     return addon.db.global.debug.addForm
 end
 
 local function getSelectedIndex()
-    local dbg = addon:EnsureDebug()
+    local dbg = NextKey:EnsureDebug()
     return dbg.selectedPlayerIndex
 end
 
 local function setSelectedIndex(value)
-    local dbg = addon:EnsureDebug()
+    local dbg = NextKey:EnsureDebug()
     if value == nil or value == "" then
         dbg.selectedPlayerIndex = nil
     else
@@ -65,7 +71,7 @@ local function updateDungeonScore(mapID, level, timed)
             level = level,
             timed = timed,
             chests = timed and 1 or 0,
-            fractionalTime = timed and addon:ApproximateFractionalFromChests(1) or nil
+            fractionalTime = timed and (NextKey222.IOCalculator and NextKey222.IOCalculator:ApproximateFractionalFromChests(1) or 0.9) or nil
         }
     else
         seasonData.bestLevels[mapID] = nil
@@ -161,11 +167,11 @@ function addon:InjectDebugOptions(options)
             name = "Enable Debug Mode",
             desc = "Allows adding fake players with keys and IO for local testing.",
             get = function()
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 return dbg.enabled
             end,
             set = function(_, v)
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 dbg.enabled = v and true or false
             end,
             width = "full",
@@ -176,42 +182,220 @@ function addon:InjectDebugOptions(options)
             name = "Simulate Not Being Party Leader",
             desc = "If checked, forces the addon to behave as if you are NOT the party leader, even if you are solo.",
             get = function()
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 return dbg.simNotLeader == true
             end,
             set = function(_, v)
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 dbg.simNotLeader = v and true or false
             end,
             width = "full",
             order = 1.5,
         },
-        addRandom = {
-            type = "execute",
-            name = "Add Random Fake Player",
-            func = function()
-                addon:EnsureDebug()
-                addon:AddRandomFakePlayers(1)
-                refreshUI()
-            end,
-            order = 2,
+        teamHeader = {
+            type = "header",
+            name = "Sample Team Presets",
+            order = 2.5,
         },
-        genParty = {
-            type = "execute",
-            name = "Generate Sample Party (3)",
+        teamDesc = {
+            type = "description",
+            name = "Generate realistic sample teams with different characteristics for comprehensive testing.",
+            fontSize = "medium",
+            order = 2.6,
+        },
+        genMixed = {
+            type = "execute", 
+            name = "Mixed Skill Team (Recommended)",
+            desc = "Generates 4 players: 1 high IO, 2 medium IO, 1 low IO with mixed addon status",
             func = function()
-                addon:EnsureDebug()
-                addon:AddRandomFakePlayers(3)
+                NextKey:EnsureDebug()
+                NextKey222.Addon:ClearFakePlayers()
+                -- Generate mixed skill team with specific tiers
+                NextKey222.Addon:GeneratePresetTeam("mixed_skill")
                 refreshUI()
             end,
-            order = 3,
+            order = 3.1,
+        },
+        genNewbie = {
+            type = "execute",
+            name = "Beginner Team", 
+            desc = "4 low-medium IO players (800-1500) for testing progression scenarios",
+            func = function()
+                NextKey:EnsureDebug()
+                NextKey222.Addon:ClearFakePlayers()
+                NextKey222.Addon:GeneratePresetTeam("beginner")
+                refreshUI()
+            end,
+            order = 3.2,
+        },
+        genExpert = {
+            type = "execute",
+            name = "Expert Team",
+            desc = "4 high IO players (2200-2800+) for testing high-key scenarios", 
+            func = function()
+                NextKey:EnsureDebug()
+                NextKey222.Addon:ClearFakePlayers()
+                NextKey222.Addon:GeneratePresetTeam("expert")
+                refreshUI()
+            end,
+            order = 3.3,
+        },
+        genAddonMix = {
+            type = "execute",
+            name = "Addon Testing Team",
+            desc = "Mixed addon status: 2 NextKey, 1 RaiderIO only, 1 no addons",
+            func = function()
+                NextKey:EnsureDebug()
+                NextKey222.Addon:ClearFakePlayers()
+                NextKey222.Addon:AddRandomFakePlayers(4, { nextkey = 2, raiderio = 1, none = 1 })
+                refreshUI()
+            end,
+            order = 3.4,
+        },
+        genWorstCase = {
+            type = "execute",
+            name = "No Addon Team",
+            desc = "4 players with no NextKey or RaiderIO for testing pure fallback scenarios",
+            func = function()
+                NextKey:EnsureDebug()
+                NextKey222.Addon:ClearFakePlayers()
+                NextKey222.Addon:AddRandomFakePlayers(4, { nextkey = 0, raiderio = 0, none = 4 })
+                refreshUI()
+            end,
+            order = 3.5,
+        },
+        customHeader = {
+            type = "header",
+            name = "Custom Team Builder",
+            order = 3.8,
+        },
+        customCount = {
+            type = "range",
+            name = "Team Size",
+            desc = "Number of fake players to generate (1-8)",
+            min = 1,
+            max = 8,
+            step = 1,
+            get = function()
+                local dbg = NextKey:EnsureDebug()
+                return dbg.customTeamSize or 4
+            end,
+            set = function(_, val)
+                local dbg = NextKey:EnsureDebug()
+                dbg.customTeamSize = val
+            end,
+            order = 3.85,
+        },
+        customNextKey = {
+            type = "range",
+            name = "NextKey Users",
+            desc = "Players with NextKey addon installed",
+            min = 0,
+            max = 8,
+            step = 1,
+            get = function()
+                local dbg = NextKey:EnsureDebug()
+                return dbg.customNextKey or 2
+            end,
+            set = function(_, val)
+                local dbg = NextKey:EnsureDebug()
+                dbg.customNextKey = val
+            end,
+            order = 3.86,
+        },
+        customRaiderIO = {
+            type = "range",
+            name = "RaiderIO Only Users", 
+            desc = "Players with RaiderIO but no NextKey",
+            min = 0,
+            max = 8,
+            step = 1,
+            get = function()
+                local dbg = NextKey:EnsureDebug()
+                return dbg.customRaiderIO or 1
+            end,
+            set = function(_, val)
+                local dbg = NextKey:EnsureDebug()
+                dbg.customRaiderIO = val
+            end,
+            order = 3.87,
+        },
+        customNone = {
+            type = "range",
+            name = "No Addon Users",
+            desc = "Players without NextKey or RaiderIO",
+            min = 0,
+            max = 8, 
+            step = 1,
+            get = function()
+                local dbg = NextKey:EnsureDebug()
+                return dbg.customNone or 1
+            end,
+            set = function(_, val)
+                local dbg = NextKey:EnsureDebug()
+                dbg.customNone = val
+            end,
+            order = 3.88,
+        },
+        genCustom = {
+            type = "execute",
+            name = "⚙️ Generate Custom Team",
+            desc = "Create team with your specified parameters",
+            func = function()
+                NextKey:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
+                local size = dbg.customTeamSize or 4
+                local nextkey = dbg.customNextKey or 2
+                local raiderio = dbg.customRaiderIO or 1
+                local none = dbg.customNone or 1
+                
+                NextKey222.Addon:ClearFakePlayers()
+                NextKey222.Addon:AddRandomFakePlayers(size, { nextkey = nextkey, raiderio = raiderio, none = none })
+                refreshUI()
+            end,
+            order = 3.89,
+        },
+        statusHeader = {
+            type = "header",
+            name = "Current Status",
+            order = 3.95,
+        },
+        statusDisplay = {
+            type = "description",
+            name = function()
+                local dbg = NextKey:EnsureDebug()
+                if not dbg or not dbg.players or #dbg.players == 0 then
+                    return "No fake players currently generated."
+                end
+                
+                local nextkey_count = 0
+                local rio_count = 0 
+                local none_count = 0
+                
+                for _, player in ipairs(dbg.players) do
+                    if player.addonStatus then
+                        if player.addonStatus.nextkey then
+                            nextkey_count = nextkey_count + 1
+                        elseif player.addonStatus.raiderio then
+                            rio_count = rio_count + 1
+                        else
+                            none_count = none_count + 1
+                        end
+                    end
+                end
+                
+                return string.format("Active: %d players (%d NextKey, %d RaiderIO, %d None)", 
+                    #dbg.players, nextkey_count, rio_count, none_count)
+            end,
+            fontSize = "medium",
+            order = 3.98,
         },
         clear = {
             type = "execute",
-            name = "Clear Fake Players",
+            name = "🗑️ Clear All Fake Players",
             confirm = true,
             func = function()
-                addon:ClearFakePlayers()
+                NextKey222.Addon:ClearFakePlayers()
                 refreshUI()
             end,
             order = 4,
@@ -308,7 +492,7 @@ function addon:InjectDebugOptions(options)
         fakeIO = {
             type = "input",
             name = "IO Score (optional)",
-            desc = "Leave blank to auto-calculate from dungeon bests.",
+            desc = "Manual IO score for this fake player.",
             get = function()
                 local form = ensureForm()
                 return form.io and tostring(form.io) or ""
@@ -319,97 +503,27 @@ function addon:InjectDebugOptions(options)
             end,
             order = 13.7,
         },
-        bestHeader = {
-            type = "header",
-            name = "Dungeon Bests (New Player)",
-            order = 14,
-        },
-        bestAllLevel = {
-            type = "range",
-            name = "Bulk Level",
-            desc = "Level used by the Set All buttons below.",
-            min = 0, max = 30, step = 1,
-            get = function()
-                local form = ensureForm()
-                return form.bulkLevel or 10
-            end,
-            set = function(_, v)
-                local form = ensureForm()
-                form.bulkLevel = v
-            end,
-            order = 14.1,
-        },
-        bestAllTimed = {
-            type = "execute",
-            name = "Set All Timed",
-            func = function()
-                local form = ensureForm()
-                addon:SetAddFormAllBest(form.bulkLevel or 10, true)
-            end,
-            order = 14.11,
-        },
-        bestAllUntimed = {
-            type = "execute",
-            name = "Set All Untimed",
-            func = function()
-                local form = ensureForm()
-                addon:SetAddFormAllBest(form.bulkLevel or 10, false)
-            end,
-            order = 14.12,
-        },
-        bestAllClear = {
-            type = "execute",
-            name = "Clear All",
-            func = function()
-                addon:ClearAddFormBest()
-            end,
-            order = 14.13,
-        },
         addSpecific = {
             type = "execute",
             name = "Add Fake Player",
             func = function()
-                addon:EnsureDebug()
+                NextKey:EnsureDebug()
                 local form = ensureForm()
                 if not (form.name and form.mapID and form.level) then
                     addon:Print("Debug: Missing name/mapID/level.")
                     return
                 end
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 dbg.players = dbg.players or {}
-
-                local best = {}
-                if addon.GetAddFormBest then
-                    local ids = addon:GetActiveSeasonDungeonIDs() or {}
-                    for _, mapID in ipairs(ids) do
-                        local entry = addon:GetAddFormBest(mapID)
-                        if entry and entry.level and entry.level > 0 then
-                            best[mapID] = {
-                                level = entry.level,
-                                timed = entry.timed and true or false,
-                                chests = entry.chests or (entry.timed and 1 or 0),
-                                fractionalTime = entry.fractionalTime,
-                            }
-                        end
-                    end
-                end
 
                 local player = {
                     name = form.name,
                     class = form.class or "WARRIOR",
                     key = { dungeonID = tonumber(form.mapID), level = tonumber(form.level) },
-                    best = best,
+                    io = tonumber(form.io) or 0,
                 }
 
-                local manualIO = tonumber(form.io)
-                player.io = manualIO or 0
-
                 table.insert(dbg.players, player)
-                local index = #dbg.players
-                if not manualIO or manualIO <= 0 then
-                    addon:RecalculateFakePlayerScore(index)
-                end
-
                 refreshUI()
             end,
             order = 15,
@@ -423,7 +537,7 @@ function addon:InjectDebugOptions(options)
             type = "select",
             name = "Fake Player",
             values = function()
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 local values = {}
                 for idx, player in ipairs(dbg.players or {}) do
                     local label = player.name or ("Player %d"):format(idx)
@@ -449,14 +563,14 @@ function addon:InjectDebugOptions(options)
             get = function()
                 local idx = getSelectedIndex()
                 if not idx then return "" end
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 local player = dbg.players[idx]
                 return player and player.key and player.key.dungeonID and tostring(player.key.dungeonID) or ""
             end,
             set = function(_, v)
                 local idx = getSelectedIndex()
                 if not idx then return end
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 local player = dbg.players[idx]
                 if player and player.key then
                     player.key.dungeonID = tonumber(v)
@@ -472,14 +586,14 @@ function addon:InjectDebugOptions(options)
             get = function()
                 local idx = getSelectedIndex()
                 if not idx then return 10 end
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 local player = dbg.players[idx]
                 return player and player.key and player.key.level or 10
             end,
             set = function(_, v)
                 local idx = getSelectedIndex()
                 if not idx then return end
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 local player = dbg.players[idx]
                 if player and player.key then
                     player.key.level = v
@@ -494,7 +608,7 @@ function addon:InjectDebugOptions(options)
             func = function()
                 local idx = getSelectedIndex()
                 if idx then
-                    addon:RemoveFakePlayer(idx)
+                    NextKey:RemoveFakePlayer(idx)
                     setSelectedIndex(nil)
                     refreshUI()
                 end
@@ -507,7 +621,7 @@ function addon:InjectDebugOptions(options)
             func = function()
                 local idx = getSelectedIndex()
                 if idx then
-                    addon:RecalculateFakePlayerScore(idx)
+                    NextKey:RecalculateFakePlayerScore(idx)
                     refreshUI()
                 end
             end,
@@ -518,11 +632,11 @@ function addon:InjectDebugOptions(options)
             name = "Bulk Level",
             min = 0, max = 30, step = 1,
             get = function()
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 return dbg.editorBulkLevel or 10
             end,
             set = function(_, v)
-                local dbg = addon:EnsureDebug()
+                local dbg = NextKey:EnsureDebug()
                 dbg.editorBulkLevel = v
             end,
             order = 20.2,
@@ -533,8 +647,8 @@ function addon:InjectDebugOptions(options)
             func = function()
                 local idx = getSelectedIndex()
                 if idx then
-                    local dbg = addon:EnsureDebug()
-                    addon:SetFakePlayerAllBests(idx, dbg.editorBulkLevel or 10, true)
+                    local dbg = NextKey:EnsureDebug()
+                    NextKey:SetFakePlayerAllBests(idx, dbg.editorBulkLevel or 10, true)
                     refreshUI()
                 end
             end,
@@ -546,8 +660,8 @@ function addon:InjectDebugOptions(options)
             func = function()
                 local idx = getSelectedIndex()
                 if idx then
-                    local dbg = addon:EnsureDebug()
-                    addon:SetFakePlayerAllBests(idx, dbg.editorBulkLevel or 10, false)
+                    local dbg = NextKey:EnsureDebug()
+                    NextKey:SetFakePlayerAllBests(idx, dbg.editorBulkLevel or 10, false)
                     refreshUI()
                 end
             end,
@@ -574,115 +688,7 @@ function addon:InjectDebugOptions(options)
         args = debugArgs,
     }
 
-    local dungeonIDs = addon.GetActiveSeasonDungeonIDs and addon:GetActiveSeasonDungeonIDs() or {}
-    for i, mapID in ipairs(dungeonIDs) do
-        local orderBase = 14.3 + i * 0.01
-        debugArgs["newBest_" .. mapID] = {
-            type = "group",
-            name = addon:GetDungeonName(mapID),
-            inline = true,
-            order = orderBase,
-            args = {
-                level = {
-                    type = "range",
-                    name = "Level",
-                    min = 0, max = 30, step = 1,
-                    get = function()
-                        local entry = addon.GetAddFormBest and addon:GetAddFormBest(mapID)
-                        return entry and entry.level or 0
-                    end,
-                    set = function(_, value)
-                        local entry = addon.GetAddFormBest and addon:GetAddFormBest(mapID)
-                        addon:SetAddFormBest(mapID, value, entry and entry.timed)
-                    end,
-                    order = 1,
-                },
-                chests = {
-                    type = "select",
-                    name = "Result",
-                    values = {
-                        [0] = "Untimed",
-                        [1] = "Timed (1 Chest)",
-                        [2] = "Timed (2 Chests)",
-                        [3] = "Timed (3 Chests)",
-                    },
-                    get = function()
-                        local entry = addon.GetAddFormBest and addon:GetAddFormBest(mapID)
-                        return entry and entry.chests or 0
-                    end,
-                    set = function(_, value)
-                        local entry = addon.GetAddFormBest and addon:GetAddFormBest(mapID)
-                        local level = entry and entry.level or 0
-                        if level <= 0 and value > 0 then
-                            level = ensureForm().bulkLevel or 10
-                        end
-                        addon:SetAddFormBest(mapID, level, value)
-                    end,
-                    order = 2,
-                },
-            },
-        }
-    end
 
-    local editDungeonOrderBase = 20.4
-    for i, mapID in ipairs(dungeonIDs) do
-        debugArgs["editBest_" .. mapID] = {
-            type = "group",
-            name = addon:GetDungeonName(mapID),
-            inline = true,
-            order = editDungeonOrderBase + i * 0.01,
-            args = {
-                level = {
-                    type = "range",
-                    name = "Level",
-                    min = 0, max = 30, step = 1,
-                    get = function()
-                        local idx = getSelectedIndex()
-                        if not idx then return 0 end
-                        local entry = addon:GetFakePlayerBest(idx, mapID)
-                        return entry and entry.level or 0
-                    end,
-                    set = function(_, value)
-                        local idx = getSelectedIndex()
-                        if not idx then return end
-                        local entry = addon:GetFakePlayerBest(idx, mapID)
-                        addon:SetFakePlayerBest(idx, mapID, value, entry and entry.chests or 0)
-                        refreshUI()
-                    end,
-                    order = 1,
-                },
-                chests = {
-                    type = "select",
-                    name = "Result",
-                    values = {
-                        [0] = "Untimed",
-                        [1] = "Timed (1 Chest)",
-                        [2] = "Timed (2 Chests)",
-                        [3] = "Timed (3 Chests)",
-                    },
-                    get = function()
-                        local idx = getSelectedIndex()
-                        if not idx then return 0 end
-                        local entry = addon:GetFakePlayerBest(idx, mapID)
-                        return entry and entry.chests or 0
-                    end,
-                    set = function(_, value)
-                        local idx = getSelectedIndex()
-                        if not idx then return end
-                        local entry = addon:GetFakePlayerBest(idx, mapID)
-                        local level = entry and entry.level or 0
-                        if level <= 0 and value > 0 then
-                            local dbg = addon:EnsureDebug()
-                            level = dbg.editorBulkLevel or 10
-                        end
-                        addon:SetFakePlayerBest(idx, mapID, level, value)
-                        refreshUI()
-                    end,
-                    order = 2,
-                },
-            },
-        }
-    end
 end
 
 function addon:SetupOptions()
@@ -699,7 +705,11 @@ function addon:SetupOptions()
                         name = "Auto Suggest",
                         desc = "Automatically suggest the best key to use.",
                         get = function() return addon.db.global.leaderSettings.autoSuggestEnabled end,
-                        set = function(_, value) addon.db.global.leaderSettings.autoSuggestEnabled = value end,
+                        set = function(_, value)
+                            addon.db.global.leaderSettings.autoSuggestEnabled = value
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
                     },
                     sortMode = {
                         type = "select",
@@ -710,7 +720,11 @@ function addon:SetupOptions()
                             LowestKeyLevel = "Lowest Key Level",
                         },
                         get = function() return addon.db.global.leaderSettings.defaultSortMode end,
-                        set = function(_, value) addon.db.global.leaderSettings.defaultSortMode = value end,
+                        set = function(_, value)
+                            addon.db.global.leaderSettings.defaultSortMode = value
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
                     },
                 },
             },
@@ -723,7 +737,11 @@ function addon:SetupOptions()
                         name = "Show Hearthstone",
                         desc = "Show hearthstone locations in the teleport window.",
                         get = function() return addon.db.global.teleport.showHearthstone end,
-                        set = function(_, value) addon.db.global.teleport.showHearthstone = value end,
+                        set = function(_, value)
+                            addon.db.global.teleport.showHearthstone = value
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
                     },
                 },
             },

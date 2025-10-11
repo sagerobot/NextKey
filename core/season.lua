@@ -107,20 +107,26 @@ function NextKey:GetCurrentSeasonData()
     }
 
     -- Get comprehensive RaiderIO data
-    local profile = self.RaiderIO:GetProfile("player")
+    local profile = _G.RaiderIO and _G.RaiderIO.GetProfile and _G.RaiderIO.GetProfile("player")
     if profile then
         local p = profile.mythicKeystoneProfile
         data.currentScore = p.currentScore or 0
         data.previousScore = p.previousScore or 0
         
         -- Get per-dungeon scores
-        data.dungeonScores = self.RaiderIO:FormatDungeonScores(profile)
+        if _G.RaiderIO and _G.RaiderIO.FormatDungeonScores then
+            data.dungeonScores = _G.RaiderIO.FormatDungeonScores(profile)
+        end
         
         -- Get run counts
-        data.runCounts = self.RaiderIO:GetRunCounts(profile)
+        if _G.RaiderIO and _G.RaiderIO.GetRunCounts then
+            data.runCounts = _G.RaiderIO.GetRunCounts(profile)
+        end
         
         -- Get role performance data
-        data.roleData = self.RaiderIO:GetRoleData(profile)
+        if _G.RaiderIO and _G.RaiderIO.GetRoleData then
+            data.roleData = _G.RaiderIO.GetRoleData(profile)
+        end
     end
 
     -- Fallback to game API for current score if needed
