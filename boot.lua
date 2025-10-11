@@ -163,7 +163,9 @@ NextKey222.Debug = {
         season = false,
         libopenraid = false,
         IOCalculator = false,
-        ioc = false
+        ioc = false,
+        fakeplayerservice = false,
+        debug = false
     },
     
     Print = function(self, category, ...)
@@ -298,6 +300,14 @@ NextKey222.StartUp:RegisterPhaseHandler("Init", function()
         NextKey222.Debug:Print("startup", "Database already initialized")
     end
     
+    -- Initialize FakePlayerService
+    if NextKey222.FakePlayerService and NextKey222.FakePlayerService.Initialize then
+        NextKey222.Debug:Print("startup", "Initializing FakePlayerService")
+        NextKey.SafeRun(function() 
+            NextKey222.FakePlayerService:Initialize() 
+        end, "Initialize FakePlayerService")
+    end
+    
     -- Initialize LibOpenRaid integration
     if NextKey222.LibOpenRaidIntegration and NextKey222.LibOpenRaidIntegration.Initialize then
         NextKey222.Debug:Print("startup", "Initializing LibOpenRaidIntegration")
@@ -418,14 +428,19 @@ SlashCmdList["NEXTKEY"] = function(input)
             print("NextKey: RaiderIO addon not found")
         end
     elseif command:match("^test") then
-        -- Enhanced fake player testing commands
+        -- Enhanced fake player testing commands using FakePlayerService
         local args = {strsplit(" ", command)}
         local subcommand = args[2] or ""
         
+        if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
+            print("NextKey: FakePlayerService not available")
+            return
+        end
+        
         if subcommand == "realistic" or subcommand == "" then
             -- Generate 4 realistic fake players with mixed addon status
-            NextKey222.Addon:AddRandomFakePlayers(4, { nextkey = 2, raiderio = 1, none = 1 })
-            print("NextKey: Generated 4 realistic fake players")
+            local count = NextKey222.FakePlayerService:GenerateRandomPlayers(4, { nextkey = 2, raiderio = 1, none = 1 })
+            print("NextKey: Generated " .. count .. " realistic fake players")
             print("  - 2 with NextKey addon")
             print("  - 1 with RaiderIO only") 
             print("  - 1 with no addons")
@@ -436,22 +451,32 @@ SlashCmdList["NEXTKEY"] = function(input)
             local none_count = tonumber(args[5]) or 1
             local total = nextkey_count + rio_count + none_count
             
-            NextKey222.Addon:AddRandomFakePlayers(total, { 
+            local count = NextKey222.FakePlayerService:GenerateRandomPlayers(total, { 
                 nextkey = nextkey_count, 
                 raiderio = rio_count, 
                 none = none_count 
             })
             print(string.format("NextKey: Generated %d fake players (%d NextKey, %d RaiderIO, %d None)", 
-                  total, nextkey_count, rio_count, none_count))
+                  count, nextkey_count, rio_count, none_count))
+        elseif subcommand == "preset" then
+            -- Generate a preset team: /nk test preset mixed_skill|beginner|expert|high_keys
+            local presetType = args[3] or "mixed_skill"
+            local count = NextKey222.FakePlayerService:GeneratePreset(presetType)
+            print("NextKey: Generated preset '" .. presetType .. "' with " .. count .. " players")
         elseif subcommand == "clear" then
             -- Clear all fake players
-            NextKey222.Addon:ClearFakePlayers()
-            print("NextKey: Cleared all fake players")
+            local count = NextKey222.FakePlayerService:ClearAllPlayers()
+            print("NextKey: Cleared " .. count .. " fake players")
+        elseif subcommand == "status" then
+            -- Show FakePlayerService status
+            NextKey222.FakePlayerService:LogStats()
         elseif subcommand == "help" then
             print("NextKey Test Commands:")
             print("  /nk test (or realistic) - Generate 4 realistic fake players")
             print("  /nk test mixed X Y Z - Generate X NextKey + Y RaiderIO + Z None players")
+            print("  /nk test preset <type> - Generate preset team (mixed_skill, beginner, expert, high_keys)")
             print("  /nk test clear - Clear all fake players")
+            print("  /nk test status - Show FakePlayerService status")
         else
             print("NextKey: Unknown test command. Use '/nk test help' for options.")
         end

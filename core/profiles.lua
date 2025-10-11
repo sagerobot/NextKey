@@ -111,6 +111,31 @@ function ProfilesService:InvalidateOnEvents()
             end
         end
         
+        -- Register for FakePlayerService custom messages
+        if NextKey222.Addon.RegisterMessage then
+            NextKey222.Addon:RegisterMessage("NEXTKEY_FAKE_PLAYER_UPDATED", function(event, playerName)
+                if NextKey222.ProfilesService then
+                    NextKey222.ProfilesService:InvalidateCache(playerName)
+                    if NextKey222.Debug then
+                        NextKey222.Debug:Print("profiles", "Cache invalidated for fake player: " .. (playerName or "unknown"))
+                    end
+                end
+            end)
+            
+            NextKey222.Addon:RegisterMessage("NEXTKEY_FAKE_PLAYER_REMOVED", function(event, playerName)
+                if NextKey222.ProfilesService then
+                    NextKey222.ProfilesService:InvalidateCache(playerName)
+                    if NextKey222.Debug then
+                        NextKey222.Debug:Print("profiles", "Cache invalidated for removed fake player: " .. (playerName or "unknown"))
+                    end
+                end
+            end)
+            
+            if NextKey222.Debug then
+                NextKey222.Debug:Print("profiles", "Registered for FakePlayerService message events")
+            end
+        end
+        
         -- LibOpenRaid callback registration (if available)
         if LibStub then
             local openRaidLib = LibStub:GetLibrary("LibOpenRaid-1.0", true)

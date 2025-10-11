@@ -26,6 +26,7 @@ data\portals.lua
 core\constants.lua
 core\ids.lua
 core\uiConfig.lua
+core\fakePlayerService.lua
 core\profiles.lua
 core\playerIOData.lua
 core\adapters\debug.lua
