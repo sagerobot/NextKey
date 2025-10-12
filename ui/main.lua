@@ -73,13 +73,22 @@ function UI:IsDebugMode()
 end
 
 --- Determines if debug-only controls should be visible
--- @return boolean true when debug mode is active and the fake player service exists
+-- @return boolean true when debug mode is active and the fake player service exists and not in dungeon view
 function UI:ShouldShowDebugControls()
     local isDebug = self:IsDebugMode()
     local hasFakeService = NextKey222.FakePlayerService ~= nil
-    local result = isDebug and hasFakeService
-    Debug:Dev("ui", "ShouldShowDebugControls: isDebug =", isDebug, "hasFakeService =", hasFakeService, "result =", result)
+    local isNotDungeonView = self.viewMode ~= "dungeons"
+    local result = isDebug and hasFakeService and isNotDungeonView
+    Debug:Dev("ui", "ShouldShowDebugControls: isDebug =", isDebug, "hasFakeService =", hasFakeService, "isNotDungeonView =", isNotDungeonView, "result =", result)
     return result
+end
+
+--- Determines if keystone-specific controls should be visible
+-- @return boolean true when in keystone view (not dungeon view)
+function UI:ShouldShowKeystoneControls()
+    local isNotDungeonView = self.viewMode ~= "dungeons"
+    Debug:Dev("ui", "ShouldShowKeystoneControls: isNotDungeonView =", isNotDungeonView)
+    return isNotDungeonView
 end
 
 --- Applies the appropriate window height based on the current view and debug state
@@ -181,6 +190,162 @@ function UI:UpdateDebugControlsVisibility()
         end
         Debug:Dev("ui", "Main frame layout updated")
     end
+end
+
+--- Shows or hides keystone-specific controls based on view mode
+-- Handles visibility of Suggest Groups, Auto Mode, and Guild/Party toggle buttons
+function UI:UpdateKeystoneControlsVisibility()
+    if not self.mainFrame then
+        Debug:Dev("ui", "UpdateKeystoneControlsVisibility: Main frame not available")
+        return
+    end
+    
+    if not self.controlsContainer then
+        Debug:Dev("ui", "UpdateKeystoneControlsVisibility: Controls container not available")
+        return
+    end
+    
+    local showKeystoneControls = self:ShouldShowKeystoneControls()
+    Debug:Dev("ui", "UpdateKeystoneControlsVisibility: showKeystoneControls =", showKeystoneControls, "cachedItemsCount =", self.cachedItemsCount)
+    
+    -- Handle Suggest Groups button (add/remove from layout like debug controls)
+    if self.suggestGroupsBtn then
+        local shouldShow = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
+        
+        -- Check if button is currently in the layout
+        local isInLayout = false
+        if self.controlsContainer.children then
+            for _, child in ipairs(self.controlsContainer.children) do
+                if child == self.suggestGroupsBtn then
+                    isInLayout = true
+                    break
+                end
+            end
+        end
+        
+        Debug:Dev("ui", "Suggest Groups button: shouldShow =", shouldShow, "isInLayout =", isInLayout)
+        
+        if shouldShow and not isInLayout then
+            -- Add button to layout at the correct position (after guild toggle button)
+            Debug:Dev("ui", "Adding Suggest Groups button to layout")
+            
+            -- Re-parent the button to the controls container
+            if self.suggestGroupsBtn.frame then
+                self.suggestGroupsBtn.frame:SetParent(self.controlsContainer.frame)
+                self.suggestGroupsBtn.frame:Show()
+            end
+            
+            -- Find the position to insert (after guild toggle button)
+            local insertPosition = 1
+            if self.controlsContainer.children then
+                for i, child in ipairs(self.controlsContainer.children) do
+                    if child == self.guildToggleBtn then
+                        insertPosition = i + 1
+                        break
+                    end
+                end
+            end
+            
+            table.insert(self.controlsContainer.children, insertPosition, self.suggestGroupsBtn)
+        elseif not shouldShow and isInLayout then
+            -- Remove button from layout
+            Debug:Dev("ui", "Removing Suggest Groups button from layout")
+            local buttonIndex = nil
+            for i, child in ipairs(self.controlsContainer.children) do
+                if child == self.suggestGroupsBtn then
+                    buttonIndex = i
+                    break
+                end
+            end
+            
+            if buttonIndex then
+                table.remove(self.controlsContainer.children, buttonIndex)
+                if self.suggestGroupsBtn.frame then
+                    self.suggestGroupsBtn.frame:Hide()
+                    self.suggestGroupsBtn.frame:SetParent(nil)
+                end
+            end
+        end
+    end
+    
+    -- Handle Suggestion Mode button (add/remove from layout like debug controls)
+    if self.suggestionModeBtn then
+        local shouldShow = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
+        
+        -- Check if button is currently in the layout
+        local isInLayout = false
+        if self.controlsContainer.children then
+            for _, child in ipairs(self.controlsContainer.children) do
+                if child == self.suggestionModeBtn then
+                    isInLayout = true
+                    break
+                end
+            end
+        end
+        
+        Debug:Dev("ui", "Suggestion Mode button: shouldShow =", shouldShow, "isInLayout =", isInLayout)
+        
+        if shouldShow and not isInLayout then
+            -- Add button to layout at the correct position (after suggest groups button)
+            Debug:Dev("ui", "Adding Suggestion Mode button to layout")
+            
+            -- Re-parent the button to the controls container
+            if self.suggestionModeBtn.frame then
+                self.suggestionModeBtn.frame:SetParent(self.controlsContainer.frame)
+                self.suggestionModeBtn.frame:Show()
+            end
+            
+            -- Find the position to insert (after suggest groups button, or after guild toggle if suggest groups not present)
+            local insertPosition = 1
+            if self.controlsContainer.children then
+                for i, child in ipairs(self.controlsContainer.children) do
+                    if child == self.suggestGroupsBtn then
+                        insertPosition = i + 1
+                        break
+                    elseif child == self.guildToggleBtn then
+                        insertPosition = i + 1
+                    end
+                end
+            end
+            
+            table.insert(self.controlsContainer.children, insertPosition, self.suggestionModeBtn)
+        elseif not shouldShow and isInLayout then
+            -- Remove button from layout
+            Debug:Dev("ui", "Removing Suggestion Mode button from layout")
+            local buttonIndex = nil
+            for i, child in ipairs(self.controlsContainer.children) do
+                if child == self.suggestionModeBtn then
+                    buttonIndex = i
+                    break
+                end
+            end
+            
+            if buttonIndex then
+                table.remove(self.controlsContainer.children, buttonIndex)
+                if self.suggestionModeBtn.frame then
+                    self.suggestionModeBtn.frame:Hide()
+                    self.suggestionModeBtn.frame:SetParent(nil)
+                end
+            end
+        end
+    end
+    
+    -- Update Guild/Party toggle button visibility (this one can stay in layout, just show/hide)
+    if self.guildToggleBtn and self.guildToggleBtn.frame then
+        if showKeystoneControls then
+            self.guildToggleBtn.frame:Show()
+        else
+            self.guildToggleBtn.frame:Hide()
+        end
+    end
+    
+    -- Update layouts
+    if self.controlsContainer.DoLayout then
+        self.controlsContainer:DoLayout()
+        Debug:Dev("ui", "Controls container layout updated")
+    end
+    
+    Debug:Dev("ui", "Keystone controls visibility updated")
 end
 
 --- Manual refresh function for debug controls (for testing and fallback)
@@ -498,16 +663,16 @@ function UI:CreateMainFrame()
     -- Store reference for text updates
     self.viewToggleBtn = toggleBtn
 
-    -- Group suggestion buttons (visible when 6+ players)
+    -- Group suggestion buttons (conditionally added when 6+ players)
+    -- Create buttons but don't add to layout yet
     local suggestBtn = AceGUI:Create("Button")
     suggestBtn:SetText("Suggest Groups")
     suggestBtn:SetAutoWidth(true)
     suggestBtn:SetCallback("OnClick", function()
         self:SuggestGroups()
     end)
-    controls:AddChild(suggestBtn)
     self.suggestGroupsBtn = suggestBtn
-    suggestBtn.frame:Hide() -- Initially hidden
+    Debug:Dev("ui", "Suggest Groups button created (not added to layout yet)")
 
     local modeBtn = AceGUI:Create("Button")
     modeBtn:SetText("Auto Mode")
@@ -515,9 +680,8 @@ function UI:CreateMainFrame()
     modeBtn:SetCallback("OnClick", function()
         self:ToggleSuggestionMode()
     end)
-    controls:AddChild(modeBtn)
     self.suggestionModeBtn = modeBtn
-    modeBtn.frame:Hide() -- Initially hidden
+    Debug:Dev("ui", "Suggestion Mode button created (not added to layout yet)")
 
     -- Debug-only controls for managing fake players
     -- Always create widgets, but only add to layout when debug is enabled
@@ -611,11 +775,26 @@ function UI:CreateMainFrame()
     if self.viewToggleBtn then
         self.viewToggleBtn:SetText("Switch to Dungeons View")
     end
+    Debug:Dev("ui", "CreateMainFrame: About to call initial RenderResults")
     self:RenderResults()  -- Show keystones by default
+    
+    -- Update keystone controls visibility after initial render
+    Debug:Dev("ui", "CreateMainFrame: About to call initial UpdateKeystoneControlsVisibility")
+    self:UpdateKeystoneControlsVisibility()
+    Debug:Dev("ui", "CreateMainFrame: Initial setup complete")
     
     -- Show the frame
     Debug:Dev("ui", "Showing main frame...")
     frame:Show()
+    
+    -- Double-check button visibility after frame is shown
+    Debug:Dev("ui", "CreateMainFrame: Final button visibility check")
+    if self.suggestGroupsBtn and self.suggestGroupsBtn.frame then
+        Debug:Dev("ui", "Suggest Groups button visible after frame show:", self.suggestGroupsBtn.frame:IsShown() and "YES" or "NO")
+    end
+    if self.suggestionModeBtn and self.suggestionModeBtn.frame then
+        Debug:Dev("ui", "Suggestion Mode button visible after frame show:", self.suggestionModeBtn.frame:IsShown() and "YES" or "NO")
+    end
 end
 
 -- MARK: Frame Visibility Management
@@ -1321,6 +1500,12 @@ function UI:RenderResults()
         none:SetText("No keys detected. Enable Debug in options or acquire a keystone.")
         none:SetFullWidth(true)
         self.resultsFrame:AddChild(none)
+        
+        -- Set cachedItemsCount to 0 even when no keys exist
+        self.cachedItemsCount = 0
+        
+        -- Update all keystone controls visibility (this handles all button visibility logic)
+        self:UpdateKeystoneControlsVisibility()
         return
     end
 
@@ -1360,22 +1545,8 @@ function UI:RenderResults()
         end
     end
 
-    -- Update group suggestion button visibility based on compact mode
-    if self.suggestGroupsBtn and self.suggestGroupsBtn.frame then
-        if #self.cachedItems >= 6 then
-            self.suggestGroupsBtn.frame:Show()
-        else
-            self.suggestGroupsBtn.frame:Hide()
-        end
-    end
-
-    if self.suggestionModeBtn and self.suggestionModeBtn.frame then
-        if #self.cachedItems >= 6 then
-            self.suggestionModeBtn.frame:Show()
-        else
-            self.suggestionModeBtn.frame:Hide()
-        end
-    end
+    -- Update all keystone controls visibility (this handles all button visibility logic)
+    self:UpdateKeystoneControlsVisibility()
 end
 
 -- MARK: Keystone Card Rendering
@@ -1756,6 +1927,10 @@ function UI:ToggleViewMode()
         if self.totalScoreLabel then
             self.totalScoreLabel:SetText(self:FormatColoredTotalScore(NextKey222.Addon:GetRaiderIOTotalScore()))
         end
+        -- Update debug controls visibility (hide fake player buttons in dungeon view)
+        self:UpdateDebugControlsVisibility()
+        -- Update keystone controls visibility (hide Suggest Groups, Auto Mode, and Guild/Party buttons)
+        self:UpdateKeystoneControlsVisibility()
         -- Use centralized dungeon view height
         self:ApplyWindowHeight()
         self:RenderDungeonCards()
@@ -1770,6 +1945,10 @@ function UI:ToggleViewMode()
         if self.totalScoreLabel then
             self.totalScoreLabel:SetText("")
         end
+        -- Update debug controls visibility (show fake player buttons in keystone view if debug is on)
+        self:UpdateDebugControlsVisibility()
+        -- Update keystone controls visibility (show Suggest Groups, Auto Mode, and Guild/Party buttons if applicable)
+        self:UpdateKeystoneControlsVisibility()
         -- Use centralized keystone view height
         self:ApplyWindowHeight()
         self:RenderResults()
