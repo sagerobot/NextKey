@@ -686,8 +686,30 @@ function UI:GetPlayerProfileCached(playerName)
         return self.profileCache[playerName]
     end
 
+    -- Debug logging to track profile system calls
+    if playerName:find("Ryuza") then
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", string.format("GetPlayerProfileCached called for: %s, ProfilesService exists: %s",
+                playerName,
+                NextKey222.ProfilesService and "YES" or "NO"))
+        end
+    end
+
     if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
         local profile = NextKey222.ProfilesService:GetProfile(playerName)
+        
+        -- Debug logging to track profile data
+        if playerName:find("Ryuza") then
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("ui", string.format("Profile retrieved for %s: class=%s, role=%s, specName=%s, specID=%s",
+                    playerName,
+                    profile and profile.class or "nil",
+                    profile and profile.role or "nil",
+                    profile and profile.specName or "nil",
+                    profile and profile.specID or "nil"))
+            end
+        end
+        
         self.profileCache[playerName] = profile
         return profile
     end
@@ -704,15 +726,41 @@ function UI:EnrichEntryMetadata(entry)
     local normalizedName = NextKey222.UIComponents and NextKey222.UIComponents:NormalizePlayerName(ownerName) or ownerName
     entry.normalizedOwnerName = normalizedName
 
+    -- Debug logging to track function calls
+    Debug:Dev("ui", string.format("EnrichEntryMetadata Called: ownerName=%s", ownerName))
+
     local profile = self:GetPlayerProfileCached(normalizedName)
 
-    entry.profile = profile
-    entry.role = (profile and profile.role) or "DAMAGER"
-    -- Normalize role to uppercase to ensure consistency
-    if entry.role then
-        entry.role = string.upper(entry.role)
+    -- Debug logging for Evoker role issue
+    if ownerName:find("Ryuza") or (profile and profile.class == "EVOKER") then
+        Debug:Dev("ui", string.format("EnrichEntryMetadata Debug: ownerName=%s, normalizedName=%s, profile=%s",
+            ownerName, normalizedName, profile and "exists" or "nil"))
+        if profile then
+            Debug:Dev("ui", string.format("Profile Data: class=%s, role=%s, specName=%s, specID=%s",
+                profile.class or "nil",
+                profile.role or "nil",
+                profile.specName or "nil",
+                profile.specID or "nil"))
+        end
     end
+
+    entry.profile = profile
     entry.specName = profile and profile.specName or nil
+    entry.specID = profile and profile.specID or nil
+    
+    -- Use spec-to-role mapping for reliable role detection (same as tooltip)
+    if entry.specID and NextKey222.UIComponents and NextKey222.UIComponents.GetRoleFromSpecID then
+        entry.role = NextKey222.UIComponents:GetRoleFromSpecID(entry.specID, "DAMAGER")
+        Debug:Dev("ui", string.format("EnrichEntryMetadata: Using spec-to-role mapping for %s: specID=%d, role=%s",
+            ownerName, entry.specID, entry.role))
+    else
+        -- Fallback to profile role
+        entry.role = (profile and profile.role) or "DAMAGER"
+        -- Normalize role to uppercase to ensure consistency
+        if entry.role then
+            entry.role = string.upper(entry.role)
+        end
+    end
 
     local classToken = entry.key.class or (profile and profile.class)
     local specID = profile and profile.specID
@@ -1320,7 +1368,10 @@ function UI:AddKeyRow(entry)
         ownerName = ownerName,
         classToken = classToken,
         specName = entry.specName,
-        role = entry.role
+        specID = entry.specID,
+        role = entry.role,
+        hasHeroism = entry.hasHeroism,
+        hasBattleRes = entry.hasBattleRes
     }
     local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 32, playerData)
     icon:SetPoint("LEFT", 12, 0)
@@ -1478,7 +1529,10 @@ function UI:AddKeyRowCompact(entry)
         ownerName = ownerName,
         classToken = classToken,
         specName = entry.specName,
-        role = entry.role
+        specID = entry.specID,
+        role = entry.role,
+        hasHeroism = entry.hasHeroism,
+        hasBattleRes = entry.hasBattleRes
     }
     local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 20, playerData)
     icon:SetPoint("LEFT", 8, 0)
@@ -2551,11 +2605,13 @@ end
 --- Refreshes the UI results by re-rendering with current data
 -- This is useful when party composition changes or data is updated
 function UI:RefreshResults()
-    if not self:IsMainFrameVisible() then
-        Debug:Dev("ui", "Skipping refresh - main frame not visible")
+    -- Always refresh data, even if UI is not visible (for when user opens it later)
+    -- Only skip if mainFrame doesn't exist at all
+    if not self.mainFrame then
+        Debug:Dev("ui", "Skipping refresh - main frame not created yet")
         return
     end
-    
+
     -- Throttle refreshes to prevent performance issues
     local now = GetTime()
     if self.lastRefreshTime and (now - self.lastRefreshTime) < 1.0 then
@@ -2563,30 +2619,42 @@ function UI:RefreshResults()
         return
     end
     self.lastRefreshTime = now
-    
+
     -- Check if we're already refreshing to prevent spam
     if self.refreshing then
         Debug:Dev("ui", "Already refreshing - ignoring duplicate refresh call")
         return
     end
-    
+
     self.refreshing = true
-    Debug:Dev("ui", "Refreshing UI results")
-    
+    Debug:Dev("ui", "Refreshing UI results - clearing cached profile data")
+
+    -- Clear profile cache to force fresh data on refresh
+    if NextKey222.UI then
+        NextKey222.UI.profileCache = {}
+        Debug:Dev("ui", "Cleared profile cache for UI refresh")
+    end
+
     -- Show user notification for IO Gain Potential mode
     if self:IsPartySensitiveSortMode() then
         -- Party composition changed - recalculating IO gain potential
     end
-    
+
     -- Re-scan keystones first to get latest data
     if NextKey.Keystones and NextKey.Keystones.ScanAllKeystones then
         NextKey.SafeRun(NextKey.Keystones.ScanAllKeystones, "Refresh keystone scan")
     end
-    
-    -- Re-render the results
-    NextKey.SafeRun(self.RenderResults, "Refresh render results", self)
-    
+
+    -- Only re-render the UI if it's currently visible
+    if self:IsMainFrameVisible() then
+        Debug:Dev("ui", "UI is visible, re-rendering results")
+        NextKey.SafeRun(self.RenderResults, "Refresh render results", self)
+    else
+        Debug:Dev("ui", "UI not visible, skipping render but data will be fresh when opened")
+    end
+
     self.refreshing = false
+    Debug:Dev("ui", "UI refresh completed")
 end
 
 --- Checks if the current sort mode is affected by party composition changes
@@ -2628,6 +2696,38 @@ end
 -- @return boolean true if initialization succeeded
 function UI:Initialize()
     Debug:Dev("ui", "UI module initialized")
+
+    -- Register for spec change events directly
+    local specChangeFrame = CreateFrame("Frame")
+    specChangeFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    specChangeFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+    specChangeFrame:SetScript("OnEvent", function(self, event, unit, ...)
+        if event == "PLAYER_SPECIALIZATION_CHANGED" then
+            Debug:Dev("ui", "PLAYER_SPECIALIZATION_CHANGED event received")
+            -- Invalidate profile cache
+            if NextKey222.ProfilesService then
+                NextKey222.ProfilesService:InvalidateCache()
+                Debug:Dev("ui", "Profile cache invalidated due to spec change")
+            end
+            -- Refresh UI
+            C_Timer.After(0.2, function()
+                if NextKey222.UI and NextKey222.UI.RefreshResults then
+                    NextKey222.UI:RefreshResults()
+                    Debug:Dev("ui", "UI refreshed after spec change")
+                end
+            end)
+        elseif event == "GROUP_ROSTER_UPDATE" then
+            Debug:Dev("ui", "GROUP_ROSTER_UPDATE event received")
+            -- Refresh for group changes
+            C_Timer.After(0.2, function()
+                if NextKey222.UI and NextKey222.UI.RefreshResults then
+                    NextKey222.UI:RefreshResults()
+                    Debug:Dev("ui", "UI refreshed after group roster change")
+                end
+            end)
+        end
+    end)
+
     return true
 end
 
@@ -2639,6 +2739,37 @@ SlashCmdList["NEXTKEYREFRESHDEBUG"] = function(msg)
         NextKey222.UI:RefreshDebugControls()
     else
         Debug:Error("UI module not available for debug refresh")
+    end
+end
+
+-- Slash command for manual UI refresh (for testing spec change updates)
+SLASH_NEXTKEYREFRESH1 = "/nextkeyrefresh"
+SlashCmdList["NEXTKEYREFRESH"] = function(msg)
+    Debug:User("Manual UI refresh triggered")
+    if NextKey222.UI and NextKey222.UI.RefreshResults then
+        NextKey222.UI:RefreshResults()
+        Debug:User("UI refresh completed")
+    else
+        Debug:Error("UI module not available for refresh")
+    end
+end
+
+-- Slash command to simulate spec change (for testing)
+SLASH_NEXTKEYTESTSPEC1 = "/nextkeytestspec"
+SlashCmdList["NEXTKEYTESTSPEC"] = function(msg)
+    Debug:User("Simulating spec change event")
+    if NextKey222.ProfilesService then
+        -- Invalidate cache as if spec changed
+        NextKey222.ProfilesService:InvalidateCache()
+        Debug:User("Profile cache invalidated")
+
+        -- Trigger UI refresh
+        if NextKey222.UI and NextKey222.UI.RefreshResults then
+            NextKey222.UI:RefreshResults()
+            Debug:User("UI refresh triggered")
+        end
+    else
+        Debug:Error("ProfilesService not available")
     end
 end
 

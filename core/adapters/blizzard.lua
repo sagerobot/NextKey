@@ -31,10 +31,21 @@ function BlizzardAdapter:GetProfile(playerName)
     end
     
     -- Build profile for current player
+    local currentSpec = GetSpecialization() or 0
+    local specID = GetSpecializationInfo and select(1, GetSpecializationInfo(currentSpec))
+
+    -- Debug logging for current player spec detection
+    if NextKey222.Debug then
+        local specName = GetSpecializationInfo and select(2, GetSpecializationInfo(currentSpec)) or "Unknown"
+        local role = GetSpecializationInfo and select(5, GetSpecializationInfo(currentSpec)) or "Unknown"
+        NextKey222.Debug:Dev("blizzard_adapter", string.format("Current Player Debug: playerName=%s, currentSpec=%d, specID=%d, specName=%s, role=%s",
+            playerName, currentSpec, specID or 0, specName, role))
+    end
+    
     local profile = {
         name = playerName,
         class = select(2, UnitClass("player")),
-        specID = GetSpecializationInfo and GetSpecializationInfo(GetSpecialization() or 0),
+        specID = specID,
         io = 0, -- Will be calculated from dungeon scores
         dataSource = "blizzard",
         dungeonScores = {},

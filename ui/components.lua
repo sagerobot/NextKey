@@ -11,6 +11,90 @@ NextKey222.UIComponents = Components
 -- Register with module system
 NextKey222.RegisterModule("UIComponents", Components)
 
+-- MARK: Spec to Role Mapping
+-- Definitive mapping of all specialization IDs to their roles
+-- This is more reliable than WoW API calls and ensures correct role display
+local SPEC_TO_ROLE = {
+    -- Death Knight
+    [250] = "TANK",     -- Blood
+    [251] = "DAMAGER",  -- Frost
+    [252] = "DAMAGER",  -- Unholy
+    
+    -- Demon Hunter
+    [577] = "DAMAGER",  -- Havoc
+    [581] = "TANK",     -- Vengeance
+    
+    -- Druid
+    [102] = "DAMAGER",  -- Balance
+    [103] = "DAMAGER",  -- Feral
+    [104] = "TANK",     -- Guardian
+    [105] = "HEALER",   -- Restoration
+    
+    -- Evoker
+    [1467] = "DAMAGER", -- Devastation
+    [1468] = "HEALER",  -- Preservation
+    [1473] = "DAMAGER", -- Augmentation
+    
+    -- Hunter
+    [253] = "DAMAGER",  -- Beast Mastery
+    [254] = "DAMAGER",  -- Marksmanship
+    [255] = "DAMAGER",  -- Survival
+    
+    -- Mage
+    [62] = "DAMAGER",   -- Arcane
+    [63] = "DAMAGER",   -- Fire
+    [64] = "DAMAGER",   -- Frost
+    
+    -- Monk
+    [268] = "TANK",     -- Brewmaster
+    [270] = "HEALER",   -- Mistweaver
+    [269] = "DAMAGER",  -- Windwalker
+    
+    -- Paladin
+    [65] = "HEALER",    -- Holy
+    [66] = "TANK",      -- Protection
+    [70] = "DAMAGER",   -- Retribution
+    
+    -- Priest
+    [256] = "HEALER",   -- Discipline
+    [257] = "HEALER",   -- Holy
+    [258] = "DAMAGER",  -- Shadow
+    
+    -- Rogue
+    [259] = "DAMAGER",  -- Assassination
+    [260] = "DAMAGER",  -- Outlaw
+    [261] = "DAMAGER",  -- Subtlety
+    
+    -- Shaman
+    [262] = "DAMAGER",  -- Elemental
+    [263] = "DAMAGER",  -- Enhancement
+    [264] = "HEALER",   -- Restoration
+    
+    -- Warlock
+    [265] = "DAMAGER",  -- Affliction
+    [266] = "DAMAGER",  -- Demonology
+    [267] = "DAMAGER",  -- Destruction
+    
+    -- Warrior
+    [71] = "DAMAGER",   -- Arms
+    [72] = "DAMAGER",   -- Fury
+    [73] = "TANK",      -- Protection
+}
+
+-- MARK: Role Detection Helper
+-- Shared function for reliable role detection from specID
+
+--- Gets the role for a given specID using the definitive mapping table
+-- @param specID number The specialization ID
+-- @param fallbackRole string Optional fallback role if specID not found (default: "DAMAGER")
+-- @return string The role: "TANK", "HEALER", or "DAMAGER"
+function Components:GetRoleFromSpecID(specID, fallbackRole)
+    if specID and SPEC_TO_ROLE[specID] then
+        return SPEC_TO_ROLE[specID]
+    end
+    return fallbackRole or "DAMAGER"
+end
+
 -- MARK: Backdrop Factory
 -- Creates standardized backdrop configurations for different card types
 
@@ -346,7 +430,7 @@ end
 
 --- Creates a tooltip for player class icon with detailed information
 -- @param icon Texture The class icon texture to attach tooltip to
--- @param playerData table Player information containing ownerName, classToken, specName, role
+-- @param playerData table Player information containing ownerName, classToken (for display fallback)
 function Components:AttachPlayerTooltip(icon, playerData)
     if not icon or not playerData then return end
     
@@ -358,8 +442,21 @@ function Components:AttachPlayerTooltip(icon, playerData)
         local playerName = fullName:match("^([^%-]+)") or fullName
         local serverName = fullName:match("-(.+)") or GetRealmName()
         
-        -- Format class name from token
-        local className = playerData.classToken or "Unknown"
+        -- Fetch FRESH profile data when tooltip is shown (ensures live updates)
+        local liveProfile = nil
+        if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
+            liveProfile = NextKey222.ProfilesService:GetProfile(fullName)
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("components", string.format("Tooltip GetProfile for %s: profile=%s, specID=%s, role=%s",
+                    fullName,
+                    liveProfile and "exists" or "nil",
+                    liveProfile and liveProfile.specID or "nil",
+                    liveProfile and liveProfile.role or "nil"))
+            end
+        end
+        
+        -- Format class name from token (use live data if available)
+        local className = (liveProfile and liveProfile.class) or playerData.classToken or "Unknown"
         local classMapping = {
             WARRIOR = "Warrior",
             PALADIN = "Paladin",
@@ -377,8 +474,74 @@ function Components:AttachPlayerTooltip(icon, playerData)
         }
         className = classMapping[className] or className
         
-        -- Get role with color
-        local role = playerData.role or "Unknown"
+        -- Get LIVE role using spec-to-role mapping (most reliable)
+        local role = "DAMAGER"
+        local specName = nil
+        local usedSpecID = nil
+        
+        -- Determine best specID source (live profile first, then playerData fallback)
+        if liveProfile and liveProfile.specID then
+            usedSpecID = liveProfile.specID
+            specName = liveProfile.specName
+        elseif playerData and playerData.specID then
+            usedSpecID = playerData.specID
+            specName = playerData.specName
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("components", string.format("Using playerData specID fallback: %d", usedSpecID))
+            end
+        end
+        
+        -- Primary: Use spec-to-role mapping table (most reliable method)
+        if usedSpecID and SPEC_TO_ROLE[usedSpecID] then
+            role = SPEC_TO_ROLE[usedSpecID]
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("components", string.format("✓ Spec-to-role mapping SUCCESS: player=%s, specID=%d, specName=%s, role=%s",
+                    playerName, usedSpecID, specName or "nil", role))
+            end
+        -- Fallback 1: Try WoW API if mapping not found
+        elseif usedSpecID and GetSpecializationInfoByID then
+            local _, apiSpecName, _, _, _, specRole = GetSpecializationInfoByID(usedSpecID)
+            if specRole and specRole ~= "" then
+                role = specRole
+                specName = apiSpecName or specName
+                if NextKey222.Debug then
+                    NextKey222.Debug:Dev("components", string.format("WoW API role: player=%s, specID=%d, role=%s",
+                        playerName, usedSpecID, specRole))
+                end
+            end
+        -- Fallback 2: Use profile role directly
+        elseif liveProfile and liveProfile.role then
+            role = liveProfile.role
+            specName = liveProfile.specName or specName
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("components", string.format("Using profile role: player=%s, role=%s",
+                    playerName, role))
+            end
+        end
+        
+        -- Final check: Detect and fix role corruption (when role equals class name)
+        local classTokenUpper = string.upper(playerData.classToken or "")
+        if role == classTokenUpper or role == className then
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("components", string.format("! Role corruption still present: role='%s' equals class, forcing DAMAGER",
+                    role))
+            end
+            role = "DAMAGER" -- Safe fallback when role data is corrupted
+        end
+        
+        -- Debug logging for tooltip data
+        if fullName and (fullName:find("Ryuza") or fullName:find("Petalz")) then
+            local debugMsg = string.format("Tooltip Debug (LIVE): ownerName=%s, role=%s, classToken=%s, specName=%s, specID=%s",
+                fullName or "nil",
+                role or "nil",
+                className or "nil",
+                specName or "nil",
+                liveProfile and liveProfile.specID or "nil")
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("components", debugMsg)
+            end
+        end
+        
         local roleColor = {1, 1, 1} -- Default white
         if role == "TANK" then
             roleColor = {0.31, 0.45, 0.63}  -- Blue
@@ -392,16 +555,41 @@ function Components:AttachPlayerTooltip(icon, playerData)
         local nameLine = string.format("%s - %s", playerName, serverName)
         GameTooltip:SetText(nameLine, 1, 1, 1, true)
         
-        -- Line 2: Class and Specialization
-        local specName = playerData.specName
+        -- Line 2: Class and Specialization (use live data)
         local classSpecLine = className
         if specName and specName ~= "" then
             classSpecLine = string.format("%s (%s)", className, specName)
         end
         GameTooltip:AddLine(classSpecLine, 1, 1, 1)
         
-        -- Line 3: Role (with color)
+        -- Line 3: Role (with color) - now shows live role data
         GameTooltip:AddLine(string.format("Role: %s", role), roleColor[1], roleColor[2], roleColor[3])
+        
+        -- Line 4: Heroism/Battle Res capabilities (use live profile data)
+        local capabilities = {}
+        local hasHeroism = false
+        local hasBattleRes = false
+        
+        if liveProfile and liveProfile.capabilities then
+            hasHeroism = liveProfile.capabilities.heroism or false
+            hasBattleRes = liveProfile.capabilities.battleRes or false
+        elseif playerData then
+            -- Fallback to playerData if no live profile
+            hasHeroism = playerData.hasHeroism or false
+            hasBattleRes = playerData.hasBattleRes or false
+        end
+        
+        if hasHeroism then
+            table.insert(capabilities, "|cff0070ddHeroism|r")
+        end
+        if hasBattleRes then
+            table.insert(capabilities, "|cffa335eeBattle Res|r")
+        end
+        
+        if #capabilities > 0 then
+            local capabilityText = table.concat(capabilities, " / ")
+            GameTooltip:AddLine("Utilities: " .. capabilityText, 1, 1, 1)
+        end
         
         GameTooltip:Show()
     end)

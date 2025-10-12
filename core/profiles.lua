@@ -129,10 +129,49 @@ function ProfilesService:InvalidateOnEvents()
         -- Create event handler function if it doesn't exist
         if not NextKey222.Addon.OnProfilesInvalidation then
             NextKey222.Addon.OnProfilesInvalidation = function(event, ...)
+                if NextKey222.Debug then
+                    NextKey222.Debug:Dev("profiles", "EVENT FIRED: " .. (event or "unknown"))
+                end
+
                 if NextKey222.ProfilesService then
                     NextKey222.ProfilesService:InvalidateCache()
                     if NextKey222.Debug then
                         NextKey222.Debug:Dev("profiles", "Cache invalidated due to event: " .. (event or "unknown"))
+                    end
+
+                    -- Trigger UI refresh for spec changes and roster updates
+                    if event == "PLAYER_SPECIALIZATION_CHANGED" or
+                       event == "UNIT_SPECIALIZATION" or
+                       event == "GROUP_ROSTER_UPDATE" then
+                        if NextKey222.UI and NextKey222.UI.RefreshResults then
+                            if NextKey222.UI:IsMainFrameVisible() then
+                                if NextKey222.Debug then
+                                    NextKey222.Debug:Dev("profiles", "Triggering UI refresh due to " .. event .. " (UI visible)")
+                                end
+                            else
+                                if NextKey222.Debug then
+                                    NextKey222.Debug:Dev("profiles", "Triggering UI refresh due to " .. event .. " (UI not visible, but refreshing anyway)")
+                                end
+                            end
+
+                            -- Small delay to allow profile data to update
+                            C_Timer.After(0.1, function()
+                                if NextKey222.UI and NextKey222.UI.RefreshResults then
+                                    NextKey222.UI:RefreshResults()
+                                    if NextKey222.Debug then
+                                        NextKey222.Debug:Dev("profiles", "UI refresh completed for " .. event)
+                                    end
+                                else
+                                    if NextKey222.Debug then
+                                        NextKey222.Debug:Dev("profiles", "UI refresh FAILED - UI not available for " .. event)
+                                    end
+                                end
+                            end)
+                        else
+                            if NextKey222.Debug then
+                                NextKey222.Debug:Dev("profiles", "UI refresh SKIPPED - UI not available for " .. event)
+                            end
+                        end
                     end
                 end
             end
@@ -141,17 +180,34 @@ function ProfilesService:InvalidateOnEvents()
         -- Register events that should invalidate profiles cache
         local events = {
             "CHALLENGE_MODE_KEYSTONE_SLOTTED",
-            "CHALLENGE_MODE_COMPLETED", 
+            "CHALLENGE_MODE_COMPLETED",
             "CHALLENGE_MODE_RESET",
             "MYTHIC_PLUS_CURRENT_AFFIX_UPDATE",
             "GROUP_ROSTER_UPDATE",
             "PARTY_MEMBER_ENABLE",
-            "PARTY_MEMBER_DISABLE"
+            "PARTY_MEMBER_DISABLE",
+            "PLAYER_SPECIALIZATION_CHANGED",  -- Current player changes spec
+            "UNIT_SPECIALIZATION"              -- Any unit (including party members) changes spec
         }
         
         for _, eventName in ipairs(events) do
-            if not NextKey222.Addon:IsEventRegistered(eventName) then
+            -- Always try to register - the IsEventRegistered check might not work
+            local success = pcall(function()
                 NextKey222.Addon:RegisterEvent(eventName, "OnProfilesInvalidation")
+            end)
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("Event registration for %s: %s",
+                    eventName, success and "SUCCESS" or "FAILED"))
+            end
+
+            -- Also register with the global frame as a backup
+            if not success and _G.NextKeyMainFrame then
+                pcall(function()
+                    _G.NextKeyMainFrame:RegisterEvent(eventName)
+                    if NextKey222.Debug then
+                        NextKey222.Debug:Dev("profiles", string.format("Backup event registration for %s on main frame", eventName))
+                    end
+                end)
             end
         end
         
@@ -195,8 +251,51 @@ function ProfilesService:InvalidateOnEvents()
             end
         end
         
+        -- Also register events directly on a frame as backup
+        local eventFrame = CreateFrame("Frame")
+        eventFrame:SetScript("OnEvent", function(self, event, ...)
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", "FRAME EVENT FIRED: " .. (event or "unknown"))
+            end
+
+            -- Call the same handler
+            if NextKey222.ProfilesService then
+                NextKey222.ProfilesService:InvalidateCache()
+                if NextKey222.Debug then
+                    NextKey222.Debug:Dev("profiles", "Cache invalidated due to frame event: " .. (event or "unknown"))
+                end
+
+                -- Trigger UI refresh for spec changes and roster updates
+                if event == "PLAYER_SPECIALIZATION_CHANGED" or
+                   event == "UNIT_SPECIALIZATION" or
+                   event == "GROUP_ROSTER_UPDATE" then
+                    if NextKey222.UI and NextKey222.UI.RefreshResults then
+                        if NextKey222.Debug then
+                            NextKey222.Debug:Dev("profiles", "Triggering UI refresh due to frame event " .. event)
+                        end
+                        C_Timer.After(0.1, function()
+                            if NextKey222.UI and NextKey222.UI.RefreshResults then
+                                NextKey222.UI:RefreshResults()
+                                if NextKey222.Debug then
+                                    NextKey222.Debug:Dev("profiles", "UI refresh completed for frame event " .. event)
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+        end)
+
+        -- Register the key events on the backup frame
+        for _, eventName in ipairs({"PLAYER_SPECIALIZATION_CHANGED", "GROUP_ROSTER_UPDATE"}) do
+            eventFrame:RegisterEvent(eventName)
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", "Backup frame registered for event: " .. eventName)
+            end
+        end
+
         if NextKey222.Debug then
-            NextKey222.Debug:Dev("profiles", "Event-driven cache invalidation registered for " .. #events .. " events")
+            NextKey222.Debug:Dev("profiles", "Event-driven cache invalidation registered for " .. #events .. " events + backup frame")
         end
     end
 end
@@ -580,10 +679,29 @@ function ProfilesService:FinalizeProfile(profile)
         if role and not profile.role then
             profile.role = role
         end
+        
+        -- Debug logging for Evoker spec/role detection
+        if profile.class == "EVOKER" then
+            local debugMsg = string.format("Evoker Spec Debug: specID=%d, specName=%s, role=%s",
+                profile.specID or "nil",
+                specName or "nil",
+                role or "nil")
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", debugMsg)
+            end
+        end
     end
 
     if not profile.role and profile.class then
         profile.role = DEFAULT_CLASS_ROLE[profile.class] or "DAMAGER"
+        
+        -- Debug fallback logic
+        if profile.class == "EVOKER" then
+            local fallbackRole = DEFAULT_CLASS_ROLE[profile.class] or "DAMAGER"
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("Evoker Fallback: Using default role=%s for class=%s", fallbackRole, profile.class))
+            end
+        end
     end
 
     local specCaps = profile.specID and SPEC_CAPABILITIES[profile.specID] or nil
@@ -618,6 +736,13 @@ end
 function ProfilesService:GetProfile(playerName)
     if not playerName or playerName == "" then
         return nil
+    end
+    
+    -- Debug logging to track profile system calls
+    if playerName:find("Ryuza") then
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("profiles", string.format("GetProfile called for: %s", playerName))
+        end
     end
 
     return self:BuildProfileForPlayer(playerName)
