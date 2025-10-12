@@ -14,8 +14,9 @@ local DebugUI = {}
 -- Use the same DEBUG_CATEGORY_GROUPS from DebugService
 local DEBUG_CATEGORY_GROUPS = DebugService:GetCategoryGroups()
 
--- Debug presets
-local DEBUG_PRESETS = {
+-- Debug presets (make accessible for testing)
+DebugUI.DEBUG_PRESETS = {
+local DEBUG_PRESETS = DebugUI.DEBUG_PRESETS
     ["minimal"] = {
         description = "Minimal debugging - errors only",
         level = 1, -- ERROR only

@@ -63,17 +63,23 @@ function TestSuite:TestBasicDebugLevels()
     -- Test TRACE level (requires category)
     DebugService:Trace("test", "Test trace message")
     
+    -- Clean up: disable test category to avoid interfering with other tests
+    DebugService:DisableCategory("test")
+    
     self:Assert(true, "BasicDebugLevels", "All debug levels tested successfully")
 end
 
 function TestSuite:TestCategoryManagement()
-    -- Test enabling/disabling categories
+    -- Ensure test category is in a known state (disabled) before testing
+    DebugService:DisableCategory("test")
     local initialCount = DebugService:GetEnabledCategoriesCount()
     
+    -- Test enabling category
     DebugService:EnableCategory("test")
     local afterEnable = DebugService:GetEnabledCategoriesCount()
     self:AssertEquals(afterEnable, initialCount + 1, "EnableCategory", "Category count should increase")
     
+    -- Test disabling category
     DebugService:DisableCategory("test")
     local afterDisable = DebugService:GetEnabledCategoriesCount()
     self:AssertEquals(afterDisable, initialCount, "DisableCategory", "Category count should return to original")
@@ -122,12 +128,12 @@ function TestSuite:TestStatistics()
     DebugService:ResetStatistics()
     local stats = DebugService:GetStatistics()
     
-    -- Test initial state
+    -- Test initial state (no debug logging to avoid contaminating stats)
     self:AssertEquals(stats.totalMessages, 0, "Stats_Initial_Total", "Total messages should start at 0")
     self:AssertEquals(stats.errorCount, 0, "Stats_Initial_Error", "Error count should start at 0")
     self:AssertEquals(stats.userCount, 0, "Stats_Initial_User", "User count should start at 0")
     
-    -- Generate some messages
+    -- Generate some messages for testing
     DebugService:Error("Test error")
     DebugService:User("Test user")
     DebugService:EnableCategory("test")
@@ -257,9 +263,21 @@ function TestSuite:TestPresetSystem()
     DebugService:EnableCategory("test")
     DebugUI:SaveCurrentAsPreset("test_preset")
     
-    -- Verify preset was created
-    local presetExists = DEBUG_PRESETS and DEBUG_PRESETS["test_preset"] ~= nil
-    self:Assert(presetExists, "Preset_Custom_Create", "Custom preset should be created")
+    -- Debug: Check if we can access the preset
+    DebugService:User("DEBUG: Attempting to verify preset creation...")
+    if DebugUI.DEBUG_PRESETS then
+        DebugService:User("DEBUG: DebugUI.DEBUG_PRESETS exists, checking for test_preset...")
+        local presetExists = DebugUI.DEBUG_PRESETS["test_preset"] ~= nil
+        DebugService:User("DEBUG: Preset exists:", presetExists and "YES" or "NO")
+        if presetExists then
+            local preset = DebugUI.DEBUG_PRESETS["test_preset"]
+            DebugService:User("DEBUG: Preset details - Level:", preset.level, "Description:", preset.description)
+        end
+        self:Assert(presetExists, "Preset_Custom_Create", "Custom preset should be created")
+    else
+        DebugService:User("DEBUG: DebugUI.DEBUG_PRESETS is nil or inaccessible")
+        self:Assert(false, "Preset_Custom_Create", "DEBUG_PRESETS table is not accessible")
+    end
 end
 
 function TestSuite:TestPerformanceOptimization()

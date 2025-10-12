@@ -660,8 +660,10 @@ function DebugService:ResetStatistics()
     self.stats.startTime = time()
     
     -- Clear performance data
-    self.performanceData.measurements = {}
-    self.performanceData.history = {}
+    if self.performanceData then
+        self.performanceData.measurements = {}
+        self.performanceData.history = {}
+    end
     
     -- Reset debug system performance stats
     debugPerformanceStats.totalCalls = 0
@@ -674,7 +676,9 @@ function DebugService:ResetStatistics()
     cacheHits = 0
     cacheMisses = 0
     
-    self:User("Debug statistics reset")
+    -- Don't log during reset to avoid contaminating statistics
+    -- Use direct print instead of debug service
+    print("|cFF00FF00[NextKey]|r Debug statistics reset")
 end
 
 -- Periodic cleanup function to prevent memory leaks
