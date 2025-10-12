@@ -56,7 +56,7 @@ local BACKDROP_CONFIGS = {
 function Components:CreateBackdrop(parent, type)
     local config = BACKDROP_CONFIGS[type]
     if not config then
-        NextKey222.Debug:Print("components", "Unknown backdrop type:", type)
+        NextKey222.Debug:Dev("components", "Unknown backdrop type:", type)
         config = BACKDROP_CONFIGS.keystone
     end
     
@@ -178,7 +178,7 @@ local BUTTON_CONFIGS = {
 function Components:CreateButton(parent, type, onClick, onEnter)
     local config = BUTTON_CONFIGS[type]
     if not config then
-        NextKey222.Debug:Print("components", "Unknown button type:", type)
+        NextKey222.Debug:Dev("components", "Unknown button type:", type)
         config = BUTTON_CONFIGS.select
     end
     
@@ -350,7 +350,7 @@ end
 
 -- MARK: Initialization
 function Components:Initialize()
-    NextKey222.Debug:Print("components", "UI Components system initialized")
+    NextKey222.Debug:Dev("components", "UI Components system initialized")
     return true
 end
 

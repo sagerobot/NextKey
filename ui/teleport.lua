@@ -122,25 +122,25 @@ local function getKeystoneTeleportData()
         return nil
     end
     local dungeonName = addon:GetDungeonName(keyInfo.dungeonID)
-    NextKey222.Debug:Print("teleport", "getKeystoneTeleportData - dungeonID:", keyInfo.dungeonID, "dungeonName:", dungeonName or "nil")
+    NextKey222.Debug:Dev("teleport", "getKeystoneTeleportData - dungeonID:", keyInfo.dungeonID, "dungeonName:", dungeonName or "nil")
     if not dungeonName then return nil end
     local portal
     -- First try to match by dungeonID directly (more reliable)
     if SEASON_PORTALS[keyInfo.dungeonID] then
         portal = SEASON_PORTALS[keyInfo.dungeonID]
-        NextKey222.Debug:Print("teleport", "Found portal by dungeonID:", keyInfo.dungeonID, "spellID:", portal.spellID)
+        NextKey222.Debug:Dev("teleport", "Found portal by dungeonID:", keyInfo.dungeonID, "spellID:", portal.spellID)
     else
         -- Fallback to name matching
         for _, data in pairs(SEASON_PORTALS) do
-            NextKey222.Debug:Print("teleport", "Checking SEASON_PORTALS entry:", data.name, "vs dungeonName:", dungeonName)
+            NextKey222.Debug:Dev("teleport", "Checking SEASON_PORTALS entry:", data.name, "vs dungeonName:", dungeonName)
             if data.name == dungeonName then
                 portal = data
-                NextKey222.Debug:Print("teleport", "Found matching portal for:", dungeonName, "spellID:", data.spellID)
+                NextKey222.Debug:Dev("teleport", "Found matching portal for:", dungeonName, "spellID:", data.spellID)
                 break
             end
         end
         if not portal then
-            NextKey222.Debug:Print("teleport", "No portal found for dungeonName:", dungeonName, "or dungeonID:", keyInfo.dungeonID, "in SEASON_PORTALS")
+            NextKey222.Debug:Dev("teleport", "No portal found for dungeonName:", dungeonName, "or dungeonID:", keyInfo.dungeonID, "in SEASON_PORTALS")
         end
     end
     -- If not found in SEASON_PORTALS, try to find it in NextKey_DungeonNames and then get the spell from NextKey_PortalDB

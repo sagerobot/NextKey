@@ -1,4 +1,4 @@
-﻿-- MARK: Event Handlers
+-- MARK: Event Handlers
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
 
@@ -34,7 +34,7 @@ function Events:RegisterCoreEvents()
         self:OnChatMsgAddon(prefix, message, distribution, sender)
     end)
     
-    NextKey222.Debug:Print("events", "Core events registered")
+    NextKey222.Debug:Dev("events", "Core events registered")
 end
 
 -- MARK: Core Event Handlers
@@ -42,7 +42,7 @@ function Events:OnPlayerEnteringWorld(isLogin, isReload)
     NextKey222.Performance:StartProfile("OnPlayerEnteringWorld")
     
     if isLogin or isReload then
-        NextKey222.Debug:Print("events", "Player entering world - login/reload")
+        NextKey222.Debug:Dev("events", "Player entering world - login/reload")
         
         -- Initialize player data
         if NextKey.Keystones and NextKey.Keystones.ScanPlayerKeystones then
@@ -61,7 +61,7 @@ end
 function Events:OnGroupRosterUpdate()
     NextKey222.Performance:StartProfile("OnGroupRosterUpdate")
     
-    NextKey222.Debug:Print("events", "Group roster updated - refreshing party composition")
+    NextKey222.Debug:Dev("events", "Group roster updated - refreshing party composition")
     
     -- Update group composition
     if NextKey222.Communications and NextKey222.Communications.SendSync then
@@ -84,10 +84,10 @@ function Events:OnGroupRosterUpdate()
     if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
         -- Add extra notice for IO Gain Potential mode
         if NextKey222.UI.IsPartySensitiveSortMode and NextKey222.UI:IsPartySensitiveSortMode() then
-            NextKey222.Debug:Print("events", "Party change affects IO Gain Potential calculations - full refresh needed")
+            NextKey222.Debug:Dev("events", "Party change affects IO Gain Potential calculations - full refresh needed")
         end
         
-        NextKey222.Debug:Print("events", "Refreshing UI due to party change")
+        NextKey222.Debug:Dev("events", "Refreshing UI due to party change")
         C_Timer.After(1, function()
             NextKey.SafeRun(function()
                 NextKey222.UI:RefreshResults()
@@ -100,7 +100,7 @@ end
 
 function Events:OnGroupJoined()
     NextKey222.Performance:StartProfile("OnGroupJoined")
-    NextKey222.Debug:Print("events", "Player joined a group")
+    NextKey222.Debug:Dev("events", "Player joined a group")
     
     -- Force immediate keystone scan when joining group
     if NextKey.Keystones and NextKey.Keystones.ScanAllKeystones then
@@ -126,7 +126,7 @@ end
 
 function Events:OnGroupLeft()
     NextKey222.Performance:StartProfile("OnGroupLeft")
-    NextKey222.Debug:Print("events", "Player left group")
+    NextKey222.Debug:Dev("events", "Player left group")
     
     -- Clear party-only keystones and refresh
     if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
@@ -161,7 +161,7 @@ end
 -- MARK: Module Interface
 function Events:Initialize()
     self:RegisterCoreEvents()
-    NextKey222.Debug:Print("events", "Events module initialized")
+    NextKey222.Debug:Dev("events", "Events module initialized")
     return true
 end
 

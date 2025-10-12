@@ -74,7 +74,7 @@ function ProfilesService:InvalidateCache(playerName)
     self.cacheStats.invalidations = self.cacheStats.invalidations + 1
     
     if NextKey222.Debug and invalidatedCount > 0 then
-        NextKey222.Debug:Print("profiles", string.format("Invalidated %d profile%s from cache", 
+        NextKey222.Debug:Dev("profiles", string.format("Invalidated %d profile%s from cache", 
             invalidatedCount, invalidatedCount == 1 and "" or "s"))
     end
 end
@@ -88,7 +88,7 @@ function ProfilesService:InvalidateOnEvents()
                 if NextKey222.ProfilesService then
                     NextKey222.ProfilesService:InvalidateCache()
                     if NextKey222.Debug then
-                        NextKey222.Debug:Print("profiles", "Cache invalidated due to event: " .. (event or "unknown"))
+                        NextKey222.Debug:Dev("profiles", "Cache invalidated due to event: " .. (event or "unknown"))
                     end
                 end
             end
@@ -117,7 +117,7 @@ function ProfilesService:InvalidateOnEvents()
                 if NextKey222.ProfilesService then
                     NextKey222.ProfilesService:InvalidateCache(playerName)
                     if NextKey222.Debug then
-                        NextKey222.Debug:Print("profiles", "Cache invalidated for fake player: " .. (playerName or "unknown"))
+                        NextKey222.Debug:Dev("profiles", "Cache invalidated for fake player: " .. (playerName or "unknown"))
                     end
                 end
             end)
@@ -126,13 +126,13 @@ function ProfilesService:InvalidateOnEvents()
                 if NextKey222.ProfilesService then
                     NextKey222.ProfilesService:InvalidateCache(playerName)
                     if NextKey222.Debug then
-                        NextKey222.Debug:Print("profiles", "Cache invalidated for removed fake player: " .. (playerName or "unknown"))
+                        NextKey222.Debug:Dev("profiles", "Cache invalidated for removed fake player: " .. (playerName or "unknown"))
                     end
                 end
             end)
             
             if NextKey222.Debug then
-                NextKey222.Debug:Print("profiles", "Registered for FakePlayerService message events")
+                NextKey222.Debug:Dev("profiles", "Registered for FakePlayerService message events")
             end
         end
         
@@ -144,7 +144,7 @@ function ProfilesService:InvalidateOnEvents()
                     openRaidLib:RegisterCallback(self, "DataUpdate", function()
                         self:InvalidateCache()
                         if NextKey222.Debug then
-                            NextKey222.Debug:Print("profiles", "Cache invalidated due to LibOpenRaid update")
+                            NextKey222.Debug:Dev("profiles", "Cache invalidated due to LibOpenRaid update")
                         end
                     end)
                 end)
@@ -152,7 +152,7 @@ function ProfilesService:InvalidateOnEvents()
         end
         
         if NextKey222.Debug then
-            NextKey222.Debug:Print("profiles", "Event-driven cache invalidation registered for " .. #events .. " events")
+            NextKey222.Debug:Dev("profiles", "Event-driven cache invalidation registered for " .. #events .. " events")
         end
     end
 end
@@ -364,7 +364,7 @@ end
 function ProfilesService:LogStats()
     local stats = self:GetCacheStats()
     if NextKey222.Debug then
-        NextKey222.Debug:Print("profiles", string.format("Cache stats: %d entries, %.1f%% hit rate, %d builds", 
+        NextKey222.Debug:Dev("profiles", string.format("Cache stats: %d entries, %.1f%% hit rate, %d builds", 
             stats.cacheSize, stats.hitRate * 100, stats.builds))
     end
 end
@@ -381,7 +381,7 @@ function ProfilesService:LogPerformanceMetrics()
         local avgBuildTime = self.perfStats.totalBuildTime / self.perfStats.totalBuilds
         
         if NextKey222.Debug then
-            NextKey222.Debug:Print("profiles", string.format(
+            NextKey222.Debug:Dev("profiles", string.format(
                 "Performance: %d builds, avg %.3fms, slowest %.3fms (%s)",
                 self.perfStats.totalBuilds,
                 avgBuildTime * 1000,
@@ -404,7 +404,7 @@ function ProfilesService:Initialize()
     
     if not enabled then
         if NextKey222.Debug then
-            NextKey222.Debug:Print("profiles", "Profiles service disabled by feature flag")
+            NextKey222.Debug:Dev("profiles", "Profiles service disabled by feature flag")
         end
         return
     end
@@ -417,7 +417,7 @@ function ProfilesService:Initialize()
     end
     
     if NextKey222.Debug then
-        NextKey222.Debug:Print("profiles", "Profiles service initialized with adapters and performance monitoring")
+        NextKey222.Debug:Dev("profiles", "Profiles service initialized with adapters and performance monitoring")
     end
 end
 
@@ -480,7 +480,7 @@ function ProfilesService:ToggleDungeonPreference(dungeonID, isLike)
     end
     
     if NextKey222.Debug then
-        NextKey222.Debug:Print("profiles", string.format("Dungeon preference updated: %s", 
+        NextKey222.Debug:Dev("profiles", string.format("Dungeon preference updated: %s", 
             current.liked and "Liked" or (current.disliked and "Disliked" or "Neutral")))
     end
 end

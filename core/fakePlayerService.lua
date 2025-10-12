@@ -227,11 +227,11 @@ end
 -- @return boolean Success status
 function FakePlayerService:Initialize()
     if isInitialized then
-        NextKey222.Debug:Print("fakeplayerservice", "Already initialized")
+        NextKey222.Debug:Dev("fakeplayerservice", "Already initialized")
         return true
     end
     
-    NextKey222.Debug:Print("startup", "FakePlayerService initializing...")
+    NextKey222.Debug:Dev("startup", "FakePlayerService initializing...")
     
     local success = NextKey222.SafeRun(function()
         -- Initialize storage
@@ -263,7 +263,7 @@ function FakePlayerService:Initialize()
         return true
     end, "FakePlayerService:Initialize")
     
-    NextKey222.Debug:Print("startup", "FakePlayerService initialization", success and "successful" or "failed")
+    NextKey222.Debug:Dev("startup", "FakePlayerService initialization", success and "successful" or "failed")
     return success
 end
 
@@ -279,7 +279,7 @@ end
 -- @return string|nil Player name if created, nil on failure
 function FakePlayerService:CreatePlayer(config)
     if not isInitialized then
-        NextKey222.Debug:Print("fakeplayerservice", "Service not initialized")
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
         return nil
     end
     
@@ -293,7 +293,7 @@ function FakePlayerService:CreatePlayer(config)
         
         -- Validate no duplicate
         if fakePlayerStorage[playerName] then
-            NextKey222.Debug:Print("fakeplayerservice", "Player already exists:", playerName)
+            NextKey222.Debug:Dev("fakeplayerservice", "Player already exists:", playerName)
             return nil
         end
         
@@ -304,7 +304,7 @@ function FakePlayerService:CreatePlayer(config)
         end
         
         if #dungeonIDs == 0 then
-            NextKey222.Debug:Print("fakeplayerservice", "Warning: No dungeon IDs available for fake player generation")
+            NextKey222.Debug:Dev("fakeplayerservice", "Warning: No dungeon IDs available for fake player generation")
         end
         
         -- Determine tier
@@ -346,7 +346,7 @@ function FakePlayerService:CreatePlayer(config)
         -- Save to storage
         saveToStorage(playerName, playerData)
         
-        NextKey222.Debug:Print("fakeplayerservice", "Created fake player:", playerName, "class:", playerData.class, "tier:", tier, "IO:", playerData.io)
+        NextKey222.Debug:Dev("fakeplayerservice", "Created fake player:", playerName, "class:", playerData.class, "tier:", tier, "IO:", playerData.io)
         
         return playerName
     end, "FakePlayerService:CreatePlayer")
@@ -362,12 +362,12 @@ function FakePlayerService:RemovePlayer(playerName)
     
     return NextKey222.SafeRun(function()
         if not fakePlayerStorage[playerName] then
-            NextKey222.Debug:Print("fakeplayerservice", "Player not found:", playerName)
+            NextKey222.Debug:Dev("fakeplayerservice", "Player not found:", playerName)
             return false
         end
         
         removeFromStorage(playerName)
-        NextKey222.Debug:Print("fakeplayerservice", "Removed fake player:", playerName)
+        NextKey222.Debug:Dev("fakeplayerservice", "Removed fake player:", playerName)
         return true
     end, "FakePlayerService:RemovePlayer")
 end
@@ -390,7 +390,7 @@ function FakePlayerService:ClearAllPlayers()
             NextKey222.ProfilesService:InvalidateCache()
         end
         
-        NextKey222.Debug:Print("fakeplayerservice", "Cleared all fake players, removed:", count)
+        NextKey222.Debug:Dev("fakeplayerservice", "Cleared all fake players, removed:", count)
         return count
     end, "FakePlayerService:ClearAllPlayers") or 0
 end
@@ -479,7 +479,7 @@ function FakePlayerService:GetProfile(playerName)
             end
         end
         
-        NextKey222.Debug:Print("fakeplayerservice", "Generated profile for:", playerName, "IO:", profile.io)
+        NextKey222.Debug:Dev("fakeplayerservice", "Generated profile for:", playerName, "IO:", profile.io)
         return profile
     end, "FakePlayerService:GetProfile")
 end
@@ -508,14 +508,14 @@ end
 -- @return number Count of players created
 function FakePlayerService:GeneratePreset(presetType, count)
     if not isInitialized then
-        NextKey222.Debug:Print("fakeplayerservice", "Service not initialized")
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
         return 0
     end
     
     return NextKey222.SafeRun(function()
         local preset = PRESET_CONFIGS[presetType]
         if not preset then
-            NextKey222.Debug:Print("fakeplayerservice", "Unknown preset type:", presetType)
+            NextKey222.Debug:Dev("fakeplayerservice", "Unknown preset type:", presetType)
             return 0
         end
         
@@ -525,7 +525,7 @@ function FakePlayerService:GeneratePreset(presetType, count)
         -- Determine player count
         local playerCount = count or #preset
         
-        NextKey222.Debug:Print("fakeplayerservice", "Generating preset:", presetType, "with", playerCount, "players")
+        NextKey222.Debug:Dev("fakeplayerservice", "Generating preset:", presetType, "with", playerCount, "players")
         
         local created = 0
         for i = 1, playerCount do
@@ -540,7 +540,7 @@ function FakePlayerService:GeneratePreset(presetType, count)
             end
         end
         
-        NextKey222.Debug:Print("fakeplayerservice", "Created", created, "fake players for preset:", presetType)
+        NextKey222.Debug:Dev("fakeplayerservice", "Created", created, "fake players for preset:", presetType)
         return created
     end, "FakePlayerService:GeneratePreset") or 0
 end
@@ -551,7 +551,7 @@ end
 -- @return number Count of players created
 function FakePlayerService:GenerateRandomPlayers(count, addonMix)
     if not isInitialized then
-        NextKey222.Debug:Print("fakeplayerservice", "Service not initialized")
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
         return 0
     end
     
@@ -561,7 +561,7 @@ function FakePlayerService:GenerateRandomPlayers(count, addonMix)
         -- Clear existing fake players
         self:ClearAllPlayers()
         
-        NextKey222.Debug:Print("fakeplayerservice", "Generating", count, "random fake players")
+        NextKey222.Debug:Dev("fakeplayerservice", "Generating", count, "random fake players")
         
         local created = 0
         for i = 1, count do
@@ -574,7 +574,7 @@ function FakePlayerService:GenerateRandomPlayers(count, addonMix)
             end
         end
         
-        NextKey222.Debug:Print("fakeplayerservice", "Created", created, "random fake players")
+        NextKey222.Debug:Dev("fakeplayerservice", "Created", created, "random fake players")
         return created
     end, "FakePlayerService:GenerateRandomPlayers") or 0
 end
@@ -596,7 +596,7 @@ function FakePlayerService:SetDungeonBest(playerName, dungeonID, level, timed, c
     return NextKey222.SafeRun(function()
         local playerData = fakePlayerStorage[playerName]
         if not playerData then
-            NextKey222.Debug:Print("fakeplayerservice", "Player not found:", playerName)
+            NextKey222.Debug:Dev("fakeplayerservice", "Player not found:", playerName)
             return false
         end
         
@@ -617,7 +617,7 @@ function FakePlayerService:SetDungeonBest(playerName, dungeonID, level, timed, c
         
         saveToStorage(playerName, playerData)
         
-        NextKey222.Debug:Print("fakeplayerservice", "Set dungeon best for", playerName, "dungeon", dungeonID, "level", level, "score", score)
+        NextKey222.Debug:Dev("fakeplayerservice", "Set dungeon best for", playerName, "dungeon", dungeonID, "level", level, "score", score)
         return true
     end, "FakePlayerService:SetDungeonBest")
 end
@@ -635,7 +635,7 @@ function FakePlayerService:SetKeystone(playerName, dungeonID, level)
     return NextKey222.SafeRun(function()
         local playerData = fakePlayerStorage[playerName]
         if not playerData then
-            NextKey222.Debug:Print("fakeplayerservice", "Player not found:", playerName)
+            NextKey222.Debug:Dev("fakeplayerservice", "Player not found:", playerName)
             return false
         end
         
@@ -646,7 +646,7 @@ function FakePlayerService:SetKeystone(playerName, dungeonID, level)
         
         saveToStorage(playerName, playerData)
         
-        NextKey222.Debug:Print("fakeplayerservice", "Set keystone for", playerName, "dungeon", dungeonID, "level", level)
+        NextKey222.Debug:Dev("fakeplayerservice", "Set keystone for", playerName, "dungeon", dungeonID, "level", level)
         return true
     end, "FakePlayerService:SetKeystone")
 end
@@ -663,7 +663,7 @@ function FakePlayerService:SetAddonStatus(playerName, addonStatus)
     return NextKey222.SafeRun(function()
         local playerData = fakePlayerStorage[playerName]
         if not playerData then
-            NextKey222.Debug:Print("fakeplayerservice", "Player not found:", playerName)
+            NextKey222.Debug:Dev("fakeplayerservice", "Player not found:", playerName)
             return false
         end
         
@@ -671,7 +671,7 @@ function FakePlayerService:SetAddonStatus(playerName, addonStatus)
         
         saveToStorage(playerName, playerData)
         
-        NextKey222.Debug:Print("fakeplayerservice", "Set addon status for", playerName)
+        NextKey222.Debug:Dev("fakeplayerservice", "Set addon status for", playerName)
         return true
     end, "FakePlayerService:SetAddonStatus")
 end
@@ -710,7 +710,7 @@ end
 --- Logs current statistics
 function FakePlayerService:LogStats()
     local status = self:GetStatus()
-    NextKey222.Debug:Print("fakeplayerservice", string.format(
+    NextKey222.Debug:Dev("fakeplayerservice", string.format(
         "Status: %s | Players: %d | Storage: %s | Realm: %s",
         status.initialized and "Initialized" or "Not initialized",
         status.playerCount,

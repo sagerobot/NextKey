@@ -13,8 +13,14 @@ embeds.xml
 # Configuration (must load before boot.lua)
 core\config.lua
 
+# Debug Service (must load before boot.lua)
+core\debugService.lua
+
 # Core System - Consolidated Boot  
 boot.lua
+
+# Slash Commands (after boot.lua)
+core\slashCommands.lua
 
 # UI Components (after boot)
 ui\components.lua

@@ -151,14 +151,14 @@ function NextKey:GetDungeonName(dungeonID)
     }
     
     if knownMappings[dungeonID] then
-        NextKey222.Debug:Print("season", "GetDungeonName: Using hardcoded mapping for " .. dungeonID .. " = " .. knownMappings[dungeonID])
+        NextKey222.Debug:Dev("season", "GetDungeonName: Using hardcoded mapping for " .. dungeonID .. " = " .. knownMappings[dungeonID])
         return knownMappings[dungeonID]
     end
     
     -- Try Challenge Mode API first
     local info = C_ChallengeMode.GetMapUIInfo(dungeonID)
     if info then
-        NextKey222.Debug:Print("season", "GetDungeonName: C_ChallengeMode.GetMapUIInfo(" .. dungeonID .. ") = " .. info)
+        NextKey222.Debug:Dev("season", "GetDungeonName: C_ChallengeMode.GetMapUIInfo(" .. dungeonID .. ") = " .. info)
         return info
     end
     
@@ -166,7 +166,7 @@ function NextKey:GetDungeonName(dungeonID)
     if C_LFGInfo and C_LFGInfo.GetDungeonInfo then
         local dungeonInfo = C_LFGInfo.GetDungeonInfo(dungeonID)
         if dungeonInfo and dungeonInfo.name then
-            NextKey222.Debug:Print("season", "GetDungeonName: C_LFGInfo.GetDungeonInfo(" .. dungeonID .. ") = " .. dungeonInfo.name)
+            NextKey222.Debug:Dev("season", "GetDungeonName: C_LFGInfo.GetDungeonInfo(" .. dungeonID .. ") = " .. dungeonInfo.name)
             return dungeonInfo.name
         end
     end
@@ -175,12 +175,12 @@ function NextKey:GetDungeonName(dungeonID)
     if C_Map and C_Map.GetMapInfo then
         local mapInfo = C_Map.GetMapInfo(dungeonID)
         if mapInfo and mapInfo.name then
-            NextKey222.Debug:Print("season", "GetDungeonName: C_Map.GetMapInfo(" .. dungeonID .. ") = " .. mapInfo.name)
+            NextKey222.Debug:Dev("season", "GetDungeonName: C_Map.GetMapInfo(" .. dungeonID .. ") = " .. mapInfo.name)
             return mapInfo.name
         end
     end
     
-    NextKey222.Debug:Print("season", "GetDungeonName: No name found for dungeonID " .. dungeonID)
+    NextKey222.Debug:Dev("season", "GetDungeonName: No name found for dungeonID " .. dungeonID)
     return nil
 end
 

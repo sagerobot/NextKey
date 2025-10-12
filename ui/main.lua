@@ -1,6 +1,7 @@
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
 local AceGUI = LibStub("AceGUI-3.0")
+-- Debug is available as global variable from debugService.lua
 
 -- UI module with view mode state
 local UI = {
@@ -63,14 +64,14 @@ end
 ---Create the main NextKey window frame
 ---Sets up the window layout, controls, and results area
 function UI:CreateMainFrame()
-    NextKey222.Addon:Print("CreateMainFrame called")
+    Debug:Trace("ui", "CreateMainFrame called")
     
     if self.mainFrame then 
-        NextKey222.Addon:Print("Main frame already exists, skipping creation")
+        Debug:Dev("ui", "Main frame already exists, skipping creation")
         return 
     end
 
-    NextKey222.Addon:Print("Creating AceGUI Frame...")
+    Debug:Dev("ui", "Creating AceGUI Frame...")
     local frame = AceGUI:Create("Frame")
     frame:SetTitle("NextKey")
     frame:SetStatusText("UI skeleton - M0.6")
@@ -159,7 +160,7 @@ function UI:CreateMainFrame()
                 NextKey222.Communications:RequestPartyIOData()
             end
         else
-            NextKey222.Addon:Print("Communications not available")
+            Debug:Error("Communications not available")
         end
     end)
     controls:AddChild(syncBtn)
@@ -172,7 +173,7 @@ function UI:CreateMainFrame()
         -- Enhanced guild toggle with immediate feedback
         if not self.showGuildKeys and IsInGuild() then
             -- Switching to guild mode - show immediate feedback
-            NextKey222.Addon:Print("Requesting guild keystones... (requires LibOpenRaid-compatible addons)")
+            Debug:User("Requesting guild keystones... (requires LibOpenRaid-compatible addons)")
             
             -- Try direct LibOpenRaid request as well as our integration
             if LibStub then
@@ -182,7 +183,7 @@ function UI:CreateMainFrame()
                 end
             end
         elseif not self.showGuildKeys and not IsInGuild() then
-            NextKey222.Addon:Print("Not in a guild - cannot show guild keystones")
+            Debug:User("Not in a guild - cannot show guild keystones")
         end
         
         self:ToggleGuildFilter()
@@ -243,7 +244,7 @@ function UI:CreateMainFrame()
     self:RenderResults()  -- Show keystones by default
     
     -- Show the frame
-    NextKey222.Addon:Print("Showing main frame...")
+    Debug:Dev("ui", "Showing main frame...")
     frame:Show()
 end
 
@@ -256,17 +257,17 @@ end
 -- Creates the main frame if it doesn't exist, then destroys/recreates it on hide
 -- Properly releases AceGUI resources and clears auxiliary frames
 function UI:ToggleMainFrame()
-    NextKey222.Addon:Print("ToggleMainFrame called")
+    Debug:Trace("ui", "ToggleMainFrame called")
     
     if self.mainFrame then
-        NextKey222.Addon:Print("Hiding existing main frame")
+        Debug:Dev("ui", "Hiding existing main frame")
         self.mainFrame:Hide()
         AceGUI:Release(self.mainFrame)
         self.mainFrame = nil
         self.resultsFrame = nil
         self:ClearAuxFrames()
     else
-        NextKey222.Addon:Print("Creating new main frame")
+        Debug:Dev("ui", "Creating new main frame")
         self:CreateMainFrame()
     end
 end
@@ -310,7 +311,7 @@ function UI:GetDungeonRankings(playerName)
                            (playerName:match("^([^%-]+)") == currentPlayerName)
     
     if isCurrentPlayer then
-        NextKey222.Debug:Print("ui", "Creating IO score rankings for current player:", playerName)
+        Debug:Dev("ui", "Creating IO score rankings for current player:", playerName)
         
         -- For current player: rank by IO scores (NextKey method)
         for dungeonID, dungeonInfo in pairs(dungeons) do
@@ -326,7 +327,7 @@ function UI:GetDungeonRankings(playerName)
         table.sort(dungeonData, function(a, b) return a.value < b.value end)
         
     else
-        NextKey222.Debug:Print("ui", "Creating key level rankings for party member:", playerName)
+        Debug:Dev("ui", "Creating key level rankings for party member:", playerName)
         
         -- For party members: try RaiderIO key levels as fallback
         if RaiderIO and RaiderIO.GetProfile then
@@ -352,7 +353,7 @@ function UI:GetDungeonRankings(playerName)
         
         -- If no RaiderIO data, check for NextKey communication
         if #dungeonData == 0 and NextKey222.Communications then
-            NextKey222.Debug:Print("ui", "Trying NextKey communication for", playerName)
+            Debug:Dev("ui", "Trying NextKey communication for", playerName)
             
             if NextKey222.Communications:HasScoresForPlayer(playerName) then
                 local partyScores = NextKey222.Communications:GetPartyMemberScores(playerName)
@@ -382,11 +383,11 @@ function UI:GetDungeonRankings(playerName)
             dataType = isCurrentPlayer and "io_score" or "key_level"
         }
         
-        NextKey222.Debug:Print("ui", string.format("Player %s dungeon %s: rank %d (value: %d %s)",
+        Debug:Dev("ui", string.format("Player %s dungeon %s: rank %d (value: %d %s)",
             playerName, data.name, rank, data.value, isCurrentPlayer and "IO" or "level"))
     end
     
-    NextKey222.Debug:Print("ui", string.format("Created rankings for %s: %d dungeons ranked", 
+    Debug:Dev("ui", string.format("Created rankings for %s: %d dungeons ranked", 
         playerName, #dungeonData))
     
     return rankings
@@ -400,7 +401,7 @@ function UI:CompareDungeonRankings(playerA, playerB, dungeonID)
     local rankA = rankingsA[dungeonID] and rankingsA[dungeonID].rank or 0
     local rankB = rankingsB[dungeonID] and rankingsB[dungeonID].rank or 0
     
-    NextKey222.Debug:Print("ui", string.format("Dungeon comparison - %s: rank %d, %s: rank %d", 
+    Debug:Dev("ui", string.format("Dungeon comparison - %s: rank %d, %s: rank %d", 
         playerA, rankA, playerB, rankB))
     
     return rankA, rankB
@@ -431,7 +432,7 @@ function UI:FindNextKeyIDFromRaiderIO(dungeonData)
     
     local nextKeyID = nameMapping[dungeonData.name]
     if not nextKeyID then
-        NextKey222.Debug:Print("ui", "Unknown RaiderIO dungeon name:", dungeonData.name)
+        Debug:Dev("ui", "Unknown RaiderIO dungeon name:", dungeonData.name)
     end
     
     return nextKeyID
@@ -520,7 +521,7 @@ end
 function UI:RenderResults()
     -- RenderResults called
     if not self.resultsFrame then 
-        NextKey222.Addon:Print("Debug: No results frame found")
+        Debug:Dev("ui", " No results frame found")
         return 
     end
 
@@ -531,12 +532,12 @@ function UI:RenderResults()
 
     -- Get available keys
     local keys = NextKey222.Addon:GetAvailableKeys()
-    NextKey222.Addon:Print("[KEY DEBUG] GetAvailableKeys returned", keys and #keys or 0, "keys")
+    Debug:Dev("ui", "[KEY DEBUG] GetAvailableKeys returned", keys and #keys or 0, "keys")
     
     -- Debug: Print all collected keys for troubleshooting
     if keys then
         for i, key in ipairs(keys) do
-            NextKey222.Addon:Print(string.format("[KEY DEBUG] Key %d: %s (ID:%s, Level:%s, Source:%s)", 
+            Debug:Dev("ui", string.format("[KEY DEBUG] Key %d: %s (ID:%s, Level:%s, Source:%s)", 
                 i, key.ownerName or "nil", tostring(key.dungeonID), tostring(key.level), key.source or "unknown"))
         end
     end
@@ -552,7 +553,7 @@ function UI:RenderResults()
         statusText = statusText .. string.format(" | Party: %d", partySize)
     end
     
-    NextKey222.Addon:Print(statusText)
+    Debug:Dev("ui", statusText)
 
     if not keys or #keys == 0 then
         local none = AceGUI:Create("Label")
@@ -565,12 +566,12 @@ function UI:RenderResults()
     -- No longer showing individual recommendations - just rank keystones by group IO gain
 
     local items = self:SortKeys(keys, mode)
-    NextKey222.Addon:Print(string.format("[SORT DEBUG] SortKeys returned %d items for mode %s", 
+    Debug:Dev("ui", string.format("[SORT DEBUG] SortKeys returned %d items for mode %s", 
         items and #items or 0, tostring(mode)))
     
     if items and #items > 0 then
         for i, item in ipairs(items) do
-            NextKey222.Addon:Print(string.format("[SORT DEBUG] Item %d: %s, ioGainPotential=%s", 
+            Debug:Dev("ui", string.format("[SORT DEBUG] Item %d: %s, ioGainPotential=%s", 
                 i, item.key and item.key.ownerName or "nil", tostring(item.ioGainPotential)))
         end
     end
@@ -578,14 +579,14 @@ function UI:RenderResults()
     local useCompactMode = shouldUseCompactMode(#items)
     
     for i, it in ipairs(items) do
-        NextKey222.Addon:Print(string.format("[RENDER DEBUG] Attempting to render card %d for %s", 
+        Debug:Dev("ui", string.format("[RENDER DEBUG] Attempting to render card %d for %s", 
             i, it.key and it.key.ownerName or "nil"))
         local renderFunc = useCompactMode and self.AddKeyRowCompact or self.AddKeyRow
         local success = NextKey222.SafeRun(renderFunc, "Render keystone card", self, it)
         if not success then
-            NextKey222.Addon:Print("Failed to render card for", it.key and it.key.ownerName or "nil")
+            Debug:Error("Failed to render card for", it.key and it.key.ownerName or "nil")
         else
-            NextKey222.Addon:Print(string.format("[RENDER DEBUG] Successfully rendered card for %s", 
+            Debug:Dev("ui", string.format("[RENDER DEBUG] Successfully rendered card for %s", 
                 it.key and it.key.ownerName or "nil"))
         end
     end
@@ -615,7 +616,7 @@ function UI:AddKeyRow(entry)
     
     -- Normalize player name and get score using components
     if not NextKey222.UIComponents then
-        NextKey222.Addon:Print("ERROR: UIComponents not loaded! Check load order.")
+        Debug:Error(" UIComponents not loaded! Check load order.")
         return
     end
     
@@ -664,19 +665,19 @@ function UI:AddKeyRow(entry)
                 
                 -- Debug: Check where ioRange comes from
                 local usedPreCalculated = entry.ioGainRange ~= nil
-                print("NextKey TOOLTIP DEBUG: Using", usedPreCalculated and "pre-calculated" or "recalculated", "ioRange")
+                Debug:Dev("tooltip", " Using", usedPreCalculated and "pre-calculated" or "recalculated", "ioRange")
                 if ioRange.playerBreakdown then
                     -- Count players in breakdown
                     local playerCount = 0
                     for _ in pairs(ioRange.playerBreakdown) do
                         playerCount = playerCount + 1
                     end
-                    print("NextKey TOOLTIP DEBUG: Player breakdown has", playerCount, "players")
+                    Debug:Dev("tooltip", " Player breakdown has", playerCount, "players")
                     for playerName, _ in pairs(ioRange.playerBreakdown) do
-                        print("NextKey TOOLTIP DEBUG: Breakdown includes player:", playerName)
+                        Debug:Dev("tooltip", " Breakdown includes player:", playerName)
                     end
                 else
-                    print("NextKey TOOLTIP DEBUG: No player breakdown available")
+                    Debug:Dev("tooltip", " No player breakdown available")
                 end
                 
                 -- Get dungeon name and owner info for enhanced header
@@ -715,7 +716,7 @@ function UI:AddKeyRow(entry)
                         if dungeonID and NextKey222.IOCalculator then
                             -- IOCalculator handles fake players, communications, and real players properly
                             currentDungeonIO = NextKey222.IOCalculator:GetPlayerDungeonScore(playerName, dungeonID) or 0
-                            NextKey222.Debug:Print("tooltip", "Current dungeon IO for", playerName, "dungeon", dungeonID .. ":", currentDungeonIO)
+                            Debug:Dev("tooltip", "Current dungeon IO for", playerName, "dungeon", dungeonID .. ":", currentDungeonIO)
                         end
                         
                         -- Check for fake player addon status first
@@ -852,7 +853,7 @@ function UI:AddKeyRowCompact(entry)
     
     -- Use component system for consistent processing
     if not NextKey222.UIComponents then
-        NextKey222.Addon:Print("ERROR: UIComponents not loaded! Check load order.")
+        Debug:Error(" UIComponents not loaded! Check load order.")
         return
     end
     
@@ -969,10 +970,10 @@ end
 --- Toggles between keystone view and dungeon information view
 -- Updates the toggle button text and triggers appropriate rendering function
 function UI:ToggleViewMode()
-    NextKey222.Addon:Print("ToggleViewMode called, current mode:", self.viewMode or "nil")
+    Debug:Dev("ui", "ToggleViewMode called, current mode:", self.viewMode or "nil")
     if self.viewMode == "keystones" then
         self.viewMode = "dungeons"
-        NextKey222.Addon:Print("Switching to dungeon view")
+        Debug:Dev("ui", "Switching to dungeon view")
         if self.viewToggleBtn then
             self.viewToggleBtn:SetText("Switch to Keystone View")  -- Show what clicking will do
         end
@@ -1014,61 +1015,43 @@ function UI:ToggleGuildFilter()
         self.guildToggleBtn:SetText(self.showGuildKeys and "Guild Keys" or "Party Keys")
     end
     
-    NextKey222.Debug:Print("ui", "Guild filter toggled:", self.showGuildKeys and "showing guild keys" or "showing party only")
-    print("NextKey TOGGLE DEBUG: Guild keys mode:", self.showGuildKeys and "ENABLED" or "DISABLED")
+    Debug:Dev("ui", "Guild filter toggled:", self.showGuildKeys and "showing guild keys" or "showing party only")
+    Debug:Dev("ui", " Guild keys mode:", self.showGuildKeys and "ENABLED" or "DISABLED")
     
     -- When switching to guild mode, request guild keystones
     if self.showGuildKeys then
-        print("NextKey TOGGLE DEBUG: Switching to guild mode, requesting guild keystones...")
+        Debug:Dev("ui", "Switching to guild mode, requesting guild keystones...")
         
-        -- Request guild keystones from multiple sources
+        -- Use centralized Keystones module for requests (includes throttling)
         local success = false
-        if NextKey222.LibOpenRaidIntegration then
-            success = NextKey222.LibOpenRaidIntegration:RequestGuildKeystones()
-            NextKey222.Debug:Print("ui", "LibOpenRaid guild keystone request sent:", success and "success" or "failed")
-            print("NextKey TOGGLE DEBUG: LibOpenRaid request result:", success and "SUCCESS" or "FAILED")
-        end
-        
-        -- Also request via addon's own guild communication system
-        local NextKey = NextKey222.Addon
-        if NextKey and NextKey.RequestGuildKeystones then
-            local commSuccess = NextKey:RequestGuildKeystones()
-            NextKey222.Debug:Print("ui", "Communication guild keystone request sent:", commSuccess and "success" or "failed")
-            print("NextKey TOGGLE DEBUG: Communication request result:", commSuccess and "SUCCESS" or "FAILED")
-            success = success or commSuccess
+        if NextKey222.Keystones and NextKey222.Keystones.RequestGuildKeystones then
+            success = NextKey222.Keystones:RequestGuildKeystones()
+            Debug:Dev("ui", "Guild keystone request:", success and "sent" or "throttled/failed")
         end
         
         -- Clear cached keystones to force refresh
+        local NextKey = NextKey222.Addon
         if NextKey then
             NextKey.cachedKeys = nil
         end
         
-        -- Add multiple refresh attempts to catch incoming data
-        local refreshAttempts = 0
-        local maxAttempts = 3
-        
+        -- Single delayed refresh to catch incoming data
+        -- The throttling in Keystones:RequestGuildKeystones prevents spam
         local function refreshUI()
-            refreshAttempts = refreshAttempts + 1
-            NextKey222.Debug:Print("ui", "Refreshing UI after guild keystone request - attempt", refreshAttempts)
-            print("NextKey TOGGLE DEBUG: Refreshing UI - attempt", refreshAttempts)
+            Debug:Dev("ui", "Refreshing UI after guild keystone request")
             
             if self.viewMode == "dungeons" then
                 self:RenderDungeonCards()
             else
                 self:RenderResults()
             end
-            
-            -- Schedule next refresh if we have more attempts
-            if refreshAttempts < maxAttempts then
-                C_Timer.After(1.5, refreshUI)
-            end
         end
         
-        -- First refresh after a short delay
-        C_Timer.After(0.5, refreshUI)
+        -- Refresh after a delay to allow keystones to arrive
+        C_Timer.After(2.0, refreshUI)
     else
         -- Immediate refresh when switching to party mode
-        print("NextKey TOGGLE DEBUG: Switching to party mode")
+        Debug:Dev("ui", " Switching to party mode")
         if self.viewMode == "dungeons" then
             self:RenderDungeonCards()
         else
@@ -1100,7 +1083,7 @@ function UI:RenderDungeonCards()
     -- Update status text (removed season text to save space)
     local count = 0
     for _ in pairs(dungeons) do count = count + 1 end
-    NextKey222.Addon:Print(string.format("Dungeon Cards: Mode: Dungeons | Count: %d", count))
+    Debug:Dev("ui", string.format("Dungeon Cards: Mode: Dungeons | Count: %d", count))
     
     if not next(dungeons) then
         local none = AceGUI:Create("Label")
@@ -1144,10 +1127,10 @@ function UI:RenderDungeonCards()
     -- Use centralized height calculation variables
     local expectedHeight = #sortedDungeons * NextKey222.UIConfig.CARD.HEIGHT + NextKey222.UIConfig.CARD.HEADER_PADDING
     
-    NextKey222.Addon:Print("Debug: Rendering", #sortedDungeons, "enhanced dungeons with preferences")
-    NextKey222.Addon:Print("Debug: Expected total height:", expectedHeight, "px (window height: 640px)")
-    NextKey222.Addon:Print("Debug: Card height: 52px, with icons, IO scores, and preference buttons")
-    NextKey222.Addon:Print("Debug: Total IO Score:", totalIOScore or 0)
+    Debug:Dev("ui", " Rendering", #sortedDungeons, "enhanced dungeons with preferences")
+    Debug:Dev("ui", " Expected total height:", expectedHeight, "px (window height: 640px)")
+    Debug:Dev("ui", " Card height: 52px, with icons, IO scores, and preference buttons")
+    Debug:Dev("ui", " Total IO Score:", totalIOScore or 0)
     
     for i, dungeon in ipairs(sortedDungeons) do
         if useCompact then
@@ -1266,9 +1249,9 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     teleBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
     
     -- Debug: verify button creation
-    NextKey222.Debug:Print("teleport", "Creating teleport button for dungeonID:", dungeonID)
+    Debug:Dev("teleport", "Creating teleport button for dungeonID:", dungeonID)
     teleBtn:SetCallback("OnClick", function()
-        NextKey222.Debug:Print("teleport", "Teleport button clicked for dungeonID:", dungeonID)
+        Debug:Dev("teleport", "Teleport button clicked for dungeonID:", dungeonID)
         
         -- Create a fake keystone that mimics a real keystone for teleport selection
         -- This uses the exact same logic path as working keystone selection
@@ -1284,9 +1267,9 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
         
         -- Debug: check what GetDungeonName returns for this dungeonID
         local dungeonName = NextKey222.Addon:GetDungeonName(dungeonID)
-        NextKey222.Debug:Print("teleport", "Fake keystone created - dungeonID:", dungeonID, "dungeonName:", dungeonName or "nil")
+        Debug:Dev("teleport", "Fake keystone created - dungeonID:", dungeonID, "dungeonName:", dungeonName or "nil")
         
-        NextKey222.Debug:Print("teleport", "Setting fake keystone as teleport target:", fakeKeyInfo.dungeonID, fakeKeyInfo.ownerName)
+        Debug:Dev("teleport", "Setting fake keystone as teleport target:", fakeKeyInfo.dungeonID, fakeKeyInfo.ownerName)
         
         -- Use the exact same method that works for keystone selection
         -- The "dungeon_portal" source prevents automatic UI refresh in SetTeleportTargetKey
@@ -1582,7 +1565,7 @@ function UI:GetRaiderIODungeonScore(dungeonID)
     
     if shouldDebug then
         local playerName = UnitName("player")
-        NextKey222.Addon:Print("[Score Debug] Getting scores for dungeon " .. dungeonID .. " (mapID: " .. mapID .. ") for " .. playerName)
+        Debug:Dev("ui", "[Score Debug] Getting scores for dungeon " .. dungeonID .. " (mapID: " .. mapID .. ") for " .. playerName)
     end
     
     -- Use official WoW API to get season best scores (MrMythical addon approach)
@@ -1590,22 +1573,22 @@ function UI:GetRaiderIODungeonScore(dungeonID)
     local intimeInfo, overtimeInfo = C_MythicPlus.GetSeasonBestForMap(mapID)
     
     if shouldDebug then
-        NextKey222.Addon:Print("[Score Debug] C_MythicPlus.GetSeasonBestForMap(" .. mapID .. ") Results:")
+        Debug:Dev("ui", "[Score Debug] C_MythicPlus.GetSeasonBestForMap(" .. mapID .. ") Results:")
         if intimeInfo then
-            NextKey222.Addon:Print("[Score Debug]   intimeInfo: level=" .. (intimeInfo.level or "nil") .. ", score=" .. (intimeInfo.dungeonScore or "nil"))
+            Debug:Dev("ui", "[Score Debug]   intimeInfo: level=" .. (intimeInfo.level or "nil") .. ", score=" .. (intimeInfo.dungeonScore or "nil"))
             if intimeInfo.durationSec then
-                NextKey222.Addon:Print("[Score Debug]   intimeInfo: duration=" .. intimeInfo.durationSec .. " seconds")
+                Debug:Dev("ui", "[Score Debug]   intimeInfo: duration=" .. intimeInfo.durationSec .. " seconds")
             end
         else
-            NextKey222.Addon:Print("[Score Debug]   intimeInfo: nil")
+            Debug:Dev("ui", "[Score Debug]   intimeInfo: nil")
         end
         if overtimeInfo then
-            NextKey222.Addon:Print("[Score Debug]   overtimeInfo: level=" .. (overtimeInfo.level or "nil") .. ", score=" .. (overtimeInfo.dungeonScore or "nil"))
+            Debug:Dev("ui", "[Score Debug]   overtimeInfo: level=" .. (overtimeInfo.level or "nil") .. ", score=" .. (overtimeInfo.dungeonScore or "nil"))
             if overtimeInfo.durationSec then
-                NextKey222.Addon:Print("[Score Debug]   overtimeInfo: duration=" .. overtimeInfo.durationSec .. " seconds")
+                Debug:Dev("ui", "[Score Debug]   overtimeInfo: duration=" .. overtimeInfo.durationSec .. " seconds")
             end
         else
-            NextKey222.Addon:Print("[Score Debug]   overtimeInfo: nil")
+            Debug:Dev("ui", "[Score Debug]   overtimeInfo: nil")
         end
     end
     
@@ -1627,9 +1610,9 @@ function UI:GetRaiderIODungeonScore(dungeonID)
     end
     
     if shouldDebug and bestScore > 0 then
-        NextKey222.Addon:Print("[Score Debug] Best score found: " .. bestScore .. " (level +" .. bestLevel .. ", " .. (isInTime and "in-time" or "overtime") .. ")")
+        Debug:Dev("ui", "[Score Debug] Best score found: " .. bestScore .. " (level +" .. bestLevel .. ", " .. (isInTime and "in-time" or "overtime") .. ")")
     elseif shouldDebug then
-        NextKey222.Addon:Print("[Score Debug] No runs found for this dungeon")
+        Debug:Dev("ui", "[Score Debug] No runs found for this dungeon")
     end
     
     -- Store level info for display formatting if we found data
@@ -1640,14 +1623,14 @@ function UI:GetRaiderIODungeonScore(dungeonID)
         self.dungeonLevelCache[dungeonID] = {level = bestLevel, chests = estimatedChests}
         
         if shouldDebug then
-            NextKey222.Addon:Print("[Score Debug] Cached level info: +" .. bestLevel .. " (" .. estimatedChests .. " chests)")
+            Debug:Dev("ui", "[Score Debug] Cached level info: +" .. bestLevel .. " (" .. estimatedChests .. " chests)")
         end
         
         return bestScore
     end
     
     if shouldDebug then
-        NextKey222.Addon:Print("[Score Debug] No score found via WoW API for dungeon " .. dungeonID)
+        Debug:Dev("ui", "[Score Debug] No score found via WoW API for dungeon " .. dungeonID)
     end
     
     return 0
@@ -1664,7 +1647,7 @@ function UI:GetDungeonScore(dungeonID)
     local addon = NextKey222.Addon
     if not (addon.db and addon.db.char and addon.db.char.mythicPlus) then
         if addon.db and addon.db.global and addon.db.global.debug and addon.db.global.debug.enabled then
-            addon:Print("Debug: No mythicPlus data for dungeon score")
+            Debug:Dev("ui", " No mythicPlus data for dungeon score")
         end
         return 0
     end
@@ -1864,26 +1847,26 @@ end
 -- This is useful when party composition changes or data is updated
 function UI:RefreshResults()
     if not self:IsMainFrameVisible() then
-        NextKey222.Debug:Print("ui", "Skipping refresh - main frame not visible")
+        Debug:Dev("ui", "Skipping refresh - main frame not visible")
         return
     end
     
     -- Throttle refreshes to prevent performance issues
     local now = GetTime()
     if self.lastRefreshTime and (now - self.lastRefreshTime) < 1.0 then
-        NextKey222.Debug:Print("ui", "Throttling refresh - too soon since last refresh")
+        Debug:Dev("ui", "Throttling refresh - too soon since last refresh")
         return
     end
     self.lastRefreshTime = now
     
     -- Check if we're already refreshing to prevent spam
     if self.refreshing then
-        NextKey222.Debug:Print("ui", "Already refreshing - ignoring duplicate refresh call")
+        Debug:Dev("ui", "Already refreshing - ignoring duplicate refresh call")
         return
     end
     
     self.refreshing = true
-    NextKey222.Debug:Print("ui", "Refreshing UI results")
+    Debug:Dev("ui", "Refreshing UI results")
     
     -- Show user notification for IO Gain Potential mode
     if self:IsPartySensitiveSortMode() then
@@ -1939,7 +1922,7 @@ end
 -- Called during addon startup to set up the UI system
 -- @return boolean true if initialization succeeded
 function UI:Initialize()
-    NextKey222.Debug:Print("ui", "UI module initialized")
+    Debug:Dev("ui", "UI module initialized")
     return true
 end
 

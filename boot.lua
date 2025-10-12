@@ -66,7 +66,7 @@ NextKey222.Keystones = {}
 NextKey222.RaiderIO = {}
 NextKey222.Communications = {}
 NextKey222.UI = {}
-NextKey222.Debug = {}
+-- NextKey222.Debug is set by core/debugService.lua (loaded before this file)
 NextKey222.Performance = {}
 NextKey222.Events = {}
 NextKey222.Config = {}
@@ -78,16 +78,18 @@ NextKey222.Cache = {}
 -- Safe execution wrapper (Details! pattern)
 function NextKey.SafeRun(func, executionName, ...)
     if type(func) ~= "function" then
-        if NextKey.db and NextKey.db.global and NextKey.db.global.debug and NextKey.db.global.debug.enabled then
-            NextKey:Print("SafeRun error: not a function -", executionName or "unknown")
+        -- Use debug system if available, otherwise fail silently
+        if NextKey222.Debug then
+            NextKey222.Debug:Error("SafeRun error: not a function -", executionName or "unknown")
         end
         return false
     end
     
     local runToCompletion, result = pcall(func, ...)
     if not runToCompletion then
-        if NextKey.db and NextKey.db.global and NextKey.db.global.debug and NextKey.db.global.debug.enabled then
-            NextKey:Print("SafeRun failed:", executionName or "unknown", "-", result)
+        -- Use debug system if available
+        if NextKey222.Debug then
+            NextKey222.Debug:Error("SafeRun failed:", executionName or "unknown", "-", result)
         end
         return false
     end
@@ -148,57 +150,9 @@ NextKey222.Performance = {
 }
 
 -- MARK: Debug System
-NextKey222.Debug = {
-    enabled = false,
-    categories = {
-        keystones = false,
-        communications = false,
-        comms = false,
-        ui = false,
-        options = false,
-        raiderio = false,
-        performance = false,
-        events = false,
-        startup = false,
-        season = false,
-        libopenraid = false,
-        IOCalculator = false,
-        ioc = false,
-        fakeplayerservice = false,
-        debug = false
-    },
-    
-    Print = function(self, category, ...)
-        if not self.enabled or not self.categories[category] then return end
-        
-        local args = {...}
-        local message = "|cFFFFAA00NextKey Debug [" .. (category or "General") .. "]:|r"
-        for i, arg in ipairs(args) do
-            message = message .. " " .. tostring(arg)
-        end
-        print(message)
-    end,
-    
-    EnableCategory = function(self, category)
-        if self.categories[category] ~= nil then
-            self.categories[category] = true
-            self.enabled = true
-        end
-    end,
-    
-    DisableCategory = function(self, category)
-        if self.categories[category] ~= nil then
-            self.categories[category] = false
-        end
-        
-        -- Check if any category is still enabled
-        local anyEnabled = false
-        for _, enabled in pairs(self.categories) do
-            if enabled then anyEnabled = true break end
-        end
-        self.enabled = anyEnabled
-    end
-}
+-- Debug system now loaded from core/debugService.lua (loaded before this file)
+-- NextKey222.Debug should already be available
+-- Access via NextKey222.Debug or global Debug variable
 
 -- MARK: Configuration Defaults  
 -- Defaults loaded from core/config.lua (loaded before this file in .toc)
@@ -241,7 +195,7 @@ NextKey222.StartUp = {
     end,
     
     ExecutePhase = function(self, phase)
-        NextKey222.Debug:Print("startup", "Executing phase:", phase)
+        NextKey222.Debug:Trace("startup", "Executing phase:", phase)
         
         local handlers = self.phaseHandlers[phase]
         if not handlers then return end
@@ -254,9 +208,9 @@ NextKey222.StartUp = {
     Start = function(self)
         if NextKey.isInitialized then return end
         
-        print("NextKey: StartUp:Start() called - executing phases")
+        NextKey222.Debug:Dev("startup", "StartUp:Start() called - executing phases")
         for i, phase in ipairs(self.phases) do
-            print("NextKey: Executing phase " .. i .. ": " .. phase)
+            NextKey222.Debug:Dev("startup", "Executing phase " .. i .. ": " .. phase)
             self.currentPhase = i
             self:ExecutePhase(phase)
         end
@@ -267,8 +221,7 @@ NextKey222.StartUp = {
         end
         
         NextKey.isInitialized = true
-        print("NextKey v" .. NextKey.version .. " initialized successfully")
-        NextKey:Print("NextKey v" .. NextKey.version .. " initialized successfully")
+        NextKey222.Debug:User("NextKey v" .. NextKey.version .. " initialized successfully")
     end
 }
 
@@ -282,27 +235,33 @@ NextKey.eventFrame:SetFrameLevel(1)
 -- MARK: Initialization Phase Handlers
 -- Register database initialization for Init phase
 NextKey222.StartUp:RegisterPhaseHandler("Init", function()
-    NextKey222.Debug:Print("startup", "=== Init Phase ===")
+    NextKey222.Debug:Dev("startup", "=== Init Phase ===")
     
     -- Verify configuration defaults are available
     if NextKey222.Defaults then
-        NextKey222.Debug:Print("startup", "✅ NextKey222.Defaults loaded from core/config.lua")
+        NextKey222.Debug:Dev("startup", "✅ NextKey222.Defaults loaded from core/config.lua")
     else
-        NextKey222.Debug:Print("startup", "❌ NextKey222.Defaults not available - check core/config.lua loading")
+        NextKey222.Debug:Error("❌ NextKey222.Defaults not available - check core/config.lua loading")
     end
     
     -- Initialize AceDB database
     if not NextKey.db then
-        NextKey222.Debug:Print("startup", "Initializing AceDB with NextKeyDB")
+        NextKey222.Debug:Dev("startup", "Initializing AceDB with NextKeyDB")
         NextKey.db = AceDB:New("NextKeyDB", NextKey222.Defaults, true)
-        NextKey222.Debug:Print("startup", "Database initialized successfully")
+        NextKey222.Debug:Dev("startup", "Database initialized successfully")
     else
-        NextKey222.Debug:Print("startup", "Database already initialized")
+        NextKey222.Debug:Dev("startup", "Database already initialized")
+    end
+    
+    -- Initialize Debug Service with database
+    if Debug and Debug.Initialize then
+        NextKey222.Debug:Initialize(NextKey.db)
+        NextKey222.Debug:Dev("startup", "Debug service initialized from database")
     end
     
     -- Initialize FakePlayerService
     if NextKey222.FakePlayerService and NextKey222.FakePlayerService.Initialize then
-        NextKey222.Debug:Print("startup", "Initializing FakePlayerService")
+        NextKey222.Debug:Dev("startup", "Initializing FakePlayerService")
         NextKey.SafeRun(function() 
             NextKey222.FakePlayerService:Initialize() 
         end, "Initialize FakePlayerService")
@@ -310,190 +269,60 @@ NextKey222.StartUp:RegisterPhaseHandler("Init", function()
     
     -- Initialize LibOpenRaid integration
     if NextKey222.LibOpenRaidIntegration and NextKey222.LibOpenRaidIntegration.Initialize then
-        NextKey222.Debug:Print("startup", "Initializing LibOpenRaidIntegration")
+        NextKey222.Debug:Dev("startup", "Initializing LibOpenRaidIntegration")
         NextKey.SafeRun(function() 
             NextKey222.LibOpenRaidIntegration:Initialize() 
         end, "Initialize LibOpenRaidIntegration")
     end
     
-    NextKey222.Debug:Print("startup", "Init phase completed")
+    NextKey222.Debug:Dev("startup", "Init phase completed")
 end, 10) -- High priority for database initialization
 
 -- Phase 3: PostInit - Initialize UI and other systems
 NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
-    NextKey222.Debug:Print("startup", "=== PostInit Phase ===")
+    NextKey222.Debug:Dev("startup", "=== PostInit Phase ===")
     
     -- Initialize UI system
     if NextKey222.UI and NextKey222.UI.Initialize then
-        NextKey222.Debug:Print("startup", "Initializing UI system")
+        NextKey222.Debug:Dev("startup", "Initializing UI system")
         NextKey.SafeRun(NextKey222.UI.Initialize, "Initialize UI system")
     else
-        NextKey222.Debug:Print("startup", "Warning: UI system not available for initialization")
+        NextKey222.Debug:Error("Warning: UI system not available for initialization")
     end
     
     -- Initialize Communications
     if NextKey222.Communications and NextKey222.Communications.Initialize then
-        NextKey222.Debug:Print("startup", "Initializing Communications")
+        NextKey222.Debug:Dev("startup", "Initializing Communications")
         NextKey.SafeRun(function() 
             NextKey222.Communications:Initialize() 
         end, "Initialize Communications")
     end
     
-    NextKey222.Debug:Print("startup", "PostInit phase completed")
+    NextKey222.Debug:Dev("startup", "PostInit phase completed")
 end)
 
 -- Phase 4: Enable - Activate systems
 NextKey222.StartUp:RegisterPhaseHandler("Enable", function()
-    NextKey222.Debug:Print("startup", "=== Enable Phase ===")
+    NextKey222.Debug:Dev("startup", "=== Enable Phase ===")
     
     -- Enable event systems
     if NextKey222.Events and NextKey222.Events.Enable then
-        NextKey222.Debug:Print("startup", "Enabling Events system")
+        NextKey222.Debug:Dev("startup", "Enabling Events system")
         NextKey.SafeRun(NextKey222.Events.Enable, "Enable Events system")
     end
     
-    NextKey222.Debug:Print("startup", "Enable phase completed")
+    NextKey222.Debug:Dev("startup", "Enable phase completed")
 end)
 
 -- MARK: Slash Command Registration
--- Register slash commands for NextKey
+-- Slash commands have been moved to core\slashCommands.lua for better organization
+-- This keeps boot.lua focused on initialization while making commands easy to modify
+-- See core\slashCommands.lua for all command definitions and handlers
+
+-- Placeholder - actual command handler loaded from core\slashCommands.lua
 SLASH_NEXTKEY1 = "/nextkey"
 SLASH_NEXTKEY2 = "/nk"
-
-SlashCmdList["NEXTKEY"] = function(input)
-    local command = string.lower(string.trim and string.trim(input) or input or "")
-    
-    if command == "" or command == "show" then
-        -- Show main UI
-        if NextKey222.UI and NextKey222.UI.ToggleMainFrame then
-            NextKey222.UI:ToggleMainFrame()
-        elseif NextKey222.UI and NextKey222.UI.CreateMainFrame then
-            NextKey222.UI:CreateMainFrame()
-        else
-            print("NextKey: UI not ready yet")
-        end
-    elseif command == "hide" then
-        -- Hide main UI
-        if NextKey222.UI and NextKey222.UI.mainFrame then
-            NextKey222.UI.mainFrame:Hide()
-            print("NextKey: Main frame hidden")
-        else
-            print("NextKey: No frame to hide")
-        end
-    elseif command == "config" or command == "options" or command == "opt" then
-        -- Open config using AceConfigDialog
-        local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
-        if AceConfigDialog then
-            AceConfigDialog:Open("NextKey")
-        else
-            print("NextKey: Config interface not available")
-        end
-    elseif command == "debug" then
-        -- Toggle debug
-        if NextKey222.Debug and NextKey222.Debug.ToggleLevel then
-            NextKey222.Debug:ToggleLevel()
-        else
-            print("NextKey: Debug system not ready yet")
-        end
-    elseif command == "version" then
-        -- Show version
-        local version = NextKey.version or C_AddOns.GetAddOnMetadata("NextKey", "Version") or "Unknown"
-        print("NextKey version:", version)
-    elseif command == "status" then
-        -- Show status
-        print("NextKey Status:")
-        print("- UI Ready:", NextKey222.UI and "Yes" or "No")
-        print("- Events Ready:", NextKey222.Events and "Yes" or "No")
-        print("- Communications Ready:", NextKey222.Communications and "Yes" or "No")
-        print("- Debug Ready:", NextKey222.Debug and "Yes" or "No")
-        print("- IOCalculator Ready:", NextKey222.IOCalculator and "Yes" or "No")
-    elseif command == "reload" then
-        -- Reload UI
-        ReloadUI()
-        elseif command == "rio" then
-        -- Debug RaiderIO data structure (safe subset)
-        if _G.RaiderIO and _G.RaiderIO.GetProfile then
-            local playerName = UnitName("player")
-            local realmName = GetRealmName()
-            print("NextKey: Checking RaiderIO for", playerName .. "-" .. realmName)
-            local profile = _G.RaiderIO.GetProfile(playerName, realmName)
-            if profile and profile.mythicKeystoneProfile then
-                local mp = profile.mythicKeystoneProfile
-                print("NextKey: RaiderIO Profile found!")
-                print("  currentScore:", mp.currentScore or "nil")
-            else
-                print("NextKey: No RaiderIO profile found")
-            end
-        else
-            print("NextKey: RaiderIO addon not found")
-        end
-    elseif command:match("^test") then
-        -- Enhanced fake player testing commands using FakePlayerService
-        local args = {strsplit(" ", command)}
-        local subcommand = args[2] or ""
-        
-        if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
-            print("NextKey: FakePlayerService not available")
-            return
-        end
-        
-        if subcommand == "realistic" or subcommand == "" then
-            -- Generate 4 realistic fake players with mixed addon status
-            local count = NextKey222.FakePlayerService:GenerateRandomPlayers(4, { nextkey = 2, raiderio = 1, none = 1 })
-            print("NextKey: Generated " .. count .. " realistic fake players")
-            print("  - 2 with NextKey addon")
-            print("  - 1 with RaiderIO only") 
-            print("  - 1 with no addons")
-        elseif subcommand == "mixed" then
-            -- Custom mixed party based on args: /nk test mixed 2 1 1 (nextkey, rio, none)
-            local nextkey_count = tonumber(args[3]) or 2
-            local rio_count = tonumber(args[4]) or 1  
-            local none_count = tonumber(args[5]) or 1
-            local total = nextkey_count + rio_count + none_count
-            
-            local count = NextKey222.FakePlayerService:GenerateRandomPlayers(total, { 
-                nextkey = nextkey_count, 
-                raiderio = rio_count, 
-                none = none_count 
-            })
-            print(string.format("NextKey: Generated %d fake players (%d NextKey, %d RaiderIO, %d None)", 
-                  count, nextkey_count, rio_count, none_count))
-        elseif subcommand == "preset" then
-            -- Generate a preset team: /nk test preset mixed_skill|beginner|expert|high_keys
-            local presetType = args[3] or "mixed_skill"
-            local count = NextKey222.FakePlayerService:GeneratePreset(presetType)
-            print("NextKey: Generated preset '" .. presetType .. "' with " .. count .. " players")
-        elseif subcommand == "clear" then
-            -- Clear all fake players
-            local count = NextKey222.FakePlayerService:ClearAllPlayers()
-            print("NextKey: Cleared " .. count .. " fake players")
-        elseif subcommand == "status" then
-            -- Show FakePlayerService status
-            NextKey222.FakePlayerService:LogStats()
-        elseif subcommand == "help" then
-            print("NextKey Test Commands:")
-            print("  /nk test (or realistic) - Generate 4 realistic fake players")
-            print("  /nk test mixed X Y Z - Generate X NextKey + Y RaiderIO + Z None players")
-            print("  /nk test preset <type> - Generate preset team (mixed_skill, beginner, expert, high_keys)")
-            print("  /nk test clear - Clear all fake players")
-            print("  /nk test status - Show FakePlayerService status")
-        else
-            print("NextKey: Unknown test command. Use '/nk test help' for options.")
-        end
-    else
-        -- Help text
-        print("NextKey Commands:")
-        print("  /nk (or show) - Toggle/show the main window")
-        print("  /nk hide - Hide the main window") 
-        print("  /nk config (or opt) - Open configuration")
-        print("  /nk debug - Toggle debug mode")
-        print("  /nk version - Show version")
-        print("  /nk status - Show system status")
-        print("  /nk reload - Reload UI")
-        print("  /nk rio - Debug RaiderIO data structure")
-        print("  /nk test - Generate realistic fake players for testing")
-    end
-end
+-- SlashCmdList["NEXTKEY"] registered by core\slashCommands.lua
 
 -- MARK: Enhanced Module Registration
 -- Mark boot as ready and enhance RegisterModule
@@ -503,34 +332,27 @@ NextKey222.BootReady = true
 NextKey222.RegisterModule = function(name, moduleTable)
     NextKey222.moduleRegistry = NextKey222.moduleRegistry or {}
     if NextKey222.moduleRegistry[name] then
-        NextKey222.Debug:Print("startup", "Warning: Module", name, "already registered")
+        NextKey222.Debug:Dev("startup", "Warning: Module", name, "already registered")
         return false
     end
     
     NextKey222.moduleRegistry[name] = moduleTable
-    NextKey222.Debug:Print("startup", "Registered module:", name)
+    NextKey222.Debug:Dev("startup", "Registered module:", name)
     return true
 end
 
 -- MARK: AceAddon Integration
 -- Called by AceAddon framework after addon is fully loaded
 function NextKey:OnInitialize()
-    -- Print directly to chat to ensure we see initialization
-    print("NextKey: OnInitialize called - starting initialization phases")
-    NextKey222.Debug:Print("startup", "OnInitialize called - starting initialization phases")
+    NextKey222.Debug:Dev("startup", "OnInitialize called - starting initialization phases")
     
     -- Start the phased initialization system
     NextKey222.StartUp:Start()
     
-    -- Register slash commands
-    print("NextKey: Slash commands /nk and /nextkey registered")
-    
-    -- Ensure we see completion
-    print("NextKey: OnInitialize completed")
+    NextKey222.Debug:Dev("startup", "OnInitialize completed - slash commands registered")
 end
 
 -- Initialize basic systems immediately
-print("NextKey: Consolidated boot.lua loaded, version " .. NextKey.version)
-NextKey222.Debug:Print("startup", "NextKey consolidated boot.lua loaded, version", NextKey.version)
+NextKey222.Debug:Dev("startup", "NextKey consolidated boot.lua loaded, version", NextKey.version)
 
 return NextKey

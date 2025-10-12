@@ -39,7 +39,7 @@ local dungeonMatrix = {
 function IOCalculator:Initialize()
     self.playerScores = {}
     self.fakePlayerScores = {}
-    NextKey222.Debug:Print("IOCalculator", "Initialized with MythicPlanner.com algorithm")
+    NextKey222.Debug:Dev("IOCalculator", "Initialized with MythicPlanner.com algorithm")
     return true
 end
 
@@ -285,7 +285,7 @@ end
 -- Calculate IO gain range (min/max/expected) for a player on a specific keystone
 function IOCalculator:CalculateIORange(keystoneData, playerProfile)
     if not keystoneData or not playerProfile then
-        NextKey222.Debug:Print("IOCalculator", "CalculateIORange: Missing keystoneData or playerProfile")
+        NextKey222.Debug:Dev("IOCalculator", "CalculateIORange: Missing keystoneData or playerProfile")
         return { min = 0, max = 0, expected = 0 }
     end
     
@@ -406,7 +406,7 @@ function IOCalculator:StorePlayerDungeonScore(playerName, dungeonID, score, leve
         timestamp = GetTime()
     }
     
-    NextKey222.Debug:Print("IOCalculator", "Stored score for", playerName, "dungeon", dungeonID .. ":", score)
+    NextKey222.Debug:Dev("IOCalculator", "Stored score for", playerName, "dungeon", dungeonID .. ":", score)
 end
 
 -- Get any player's dungeon score (real or fake) using unified data source
@@ -451,7 +451,7 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
                 end
             end
             
-            NextKey222.Debug:Print("IOCalculator", "Shared IO score for", playerName, "dungeon", dungeonID .. ":", score)
+            NextKey222.Debug:Dev("IOCalculator", "Shared IO score for", playerName, "dungeon", dungeonID .. ":", score)
             return score
         else
             -- Debug: Check what's in the cache
@@ -477,7 +477,7 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
             if profile and profile.dungeonScores and profile.dungeonScores[dungeonID] then
                 local dungeonScore = profile.dungeonScores[dungeonID].bestScore or 0
                 print("NextKey IOCalc DEBUG: RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
-                NextKey222.Debug:Print("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
+                NextKey222.Debug:Dev("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
                 return dungeonScore
             else
                 print("NextKey IOCalc DEBUG: No RaiderIO score found for", playerName, "dungeon", dungeonID)
@@ -504,8 +504,8 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     if fakePlayerData and fakePlayerData.best then
         -- Debug ID mapping for fake players
         if dungeonID == 2441 or dungeonID == 402 or dungeonID == 391 or dungeonID == 392 then
-            NextKey222.Debug:Print("IOCalculator", "ID mapping check for", playerName, "looking for dungeonID:", dungeonID)
-            NextKey222.Debug:Print("IOCalculator", "Fake player has dungeons:", table.concat(self:GetKeys(fakePlayerData.best), ", "))
+            NextKey222.Debug:Dev("IOCalculator", "ID mapping check for", playerName, "looking for dungeonID:", dungeonID)
+            NextKey222.Debug:Dev("IOCalculator", "Fake player has dungeons:", table.concat(self:GetKeys(fakePlayerData.best), ", "))
         end
         
         if fakePlayerData.best[dungeonID] then
@@ -516,13 +516,13 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
         if dungeonID == 2441 then
             -- Try the M+ challenge map ID for So'leah's Gambit
             if fakePlayerData.best[392] then
-                NextKey222.Debug:Print("IOCalculator", "Found alternative ID 392 (So'leah's Gambit) for", playerName)
+                NextKey222.Debug:Dev("IOCalculator", "Found alternative ID 392 (So'leah's Gambit) for", playerName)
                 return fakePlayerData.best[392].score or 0
             end
         elseif dungeonID == 392 then
             -- Try the keystone form ID for So'leah's Gambit  
             if fakePlayerData.best[2441] then
-                NextKey222.Debug:Print("IOCalculator", "Found alternative ID 2441 (So'leah's Gambit keystone) for", playerName)
+                NextKey222.Debug:Dev("IOCalculator", "Found alternative ID 2441 (So'leah's Gambit keystone) for", playerName)
                 return fakePlayerData.best[2441].score or 0
             end
         end
@@ -542,12 +542,12 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     
     -- Debug current player lookup
     if playerName == "Ryuza-Dalaran" or playerName:match("^Ryuza") then
-        NextKey222.Debug:Print("IOCalculator", "Current player check:", playerName, "vs", currentPlayerName, "isCurrentPlayer:", isCurrentPlayer)
+        NextKey222.Debug:Dev("IOCalculator", "Current player check:", playerName, "vs", currentPlayerName, "isCurrentPlayer:", isCurrentPlayer)
     end
     
     if isCurrentPlayer and NextKey222.Addon.UI then
         local liveScore = NextKey222.Addon.UI:GetRaiderIODungeonScore(dungeonID)
-        NextKey222.Debug:Print("IOCalculator", "Live score for", playerName, "dungeon", dungeonID .. ":", liveScore or "nil")
+        NextKey222.Debug:Dev("IOCalculator", "Live score for", playerName, "dungeon", dungeonID .. ":", liveScore or "nil")
         if liveScore and liveScore > 0 then
             -- Store it for future use
             self:StorePlayerDungeonScore(playerName, dungeonID, liveScore)
@@ -560,7 +560,7 @@ end
 
 -- Get player's overall IO score (for both real and fake players) using unified data source
 function IOCalculator:GetPlayerTotalIO(playerName)
-    NextKey222.Debug:Print("IOCalculator", "GetPlayerTotalIO called for:", playerName)
+    NextKey222.Debug:Dev("IOCalculator", "GetPlayerTotalIO called for:", playerName)
     
     -- Check if this is the current player and ensure their data is generated
     local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
@@ -577,7 +577,7 @@ function IOCalculator:GetPlayerTotalIO(playerName)
     -- First priority: Check shared IO data from communications
     if NextKey222.Communications and NextKey222.Communications:HasIODataForPlayer(playerName) then
         local totalIO = NextKey222.Communications:GetPlayerTotalIO(playerName)
-        NextKey222.Debug:Print("IOCalculator", "Shared IO total for", playerName .. ":", totalIO)
+        NextKey222.Debug:Dev("IOCalculator", "Shared IO total for", playerName .. ":", totalIO)
         return totalIO
     end
     
@@ -586,7 +586,7 @@ function IOCalculator:GetPlayerTotalIO(playerName)
         if NextKey222.RaiderIOAdapter:HasPlayerData(playerName) then
             local profile = NextKey222.RaiderIOAdapter:GetProfile(playerName)
             if profile and profile.io then
-                NextKey222.Debug:Print("IOCalculator", "RaiderIO total for", playerName .. ":", profile.io)
+                NextKey222.Debug:Dev("IOCalculator", "RaiderIO total for", playerName .. ":", profile.io)
                 return profile.io
             end
         end
@@ -594,28 +594,28 @@ function IOCalculator:GetPlayerTotalIO(playerName)
 
     -- Third priority: For fake players, get their calculated total IO (legacy fallback)
     local fakePlayerData = NextKey222.Addon.UI and NextKey222.Addon.UI:GetFakePlayerData(playerName)
-    NextKey222.Debug:Print("IOCalculator", "Fake player data found:", fakePlayerData ~= nil)
+    NextKey222.Debug:Dev("IOCalculator", "Fake player data found:", fakePlayerData ~= nil)
     
     if fakePlayerData then
-        NextKey222.Debug:Print("IOCalculator", "Fake player data fields - io:", fakePlayerData.io, "score:", fakePlayerData.score)
+        NextKey222.Debug:Dev("IOCalculator", "Fake player data fields - io:", fakePlayerData.io, "score:", fakePlayerData.score)
         -- Use the calculated io field from RecalculateFakePlayerScore
         local totalIO = fakePlayerData.io or fakePlayerData.score or 0
-        NextKey222.Debug:Print("IOCalculator", "Fake player", playerName, "total IO:", totalIO)
+        NextKey222.Debug:Dev("IOCalculator", "Fake player", playerName, "total IO:", totalIO)
         return totalIO
     end
     
     -- Fourth priority: For current player, try UI method
     local currentPlayer = UnitName("player")
-    NextKey222.Debug:Print("IOCalculator", "Current player check:", currentPlayer, "vs", playerName)
+    NextKey222.Debug:Dev("IOCalculator", "Current player check:", currentPlayer, "vs", playerName)
     if playerName == currentPlayer then
         if NextKey222.UI and NextKey222.UI.GetTotalIOScore then
             local uiTotal = NextKey222.UI:GetTotalIOScore()
-            NextKey222.Debug:Print("IOCalculator", "Current player", playerName, "UI total:", uiTotal)
+            NextKey222.Debug:Dev("IOCalculator", "Current player", playerName, "UI total:", uiTotal)
             return uiTotal or 0
         end
     end
     
-    NextKey222.Debug:Print("IOCalculator", "No total IO found for", playerName, "returning 0")
+    NextKey222.Debug:Dev("IOCalculator", "No total IO found for", playerName, "returning 0")
     return 0
 end
 
@@ -694,7 +694,7 @@ function IOCalculator:ReceivePlayerDungeonScores(playerName, dungeonScores)
         self:StorePlayerDungeonScore(playerName, dungeonID, scoreData.score, scoreData.level)
     end
     
-    NextKey222.Debug:Print("IOCalculator", "Received dungeon scores from", playerName)
+    NextKey222.Debug:Dev("IOCalculator", "Received dungeon scores from", playerName)
 end
 
 -- MARK: Group Recommendation Logic

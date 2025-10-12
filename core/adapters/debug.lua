@@ -14,7 +14,7 @@ function DebugAdapter:GetProfile(playerName)
     
     local profile = NextKey222.FakePlayerService:GetProfile(playerName)
     if profile then
-        NextKey222.Debug:Print("debug", "Got profile from FakePlayerService for:", playerName)
+        NextKey222.Debug:Dev("debug", "Got profile from FakePlayerService for:", playerName)
     end
     
     return profile

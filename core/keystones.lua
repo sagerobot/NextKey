@@ -41,7 +41,7 @@ local function getBlizzardMythicPlusScore(playerName)
         if not playerName or playerName == UnitName("player") or playerName == NextKey222.Addon.playerFullName then
             if C_MythicPlus and C_MythicPlus.GetOverallDungeonScore then
                 local score = C_MythicPlus.GetOverallDungeonScore()
-                NextKey222.Debug:Print("keystones", "Blizzard API score for current player:", score)
+                NextKey222.Debug:Dev("keystones", "Blizzard API score for current player:", score)
                 return score
             end
             
@@ -49,7 +49,7 @@ local function getBlizzardMythicPlusScore(playerName)
             if C_PlayerInfo and C_PlayerInfo.GetPlayerMythicPlusRatingSummary then
                 local summary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player")
                 if summary and summary.currentSeasonScore then
-                    NextKey222.Debug:Print("keystones", "Blizzard API rating summary for current player:", summary.currentSeasonScore)
+                    NextKey222.Debug:Dev("keystones", "Blizzard API rating summary for current player:", summary.currentSeasonScore)
                     return summary.currentSeasonScore
                 end
             end
@@ -69,14 +69,14 @@ local function getBlizzardMythicPlusScore(playerName)
                 if unitID then
                     local summary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary(unitID)
                     if summary and summary.currentSeasonScore then
-                        NextKey222.Debug:Print("keystones", "Blizzard API score for", playerName, ":", summary.currentSeasonScore)
+                        NextKey222.Debug:Dev("keystones", "Blizzard API score for", playerName, ":", summary.currentSeasonScore)
                         return summary.currentSeasonScore
                     end
                 end
             end
         end
         
-        NextKey222.Debug:Print("keystones", "No Blizzard API score available for", playerName)
+        NextKey222.Debug:Dev("keystones", "No Blizzard API score available for", playerName)
         return nil
 end
 
@@ -105,16 +105,16 @@ local Keystones = {
         local blizzardScore = getBlizzardMythicPlusScore(ownerName)
         if blizzardScore and blizzardScore > 0 then
             entry.rioScore = blizzardScore
-            NextKey222.Debug:Print("keystones", "Got Blizzard API score for", ownerName, ":", blizzardScore)
+            NextKey222.Debug:Dev("keystones", "Got Blizzard API score for", ownerName, ":", blizzardScore)
         else
             -- Fallback to RaiderIO data if Blizzard API unavailable
             if NextKey222.RaiderIO then
                 local profile = NextKey222.RaiderIO:GetProfile(ownerName)
-                NextKey222.Debug:Print("keystones", "RaiderIO profile for", ownerName, ":", profile and "found" or "not found")
+                NextKey222.Debug:Dev("keystones", "RaiderIO profile for", ownerName, ":", profile and "found" or "not found")
                 if profile and profile.mythicKeystoneProfile then
                     local p = profile.mythicKeystoneProfile
                     entry.rioScore = p.currentScore
-                    NextKey222.Debug:Print("keystones", "Set RaiderIO score for", ownerName, "to", entry.rioScore)
+                    NextKey222.Debug:Dev("keystones", "Set RaiderIO score for", ownerName, "to", entry.rioScore)
                     
                     -- Get best runs for this dungeon
                     if p.fortifiedDungeonScores and p.tyrannicalDungeonScores then
@@ -182,7 +182,7 @@ local Keystones = {
 ---Scan RaiderIO data for all party members
 ---@return KeystoneEntry[] keys Array of keystone entries with RaiderIO data
 function NextKey:ScanPartyRaiderIO()
-    NextKey222.Debug:Print("keystones", "Enhanced party scan started")
+    NextKey222.Debug:Dev("keystones", "Enhanced party scan started")
     
     local keys = {}
     local memberType = IsInRaid() and "raid" or "party"
@@ -194,7 +194,7 @@ function NextKey:ScanPartyRaiderIO()
     for i = 1, maxMembers do
         local unit = i == 1 and "player" or memberType .. i
         local name = GetUtils().safeGetName(unit)
-        NextKey222.Debug:Print("keystones", "Checking party member", i, "unit:", unit, "name:", name or "nil")
+        NextKey222.Debug:Dev("keystones", "Checking party member", i, "unit:", unit, "name:", name or "nil")
         
         if name and not seen[name] and UnitExists(unit) then
             seen[name] = true
@@ -204,7 +204,7 @@ function NextKey:ScanPartyRaiderIO()
             if unit == "player" then
                 keystoneLevel = C_MythicPlus.GetOwnedKeystoneLevel() or 0
                 keystoneMapID = C_MythicPlus.GetOwnedKeystoneMapID() or 0
-                NextKey222.Debug:Print("keystones", "Blizzard API keystone for player:", keystoneLevel, keystoneMapID)
+                NextKey222.Debug:Dev("keystones", "Blizzard API keystone for player:", keystoneLevel, keystoneMapID)
             end
             
             -- Method 2: Try active challenge mode detection
@@ -212,7 +212,7 @@ function NextKey:ScanPartyRaiderIO()
                 local level, affixes, wasEnergized = C_ChallengeMode.GetActiveKeystoneInfo()
                 if level and level > 0 then
                     local activeMapID = C_ChallengeMode.GetActiveChallengeMapID()
-                    NextKey222.Debug:Print("keystones", "Active keystone detected:", level, activeMapID)
+                    NextKey222.Debug:Dev("keystones", "Active keystone detected:", level, activeMapID)
                     keystoneLevel = level
                     keystoneMapID = activeMapID
                 end
@@ -222,7 +222,7 @@ function NextKey:ScanPartyRaiderIO()
             local profile = nil
             if NextKey222.RaiderIO then
                 profile = NextKey222.RaiderIO:GetProfile(name)
-                NextKey222.Debug:Print("keystones", "RaiderIO profile for", name, ":", profile and "found" or "not found")
+                NextKey222.Debug:Dev("keystones", "RaiderIO profile for", name, ":", profile and "found" or "not found")
             end
             
             -- Create entry with detected or default keystone info
@@ -236,24 +236,24 @@ function NextKey:ScanPartyRaiderIO()
             )
                 
             if entry then
-                NextKey222.Debug:Print("keystones", "Created entry for", name, "with keystone level", keystoneLevel)
+                NextKey222.Debug:Dev("keystones", "Created entry for", name, "with keystone level", keystoneLevel)
                 table.insert(keys, entry)
             end
         end
     end
     
-    NextKey222.Debug:Print("keystones", "Enhanced party scan completed, found", #keys, "members")
+    NextKey222.Debug:Dev("keystones", "Enhanced party scan completed, found", #keys, "members")
     return keys
 end
 
 function NextKey:ScanPlayerKeystone()
-    NextKey222.Debug:Print("keystones", "Enhanced player keystone scan started")
+    NextKey222.Debug:Dev("keystones", "Enhanced player keystone scan started")
     
     -- Method 1: Try LibOpenRaid Integration first (most comprehensive)
     if NextKey222.LibOpenRaidIntegration and NextKey222.LibOpenRaidIntegration:IsAvailable() then
         local libKeystone = NextKey222.LibOpenRaidIntegration:GetPlayerKeystone("player")
         if libKeystone then
-            NextKey222.Debug:Print("keystones", "Found keystone via LibOpenRaid Integration:", libKeystone.dungeonID, libKeystone.level)
+            NextKey222.Debug:Dev("keystones", "Found keystone via LibOpenRaid Integration:", libKeystone.dungeonID, libKeystone.level)
             return libKeystone
         end
     end
@@ -261,7 +261,7 @@ function NextKey:ScanPlayerKeystone()
     -- Method 2: Fallback to Blizzard APIs
     local mapID, level
     if C_MythicPlus then
-        NextKey222.Debug:Print("keystones", "Trying Blizzard API methods")
+        NextKey222.Debug:Dev("keystones", "Trying Blizzard API methods")
         
         -- Primary method: GetOwnedKeystone APIs
         mapID = C_MythicPlus.GetOwnedKeystoneMapID() -- This should work for current keystones
@@ -272,10 +272,10 @@ function NextKey:ScanPlayerKeystone()
             mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
         end
         
-        NextKey222.Debug:Print("keystones", "Blizzard API returned mapID:", mapID or "nil", "level:", level or "nil")
+        NextKey222.Debug:Dev("keystones", "Blizzard API returned mapID:", mapID or "nil", "level:", level or "nil")
         
         if mapID and mapID ~= 0 and level and level > 0 then
-            NextKey222.Debug:Print("keystones", "Found keystone via Blizzard API:", mapID, level)
+            NextKey222.Debug:Dev("keystones", "Found keystone via Blizzard API:", mapID, level)
             -- Fall back to runtime name/short if boot hasn't populated playerFullName yet
             local runtimeName = GetUtils().safeGetName("player")
             local runtimeShort = GetUtils().getShortName(runtimeName)
@@ -401,7 +401,7 @@ end
 function NextKey:RequestGuildKeystones()
     if not IsInGuild() then return false end
     
-    print("NextKey GUILD REQUEST: Requesting keystones from guild...")
+    NextKey222.Debug:Dev("keystones", "Requesting keystones from guild...")
     
     -- Send guild-wide request
     if NextKey222.Communications and NextKey222.Communications.SendGuildMessage then
@@ -462,9 +462,9 @@ function NextKey:CollectPartyKeys()
         
         if existingIndex then
             local existingKey = keys[existingIndex]
-            NextKey222.Debug:Print("keystones", "Found duplicate keystone for", normalizedOwner, "level", entry.level)
-            NextKey222.Debug:Print("keystones", "  Existing: source=" .. (existingKey.source or "unknown") .. ", dungeonID=" .. (existingKey.dungeonID or 0))
-            NextKey222.Debug:Print("keystones", "  New: source=" .. (entry.source or "unknown") .. ", dungeonID=" .. (entry.dungeonID or 0))
+            NextKey222.Debug:Dev("keystones", "Found duplicate keystone for", normalizedOwner, "level", entry.level)
+            NextKey222.Debug:Dev("keystones", "  Existing: source=" .. (existingKey.source or "unknown") .. ", dungeonID=" .. (existingKey.dungeonID or 0))
+            NextKey222.Debug:Dev("keystones", "  New: source=" .. (entry.source or "unknown") .. ", dungeonID=" .. (entry.dungeonID or 0))
             
             -- Define source priority (higher number = higher priority)
             local sourcePriority = {
@@ -477,18 +477,18 @@ function NextKey:CollectPartyKeys()
             local newPriority = sourcePriority[entry.source] or 0
             
             if newPriority > existingPriority then
-                NextKey222.Debug:Print("keystones", "  Replacing with higher priority source:", entry.source)
+                NextKey222.Debug:Dev("keystones", "  Replacing with higher priority source:", entry.source)
                 keys[existingIndex] = Keystones.copyKey(entry)
             elseif newPriority == existingPriority and (entry.dungeonID or 0) > (existingKey.dungeonID or 0) then
-                NextKey222.Debug:Print("keystones", "  Replacing with better dungeonID:", entry.dungeonID, ">", existingKey.dungeonID)
+                NextKey222.Debug:Dev("keystones", "  Replacing with better dungeonID:", entry.dungeonID, ">", existingKey.dungeonID)
                 keys[existingIndex] = Keystones.copyKey(entry)
             else
-                NextKey222.Debug:Print("keystones", "  Keeping existing keystone")
+                NextKey222.Debug:Dev("keystones", "  Keeping existing keystone")
             end
             return
         end
         
-        NextKey222.Debug:Print("keystones", "Added new keystone:", entry.ownerName, "->", normalizedOwner, "level:", entry.level, "source:", entry.source)
+        NextKey222.Debug:Dev("keystones", "Added new keystone:", entry.ownerName, "->", normalizedOwner, "level:", entry.level, "source:", entry.source)
         table.insert(keys, Keystones.copyKey(entry))
     end
 
@@ -508,46 +508,46 @@ function NextKey:CollectPartyKeys()
 
     -- Add keystones from LibOpenRaid Integration (primary source)
     local openRaidKeys = 0
-    NextKey222.Debug:Print("keystones", "Checking LibOpenRaid integration availability...")
-    NextKey222.Debug:Print("keystones", "  NextKey222.LibOpenRaidIntegration:", NextKey222.LibOpenRaidIntegration and "exists" or "nil")
+    NextKey222.Debug:Dev("keystones", "Checking LibOpenRaid integration availability...")
+    NextKey222.Debug:Dev("keystones", "  NextKey222.LibOpenRaidIntegration:", NextKey222.LibOpenRaidIntegration and "exists" or "nil")
     
     if NextKey222.LibOpenRaidIntegration then
-        NextKey222.Debug:Print("keystones", "  NextKey222.LibOpenRaidIntegration:IsAvailable():", NextKey222.LibOpenRaidIntegration:IsAvailable() and "true" or "false")
+        NextKey222.Debug:Dev("keystones", "  NextKey222.LibOpenRaidIntegration:IsAvailable():", NextKey222.LibOpenRaidIntegration:IsAvailable() and "true" or "false")
         if NextKey222.LibOpenRaidIntegration:IsAvailable() then
-            NextKey222.Debug:Print("keystones", "Calling LibOpenRaidIntegration:GetAllKeystones()...")
+            NextKey222.Debug:Dev("keystones", "Calling LibOpenRaidIntegration:GetAllKeystones()...")
             local libKeystones = NextKey222.LibOpenRaidIntegration:GetAllKeystones()
-            NextKey222.Debug:Print("keystones", "LibOpenRaid integration returned keystones:", libKeystones and "data" or "nil")
+            NextKey222.Debug:Dev("keystones", "LibOpenRaid integration returned keystones:", libKeystones and "data" or "nil")
             
             if libKeystones then
                 for playerName, keyData in pairs(libKeystones) do
-                    NextKey222.Debug:Print("keystones", "Processing LibOpenRaid keystone for:", playerName)
-                    NextKey222.Debug:Print("keystones", "  keyData.dungeonID:", keyData.dungeonID)
-                    NextKey222.Debug:Print("keystones", "  keyData.level:", keyData.level)
+                    NextKey222.Debug:Dev("keystones", "Processing LibOpenRaid keystone for:", playerName)
+                    NextKey222.Debug:Dev("keystones", "  keyData.dungeonID:", keyData.dungeonID)
+                    NextKey222.Debug:Dev("keystones", "  keyData.level:", keyData.level)
                     addKey(keyData)
                     openRaidKeys = openRaidKeys + 1
-                    NextKey222.Debug:Print("keystones", "Added LibOpenRaid keystone:", playerName, keyData.dungeonID, keyData.level)
+                    NextKey222.Debug:Dev("keystones", "Added LibOpenRaid keystone:", playerName, keyData.dungeonID, keyData.level)
                 end
             else
-                NextKey222.Debug:Print("keystones", "LibOpenRaid integration returned no keystones (empty or nil)")
+                NextKey222.Debug:Dev("keystones", "LibOpenRaid integration returned no keystones (empty or nil)")
             end
         else
-            NextKey222.Debug:Print("keystones", "LibOpenRaid integration is not available")
+            NextKey222.Debug:Dev("keystones", "LibOpenRaid integration is not available")
         end
     else
-        NextKey222.Debug:Print("keystones", "LibOpenRaid integration reference not set")
+        NextKey222.Debug:Dev("keystones", "LibOpenRaid integration reference not set")
     end
-    NextKey222.Debug:Print("keystones", "LibOpenRaid integration keys added:", openRaidKeys)
+    NextKey222.Debug:Dev("keystones", "LibOpenRaid integration keys added:", openRaidKeys)
     
     -- Add stored guild keystones if available
     local guildKeys = self:GetGuildKeystones()
     if guildKeys and #guildKeys > 0 then
-        NextKey222.Debug:Print("keystones", "Adding stored guild keystones:", #guildKeys)
+        NextKey222.Debug:Dev("keystones", "Adding stored guild keystones:", #guildKeys)
         for _, guildKey in ipairs(guildKeys) do
-            NextKey222.Debug:Print("keystones", "Adding guild keystone:", guildKey.ownerName, guildKey.dungeonID, guildKey.level)
+            NextKey222.Debug:Dev("keystones", "Adding guild keystone:", guildKey.ownerName, guildKey.dungeonID, guildKey.level)
             addKey(guildKey)
         end
     else
-        NextKey222.Debug:Print("keystones", "No stored guild keystones available")
+        NextKey222.Debug:Dev("keystones", "No stored guild keystones available")
     end
     
     -- Legacy support: Add from old receivedKeys if still present
@@ -559,7 +559,7 @@ function NextKey:CollectPartyKeys()
 
     -- Request keystones via LibOpenRaid Integration
     if IsInGroup() and NextKey222.LibOpenRaidIntegration and NextKey222.LibOpenRaidIntegration:IsAvailable() then
-        NextKey222.Debug:Print("keystones", "Requesting keystones via LibOpenRaid integration")
+        NextKey222.Debug:Dev("keystones", "Requesting keystones via LibOpenRaid integration")
         NextKey222.LibOpenRaidIntegration:RequestKeystones()
     end
 
@@ -610,7 +610,7 @@ function NextKey:CollectPartyKeys()
         -- Trigger UI refresh if fake players were added and UI is visible
         if type(dbg.players) == "table" and #dbg.players > 0 then
             if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
-                NextKey222.Debug:Print("keystones", "Fake players detected - triggering UI refresh")
+                NextKey222.Debug:Dev("keystones", "Fake players detected - triggering UI refresh")
                 C_Timer.After(0.1, function()
                     if NextKey222.UI.RefreshResults then
                         NextKey222.UI:RefreshResults()
@@ -644,15 +644,12 @@ function NextKey:CollectPartyKeys()
 
     -- If in guild mode or no party members, also collect guild keystones
     if (NextKey222.UI and NextKey222.UI.showGuildKeys) or #keys <= 1 then
-        -- Request fresh guild keystones when in guild mode
-        if NextKey222.UI and NextKey222.UI.showGuildKeys and IsInGuild() then
-            print("NextKey GUILD: In guild mode - requesting fresh keystones from guild members")
-            self:RequestGuildKeystones()
-        end
+        -- NOTE: Don't request keystones here - that's triggered by UI toggle
+        -- This function is called during rendering and would create infinite loops
         
         -- Get keystones from both NextKey cache and LibOpenRaid
         local guildKeys = self:GetGuildKeystones()
-        print("NextKey GUILD: Found", #guildKeys, "cached guild keystones from NextKey")
+        NextKey222.Debug:Dev("keystones", "Found", #guildKeys, "cached guild keystones from NextKey")
         
         -- Also get keystones directly from LibOpenRaid
         local libOpenRaidKeys = {}
@@ -660,11 +657,11 @@ function NextKey:CollectPartyKeys()
             local openRaidLib = NextKey222.LibOpenRaidIntegration:GetLibOpenRaid()
             if openRaidLib.GetAllKeystonesInfo then
                 local allKeystones = openRaidLib.GetAllKeystonesInfo()
-                print("NextKey GUILD: Checking LibOpenRaid keystones...")
+                NextKey222.Debug:Dev("keystones", "Checking LibOpenRaid keystones...")
                 for playerName, keystoneInfo in pairs(allKeystones) do
                     if keystoneInfo.level and keystoneInfo.level > 0 then
-                        print("NextKey GUILD: Found LibOpenRaid keystone:", playerName, "Level", keystoneInfo.level)
-                        print("NextKey GUILD: Raw keystone data - mapID:", keystoneInfo.mapID, "mythicPlusMapID:", keystoneInfo.mythicPlusMapID, "challengeMapID:", keystoneInfo.challengeMapID)
+                        NextKey222.Debug:Dev("keystones", "Found LibOpenRaid keystone:", playerName, "Level", keystoneInfo.level)
+                        NextKey222.Debug:Dev("keystones", "Raw keystone data - mapID:", keystoneInfo.mapID, "mythicPlusMapID:", keystoneInfo.mythicPlusMapID, "challengeMapID:", keystoneInfo.challengeMapID)
                         
                         -- Convert to NextKey format using mythicPlusMapID first (like Details! does)
                         local dungeonID = keystoneInfo.mythicPlusMapID or keystoneInfo.challengeMapID or keystoneInfo.mapID or 0
@@ -680,14 +677,14 @@ function NextKey:CollectPartyKeys()
                                    (dungeonData.mapID and dungeonData.mapID == dungeonID) or
                                    (dungeonData.challengeMapID and dungeonData.challengeMapID == dungeonID) then
                                     mappedDungeonID = nkDungeonID
-                                    print("NextKey GUILD: Mapped mythicPlusMapID", dungeonID, "to NextKey dungeonID", nkDungeonID, "(", dungeonData.name or "Unknown", ")")
+                                    NextKey222.Debug:Dev("keystones", "Mapped mythicPlusMapID", dungeonID, "to NextKey dungeonID", nkDungeonID, "(", dungeonData.name or "Unknown", ")")
                                     break
                                 end
                             end
                             
                             -- If no mapping found, keep the original ID but log it
                             if mappedDungeonID == dungeonID and dungeonID > 0 then
-                                print("NextKey GUILD: No mapping found for mythicPlusMapID", dungeonID, "- using as-is")
+                                NextKey222.Debug:Dev("keystones", "No mapping found for mythicPlusMapID", dungeonID, "- using as-is")
                             end
                         end
                         
@@ -707,7 +704,7 @@ function NextKey:CollectPartyKeys()
                 end
             end
         end
-        print("NextKey GUILD: Found", #libOpenRaidKeys, "LibOpenRaid keystones")
+        NextKey222.Debug:Dev("keystones", "Found", #libOpenRaidKeys, "LibOpenRaid keystones")
         
         -- Combine both sources
         local allGuildKeys = {}
@@ -718,36 +715,36 @@ function NextKey:CollectPartyKeys()
             table.insert(allGuildKeys, key)
         end
         
-        print("NextKey GUILD: Total guild keystones to process:", #allGuildKeys)
+        NextKey222.Debug:Dev("keystones", "Total guild keystones to process:", #allGuildKeys)
         
         for _, guildKey in ipairs(allGuildKeys) do
             local normalizedOwner = guildKey.ownerShort or guildKey.ownerName:match("^([^%-]+)") or guildKey.ownerName
-            print("NextKey GUILD: Processing keystone from", guildKey.ownerName, "normalized:", normalizedOwner, "level:", guildKey.level)
+            NextKey222.Debug:Dev("keystones", "Processing keystone from", guildKey.ownerName, "normalized:", normalizedOwner, "level:", guildKey.level)
             
             -- Check if we already have this player's keystone
             local alreadyExists = false
             for _, existingKey in ipairs(keys) do
                 local existingNormalized = existingKey.ownerShort or existingKey.ownerName:match("^([^%-]+)") or existingKey.ownerName
-                print("NextKey GUILD: Comparing with existing key:", existingKey.ownerName, "normalized:", existingNormalized)
+                NextKey222.Debug:Dev("keystones", "Comparing with existing key:", existingKey.ownerName, "normalized:", existingNormalized)
                 if existingNormalized == normalizedOwner then
                     alreadyExists = true
-                    print("NextKey GUILD: Duplicate found, skipping")
+                    NextKey222.Debug:Dev("keystones", "Duplicate found, skipping")
                     break
                 end
             end
             
             if not alreadyExists then
-                print("NextKey GUILD: Attempting to copy keystone:", guildKey.ownerName, "Level", guildKey.level, "DungeonID", guildKey.dungeonID)
+                NextKey222.Debug:Dev("keystones", "Attempting to copy keystone:", guildKey.ownerName, "Level", guildKey.level, "DungeonID", guildKey.dungeonID)
                 local copied = Keystones.copyKey(guildKey)
                 if copied then
                     table.insert(keys, copied)
-                    print("NextKey GUILD: Successfully added guild keystone from", guildKey.ownerName, "Level", copied.level, "Dungeon", copied.dungeonID)
-                    print("NextKey GUILD: Copied keystone data:", "ownerName=", copied.ownerName, "level=", copied.level, "dungeonID=", copied.dungeonID, "source=", copied.source)
+                    NextKey222.Debug:Dev("keystones", "Successfully added guild keystone from", guildKey.ownerName, "Level", copied.level, "Dungeon", copied.dungeonID)
+                    NextKey222.Debug:Dev("keystones", "Copied keystone data:", "ownerName=", copied.ownerName, "level=", copied.level, "dungeonID=", copied.dungeonID, "source=", copied.source)
                 else
-                    print("NextKey GUILD: Failed to copy keystone from", guildKey.ownerName, "- copyKey returned nil")
+                    NextKey222.Debug:Dev("keystones", "Failed to copy keystone from", guildKey.ownerName, "- copyKey returned nil")
                 end
             else
-                print("NextKey GUILD: Skipped duplicate keystone from", guildKey.ownerName)
+                NextKey222.Debug:Dev("keystones", "Skipped duplicate keystone from", guildKey.ownerName)
             end
         end
     end
@@ -769,9 +766,9 @@ function NextKey:GetAvailableKeys()
         return {} 
     end
     
-    print("NextKey GUILD DEBUG: Initial keys collected:", #keys)
+    NextKey222.Debug:Dev("keystones", "Initial keys collected:", #keys)
     for i, key in ipairs(keys) do
-        print("NextKey GUILD DEBUG: Initial key", i .. ":", key.ownerName or "Unknown", "source:", key.source or "Unknown")
+        NextKey222.Debug:Dev("keystones", "Initial key", i .. ":", key.ownerName or "Unknown", "source:", key.source or "Unknown")
     end
     
     local copy = {}
@@ -791,19 +788,19 @@ function NextKey:GetAvailableKeys()
     
     -- If Guild view is enabled, restrict to online guild members and exclude the player
     if NextKey222.UI and NextKey222.UI.showGuildKeys then
-        print("NextKey GUILD DEBUG: Guild view enabled, filtering keys")
+        NextKey222.Debug:Dev("keystones", "Guild view enabled, filtering keys")
         local onlineGuild = self:GetOnlineGuildMemberNames(false) -- include player in the set
         local myShort = self.playerShortName or (GetUtils().getShortName(GetUtils().safeGetName("player")))
         
-        print("NextKey GUILD DEBUG: Online guild members:")
+        NextKey222.Debug:Dev("keystones", "Online guild members:")
         local guildCount = 0
         for member, _ in pairs(onlineGuild) do
             guildCount = guildCount + 1
-            print("NextKey GUILD DEBUG:   ", member)
+            NextKey222.Debug:Dev("keystones", "  ", member)
         end
-        print("NextKey GUILD DEBUG: Total online guild members:", guildCount)
-        print("NextKey GUILD DEBUG: My short name:", myShort)
-        print("NextKey GUILD DEBUG: Keys to filter (before):", #copy)
+        NextKey222.Debug:Dev("keystones", "Total online guild members:", guildCount)
+        NextKey222.Debug:Dev("keystones", "My short name:", myShort)
+        NextKey222.Debug:Dev("keystones", "Keys to filter (before):", #copy)
         
         local guildFiltered = {}
         for _, key in ipairs(copy) do
@@ -812,23 +809,23 @@ function NextKey:GetAvailableKeys()
             local isGuildMember = onlineGuild[short]
             local isMe = short == myShort
             
-            print("NextKey GUILD DEBUG: Key owner:", owner, "Short:", short, "IsGuildMember:", isGuildMember, "IsMe:", isMe)
+            NextKey222.Debug:Dev("keystones", "Key owner:", owner, "Short:", short, "IsGuildMember:", isGuildMember, "IsMe:", isMe)
             
             if owner and owner ~= "Unknown" and (isGuildMember or isMe) then
                 table.insert(guildFiltered, key)
-                print("NextKey GUILD DEBUG: Including key from", owner)
+                NextKey222.Debug:Dev("keystones", "Including key from", owner)
             else
-                NextKey222.Debug:Print("keystones", "Filtering out in guild view:", owner or "nil", key and (key.source or "?") or "?")
-                print("NextKey GUILD DEBUG: Filtering out key from", owner or "nil")
+                NextKey222.Debug:Dev("keystones", "Filtering out in guild view:", owner or "nil", key and (key.source or "?") or "?")
+                NextKey222.Debug:Dev("keystones", "Filtering out key from", owner or "nil")
             end
         end
-        print("NextKey GUILD DEBUG: Keys after guild filtering:", #guildFiltered)
+        NextKey222.Debug:Dev("keystones", "Keys after guild filtering:", #guildFiltered)
         copy = guildFiltered
     end
 
     -- Apply guild/party filtering if UI is available
     if NextKey222.UI and not NextKey222.UI.showGuildKeys then
-        NextKey222.Debug:Print("keystones", "Filtering to party members only")
+        NextKey222.Debug:Dev("keystones", "Filtering to party members only")
         local filteredCopy = {}
         local partyMembers = self:GetPartyMemberNames()
         local seenPlayers = {}  -- Track seen players to avoid duplicates
@@ -837,7 +834,7 @@ function NextKey:GetAvailableKeys()
                 local playerName = key.ownerName or ""
                 local isPartyMember = false
                 
-                NextKey222.Debug:Print("keystones", "Checking keystone from:", playerName)
+                NextKey222.Debug:Dev("keystones", "Checking keystone from:", playerName)
                 
                 -- Check against all party members (both short and full names)
                 for _, partyMember in pairs(partyMembers) do
@@ -847,7 +844,7 @@ function NextKey:GetAvailableKeys()
                     -- Match by full name or short name
                     if playerName == partyMember or playerShort == partyShort then
                         isPartyMember = true
-                        NextKey222.Debug:Print("keystones", "  Matched party member:", partyMember)
+                        NextKey222.Debug:Dev("keystones", "  Matched party member:", partyMember)
                         break
                     end
                 end
@@ -861,7 +858,7 @@ function NextKey:GetAvailableKeys()
                         -- First keystone for this player
                         seenPlayers[playerShort] = key
                         table.insert(filteredCopy, key)
-                        NextKey222.Debug:Print("keystones", "  Added first keystone for:", playerShort)
+                        NextKey222.Debug:Dev("keystones", "  Added first keystone for:", playerShort)
                     else
                         -- Compare keystones and keep the better one
                         local shouldReplace = false
@@ -869,12 +866,12 @@ function NextKey:GetAvailableKeys()
                         -- Priority 1: Higher level keystone
                         if (key.level or 0) > (existingKey.level or 0) then
                             shouldReplace = true
-                            NextKey222.Debug:Print("keystones", "  Replacing with higher level:", key.level, ">", existingKey.level)
+                            NextKey222.Debug:Dev("keystones", "  Replacing with higher level:", key.level, ">", existingKey.level)
                         elseif (key.level or 0) == (existingKey.level or 0) then
                             -- Priority 2: Better dungeonID (non-zero preferred)
                             if (key.dungeonID or 0) > (existingKey.dungeonID or 0) then
                                 shouldReplace = true
-                                NextKey222.Debug:Print("keystones", "  Replacing with better dungeonID:", key.dungeonID, ">", existingKey.dungeonID)
+                                NextKey222.Debug:Dev("keystones", "  Replacing with better dungeonID:", key.dungeonID, ">", existingKey.dungeonID)
                             end
                         end
                         
@@ -888,15 +885,15 @@ function NextKey:GetAvailableKeys()
                                 end
                             end
                         end
-                        NextKey222.Debug:Print("keystones", "  Duplicate keystone", shouldReplace and "replaced" or "ignored", "for:", playerShort)
+                        NextKey222.Debug:Dev("keystones", "  Duplicate keystone", shouldReplace and "replaced" or "ignored", "for:", playerShort)
                     end
                 else
-                    NextKey222.Debug:Print("keystones", "  Filtered out non-party member:", playerName)
+                    NextKey222.Debug:Dev("keystones", "  Filtered out non-party member:", playerName)
                 end
             end
             
         copy = filteredCopy
-        NextKey222.Debug:Print("keystones", "After filtering: " .. #copy .. " keys remaining")
+        NextKey222.Debug:Dev("keystones", "After filtering: " .. #copy .. " keys remaining")
     end
     
     -- Available keys processed (debug output removed for performance)
@@ -957,7 +954,7 @@ function NextKey:GetAvailableKeys()
             if owner and owner ~= "Unknown" and owner ~= "" then
                 table.insert(cleaned, key)
             else
-                NextKey222.Debug:Print("keystones", "Dropping entry with unknown owner in guild view:", tostring(key and key.dungeonID), tostring(key and key.level), key and (key.source or "?"))
+                NextKey222.Debug:Dev("keystones", "Dropping entry with unknown owner in guild view:", tostring(key and key.dungeonID), tostring(key and key.level), key and (key.source or "?"))
             end
         end
         copy = cleaned
@@ -979,7 +976,7 @@ function NextKey:GetPartyMemberNames()
             playerFullName = playerName .. "-" .. currentRealm
         end
         table.insert(partyMembers, playerFullName)
-        NextKey222.Debug:Print("keystones", "Added current player:", playerFullName)
+        NextKey222.Debug:Dev("keystones", "Added current player:", playerFullName)
     end
     
     -- Add party members
@@ -1006,7 +1003,7 @@ function NextKey:GetPartyMemberNames()
                     
                     if not isPlayer then
                         table.insert(partyMembers, memberName)
-                        NextKey222.Debug:Print("keystones", "Added party member:", memberName)
+                        NextKey222.Debug:Dev("keystones", "Added party member:", memberName)
                     end
                 end
             end
@@ -1021,13 +1018,13 @@ function NextKey:GetPartyMemberNames()
                 if player and player.name then
                     -- Add fake player name to party members list
                     table.insert(partyMembers, player.name)
-                    NextKey222.Debug:Print("keystones", "Added fake player as party member:", player.name)
+                    NextKey222.Debug:Dev("keystones", "Added fake player as party member:", player.name)
                 end
             end
         end
     end
     
-    NextKey222.Debug:Print("keystones", "Final party members (" .. #partyMembers .. "):", table.concat(partyMembers, ", "))
+    NextKey222.Debug:Dev("keystones", "Final party members (" .. #partyMembers .. "):", table.concat(partyMembers, ", "))
     return partyMembers
 end
 
@@ -1100,7 +1097,7 @@ function NextKey:SetTeleportTargetKey(key, opts)
 
     if opts.broadcast and self:IsLeaderOrSolo() then
         -- Broadcast teleport selection to party/raid
-        NextKey222.Debug:Print("keystones", "Teleport target selected:", key and (key.ownerName .. " - " .. self:GetDungeonName(key.dungeonID)) or "none")
+        NextKey222.Debug:Dev("keystones", "Teleport target selected:", key and (key.ownerName .. " - " .. self:GetDungeonName(key.dungeonID)) or "none")
     end
 
     if type(self.RefreshTeleportWindow) == "function" then
@@ -1165,7 +1162,7 @@ end
 
 -- MARK: Dungeon Teleport Handler
 function NextKey:HandleTeleportClick(dungeonID, dungeonData)
-    NextKey222.Debug:Print("keystones", "Teleport requested for dungeon:", dungeonData.name)
+    NextKey222.Debug:Dev("keystones", "Teleport requested for dungeon:", dungeonData.name)
     
     -- Direct spell cast if spell ID available
     local spellID = dungeonData.spellID
@@ -1208,7 +1205,7 @@ end
 
 -- MARK: Dungeon Loot Handler
 function NextKey:HandleLootClick(dungeonID, dungeonData)
-    NextKey222.Debug:Print("keystones", "Loot window requested for dungeon:", dungeonData.name)
+    NextKey222.Debug:Dev("keystones", "Loot window requested for dungeon:", dungeonData.name)
     
     -- Placeholder for future loot window integration
     self:Print(string.format("Loot tracking for %s - Coming Soon!", dungeonData.name))
@@ -1221,44 +1218,57 @@ end
 
 -- Scan player's current keystone (NextKey222 namespace version)
 function Keystones:ScanPlayerKeystone()
-    -- Delegate to the global NextKey function for now to maintain compatibility
+    -- Delegate to the global NextKey function for compatibility
+    local NextKey = NextKey222.Addon
     if NextKey and NextKey.ScanPlayerKeystone then
+        NextKey222.Debug:Dev("keystones", "Delegating ScanPlayerKeystone to NextKey.Addon")
         return NextKey:ScanPlayerKeystone()
     end
+    
+    NextKey222.Debug:Error("ScanPlayerKeystone: NextKey.Addon not available")
     return nil
 end
 
 -- Request keystones from guild members (Details!-style implementation)
 function Keystones:RequestGuildKeystones()
     if not IsInGuild() then
-        print("NextKey GUILD: Not in guild - cannot request keystones")
+        NextKey222.Debug:Dev("keystones", "Not in guild - cannot request keystones")
         return false
     end
     
-    print("NextKey GUILD: Requesting keystones from guild members...")
+    -- Throttle: Don't send requests more than once every 10 seconds
+    local currentTime = GetTime()
+    if self.lastGuildKeystoneRequest and (currentTime - self.lastGuildKeystoneRequest) < 10 then
+        local cooldown = 10 - (currentTime - self.lastGuildKeystoneRequest)
+        NextKey222.Debug:Dev("keystones", string.format("Guild keystone request throttled (%.1fs remaining)", cooldown))
+        return false
+    end
+    
+    self.lastGuildKeystoneRequest = currentTime
+    NextKey222.Debug:Dev("keystones", "Requesting keystones from guild members...")
     
     -- Update guild roster first (like Details! does)
     if C_GuildInfo and C_GuildInfo.GuildRoster then
         C_GuildInfo.GuildRoster()
-        print("NextKey GUILD: Updated guild roster")
+        NextKey222.Debug:Dev("keystones", "Updated guild roster")
     end
     
     -- Primary method: Use LibOpenRaid integration
     if NextKey222.LibOpenRaidIntegration and NextKey222.LibOpenRaidIntegration.RequestGuildKeystones then
         local success = NextKey222.LibOpenRaidIntegration:RequestGuildKeystones()
         if success then
-            print("NextKey GUILD: LibOpenRaid guild request sent")
+            NextKey222.Debug:Dev("keystones", "LibOpenRaid guild request sent")
         else
-            print("NextKey GUILD: LibOpenRaid guild request failed")
+            NextKey222.Debug:Dev("keystones", "LibOpenRaid guild request failed")
         end
     else
-        print("NextKey GUILD: LibOpenRaid integration not available")
+        NextKey222.Debug:Dev("keystones", "LibOpenRaid integration not available")
     end
     
     -- Backup method: Use our custom communication system
     if NextKey222.Communications and NextKey222.Communications.RequestGuildKeystones then
-        NextKey222.Communications:RequestGuildKeystones()
-        print("NextKey GUILD: NextKey communication request sent")
+        local commSuccess = NextKey222.Communications:RequestGuildKeystones()
+        NextKey222.Debug:Dev("keystones", "NextKey communication request:", commSuccess and "sent" or "throttled")
     end
     
     return true
@@ -1268,7 +1278,7 @@ end
 function Keystones:Initialize()
     -- Set up LibOpenRaid reference
     self.LibOpenRaid = NextKey222.LibOpenRaidIntegration
-    NextKey222.Debug:Print("keystones", "LibOpenRaid reference set:", self.LibOpenRaid and "available" or "nil")
+    NextKey222.Debug:Dev("keystones", "LibOpenRaid reference set:", self.LibOpenRaid and "available" or "nil")
     return true
 end
 

@@ -18,18 +18,18 @@ function LibOpenRaidIntegration:Initialize()
         local success, lib = pcall(LibStub.GetLibrary, LibStub, "LibOpenRaid-1.0")
         if success and lib then
             openRaidLib = lib
-            NextKey222.Debug:Print("libopenraid", "LibOpenRaid-1.0 loaded successfully")
+            NextKey222.Debug:Dev("libopenraid", "LibOpenRaid-1.0 loaded successfully")
             
             -- Register callbacks
             self:RegisterCallbacks()
             
             return true
         else
-            NextKey222.Debug:Print("libopenraid", "Failed to load LibOpenRaid-1.0:", lib)
+            NextKey222.Debug:Dev("libopenraid", "Failed to load LibOpenRaid-1.0:", lib)
         end
     end
     
-    NextKey222.Debug:Print("libopenraid", "LibOpenRaid-1.0 not available")
+    NextKey222.Debug:Dev("libopenraid", "LibOpenRaid-1.0 not available")
     return false
 end
 
@@ -41,67 +41,67 @@ function LibOpenRaidIntegration:RegisterCallbacks()
     openRaidLib.RegisterCallback(self, "KeystoneUpdate", "OnKeystoneUpdate")
     openRaidLib.RegisterCallback(self, "KeystoneWipe", "OnKeystoneWipe")
     
-    NextKey222.Debug:Print("libopenraid", "Callbacks registered")
+    NextKey222.Debug:Dev("libopenraid", "Callbacks registered")
 end
 
 -- MARK: Keystone Data Access
 function LibOpenRaidIntegration:GetAllKeystones()
-    NextKey222.Debug:Print("libopenraid", "=== GetAllKeystones() called ===")
+    NextKey222.Debug:Dev("libopenraid", "=== GetAllKeystones() called ===")
     if not openRaidLib then 
-        NextKey222.Debug:Print("libopenraid", "openRaidLib is nil, returning empty table")
+        NextKey222.Debug:Dev("libopenraid", "openRaidLib is nil, returning empty table")
         return {} 
     end
     
-    NextKey222.Debug:Print("libopenraid", "openRaidLib available, calling GetAllKeystonesInfo()")
+    NextKey222.Debug:Dev("libopenraid", "openRaidLib available, calling GetAllKeystonesInfo()")
     local allKeystones = openRaidLib.GetAllKeystonesInfo()
     local nextKeyFormat = {}
-    NextKey222.Debug:Print("libopenraid", "GetAllKeystonesInfo() returned:", allKeystones and "data" or "nil")
+    NextKey222.Debug:Dev("libopenraid", "GetAllKeystonesInfo() returned:", allKeystones and "data" or "nil")
     
-    NextKey222.Debug:Print("libopenraid", "Raw LibOpenRaid data:")
+    NextKey222.Debug:Dev("libopenraid", "Raw LibOpenRaid data:")
     if allKeystones then
         for playerName, keystoneInfo in pairs(allKeystones) do
-            NextKey222.Debug:Print("libopenraid", "  Player:", playerName)
-            NextKey222.Debug:Print("libopenraid", "    mythicPlusMapID:", keystoneInfo.mythicPlusMapID or "NIL")
-            NextKey222.Debug:Print("libopenraid", "    level:", keystoneInfo.level or "NIL")
-            NextKey222.Debug:Print("libopenraid", "    mapID:", keystoneInfo.mapID or "NIL")
-            NextKey222.Debug:Print("libopenraid", "    challengeMapID:", keystoneInfo.challengeMapID or "NIL")
-            NextKey222.Debug:Print("libopenraid", "    All fields:", tostring(keystoneInfo))
+            NextKey222.Debug:Dev("libopenraid", "  Player:", playerName)
+            NextKey222.Debug:Dev("libopenraid", "    mythicPlusMapID:", keystoneInfo.mythicPlusMapID or "NIL")
+            NextKey222.Debug:Dev("libopenraid", "    level:", keystoneInfo.level or "NIL")
+            NextKey222.Debug:Dev("libopenraid", "    mapID:", keystoneInfo.mapID or "NIL")
+            NextKey222.Debug:Dev("libopenraid", "    challengeMapID:", keystoneInfo.challengeMapID or "NIL")
+            NextKey222.Debug:Dev("libopenraid", "    All fields:", tostring(keystoneInfo))
             
             -- Debug: Print all available fields
             for k, v in pairs(keystoneInfo) do
-                NextKey222.Debug:Print("libopenraid", "      " .. tostring(k) .. ":", tostring(v))
+                NextKey222.Debug:Dev("libopenraid", "      " .. tostring(k) .. ":", tostring(v))
             end
         end
     else
-        NextKey222.Debug:Print("libopenraid", "  allKeystones is nil!")
+        NextKey222.Debug:Dev("libopenraid", "  allKeystones is nil!")
     end
     
     if allKeystones then
         for playerName, keystoneInfo in pairs(allKeystones) do
-            NextKey222.Debug:Print("libopenraid", "Processing player:", playerName)
+            NextKey222.Debug:Dev("libopenraid", "Processing player:", playerName)
             
             if keystoneInfo then
-                NextKey222.Debug:Print("libopenraid", "  Has keystoneInfo")
-                NextKey222.Debug:Print("libopenraid", "  mythicPlusMapID check:", keystoneInfo.mythicPlusMapID, type(keystoneInfo.mythicPlusMapID))
-                NextKey222.Debug:Print("libopenraid", "  level check:", keystoneInfo.level, type(keystoneInfo.level))
+                NextKey222.Debug:Dev("libopenraid", "  Has keystoneInfo")
+                NextKey222.Debug:Dev("libopenraid", "  mythicPlusMapID check:", keystoneInfo.mythicPlusMapID, type(keystoneInfo.mythicPlusMapID))
+                NextKey222.Debug:Dev("libopenraid", "  level check:", keystoneInfo.level, type(keystoneInfo.level))
                 
                 if keystoneInfo.level then
-                    NextKey222.Debug:Print("libopenraid", "  ✓ Valid keystone data found")
+                    NextKey222.Debug:Dev("libopenraid", "  ✓ Valid keystone data found")
                     
                     -- Choose the best dungeonID from available fields
                     -- Priority: challengeMapID > mythicPlusMapID > mapID
                     local dungeonID = 0
                     if keystoneInfo.challengeMapID and keystoneInfo.challengeMapID > 0 then
                         dungeonID = keystoneInfo.challengeMapID
-                        NextKey222.Debug:Print("libopenraid", "  Using challengeMapID:", dungeonID)
+                        NextKey222.Debug:Dev("libopenraid", "  Using challengeMapID:", dungeonID)
                     elseif keystoneInfo.mythicPlusMapID and keystoneInfo.mythicPlusMapID > 0 then
                         dungeonID = keystoneInfo.mythicPlusMapID
-                        NextKey222.Debug:Print("libopenraid", "  Using mythicPlusMapID:", dungeonID)
+                        NextKey222.Debug:Dev("libopenraid", "  Using mythicPlusMapID:", dungeonID)
                     elseif keystoneInfo.mapID and keystoneInfo.mapID > 0 then
                         dungeonID = keystoneInfo.mapID
-                        NextKey222.Debug:Print("libopenraid", "  Using mapID:", dungeonID)
+                        NextKey222.Debug:Dev("libopenraid", "  Using mapID:", dungeonID)
                     else
-                        NextKey222.Debug:Print("libopenraid", "  No valid ID found, using 0")
+                        NextKey222.Debug:Dev("libopenraid", "  No valid ID found, using 0")
                     end
                     
                     -- Convert LibOpenRaid format to NextKey format
@@ -120,19 +120,19 @@ function LibOpenRaidIntegration:GetAllKeystones()
                         source = "libopenraid",
                         timestamp = GetTime()
                     }
-                    NextKey222.Debug:Print("libopenraid", "  Created keyData with dungeonID:", keyData.dungeonID)
+                    NextKey222.Debug:Dev("libopenraid", "  Created keyData with dungeonID:", keyData.dungeonID)
                     -- Use short name as key to prevent duplicates
                     nextKeyFormat[shortName] = keyData
                 else
-                    NextKey222.Debug:Print("libopenraid", "  ✗ Missing level or keystone data")
+                    NextKey222.Debug:Dev("libopenraid", "  ✗ Missing level or keystone data")
                 end
             else
-                NextKey222.Debug:Print("libopenraid", "  ✗ No keystoneInfo")
+                NextKey222.Debug:Dev("libopenraid", "  ✗ No keystoneInfo")
             end
         end
     end
     
-    NextKey222.Debug:Print("libopenraid", "Retrieved", self:CountTable(nextKeyFormat), "keystones")
+    NextKey222.Debug:Dev("libopenraid", "Retrieved", self:CountTable(nextKeyFormat), "keystones")
     return nextKeyFormat
 end
 
@@ -176,7 +176,7 @@ end
 -- MARK: Keystone Requests
 function LibOpenRaidIntegration:RequestKeystones()
     if not openRaidLib then 
-        NextKey222.Debug:Print("libopenraid", "Cannot request keystones - LibOpenRaid not available")
+        NextKey222.Debug:Dev("libopenraid", "Cannot request keystones - LibOpenRaid not available")
         return false 
     end
     
@@ -185,12 +185,12 @@ function LibOpenRaidIntegration:RequestKeystones()
     -- Try party request first
     if IsInGroup() and not IsInRaid() then
         success = openRaidLib.RequestKeystoneDataFromParty()
-        NextKey222.Debug:Print("libopenraid", "Requested keystones from party, success:", success)
+        NextKey222.Debug:Dev("libopenraid", "Requested keystones from party, success:", success)
     elseif IsInRaid() then
         success = openRaidLib.RequestKeystoneDataFromRaid()
-        NextKey222.Debug:Print("libopenraid", "Requested keystones from raid, success:", success)
+        NextKey222.Debug:Dev("libopenraid", "Requested keystones from raid, success:", success)
     else
-        NextKey222.Debug:Print("libopenraid", "Not in group, cannot request keystones")
+        NextKey222.Debug:Dev("libopenraid", "Not in group, cannot request keystones")
     end
     
     return success
@@ -200,7 +200,7 @@ function LibOpenRaidIntegration:RequestGuildKeystones()
     if not openRaidLib then return false end
     
     local success = openRaidLib.RequestKeystoneDataFromGuild()
-    NextKey222.Debug:Print("libopenraid", "Requested keystones from guild, success:", success)
+    NextKey222.Debug:Dev("libopenraid", "Requested keystones from guild, success:", success)
     return success
 end
 
@@ -211,14 +211,14 @@ end
 
 -- MARK: Callback Handlers
 function LibOpenRaidIntegration:OnKeystoneUpdate(unitName, keystoneInfo, allKeystoneInfo)
-    NextKey222.Debug:Print("libopenraid", "Keystone update received from", unitName)
+    NextKey222.Debug:Dev("libopenraid", "Keystone update received from", unitName)
     
     if keystoneInfo and keystoneInfo.level and keystoneInfo.level > 0 then
         local mapName = ""
         if keystoneInfo.mythicPlusMapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
             mapName = C_ChallengeMode.GetMapUIInfo(keystoneInfo.mythicPlusMapID) or "Unknown"
         end
-        NextKey222.Debug:Print("libopenraid", unitName, "has", keystoneInfo.level, mapName, "keystone")
+        NextKey222.Debug:Dev("libopenraid", unitName, "has", keystoneInfo.level, mapName, "keystone")
         
         -- Store guild keystone in NextKey's guild cache (like Details! does)
         local NextKey = NextKey222.Addon
@@ -240,7 +240,7 @@ function LibOpenRaidIntegration:OnKeystoneUpdate(unitName, keystoneInfo, allKeys
         
         -- Update UI if it's visible
         if NextKey222.UI and NextKey222.UI.mainFrame and NextKey222.UI.mainFrame:IsShown() then
-            print("NextKey LIBOPENRAID: Refreshing UI due to keystone update")
+            NextKey222.Debug:Dev("libopenraid", "Refreshing UI due to keystone update")
             if NextKey222.UI.viewMode == "dungeons" then
                 NextKey222.UI:RenderDungeonCards()
             else
@@ -251,7 +251,7 @@ function LibOpenRaidIntegration:OnKeystoneUpdate(unitName, keystoneInfo, allKeys
 end
 
 function LibOpenRaidIntegration:OnKeystoneWipe(allKeystoneInfo)
-    NextKey222.Debug:Print("libopenraid", "Keystone data wiped")
+    NextKey222.Debug:Dev("libopenraid", "Keystone data wiped")
     
     -- Trigger UI update if main window is open
     local NextKey = NextKey222.Addon

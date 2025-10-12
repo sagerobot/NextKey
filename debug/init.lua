@@ -209,7 +209,7 @@ function NextKey222.Addon:RecalculateFakePlayerScore(playerIndex)
     -- Store the standardized IO package in communications cache
     if NextKey222.Communications then
         NextKey222.Communications.playerIOCache[playerName] = ioPackage
-        NextKey222.Debug:Print("debug", "Generated IO package for fake player", playerName, "with total IO:", totalScore)
+        NextKey222.Debug:Dev("debug", "Generated IO package for fake player", playerName, "with total IO:", totalScore)
     end
     
     if NextKey222.Addon.db.global.debug.enabled then

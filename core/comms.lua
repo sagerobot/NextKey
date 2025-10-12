@@ -40,13 +40,13 @@ end
 -- MARK: Preference Sharing
 function Communications:SharePreferences()
     if not IsInGroup() then
-        NextKey222.Debug:Print("comms", "Not in group, cannot share preferences")
+        NextKey222.Debug:Dev("comms", "Not in group, cannot share preferences")
         return false
     end
     
     local preferences = NextKey.db and NextKey.db.char and NextKey.db.char.preferences
     if not preferences then
-        NextKey222.Debug:Print("comms", "No preferences to share")
+        NextKey222.Debug:Dev("comms", "No preferences to share")
         return false
     end
     
@@ -61,7 +61,7 @@ function Communications:SharePreferences()
     
     local serialized = AceSerializer:Serialize(payload)
     NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel)
-    NextKey222.Debug:Print("comms", "Shared preferences to", channel)
+    NextKey222.Debug:Dev("comms", "Shared preferences to", channel)
     return true
 end
 
@@ -75,7 +75,7 @@ function Communications:SharePlayerIOData()
     -- We always want to cache the current player's IO data locally, even if not in a group
     -- Only skip if message is throttled AND we're trying to share (not just cache locally)
     if inGroup and not self:CanSendMessage("PLAYER_IO") then
-        NextKey222.Debug:Print("comms", "Player IO message throttled")
+        NextKey222.Debug:Dev("comms", "Player IO message throttled")
         print("NextKey SHARE DEBUG: Message throttled, returning false")
         return false
     end
@@ -134,7 +134,7 @@ function Communications:SharePlayerIOData()
     -- Store data as long as package exists, even if totalIO is 0 (ensures consistent cache state)
     if ioPackage then
         self.playerIOCache[playerName] = ioPackage
-        NextKey222.Debug:Print("comms", "Stored current player IO data locally - Total IO:", ioPackage.totalIO)
+        NextKey222.Debug:Dev("comms", "Stored current player IO data locally - Total IO:", ioPackage.totalIO)
         print("NextKey SHARE DEBUG: Successfully stored IO data for", playerName, "with totalIO:", ioPackage.totalIO)
         
         -- Then try to share with group if we're in one
@@ -150,15 +150,15 @@ function Communications:SharePlayerIOData()
             
             local serialized = AceSerializer:Serialize(payload)
             NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel)
-            NextKey222.Debug:Print("comms", "Shared IO data to", channel, "- Total IO:", ioPackage.totalIO)
+            NextKey222.Debug:Dev("comms", "Shared IO data to", channel, "- Total IO:", ioPackage.totalIO)
             print("NextKey SHARE DEBUG: Shared to", channel, "with totalIO:", ioPackage.totalIO)
         else
-            NextKey222.Debug:Print("comms", "Not in group, stored IO data locally only")
+            NextKey222.Debug:Dev("comms", "Not in group, stored IO data locally only")
             print("NextKey SHARE DEBUG: Not in group, stored IO data locally only")
         end
         return true
     else
-        NextKey222.Debug:Print("comms", "No meaningful IO data to share or store")
+        NextKey222.Debug:Dev("comms", "No meaningful IO data to share or store")
         print("NextKey SHARE DEBUG: FAILURE - totalIO is", ioPackage and ioPackage.totalIO or "nil", "returning false")
         return false
     end
@@ -252,7 +252,7 @@ end
 --- Requests IO data from all party members
 function Communications:RequestPartyIOData()
     if not IsInGroup() then
-        NextKey222.Debug:Print("comms", "Not in group, cannot request IO data")
+        NextKey222.Debug:Dev("comms", "Not in group, cannot request IO data")
         return false
     end
     
@@ -266,7 +266,7 @@ function Communications:RequestPartyIOData()
     
     local serialized = AceSerializer:Serialize(payload)
     NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel)
-    NextKey222.Debug:Print("comms", "Requested IO data from", channel)
+    NextKey222.Debug:Dev("comms", "Requested IO data from", channel)
     return true
 end
 
@@ -278,24 +278,24 @@ function Communications:EnsureCurrentPlayerIOData()
     -- Check if we already have recent data for current player
     local existingData = self.playerIOCache[playerName]
     if existingData and existingData.timestamp and (GetTime() - existingData.timestamp) < 300 then
-        NextKey222.Debug:Print("comms", "Current player IO data is recent, skipping regeneration")
+        NextKey222.Debug:Dev("comms", "Current player IO data is recent, skipping regeneration")
         return true
     end
     
-    NextKey222.Debug:Print("comms", "Generating current player IO data...")
+    NextKey222.Debug:Dev("comms", "Generating current player IO data...")
     
     -- Generate and store current player's IO data
     local success = self:SharePlayerIOData()
     
     if success then
-        NextKey222.Debug:Print("comms", "Successfully generated current player IO data")
+        NextKey222.Debug:Dev("comms", "Successfully generated current player IO data")
         
         -- Trigger UI refresh if available
         if NextKey222.UI and NextKey222.UI.OnPlayerIOUpdated then
             NextKey222.UI:OnPlayerIOUpdated(playerName, self.playerIOCache[playerName])
         end
     else
-        NextKey222.Debug:Print("comms", "Failed to generate current player IO data")
+        NextKey222.Debug:Dev("comms", "Failed to generate current player IO data")
     end
     
     return success
@@ -310,12 +310,12 @@ end
 -- MARK: Synchronization
 function Communications:SendSync()
     if not IsInGroup() then
-        NextKey222.Debug:Print("comms", "Not in group, cannot sync")
+        NextKey222.Debug:Dev("comms", "Not in group, cannot sync")
         return false
     end
     
     if not self:CanSendMessage("SYNC") then
-        NextKey222.Debug:Print("comms", "Sync message throttled")
+        NextKey222.Debug:Dev("comms", "Sync message throttled")
         return false
     end
     
@@ -328,7 +328,7 @@ function Communications:SendSync()
     self:SharePreferences()
     self:ShareDungeonScores()
     
-    NextKey222.Debug:Print("comms", "Sync requested")
+    NextKey222.Debug:Dev("comms", "Sync requested")
     return true
 end
 
@@ -344,7 +344,7 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
     
     local payload = self:ParseSyncPayload(message)
     if not payload then
-        NextKey222.Debug:Print("comms", "Failed to parse message from", sender)
+        NextKey222.Debug:Dev("comms", "Failed to parse message from", sender)
         return
     end
     
@@ -372,28 +372,28 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
     elseif payload.opcode == "KEYSTONE_SHARE" then
         self:ProcessKeystoneShare(payload, sender)
     else
-        NextKey222.Debug:Print("comms", "Unknown opcode:", payload.opcode, "from", sender)
+        NextKey222.Debug:Dev("comms", "Unknown opcode:", payload.opcode, "from", sender)
     end
 end
 
 function Communications:ProcessSync(payload, sender)
-    NextKey222.Debug:Print("comms", "Received sync from", sender)
+    NextKey222.Debug:Dev("comms", "Received sync from", sender)
     -- Handle general sync data if needed
 end
 
 function Communications:ProcessPreferenceUpdate(payload, sender)
-    NextKey222.Debug:Print("comms", "Received preference update from", sender)
+    NextKey222.Debug:Dev("comms", "Received preference update from", sender)
     
     if payload.preferences then
         -- Store or process received preferences if needed
         -- This could be used for group-wide preference sharing/voting
-        NextKey222.Debug:Print("comms", "Preferences received from", sender, "- count:", self:CountTable(payload.preferences))
+        NextKey222.Debug:Dev("comms", "Preferences received from", sender, "- count:", self:CountTable(payload.preferences))
     end
 end
 
 -- MARK: IO Data Message Handlers
 function Communications:ProcessPlayerIOUpdate(payload, sender)
-    NextKey222.Debug:Print("comms", "Received IO data from", sender)
+    NextKey222.Debug:Dev("comms", "Received IO data from", sender)
     
     if payload.ioData then
         local ioPackage = payload.ioData
@@ -403,28 +403,28 @@ function Communications:ProcessPlayerIOUpdate(payload, sender)
             -- Store the IO data in our cache
             self.playerIOCache[sender] = ioPackage
             
-            NextKey222.Debug:Print("comms", "Stored IO data for", sender, "- Total IO:", ioPackage.totalIO)
-            NextKey222.Debug:Print("comms", "Dungeon count:", self:CountTable(ioPackage.dungeonScores or {}))
+            NextKey222.Debug:Dev("comms", "Stored IO data for", sender, "- Total IO:", ioPackage.totalIO)
+            NextKey222.Debug:Dev("comms", "Dungeon count:", self:CountTable(ioPackage.dungeonScores or {}))
             
             -- Notify UI that we have new IO data (for potential refresh)
             if NextKey222.UI and NextKey222.UI.OnPlayerIOUpdated then
                 NextKey222.UI:OnPlayerIOUpdated(sender, ioPackage)
             end
         else
-            NextKey222.Debug:Print("comms", "Invalid IO data received from", sender, "- skipping")
+            NextKey222.Debug:Dev("comms", "Invalid IO data received from", sender, "- skipping")
         end
     end
 end
 
 function Communications:ProcessPlayerIORequest(payload, sender)
-    NextKey222.Debug:Print("comms", "Received IO data request from", sender)
+    NextKey222.Debug:Dev("comms", "Received IO data request from", sender)
     
     -- Respond by sharing our IO data
     self:SharePlayerIOData()
 end
 
 function Communications:ProcessDungeonScores(payload, sender)
-    NextKey222.Debug:Print("comms", "Received legacy dungeon scores from", sender)
+    NextKey222.Debug:Dev("comms", "Received legacy dungeon scores from", sender)
     
     if payload.dungeonScores then
         -- Initialize party scores storage if needed
@@ -440,7 +440,7 @@ function Communications:ProcessDungeonScores(payload, sender)
         }
         
         local scoreCount = self:CountTable(payload.dungeonScores)
-        NextKey222.Debug:Print("comms", "Stored", scoreCount, "legacy dungeon scores for", sender)
+        NextKey222.Debug:Dev("comms", "Stored", scoreCount, "legacy dungeon scores for", sender)
         
         -- Notify UI that we have new score data (for potential refresh)
         if NextKey222.UI and NextKey222.UI.OnPartyScoresUpdated then
@@ -489,7 +489,7 @@ end
 
 -- MARK: NextKey222 Module Interface
 function Communications:Initialize()
-    NextKey222.Debug:Print("startup", "Communications module initializing...")
+    NextKey222.Debug:Dev("startup", "Communications module initializing...")
     
     -- Register communication prefix with AceComm
     local nextkey = NextKey222.Addon
@@ -498,10 +498,10 @@ function Communications:Initialize()
             nextkey:RegisterComm(NextKey222.Constants.COMM_PREFIX, function(prefix, message, distribution, sender)
                 Communications:ProcessMessage(prefix, message, distribution, sender)
             end)
-            NextKey222.Debug:Print("startup", "Registered comm prefix:", NextKey222.Constants.COMM_PREFIX)
+            NextKey222.Debug:Dev("startup", "Registered comm prefix:", NextKey222.Constants.COMM_PREFIX)
         end, "Communications:Initialize:RegisterComm")
     else
-        NextKey222.Debug:Print("startup", "⚠️  Cannot register comm prefix - NextKey addon not ready")
+        NextKey222.Debug:Dev("startup", "⚠️  Cannot register comm prefix - NextKey addon not ready")
     end
     
     -- Initialize storage
@@ -520,7 +520,7 @@ function Communications:Initialize()
     -- Note: Current player IO data will be generated on-demand to avoid initialization recursion
     -- EnsureCurrentPlayerIOData() is called when actually needed by IOCalculator
     
-    NextKey222.Debug:Print("startup", "Communications module initialized successfully with IO data sharing")
+    NextKey222.Debug:Dev("startup", "Communications module initialized successfully with IO data sharing")
     return true
 end
 
@@ -532,7 +532,7 @@ function Communications:CanSendMessage(messageType)
     local throttleInterval = throttleSettings and throttleSettings.THROTTLE_INTERVAL or 5
     
     if now - lastSent < throttleInterval then
-        NextKey222.Debug:Print("comms", "Message throttled:", messageType, "- wait", throttleInterval - (now - lastSent), "seconds")
+        NextKey222.Debug:Dev("comms", "Message throttled:", messageType, "- wait", throttleInterval - (now - lastSent), "seconds")
         return false
     end
     
@@ -542,15 +542,15 @@ end
 
 -- MARK: Guild Keystone Communication
 function Communications:ProcessKeystoneRequest(payload, sender)
-    print("NextKey GUILD COMM: Received keystone request from", sender)
+    NextKey222.Debug:Dev("comms", "Received keystone request from", sender)
     
     -- Share our keystone if we have one
     local playerKeystone = NextKey222.Keystones and NextKey222.Keystones:ScanPlayerKeystone()
     if playerKeystone and playerKeystone.dungeonID and playerKeystone.level then
-        print("NextKey GUILD COMM: Responding with keystone Level", playerKeystone.level, "dungeon", playerKeystone.dungeonID)
+        NextKey222.Debug:Dev("comms", "Responding with keystone Level", playerKeystone.level, "dungeon", playerKeystone.dungeonID)
         self:ShareKeystone(playerKeystone)
     else
-        print("NextKey GUILD COMM: No keystone to share")
+        NextKey222.Debug:Dev("comms", "No keystone to share")
     end
 end
 
@@ -558,7 +558,7 @@ function Communications:ProcessKeystoneShare(payload, sender)
     if not payload.keystoneData then return end
     
     local keyData = payload.keystoneData
-    print("NextKey GUILD COMM: Received keystone from", sender, "- Level", keyData.level, "dungeon", keyData.dungeonID)
+    NextKey222.Debug:Dev("comms", "Received keystone from", sender, "- Level", keyData.level, "dungeon", keyData.dungeonID)
     
     -- Store the keystone data
     if NextKey222.Keystones and NextKey222.Keystones.StoreGuildKeystone then
@@ -584,7 +584,7 @@ function Communications:ShareKeystone(keystoneData)
     local serialized = AceSerializer:Serialize(payload)
     NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, "GUILD")
     
-    print("NextKey GUILD COMM: Shared keystone Level", keystoneData.level, "to guild")
+    NextKey222.Debug:Dev("comms", "Shared keystone Level", keystoneData.level, "to guild")
     return true
 end
 
@@ -607,11 +607,20 @@ end
 
 function Communications:RequestGuildKeystones()
     if not IsInGuild() then
-        print("NextKey GUILD: Not in guild, cannot request keystones")
+        NextKey222.Debug:Dev("comms", "Not in guild, cannot request keystones")
         return false
     end
     
-    print("NextKey GUILD COMM: Requesting keystones from guild members...")
+    -- Throttle: Don't send requests more than once every 10 seconds
+    local currentTime = GetTime()
+    if self.lastGuildKeystoneRequest and (currentTime - self.lastGuildKeystoneRequest) < 10 then
+        local cooldown = 10 - (currentTime - self.lastGuildKeystoneRequest)
+        NextKey222.Debug:Dev("comms", string.format("Guild keystone request throttled (%.1fs remaining)", cooldown))
+        return false
+    end
+    
+    self.lastGuildKeystoneRequest = currentTime
+    NextKey222.Debug:Dev("comms", "Requesting keystones from guild members...")
     
     local payload = {
         opcode = "KEYSTONE_REQUEST",
