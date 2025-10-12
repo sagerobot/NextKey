@@ -499,9 +499,7 @@ function NextKey:CollectPartyKeys()
         end
         addKey(playerKey)
         self.playerKeystone = Keystones.copyKey(playerKey)
-        if self.db and self.db.global and self.db.global.debug and self.db.global.debug.enabled then
-            self:Print("Player keystone detected: ", playerKey.dungeonID, " level ", playerKey.level)
-        end
+        NextKey222.Debug:Dev("keystones", "Player keystone detected:", playerKey.dungeonID, "level", playerKey.level)
     else
         self.playerKeystone = nil
     end
@@ -573,50 +571,59 @@ function NextKey:CollectPartyKeys()
         end
     end
 
-    -- Debug keys handled by debug module
-    if self.db and self.db.global and self.db.global.debug then
-        local dbg = self.db.global.debug
-        if self.db.global.debug.enabled then
-            self:Print("Debug: Checking debug players, count:", dbg.players and #dbg.players or "nil")
-        end
-        if type(dbg.players) == "table" then
-            for i, player in ipairs(dbg.players) do
-                if player.key then
+    -- Debug keys handled by FakePlayerService
+    if NextKey222.FakePlayerService then
+        local fakePlayers = NextKey222.FakePlayerService:GetAllPlayers()
+        NextKey222.Debug:Dev("keystones", "Checking fake players from FakePlayerService, count:", fakePlayers and #fakePlayers or "nil")
+        if fakePlayers and type(fakePlayers) == "table" then
+            for i, player in ipairs(fakePlayers) do
+                -- FakePlayerService stores keystone in 'keystone' field, not 'key'
+                local keystone = player.keystone or player.key
+                if keystone and keystone.dungeonID then
                     addKey({
-                        dungeonID = player.key.dungeonID,
-                        level = player.key.level,
+                        dungeonID = keystone.dungeonID,
+                        level = keystone.level,
                         ownerName = player.name,
                         ownerShort = player.name,
                         class = player.class,
                         io = player.io or 0,
                         source = "debug",
                         timestamp = GetUtils().currentTime(),
+                        dungeonScores = player.dungeonScores,  -- Include dungeon scores for detailed IO data
+                        addonStatus = player.addonStatus,      -- Include addon status
                     })
-                    if self.db.global.debug.enabled then
-                        self:Print("Debug player key added: ", player.name, " - ", player.key.dungeonID, " level ", player.key.level, " IO:", player.io or 0)
-                    end
+                    NextKey222.Debug:Dev("keystones", "Fake player key added:", player.name, "class:", player.class, "-", keystone.dungeonID, "level", keystone.level, "IO:", player.io or 0)
                 else
-                    if self.db.global.debug.enabled then
-                        self:Print("Debug: Player", i, "(", player.name or "nil", ") has no key")
-                    end
+                    -- Even players without keystones should appear in the list
+                    addKey({
+                        dungeonID = 0,  -- No keystone
+                        level = 0,
+                        ownerName = player.name,
+                        ownerShort = player.name,
+                        class = player.class,
+                        io = player.io or 0,
+                        source = "debug",
+                        timestamp = GetUtils().currentTime(),
+                        dungeonScores = player.dungeonScores,
+                        addonStatus = player.addonStatus,
+                    })
+                    NextKey222.Debug:Dev("keystones", "Fake player (no key) added:", player.name, "class:", player.class, "IO:", player.io or 0)
+                end
+            end
+            
+            -- Trigger UI refresh if fake players were added and UI is visible
+            if #fakePlayers > 0 then
+                if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
+                    NextKey222.Debug:Dev("keystones", "Fake players detected - triggering UI refresh")
+                    C_Timer.After(0.1, function()
+                        if NextKey222.UI.RefreshResults then
+                            NextKey222.UI:RefreshResults()
+                        end
+                    end)
                 end
             end
         else
-            if self.db.global.debug.enabled then
-                self:Print("Debug: dbg.players is not a table:", type(dbg.players))
-            end
-        end
-        
-        -- Trigger UI refresh if fake players were added and UI is visible
-        if type(dbg.players) == "table" and #dbg.players > 0 then
-            if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
-                NextKey222.Debug:Dev("keystones", "Fake players detected - triggering UI refresh")
-                C_Timer.After(0.1, function()
-                    if NextKey222.UI.RefreshResults then
-                        NextKey222.UI:RefreshResults()
-                    end
-                end)
-            end
+            NextKey222.Debug:Dev("keystones", "FakePlayerService returned no players or invalid data")
         end
     end
 
@@ -625,21 +632,17 @@ function NextKey:CollectPartyKeys()
     end)
 
     -- Debug summary of collected keystones
-    if self.db and self.db.global and self.db.global.debug and self.db.global.debug.enabled then
-        -- CollectPartyKeys completed
-        
-        -- Count by source
-        local sourceCounts = {}
-        for i, key in ipairs(keys) do
-            local source = key.source or "unknown"
-            sourceCounts[source] = (sourceCounts[source] or 0) + 1
-            self:Print(string.format("Key %d: %s - %s +%d (source: %s)", i, key.ownerName or "nil", key.dungeonID or "nil", key.level or 0, source))
-        end
-        
-        self:Print("Keys by source:")
-        for source, count in pairs(sourceCounts) do
-            self:Print(string.format("  %s: %d", source, count))
-        end
+    NextKey222.Debug:Dev("keystones", "Collected", #keys, "total keystones")
+    local sourceCounts = {}
+    for i, key in ipairs(keys) do
+        local source = key.source or "unknown"
+        sourceCounts[source] = (sourceCounts[source] or 0) + 1
+        NextKey222.Debug:Dev("keystones", string.format("Key %d: %s - %s +%d (source: %s)", i, key.ownerName or "nil", key.dungeonID or "nil", key.level or 0, source))
+    end
+    
+    NextKey222.Debug:Dev("keystones", "Keys by source:")
+    for source, count in pairs(sourceCounts) do
+        NextKey222.Debug:Dev("keystones", string.format("  %s: %d", source, count))
     end
 
     -- If in guild mode or no party members, also collect guild keystones
@@ -754,15 +757,11 @@ function NextKey:CollectPartyKeys()
 end
 
 function NextKey:GetAvailableKeys()
-    if self.db and self.db.global and self.db.global.debug and self.db.global.debug.enabled then
-        self:Print("GetAvailableKeys called")
-    end
+    NextKey222.Debug:Dev("keystones", "GetAvailableKeys called")
 
     local keys = self:CollectPartyKeys()
     if not keys then 
-        if self.db and self.db.global and self.db.global.debug and self.db.global.debug.enabled then
-            self:Print("No keys returned from CollectPartyKeys")
-        end
+        NextKey222.Debug:Dev("keystones", "No keys returned from CollectPartyKeys")
         return {} 
     end
     
@@ -1012,13 +1011,15 @@ function NextKey:GetPartyMemberNames()
     
     -- In debug mode, add fake players as if they were party members
     if self.db and self.db.global and self.db.global.debug and self.db.global.debug.enabled then
-        local dbg = self.db.global.debug
-        if type(dbg.players) == "table" then
-            for i, player in pairs(dbg.players) do
-                if player and player.name then
-                    -- Add fake player name to party members list
-                    table.insert(partyMembers, player.name)
-                    NextKey222.Debug:Dev("keystones", "Added fake player as party member:", player.name)
+        if NextKey222.FakePlayerService then
+            local fakePlayers = NextKey222.FakePlayerService:GetAllPlayers()
+            if fakePlayers and type(fakePlayers) == "table" then
+                for i, player in ipairs(fakePlayers) do
+                    if player and player.name then
+                        -- Add fake player name to party members list
+                        table.insert(partyMembers, player.name)
+                        NextKey222.Debug:Dev("keystones", "Added fake player as party member:", player.name)
+                    end
                 end
             end
         end

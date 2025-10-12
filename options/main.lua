@@ -118,49 +118,6 @@ end
 function addon:InjectDebugOptions(options)
     options.args = options.args or {}
     
-    -- Add M+ Data tab
-    options.args.mythicPlusData = {
-        type = "group",
-        name = "M+ Data",
-        order = 25, -- Position after Leader Settings and Teleport Window
-        args = {
-            description = {
-                type = "description",
-                name = "Configure your Mythic+ data and scores",
-                order = 1
-            },
-            fetchGroup = {
-                type = "group",
-                name = "Data Import",
-                inline = true,
-                order = 2,
-                args = {
-                    fetchBlizzard = {
-                        type = "execute",
-                        name = "Fetch from Blizzard",
-                        desc = "Import your Mythic+ data from Blizzard API",
-                        func = fetchBlizzardData,
-                        order = 1
-                    },
-                    fetchRaiderIO = {
-                        type = "execute",
-                        name = "Fetch from RaiderIO",
-                        desc = "Import your Mythic+ data from RaiderIO addon",
-                        func = fetchRaiderIOData,
-                        order = 2
-                    }
-                }
-            },
-            dungeonScores = {
-                type = "group",
-                name = "Dungeon Scores",
-                inline = true,
-                order = 3,
-                args = {}
-            }
-        }
-    }
-
     local debugArgs = {
         enabled = {
             type = "toggle",
@@ -170,10 +127,16 @@ function addon:InjectDebugOptions(options)
                 local dbg = NextKey:EnsureDebug()
                 return dbg.enabled
             end,
-            set = function(_, v)
-                local dbg = NextKey:EnsureDebug()
-                dbg.enabled = v and true or false
-            end,
+        set = function(_, v)
+            local dbg = NextKey:EnsureDebug()
+            dbg.enabled = v and true or false
+            if NextKey222.UI and NextKey222.UI.OnDebugModeChanged then
+                NextKey222.UI:OnDebugModeChanged()
+            end
+            if NextKey222.Debug and NextKey222.Debug.SetEnabled then
+                NextKey222.Debug:SetEnabled(dbg.enabled)
+            end
+        end,
             width = "full",
             order = 1,
         },
@@ -203,15 +166,83 @@ function addon:InjectDebugOptions(options)
             fontSize = "medium",
             order = 2.6,
         },
+        addonHeader = {
+            type = "header",
+            name = "Addon Settings (Applies to All Presets)",
+            order = 2.65,
+        },
+        addonDescription = {
+            type = "description",
+            name = "Control which addons generated players will have. These settings apply to ALL preset buttons below.",
+            fontSize = "small",
+            order = 2.66,
+        },
+        addonNextKey = {
+            type = "toggle",
+            name = "Players Have NextKey",
+            desc = "Generated players will have NextKey addon and broadcast their keystones",
+            width = "full",
+            get = function()
+                local dbg = NextKey:EnsureDebug()
+                if dbg.presetAddonConfig == nil then
+                    dbg.presetAddonConfig = { nextkey = true, raiderio = true }
+                end
+                return dbg.presetAddonConfig.nextkey
+            end,
+            set = function(_, val)
+                local dbg = NextKey:EnsureDebug()
+                if not dbg.presetAddonConfig then
+                    dbg.presetAddonConfig = {}
+                end
+                dbg.presetAddonConfig.nextkey = val
+            end,
+            order = 2.67,
+        },
+        addonRaiderIO = {
+            type = "toggle",
+            name = "Players Have RaiderIO",
+            desc = "Generated players will have RaiderIO addon with IO scores visible",
+            width = "full",
+            get = function()
+                local dbg = NextKey:EnsureDebug()
+                if dbg.presetAddonConfig == nil then
+                    dbg.presetAddonConfig = { nextkey = true, raiderio = true }
+                end
+                return dbg.presetAddonConfig.raiderio
+            end,
+            set = function(_, val)
+                local dbg = NextKey:EnsureDebug()
+                if not dbg.presetAddonConfig then
+                    dbg.presetAddonConfig = {}
+                end
+                dbg.presetAddonConfig.raiderio = val
+            end,
+            order = 2.68,
+        },
+        addonStatusWarning = {
+            type = "description",
+            name = function()
+                local dbg = NextKey:EnsureDebug()
+                if not dbg.presetAddonConfig or (not dbg.presetAddonConfig.nextkey and not dbg.presetAddonConfig.raiderio) then
+                    return "|cFFFF4444⚠ Both addons disabled - Players will have NO addon data (pure fallback mode)|r"
+                end
+                local status = {}
+                if dbg.presetAddonConfig.nextkey then table.insert(status, "NextKey") end
+                if dbg.presetAddonConfig.raiderio then table.insert(status, "RaiderIO") end
+                return "|cFF00FF00✓ Players will have: " .. table.concat(status, " + ") .. "|r"
+            end,
+            fontSize = "small",
+            order = 2.69,
+        },
         genMixed = {
             type = "execute", 
             name = "Mixed Skill Team (Recommended)",
-            desc = "Generates 4 players: 1 high IO, 2 medium IO, 1 low IO with mixed addon status",
+            desc = "4 players with varied IO: Expert (3100+), Skilled (2900+), Competent (2500+), Average (2000+)",
             func = function()
                 NextKey:EnsureDebug()
                 NextKey222.Addon:ClearFakePlayers()
-                -- Generate mixed skill team with specific tiers
-                NextKey222.Addon:GeneratePresetTeam("mixed_skill")
+                local count = NextKey222.Addon:GeneratePresetTeam("mixed_skill")
+                addon:Print(string.format("Generated %d Mixed Skill players", count or 0))
                 refreshUI()
             end,
             order = 3.1,
@@ -219,11 +250,12 @@ function addon:InjectDebugOptions(options)
         genNewbie = {
             type = "execute",
             name = "Beginner Team", 
-            desc = "4 low-medium IO players (800-1500) for testing progression scenarios",
+            desc = "4 lower IO players: Beginner (1000-1500), Casual (1500-2000), Casual, Average (2000+)",
             func = function()
                 NextKey:EnsureDebug()
                 NextKey222.Addon:ClearFakePlayers()
-                NextKey222.Addon:GeneratePresetTeam("beginner")
+                local count = NextKey222.Addon:GeneratePresetTeam("beginner")
+                addon:Print(string.format("Generated %d Beginner Team players", count or 0))
                 refreshUI()
             end,
             order = 3.2,
@@ -231,38 +263,28 @@ function addon:InjectDebugOptions(options)
         genExpert = {
             type = "execute",
             name = "Expert Team",
-            desc = "4 high IO players (2200-2800+) for testing high-key scenarios", 
+            desc = "4 high IO players: Title (3600+), Elite (3300+), Expert (3100+), Skilled (2900+)", 
             func = function()
                 NextKey:EnsureDebug()
                 NextKey222.Addon:ClearFakePlayers()
-                NextKey222.Addon:GeneratePresetTeam("expert")
+                local count = NextKey222.Addon:GeneratePresetTeam("expert")
+                addon:Print(string.format("Generated %d Expert Team players", count or 0))
                 refreshUI()
             end,
             order = 3.3,
         },
-        genAddonMix = {
+        genHighKeys = {
             type = "execute",
-            name = "Addon Testing Team",
-            desc = "Mixed addon status: 2 NextKey, 1 RaiderIO only, 1 no addons",
+            name = "High Keys Team",
+            desc = "4 elite pushers: 2x Title (3600+), Elite (3300+), Expert (3100+) - Top 1% players", 
             func = function()
                 NextKey:EnsureDebug()
                 NextKey222.Addon:ClearFakePlayers()
-                NextKey222.Addon:AddRandomFakePlayers(4, { nextkey = 2, raiderio = 1, none = 1 })
+                local count = NextKey222.Addon:GeneratePresetTeam("high_keys")
+                addon:Print(string.format("Generated %d High Keys Team players", count or 0))
                 refreshUI()
             end,
             order = 3.4,
-        },
-        genWorstCase = {
-            type = "execute",
-            name = "No Addon Team",
-            desc = "4 players with no NextKey or RaiderIO for testing pure fallback scenarios",
-            func = function()
-                NextKey:EnsureDebug()
-                NextKey222.Addon:ClearFakePlayers()
-                NextKey222.Addon:AddRandomFakePlayers(4, { nextkey = 0, raiderio = 0, none = 4 })
-                refreshUI()
-            end,
-            order = 3.5,
         },
         customHeader = {
             type = "header",
@@ -272,9 +294,9 @@ function addon:InjectDebugOptions(options)
         customCount = {
             type = "range",
             name = "Team Size",
-            desc = "Number of fake players to generate (1-8)",
+            desc = "Number of fake players to generate with random IO levels (1-12)",
             min = 1,
-            max = 8,
+            max = 12,
             step = 1,
             get = function()
                 local dbg = NextKey:EnsureDebug()
@@ -286,71 +308,18 @@ function addon:InjectDebugOptions(options)
             end,
             order = 3.85,
         },
-        customNextKey = {
-            type = "range",
-            name = "NextKey Users",
-            desc = "Players with NextKey addon installed",
-            min = 0,
-            max = 8,
-            step = 1,
-            get = function()
-                local dbg = NextKey:EnsureDebug()
-                return dbg.customNextKey or 2
-            end,
-            set = function(_, val)
-                local dbg = NextKey:EnsureDebug()
-                dbg.customNextKey = val
-            end,
-            order = 3.86,
-        },
-        customRaiderIO = {
-            type = "range",
-            name = "RaiderIO Only Users", 
-            desc = "Players with RaiderIO but no NextKey",
-            min = 0,
-            max = 8,
-            step = 1,
-            get = function()
-                local dbg = NextKey:EnsureDebug()
-                return dbg.customRaiderIO or 1
-            end,
-            set = function(_, val)
-                local dbg = NextKey:EnsureDebug()
-                dbg.customRaiderIO = val
-            end,
-            order = 3.87,
-        },
-        customNone = {
-            type = "range",
-            name = "No Addon Users",
-            desc = "Players without NextKey or RaiderIO",
-            min = 0,
-            max = 8, 
-            step = 1,
-            get = function()
-                local dbg = NextKey:EnsureDebug()
-                return dbg.customNone or 1
-            end,
-            set = function(_, val)
-                local dbg = NextKey:EnsureDebug()
-                dbg.customNone = val
-            end,
-            order = 3.88,
-        },
         genCustom = {
             type = "execute",
-            name = "⚙️ Generate Custom Team",
-            desc = "Create team with your specified parameters",
+            name = "Generate Custom Team",
+            desc = "Create random team using addon settings above",
             func = function()
                 NextKey:EnsureDebug()
                 local dbg = NextKey:EnsureDebug()
                 local size = dbg.customTeamSize or 4
-                local nextkey = dbg.customNextKey or 2
-                local raiderio = dbg.customRaiderIO or 1
-                local none = dbg.customNone or 1
                 
                 NextKey222.Addon:ClearFakePlayers()
-                NextKey222.Addon:AddRandomFakePlayers(size, { nextkey = nextkey, raiderio = raiderio, none = none })
+                local count = NextKey222.Addon:AddRandomFakePlayers(size)
+                addon:Print(string.format("Generated %d custom players", count or 0))
                 refreshUI()
             end,
             order = 3.89,
@@ -363,8 +332,10 @@ function addon:InjectDebugOptions(options)
         statusDisplay = {
             type = "description",
             name = function()
-                local dbg = NextKey:EnsureDebug()
-                if not dbg or not dbg.players or #dbg.players == 0 then
+                -- Get players from FakePlayerService
+                local players = NextKey222.FakePlayerService:GetAllPlayers()
+                
+                if not players or #players == 0 then
                     return "No fake players currently generated."
                 end
                 
@@ -372,33 +343,40 @@ function addon:InjectDebugOptions(options)
                 local rio_count = 0 
                 local none_count = 0
                 
-                for _, player in ipairs(dbg.players) do
+                for _, player in ipairs(players) do
                     if player.addonStatus then
-                        if player.addonStatus.nextkey then
+                        if player.addonStatus.nextkey and player.addonStatus.raiderio then
                             nextkey_count = nextkey_count + 1
                         elseif player.addonStatus.raiderio then
                             rio_count = rio_count + 1
-                        else
+                        elseif not player.addonStatus.nextkey and not player.addonStatus.raiderio then
                             none_count = none_count + 1
                         end
+                    else
+                        none_count = none_count + 1
                     end
                 end
                 
-                return string.format("Active: %d players (%d NextKey, %d RaiderIO, %d None)", 
-                    #dbg.players, nextkey_count, rio_count, none_count)
+                return string.format("Active: %d players (%d NextKey+RIO, %d RIO only, %d None)", 
+                    #players, nextkey_count, rio_count, none_count)
             end,
             fontSize = "medium",
             order = 3.98,
         },
         clear = {
             type = "execute",
-            name = "🗑️ Clear All Fake Players",
+            name = "Clear All Fake Players",
             confirm = true,
             func = function()
                 NextKey222.Addon:ClearFakePlayers()
                 refreshUI()
             end,
             order = 4,
+        },
+        dataHeader = {
+            type = "header",
+            name = "Data Management",
+            order = 4.5,
         },
         clearMythicPlus = {
             type = "execute",
@@ -409,7 +387,7 @@ function addon:InjectDebugOptions(options)
             func = function()
                 addon:ClearMythicPlusData()
             end,
-            order = 5,
+            order = 4.6,
         },
         rio = {
             type = "execute",
@@ -422,7 +400,7 @@ function addon:InjectDebugOptions(options)
                     print("NextKey: TryLoadRaiderIO function not available")
                 end
             end,
-            order = 5,
+            order = 4.7,
         },
         heading = {
             type = "header",
@@ -506,25 +484,47 @@ function addon:InjectDebugOptions(options)
         addSpecific = {
             type = "execute",
             name = "Add Fake Player",
+            desc = "Create a single fake player with the specified keystone using the addon settings above",
             func = function()
                 NextKey:EnsureDebug()
                 local form = ensureForm()
-                if not (form.name and form.mapID and form.level) then
-                    addon:Print("Debug: Missing name/mapID/level.")
+                
+                -- Validate required fields
+                if not form.name or form.name == "" then
+                    addon:Print("Debug: Please enter a player name.")
                     return
                 end
+                
+                if not form.mapID then
+                    addon:Print("Debug: Please select a dungeon.")
+                    return
+                end
+                
+                if not form.level then
+                    addon:Print("Debug: Please set a key level.")
+                    return
+                end
+                
+                -- Get addon config
                 local dbg = NextKey:EnsureDebug()
-                dbg.players = dbg.players or {}
-
-                local player = {
+                local addonConfig = dbg.presetAddonConfig or { nextkey = true, raiderio = true }
+                
+                -- Create player using FakePlayerService
+                local playerName = NextKey222.FakePlayerService:CreatePlayer({
                     name = form.name,
                     class = form.class or "WARRIOR",
-                    key = { dungeonID = tonumber(form.mapID), level = tonumber(form.level) },
-                    io = tonumber(form.io) or 0,
-                }
-
-                table.insert(dbg.players, player)
-                refreshUI()
+                    io = tonumber(form.io),  -- Can be nil, will be calculated
+                    keystoneLevel = tonumber(form.level),
+                    keystoneDungeon = tonumber(form.mapID),
+                    addonStatus = addonConfig
+                })
+                
+                if playerName then
+                    addon:Print("Created fake player:", playerName)
+                    refreshUI()
+                else
+                    addon:Print("Debug: Failed to create fake player. Check debug output.")
+                end
             end,
             order = 15,
         },
@@ -537,9 +537,9 @@ function addon:InjectDebugOptions(options)
             type = "select",
             name = "Fake Player",
             values = function()
-                local dbg = NextKey:EnsureDebug()
+                local players = NextKey222.FakePlayerService:GetAllPlayers()
                 local values = {}
-                for idx, player in ipairs(dbg.players or {}) do
+                for idx, player in ipairs(players or {}) do
                     local label = player.name or ("Player %d"):format(idx)
                     values[tostring(idx)] = label
                 end
@@ -563,15 +563,15 @@ function addon:InjectDebugOptions(options)
             get = function()
                 local idx = getSelectedIndex()
                 if not idx then return "" end
-                local dbg = NextKey:EnsureDebug()
-                local player = dbg.players[idx]
+                local players = NextKey222.FakePlayerService:GetAllPlayers()
+                local player = players[idx]
                 return player and player.key and player.key.dungeonID and tostring(player.key.dungeonID) or ""
             end,
             set = function(_, v)
                 local idx = getSelectedIndex()
                 if not idx then return end
-                local dbg = NextKey:EnsureDebug()
-                local player = dbg.players[idx]
+                local players = NextKey222.FakePlayerService:GetAllPlayers()
+                local player = players[idx]
                 if player and player.key then
                     player.key.dungeonID = tonumber(v)
                     refreshUI()
@@ -586,15 +586,15 @@ function addon:InjectDebugOptions(options)
             get = function()
                 local idx = getSelectedIndex()
                 if not idx then return 10 end
-                local dbg = NextKey:EnsureDebug()
-                local player = dbg.players[idx]
+                local players = NextKey222.FakePlayerService:GetAllPlayers()
+                local player = players[idx]
                 return player and player.key and player.key.level or 10
             end,
             set = function(_, v)
                 local idx = getSelectedIndex()
                 if not idx then return end
-                local dbg = NextKey:EnsureDebug()
-                local player = dbg.players[idx]
+                local players = NextKey222.FakePlayerService:GetAllPlayers()
+                local player = players[idx]
                 if player and player.key then
                     player.key.level = v
                     refreshUI()
@@ -683,7 +683,7 @@ function addon:InjectDebugOptions(options)
 
     options.args.debug = {
         type = "group",
-        name = "Debug",
+        name = "Debug Tools",
         order = 99,
         args = debugArgs,
     }
@@ -698,12 +698,12 @@ function addon:SetupOptions()
         args = {
             leader = {
                 type = "group",
-                name = "Leader Settings",
+                name = "General Settings",
                 args = {
                     autoSuggest = {
                         type = "toggle",
                         name = "Auto Suggest",
-                        desc = "Automatically suggest the best key to use.",
+                        desc = "Automatically suggest the best key to run when the window opens. This analyzes all available keystones and recommends the optimal choice.",
                         get = function() return addon.db.global.leaderSettings.autoSuggestEnabled end,
                         set = function(_, value)
                             addon.db.global.leaderSettings.autoSuggestEnabled = value
@@ -714,7 +714,7 @@ function addon:SetupOptions()
                     sortMode = {
                         type = "select",
                         name = "Sort Mode",
-                        desc = "How to sort the list of keys.",
+                        desc = "Default sorting method for the keystone list. Highest Key Level shows the most challenging keys first, Lowest Key Level shows easier keys first.",
                         values = {
                             HighestKeyLevel = "Highest Key Level",
                             LowestKeyLevel = "Lowest Key Level",

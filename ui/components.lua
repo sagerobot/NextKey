@@ -200,14 +200,15 @@ function Components:CreateButton(parent, type, onClick, onEnter)
 end
 
 -- MARK: Icon Creation System
--- Standardized class icon and dungeon icon creation
+-- Standardized class icon, role icon, and dungeon icon creation
 
 --- Creates a class icon texture
 -- @param parent Frame The parent frame
 -- @param classToken string The class token (e.g., "WARRIOR")
 -- @param size number Icon size (default 32)
+-- @param playerData table Optional player data for tooltip (ownerName, classToken, specName, role)
 -- @return Texture The created icon texture
-function Components:CreateClassIcon(parent, classToken, size)
+function Components:CreateClassIcon(parent, classToken, size, playerData)
     size = size or 32
     
     local icon = parent:CreateTexture(nil, "ARTWORK")
@@ -219,7 +220,55 @@ function Components:CreateClassIcon(parent, classToken, size)
         icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
     end
     
+    -- Attach player tooltip if player data is provided
+    if playerData then
+        self:AttachPlayerTooltip(icon, playerData)
+    end
+    
     return icon
+end
+
+--- Creates a role icon texture using Blizzard's standard role icons
+-- @param parent Frame The parent frame
+-- @param role string The role ("TANK", "HEALER", "DAMAGER")
+-- @param size number Icon size (default 16, smaller than class icon)
+-- @return FontString The created role indicator (using colored text as reliable fallback)
+function Components:CreateRoleIcon(parent, role, size)
+    size = size or 16
+    
+    -- Normalize role to uppercase and provide fallback
+    local normalizedRole = role and string.upper(role) or "DAMAGER"
+    
+    -- Create a FontString with colored role abbreviations
+    local roleText = parent:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    
+    -- Set role indicator with appropriate color and letter
+    local roleDisplay = ""
+    local r, g, b = 1, 1, 1
+    
+    if normalizedRole == "TANK" then
+        roleDisplay = "T"
+        r, g, b = 0.31, 0.45, 0.63  -- Blue for tank (matches WoW tank color)
+    elseif normalizedRole == "HEALER" then
+        roleDisplay = "H"
+        r, g, b = 0.25, 0.78, 0.25  -- Green for healer (matches WoW healer color)
+    else -- DAMAGER or DPS
+        roleDisplay = "D"
+        r, g, b = 0.77, 0.12, 0.23  -- Red for DPS (matches WoW DPS color)
+    end
+    
+    roleText:SetText(roleDisplay)
+    roleText:SetTextColor(r, g, b, 1)
+    roleText:SetFont("Fonts\\FRIZQT__.TTF", size + 2, "OUTLINE, THICK")
+    roleText:SetJustifyH("CENTER")
+    
+    -- Add debug info
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("components", string.format("Creating role indicator: role=%s, display=%s, color=rgb(%.2f,%.2f,%.2f)",
+            normalizedRole, roleDisplay, r, g, b))
+    end
+    
+    return roleText
 end
 
 --- Creates a dungeon icon using AceGUI
@@ -294,6 +343,71 @@ end
 
 -- MARK: Tooltip System
 -- Standardized tooltip creation and management
+
+--- Creates a tooltip for player class icon with detailed information
+-- @param icon Texture The class icon texture to attach tooltip to
+-- @param playerData table Player information containing ownerName, classToken, specName, role
+function Components:AttachPlayerTooltip(icon, playerData)
+    if not icon or not playerData then return end
+    
+    icon:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(icon, "ANCHOR_RIGHT")
+        
+        -- Extract player name and server
+        local fullName = playerData.ownerName or "Unknown"
+        local playerName = fullName:match("^([^%-]+)") or fullName
+        local serverName = fullName:match("-(.+)") or GetRealmName()
+        
+        -- Format class name from token
+        local className = playerData.classToken or "Unknown"
+        local classMapping = {
+            WARRIOR = "Warrior",
+            PALADIN = "Paladin",
+            HUNTER = "Hunter",
+            ROGUE = "Rogue",
+            PRIEST = "Priest",
+            DEATHKNIGHT = "Death Knight",
+            SHAMAN = "Shaman",
+            MAGE = "Mage",
+            WARLOCK = "Warlock",
+            MONK = "Monk",
+            DRUID = "Druid",
+            DEMONHUNTER = "Demon Hunter",
+            EVOKER = "Evoker"
+        }
+        className = classMapping[className] or className
+        
+        -- Get role with color
+        local role = playerData.role or "Unknown"
+        local roleColor = {1, 1, 1} -- Default white
+        if role == "TANK" then
+            roleColor = {0.31, 0.45, 0.63}  -- Blue
+        elseif role == "HEALER" then
+            roleColor = {0.25, 0.78, 0.25}  -- Green
+        elseif role == "DAMAGER" then
+            roleColor = {0.77, 0.12, 0.23}  -- Red
+        end
+        
+        -- Line 1: Name and Server
+        local nameLine = string.format("%s - %s", playerName, serverName)
+        GameTooltip:SetText(nameLine, 1, 1, 1, true)
+        
+        -- Line 2: Class and Specialization
+        local specName = playerData.specName
+        local classSpecLine = className
+        if specName and specName ~= "" then
+            classSpecLine = string.format("%s (%s)", className, specName)
+        end
+        GameTooltip:AddLine(classSpecLine, 1, 1, 1)
+        
+        -- Line 3: Role (with color)
+        GameTooltip:AddLine(string.format("Role: %s", role), roleColor[1], roleColor[2], roleColor[3])
+        
+        GameTooltip:Show()
+    end)
+    
+    icon:SetScript("OnLeave", GameTooltip_Hide)
+end
 
 --- Creates a tooltip for IO gain display
 -- @param button Frame The button to attach tooltip to

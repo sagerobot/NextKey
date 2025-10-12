@@ -38,6 +38,7 @@ function LibOpenRaidAdapter:GetProfile(playerName)
     local profile = {
         name = playerName,
         class = playerInfo.class,
+        specID = playerInfo.specID,
         io = 0, -- Will be calculated from dungeon scores
         dataSource = "libopenraid",
         dungeonScores = {},

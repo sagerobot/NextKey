@@ -8,23 +8,26 @@ local UIConfig = {
     -- MARK: Window Dimensions
     WINDOW = {
         WIDTH = 550,                    -- Overall window width
-        BASE_HEIGHT = 625,              -- Base window height (changes dynamically)
+        BASE_HEIGHT = 605,              -- Base window height (changes dynamically)
         DUNGEON_VIEW_HEIGHT = 775,      -- Height when showing dungeon cards
-        PLAYER_VIEW_HEIGHT = 625        -- Height when showing player keystones
+        PLAYER_VIEW_HEIGHT = 605,       -- Height when showing player keystones
+        PLAYER_VIEW_HEIGHT_DEBUG = 675  -- Height for keystone view when debug controls are visible
     },
     
     -- MARK: Card Layout
     CARD = {
-        HEIGHT = 45,                    -- Height of each individual card
+        HEIGHT = 35,                    -- Height of each individual card
         VERTICAL_SPACING = 0,           -- Vertical space between cards (0 = no gap)
         MARGIN = 0,                     -- Margin around each card
-        HEADER_PADDING = 20             -- Extra space for headers and padding
+        HEADER_PADDING = 10             -- Extra space for headers and padding
     },
     
     -- MARK: Icon Configuration
     ICON = {
         SIZE = 32,                      -- Icon image size (32x32px)
-        WIDTH = 40                      -- Icon container width
+        WIDTH = 40,                     -- Icon container width
+        ROLE_SIZE = 16,                 -- Role icon size (16x16px)
+        ROLE_WIDTH = 20                  -- Role icon container width
     },
     
     -- MARK: Text Element Widths
@@ -49,7 +52,8 @@ local UIConfig = {
     LAYOUT = {
         CONTAINER_PADDING = 0,          -- Padding inside the main results container
         USE_TIGHT_LAYOUT = true,        -- Use SimpleGroup for minimal padding
-        USE_ULTRA_TIGHT = false         -- Use raw frames for absolute minimal padding
+        USE_ULTRA_TIGHT = false,        -- Use raw frames for absolute minimal padding
+        RESULTS_TOP_PADDING = 60        -- Vertical space between control buttons and results list
     },
     
     -- MARK: Teleport Window Configuration
@@ -85,10 +89,20 @@ function UIConfig:Initialize()
 end
 
 -- Helper function to get window height for view mode
-function UIConfig:GetWindowHeight(viewMode)
+function UIConfig:GetWindowHeight(viewMode, debugMode)
+    local isDebug = false
+    if type(debugMode) == "table" then
+        isDebug = debugMode.debugMode or debugMode.isDebugMode
+    else
+        isDebug = debugMode == true
+    end
+
     if viewMode == "dungeons" then
         return self.WINDOW.DUNGEON_VIEW_HEIGHT
     else
+        if isDebug and self.WINDOW.PLAYER_VIEW_HEIGHT_DEBUG then
+            return self.WINDOW.PLAYER_VIEW_HEIGHT_DEBUG
+        end
         return self.WINDOW.PLAYER_VIEW_HEIGHT
     end
 end

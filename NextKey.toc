@@ -64,6 +64,5 @@ ui\lootWindow.lua
 
 # Options
 options\main.lua
-options\mythic_plus.lua
 
 # Core functionality only - all tests removed

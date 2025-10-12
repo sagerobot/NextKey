@@ -108,7 +108,7 @@ NextKey222.Defaults = {
         -- Leader settings
         leaderSettings = {
             autoSuggestEnabled = false,
-            defaultSortMode = "smart",
+            defaultSortMode = "HighestKeyLevel",
             suggestionDelay = 3
         },
         

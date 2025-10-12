@@ -4,6 +4,50 @@
 
 local _, NextKey222 = ...
 
+local CLASS_CAPABILITIES = {
+    SHAMAN = { heroism = true },
+    MAGE = { heroism = true },
+    EVOKER = { heroism = true },
+    DRUID = { battleRes = true },
+    WARLOCK = { battleRes = true },
+    DEATHKNIGHT = { battleRes = true }
+}
+
+local SPEC_CAPABILITIES = {
+    [62] = { heroism = true },
+    [63] = { heroism = true },
+    [64] = { heroism = true },
+    [262] = { heroism = true },
+    [263] = { heroism = true },
+    [264] = { heroism = true },
+    [1467] = { heroism = true },
+    [1468] = { heroism = true },
+    [1473] = { heroism = true },
+    [253] = { heroism = true },
+
+    [102] = { battleRes = true },
+    [103] = { battleRes = true },
+    [104] = { battleRes = true },
+    [105] = { battleRes = true },
+    [250] = { battleRes = true },
+    [251] = { battleRes = true },
+    [252] = { battleRes = true },
+    [265] = { battleRes = true },
+    [266] = { battleRes = true },
+    [267] = { battleRes = true }
+}
+
+local DEFAULT_CLASS_ROLE = {
+    MAGE = "DAMAGER",
+    ROGUE = "DAMAGER",
+    HUNTER = "DAMAGER",
+    WARLOCK = "DAMAGER",
+    DEMONHUNTER = "DAMAGER",
+    SHAMAN = "DAMAGER",
+    PRIEST = "HEALER",
+    EVOKER = "DAMAGER"
+}
+
 -- MARK: PlayerProfile Contract
 -- Standardized format for all player profile data
 --[[
@@ -238,7 +282,9 @@ function ProfilesService:BuildProfileForPlayer(playerName)
     
     -- Log performance summary periodically
     self:LogPerformanceMetrics()
-    
+
+    self:FinalizeProfile(profile)
+
     -- Cache the result with timestamp
     self.cache[cacheKey] = {
         profile = profile,
@@ -279,6 +325,28 @@ function ProfilesService:MergeProfileData(target, source)
         target.addonStatus = target.addonStatus or {}
         for addon, status in pairs(source.addonStatus) do
             target.addonStatus[addon] = target.addonStatus[addon] or status
+        end
+    end
+
+    if source.role and not target.role then
+        target.role = source.role
+    end
+
+    if source.specID and not target.specID then
+        target.specID = source.specID
+    end
+
+    if source.specName and not target.specName then
+        target.specName = source.specName
+    end
+
+    if source.capabilities then
+        target.capabilities = target.capabilities or {}
+        if target.capabilities.heroism == nil then
+            target.capabilities.heroism = source.capabilities.heroism or false
+        end
+        if target.capabilities.battleRes == nil then
+            target.capabilities.battleRes = source.capabilities.battleRes or false
         end
     end
     
@@ -491,4 +559,66 @@ NextKey222.ProfilesService = ProfilesService
 -- Initialize when loaded
 if NextKey222.Addon then
     NextKey222.Addon.ProfilesService = ProfilesService
+end
+
+function ProfilesService:FinalizeProfile(profile)
+    if not profile then
+        return
+    end
+
+    if profile.class then
+        profile.class = string.upper(profile.class)
+    end
+
+    profile.capabilities = profile.capabilities or {}
+
+    if profile.specID and GetSpecializationInfoByID then
+        local _, specName, _, _, _, role = GetSpecializationInfoByID(profile.specID)
+        if specName and not profile.specName then
+            profile.specName = specName
+        end
+        if role and not profile.role then
+            profile.role = role
+        end
+    end
+
+    if not profile.role and profile.class then
+        profile.role = DEFAULT_CLASS_ROLE[profile.class] or "DAMAGER"
+    end
+
+    local specCaps = profile.specID and SPEC_CAPABILITIES[profile.specID] or nil
+    local classCaps = profile.class and CLASS_CAPABILITIES[profile.class] or nil
+
+    if specCaps then
+        if specCaps.heroism then
+            profile.capabilities.heroism = true
+        end
+        if specCaps.battleRes then
+            profile.capabilities.battleRes = true
+        end
+    end
+
+    if profile.capabilities.heroism == nil and classCaps then
+        profile.capabilities.heroism = classCaps.heroism or false
+    elseif profile.capabilities.heroism == nil then
+        profile.capabilities.heroism = false
+    end
+
+    if profile.capabilities.battleRes == nil and classCaps then
+        profile.capabilities.battleRes = classCaps.battleRes or false
+    elseif profile.capabilities.battleRes == nil then
+        profile.capabilities.battleRes = false
+    end
+end
+
+--- Public wrapper for profile retrieval used by UI/calculators
+-- Ensures callers have a stable API and centralized caching behaviour
+-- @param playerName string Full player name (Name-Realm)
+-- @return PlayerProfile|nil
+function ProfilesService:GetProfile(playerName)
+    if not playerName or playerName == "" then
+        return nil
+    end
+
+    return self:BuildProfileForPlayer(playerName)
 end

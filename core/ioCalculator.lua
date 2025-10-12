@@ -296,21 +296,34 @@ function IOCalculator:CalculateIORange(keystoneData, playerProfile)
     -- Try to get score from unified system first, then fallback to profile data
     local currentScore = 0
     
-    -- Method 1: Try profile data structure (existing approach)
+    -- Method 1: Try profile data structure (PRIMARY - most reliable)
     local playerScores = playerProfile.dungeonScores or {}
     local profileScore = (playerScores[dungeonId] and playerScores[dungeonId].bestScore) or 0
-    print("NextKey IOCalc DEBUG:", playerName, "profileScore for dungeon", dungeonId, "=", profileScore)
     
-    -- Method 2: Try unified scoring system
-    local unifiedScore = 0
-    if playerName then
-        unifiedScore = self:GetPlayerDungeonScore(playerName, dungeonId)
-        print("NextKey IOCalc DEBUG:", playerName, "unifiedScore for dungeon", dungeonId, "=", unifiedScore)
+    -- Method 2: Explicit fake player check (for testing with FakePlayerService)
+    local fakeScore = 0
+    if NextKey222.FakePlayerService and NextKey222.FakePlayerService:IsFakePlayer(playerName) then
+        local fakeProfile = NextKey222.FakePlayerService:GetProfile(playerName)
+        if fakeProfile and fakeProfile.dungeonScores and fakeProfile.dungeonScores[dungeonId] then
+            fakeScore = fakeProfile.dungeonScores[dungeonId].bestScore or 0
+            NextKey222.Debug:Dev("IOCalculator", "Fake player", playerName, "dungeon", dungeonId, "score:", fakeScore)
+        end
     end
     
-    -- Use the higher of the two scores (handles both fake players and real players)
-    currentScore = math.max(profileScore, unifiedScore)
-    print("NextKey IOCalc DEBUG:", playerName, "FINAL currentScore for dungeon", dungeonId, "=", currentScore, "(profile:", profileScore, "unified:", unifiedScore .. ")")
+    -- Method 3: Try unified scoring system (fallback for real players)
+    local unifiedScore = 0
+    if playerName and fakeScore == 0 then  -- Skip if fake player already found
+        unifiedScore = self:GetPlayerDungeonScore(playerName, dungeonId)
+    end
+    
+    -- Use the highest score from all methods
+    currentScore = math.max(profileScore, fakeScore, unifiedScore)
+    
+    -- Debug output for troubleshooting
+    if playerName and (playerName:match("^FakePlayer") or profileScore > 0 or fakeScore > 0) then
+        NextKey222.Debug:Dev("IOCalculator", string.format("%s dungeon %d: profile=%d, fake=%d, unified=%d → final=%d", 
+            playerName, dungeonId, profileScore, fakeScore, unifiedScore, currentScore))
+    end
     
     -- Get metrics for this key level
     local metrics = self:GetDungeonMetrics(keyLevel)
@@ -356,27 +369,32 @@ function IOCalculator:CalculateGroupIORange(keystoneData, partyProfiles)
     }
     
     for playerName, profile in pairs(partyProfiles or {}) do
-        local playerRange = self:CalculateIORange(keystoneData, profile)
-        
-        -- Add to totals
-        groupRange.min = groupRange.min + (playerRange.min or 0)
-        groupRange.max = groupRange.max + (playerRange.max or 0)
-        groupRange.expected = groupRange.expected + (playerRange.expected or 0)
-        
-        -- Store individual breakdown for tooltip
-        groupRange.playerBreakdown[playerName] = {
-            current = playerRange.currentScore or 0,
-            range = playerRange,
-            min = playerRange.min,
-            max = playerRange.max, 
-            expected = playerRange.expected,
-            gainText = string.format("%d → %d-%d (+%d-%d)",
-                playerRange.currentScore or 0,
-                (playerRange.targetScores and playerRange.targetScores.min) or 0,
-                (playerRange.targetScores and playerRange.targetScores.max) or 0,
-                playerRange.min or 0,
-                playerRange.max or 0)
-        }
+            local playerRange = self:CalculateIORange(keystoneData, profile)
+
+            -- Add to totals
+            groupRange.min = groupRange.min + (playerRange.min or 0)
+            groupRange.max = groupRange.max + (playerRange.max or 0)
+            groupRange.expected = groupRange.expected + (playerRange.expected or 0)
+
+            -- Always use the correct per-dungeon score for 'current' value
+            local dungeonId = keystoneData and keystoneData.dungeonID
+            local currentDungeonScore = 0
+            if profile and profile.dungeonScores and dungeonId and profile.dungeonScores[dungeonId] then
+                currentDungeonScore = profile.dungeonScores[dungeonId].bestScore or 0
+            end
+            groupRange.playerBreakdown[playerName] = {
+                current = currentDungeonScore,
+                range = playerRange,
+                min = playerRange.min,
+                max = playerRange.max,
+                expected = playerRange.expected,
+                gainText = string.format("%d → %d-%d (+%d-%d)",
+                    currentDungeonScore,
+                    (playerRange.targetScores and playerRange.targetScores.min) or 0,
+                    (playerRange.targetScores and playerRange.targetScores.max) or 0,
+                    playerRange.min or 0,
+                    playerRange.max or 0)
+            }
     end
     
     return groupRange
@@ -411,6 +429,63 @@ end
 
 -- Get any player's dungeon score (real or fake) using unified data source
 function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
+    if not playerName or not dungeonID then
+        return 0
+    end
+
+    local function getScoreFromProfile(targetPlayer, targetDungeonID)
+        if not NextKey222.ProfilesService or not NextKey222.ProfilesService.GetProfile then
+            return nil
+        end
+
+        local profile = NextKey222.ProfilesService:GetProfile(targetPlayer)
+        if not profile or not profile.dungeonScores then
+            return nil
+        end
+
+        local function resolveScore(scoreEntry)
+            if not scoreEntry then return nil end
+            return scoreEntry.bestScore or scoreEntry.score or scoreEntry.current or nil
+        end
+
+        -- Direct lookup using canonical NextKey ID
+        local scoreData = profile.dungeonScores[targetDungeonID]
+        local resolved = resolveScore(scoreData)
+        if resolved and resolved > 0 then
+            return resolved
+        end
+
+        -- Try alternate identifiers for robustness (keystone/challenge IDs)
+        if NextKey222.IDMapper then
+            local mapping = NextKey222.IDMapper:GetMappingInfo(targetDungeonID)
+            if mapping then
+                local alternatives = {
+                    mapping.challengeMapID,
+                    mapping.keystoneID,
+                    mapping.raiderIOID,
+                    mapping.blizzardMapID
+                }
+                for _, altID in ipairs(alternatives) do
+                    if altID and profile.dungeonScores[altID] then
+                        local altResolved = resolveScore(profile.dungeonScores[altID])
+                        if altResolved and altResolved > 0 then
+                            return altResolved
+                        end
+                    end
+                end
+            end
+        end
+
+        return resolved
+    end
+
+    -- Primary source: ProfilesService (handles real and fake players)
+    local profileScore = getScoreFromProfile(playerName, dungeonID)
+    if profileScore and profileScore > 0 then
+        NextKey222.Debug:Dev("IOCalculator", "Profile service score for", playerName, "dungeon", dungeonID .. ":", profileScore)
+        return profileScore
+    end
+
     -- Check if this is the current player
     local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
     local isCurrentPlayer = (playerName == currentPlayer) or 
@@ -532,9 +607,12 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     
     -- Fourth priority: Check stored real player scores (legacy)
     if self.playerScores[playerName] and self.playerScores[playerName][dungeonID] then
-        return self.playerScores[playerName][dungeonID].score or 0
+        local storedScore = self.playerScores[playerName][dungeonID].score or 0
+        if storedScore > 0 then
+            return storedScore
+        end
     end
-    
+
     -- Fifth priority: For current player, get live score if no stored data
     local currentPlayerName = UnitName("player")
     local isCurrentPlayer = (playerName == currentPlayerName) or 

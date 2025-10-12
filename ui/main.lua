@@ -1,4 +1,40 @@
 local _, NextKey222 = ...
+local HEROISM_CLASSES = {
+    SHAMAN = true,
+    MAGE = true,
+    EVOKER = true
+}
+
+local BATTLE_RES_CLASSES = {
+    DRUID = true,
+    WARLOCK = true,
+    DEATHKNIGHT = true
+}
+
+local SPEC_CAPABILITIES_UI = {
+    [62] = { heroism = true },
+    [63] = { heroism = true },
+    [64] = { heroism = true },
+    [262] = { heroism = true },
+    [263] = { heroism = true },
+    [264] = { heroism = true },
+    [1467] = { heroism = true },
+    [1468] = { heroism = true },
+    [1473] = { heroism = true },
+    [253] = { heroism = true },
+
+    [102] = { battleRes = true },
+    [103] = { battleRes = true },
+    [104] = { battleRes = true },
+    [105] = { battleRes = true },
+    [250] = { battleRes = true },
+    [251] = { battleRes = true },
+    [252] = { battleRes = true },
+    [265] = { battleRes = true },
+    [266] = { battleRes = true },
+    [267] = { battleRes = true }
+}
+
 local NextKey = NextKey222.Addon
 local AceGUI = LibStub("AceGUI-3.0")
 -- Debug is available as global variable from debugService.lua
@@ -10,10 +46,254 @@ local UI = {
     mainFrame = nil,      -- Main AceGUI window frame
     resultsFrame = nil,   -- Container for player/dungeon cards
     viewToggleBtn = nil,  -- Button to switch between views
-    guildToggleBtn = nil  -- Button to toggle guild/party filter
+    guildToggleBtn = nil, -- Button to toggle guild/party filter
+    debugFakeTierSelection = "random",
+    groupPreferences = {
+        prioritizeHeroism = true,
+        prioritizeBattleRes = true
+    }
 }
 NextKey222.UI = UI
 NextKey222.RegisterModule("UI", UI)
+
+--- Determines whether debug mode is currently enabled
+-- @return boolean true if global debug flag is enabled
+function UI:IsDebugMode()
+    if not NextKey then
+        Debug:Trace("ui", "IsDebugMode: NextKey is nil")
+        return false
+    end
+
+    if NextKey.EnsureDebug then
+        local dbg = NextKey:EnsureDebug()
+        Debug:Trace("ui", "IsDebugMode: NextKey.EnsureDebug exists, dbg.enabled =", dbg and dbg.enabled)
+        return dbg and dbg.enabled == true
+    end
+
+    local debugEnabled = NextKey222.Debug and NextKey222.Debug.enabled == true
+    Debug:Trace("ui", "IsDebugMode: NextKey222.Debug.enabled =", NextKey222.Debug and NextKey222.Debug.enabled, "result =", debugEnabled)
+    return debugEnabled
+end
+
+--- Determines if debug-only controls should be visible
+-- @return boolean true when debug mode is active and the fake player service exists
+function UI:ShouldShowDebugControls()
+    local isDebug = self:IsDebugMode()
+    local hasFakeService = NextKey222.FakePlayerService ~= nil
+    local result = isDebug and hasFakeService
+    Debug:Dev("ui", "ShouldShowDebugControls: isDebug =", isDebug, "hasFakeService =", hasFakeService, "result =", result)
+    return result
+end
+
+--- Applies the appropriate window height based on the current view and debug state
+function UI:ApplyWindowHeight()
+    if not self.mainFrame or not NextKey222.UIConfig then
+        return
+    end
+
+    local height = NextKey222.UIConfig:GetWindowHeight(self.viewMode or "keystones", {
+        isDebugMode = self:ShouldShowDebugControls()
+    })
+
+    self.mainFrame:SetHeight(height)
+end
+
+--- Applies configurable spacing between controls and the results list
+function UI:ApplyResultsTopPadding()
+    if not self.resultsSpacer or not self.resultsSpacer.SetHeight then
+        return
+    end
+
+    local padding = 0
+    if NextKey222.UIConfig and NextKey222.UIConfig.LAYOUT then
+        local cfgPadding = NextKey222.UIConfig.LAYOUT.RESULTS_TOP_PADDING
+        if type(cfgPadding) == "number" then
+            padding = math.max(cfgPadding, 0)
+        end
+    end
+
+    self.resultsSpacer:SetHeight(padding)
+    if self.resultsSpacer.frame then
+        self.resultsSpacer.frame:SetHeight(padding)
+    end
+end
+
+--- Shows or hides debug-specific widgets and reapplies layout
+-- Dynamically adds or removes debug container based on debug mode state
+function UI:UpdateDebugControlsVisibility()
+    if not self.controlsContainer or not self.debugControlsContainer then
+        Debug:Dev("ui", "UpdateDebugControlsVisibility: Missing containers")
+        return
+    end
+    
+    local showDebug = self:ShouldShowDebugControls()
+    
+    -- Check if debug container is currently in the layout
+    local isInLayout = false
+    if self.controlsContainer.children then
+        for _, child in ipairs(self.controlsContainer.children) do
+            if child == self.debugControlsContainer then
+                isInLayout = true
+                break
+            end
+        end
+    end
+    
+    Debug:Dev("ui", "UpdateDebugControlsVisibility: showDebug =", showDebug, "isInLayout =", isInLayout)
+    
+    if showDebug and not isInLayout then
+        -- Add debug container to layout
+        Debug:Dev("ui", "Adding debug controls to layout")
+        self.controlsContainer:AddChild(self.debugControlsContainer)
+        
+    elseif not showDebug and isInLayout then
+        -- Remove debug container from layout
+        Debug:Dev("ui", "Removing debug controls from layout")
+        
+        -- Find the position of debug container in children
+        local debugIndex = nil
+        for i, child in ipairs(self.controlsContainer.children) do
+            if child == self.debugControlsContainer then
+                debugIndex = i
+                break
+            end
+        end
+        
+        if debugIndex then
+            -- Remove from children array
+            table.remove(self.controlsContainer.children, debugIndex)
+            
+            -- Hide the container's frame
+            if self.debugControlsContainer.frame then
+                self.debugControlsContainer.frame:Hide()
+                self.debugControlsContainer.frame:SetParent(nil)
+            end
+        end
+    end
+    
+    -- Update layouts
+    if self.controlsContainer.DoLayout then
+        self.controlsContainer:DoLayout()
+        Debug:Dev("ui", "Controls container layout updated")
+    end
+    
+    if self.mainFrame then
+        self:ApplyWindowHeight()
+        if self.mainFrame.DoLayout then
+            self.mainFrame:DoLayout()
+        end
+        Debug:Dev("ui", "Main frame layout updated")
+    end
+end
+
+--- Manual refresh function for debug controls (for testing and fallback)
+function UI:RefreshDebugControls()
+    Debug:Dev("ui", "Manual debug controls refresh triggered")
+    if self.mainFrame then
+        self:UpdateDebugControlsVisibility()
+    else
+        Debug:Dev("ui", "Cannot refresh debug controls - no main frame")
+    end
+end
+
+--- Handles debug mode toggles while the UI is open
+function UI:OnDebugModeChanged()
+    Debug:Dev("ui", "OnDebugModeChanged called - mainFrame exists:", self.mainFrame ~= nil)
+    
+    if not self.mainFrame then
+        Debug:Dev("ui", "No main frame, skipping visibility update")
+        return
+    end
+
+    -- Update visibility of debug controls
+    self:UpdateDebugControlsVisibility()
+
+    -- Refresh results if in keystone view to update any debug-related displays
+    if self.viewMode == "keystones" then
+        self:RenderResults()
+    end
+    
+    Debug:Dev("ui", "Debug mode change completed")
+end
+
+local function normalizeClassToken(classToken)
+    if not classToken then return nil end
+    return string.upper(classToken)
+end
+
+function UI:PlayerProvidesHeroism(profile, classToken, specID)
+    if profile and profile.capabilities and profile.capabilities.heroism ~= nil then
+        return profile.capabilities.heroism
+    end
+
+    classToken = normalizeClassToken(classToken) or (profile and normalizeClassToken(profile.class))
+    specID = specID or (profile and profile.specID)
+
+    if specID and SPEC_CAPABILITIES_UI[specID] and SPEC_CAPABILITIES_UI[specID].heroism then
+        return true
+    end
+
+    if classToken and HEROISM_CLASSES[classToken] then
+        return true
+    end
+
+    return false
+end
+
+function UI:PlayerProvidesBattleRes(profile, classToken, specID)
+    if profile and profile.capabilities and profile.capabilities.battleRes ~= nil then
+        return profile.capabilities.battleRes
+    end
+
+    classToken = normalizeClassToken(classToken) or (profile and normalizeClassToken(profile.class))
+    specID = specID or (profile and profile.specID)
+
+    if specID and SPEC_CAPABILITIES_UI[specID] and SPEC_CAPABILITIES_UI[specID].battleRes then
+        return true
+    end
+
+    if classToken and BATTLE_RES_CLASSES[classToken] then
+        return true
+    end
+
+    return false
+end
+
+local function normalizeClassToken(classToken)
+    if not classToken then return nil end
+    return string.upper(classToken)
+end
+
+function UI:PlayerProvidesHeroism(profile, classToken, specID)
+    if profile and profile.capabilities and profile.capabilities.heroism ~= nil then
+        return profile.capabilities.heroism
+    end
+    classToken = normalizeClassToken(classToken) or (profile and profile.class) or nil
+    specID = specID or (profile and profile.specID)
+    if specID and SPEC_CAPABILITIES_UI[specID] and SPEC_CAPABILITIES_UI[specID].heroism then
+        return true
+    end
+    if classToken and HEROISM_CLASSES[classToken] then
+        return true
+    end
+    return false
+end
+
+function UI:PlayerProvidesBattleRes(profile, classToken, specID)
+    if profile and profile.capabilities and profile.capabilities.battleRes ~= nil then
+        return profile.capabilities.battleRes
+    end
+    classToken = normalizeClassToken(classToken) or (profile and profile.class) or nil
+    specID = specID or (profile and profile.specID)
+    if specID and SPEC_CAPABILITIES_UI[specID] and SPEC_CAPABILITIES_UI[specID].battleRes then
+        return true
+    end
+    if classToken and BATTLE_RES_CLASSES[classToken] then
+        return true
+    end
+    return false
+end
+
 
 -- MARK: Private Helper Functions
 -- =====================================================
@@ -77,7 +357,10 @@ function UI:CreateMainFrame()
     frame:SetStatusText("UI skeleton - M0.6")
     frame:SetLayout("Flow")
     frame:SetWidth(NextKey222.UIConfig.WINDOW.WIDTH)
-    frame:SetHeight(NextKey222.UIConfig.WINDOW.BASE_HEIGHT)  
+    local initialHeight = NextKey222.UIConfig:GetWindowHeight("keystones", {
+        isDebugMode = self:ShouldShowDebugControls()
+    }) or NextKey222.UIConfig.WINDOW.BASE_HEIGHT
+    frame:SetHeight(initialHeight)
     frame:EnableResize(true)
 
     -- Standard close button behavior
@@ -85,6 +368,14 @@ function UI:CreateMainFrame()
         AceGUI:Release(widget)
         self.mainFrame = nil
         self.resultsFrame = nil
+        self.controlsContainer = nil
+        self.debugControlsContainer = nil
+        self.debugFakeTierDropdown = nil
+        self.debugAddFakeBtn = nil
+        self.debugClearFakeBtn = nil
+        self.heroismPreferenceCheck = nil
+        self.battleResPreferenceCheck = nil
+        self.resultsSpacer = nil
         self:ClearAuxFrames()
     end)
 
@@ -99,6 +390,7 @@ function UI:CreateMainFrame()
     controls:SetFullWidth(true)
     controls:SetLayout("Flow")
     frame:AddChild(controls)
+    self.controlsContainer = controls
 
     local sortDrop = AceGUI:Create("Dropdown")
     sortDrop:SetLabel("Sort Mode")
@@ -207,10 +499,100 @@ function UI:CreateMainFrame()
         self:ToggleViewMode()
     end)
     controls:AddChild(toggleBtn)
-    
+
     -- Store reference for text updates
     self.viewToggleBtn = toggleBtn
-    
+
+    -- Debug-only controls for managing fake players
+    -- Always create widgets, but only add to layout when debug is enabled
+    if NextKey222.FakePlayerService then
+        Debug:Dev("ui", "Creating debug controls")
+
+        -- Create a simple group container for all debug widgets
+        local debugContainer = AceGUI:Create("SimpleGroup")
+        debugContainer:SetFullWidth(true)
+        debugContainer:SetLayout("Flow")
+        self.debugControlsContainer = debugContainer
+
+        -- Create fake player tier dropdown
+        local tierDropdown = AceGUI:Create("Dropdown")
+        tierDropdown:SetLabel("Fake Player Tier")
+        tierDropdown:SetWidth(200)
+        tierDropdown:SetList({
+            random = "Random (Expert/Skilled/Competent)",
+            expert = "Expert",
+            skilled = "Skilled",
+            competent = "Competent"
+        })
+        tierDropdown:SetValue(self.debugFakeTierSelection or "random")
+        tierDropdown:SetCallback("OnValueChanged", function(widget, event, value)
+            self.debugFakeTierSelection = value or "random"
+        end)
+        debugContainer:AddChild(tierDropdown)
+        self.debugFakeTierDropdown = tierDropdown
+
+        -- Create add fake player button
+        local addFakeBtn = AceGUI:Create("Button")
+        addFakeBtn:SetText("Add Fake Player")
+        addFakeBtn:SetAutoWidth(true)
+        addFakeBtn:SetCallback("OnClick", function()
+            self:HandleAddDebugFakePlayer()
+        end)
+        debugContainer:AddChild(addFakeBtn)
+        self.debugAddFakeBtn = addFakeBtn
+
+        -- Create clear fake players button
+        local clearFakeBtn = AceGUI:Create("Button")
+        clearFakeBtn:SetText("Delete All Fakes")
+        clearFakeBtn:SetAutoWidth(true)
+        clearFakeBtn:SetCallback("OnClick", function()
+            self:HandleDeleteAllFakePlayers()
+        end)
+        debugContainer:AddChild(clearFakeBtn)
+        self.debugClearFakeBtn = clearFakeBtn
+
+        -- Create heroism preference checkbox
+        local heroismCheck = AceGUI:Create("CheckBox")
+        heroismCheck:SetLabel("Prefer Heroism Support")
+        heroismCheck:SetValue(self.groupPreferences.prioritizeHeroism)
+        heroismCheck:SetCallback("OnValueChanged", function(_, _, value)
+            self.groupPreferences.prioritizeHeroism = value and true or false
+        end)
+        debugContainer:AddChild(heroismCheck)
+        self.heroismPreferenceCheck = heroismCheck
+
+        -- Create battle res preference checkbox
+        local battleResCheck = AceGUI:Create("CheckBox")
+        battleResCheck:SetLabel("Prefer Battle Res Support")
+        battleResCheck:SetValue(self.groupPreferences.prioritizeBattleRes)
+        battleResCheck:SetCallback("OnValueChanged", function(_, _, value)
+            self.groupPreferences.prioritizeBattleRes = value and true or false
+        end)
+        debugContainer:AddChild(battleResCheck)
+        self.battleResPreferenceCheck = battleResCheck
+
+        -- Create suggest groups button (always hidden initially)
+        local suggestBtn = AceGUI:Create("Button")
+        suggestBtn:SetText("Suggest Groups")
+        suggestBtn:SetAutoWidth(true)
+        suggestBtn:SetCallback("OnClick", function()
+            self:SuggestGroups()
+        end)
+        self.suggestGroupsBtn = suggestBtn
+        -- Note: suggestBtn is never added to any container, only shown/hidden in compact mode
+
+        -- Add to controls if debug is currently enabled
+        local showDebug = self:ShouldShowDebugControls()
+        if showDebug then
+            controls:AddChild(debugContainer)
+            Debug:Dev("ui", "Debug controls added to layout (debug ON)")
+        else
+            Debug:Dev("ui", "Debug controls created but not added to layout (debug OFF)")
+        end
+    else
+        Debug:Dev("ui", "FakePlayerService not available - debug controls disabled")
+    end
+
     -- Add total IO score display
     local totalScoreLabel = AceGUI:Create("Label")
     totalScoreLabel:SetText("")
@@ -221,9 +603,11 @@ function UI:CreateMainFrame()
     self.totalScoreLabel = totalScoreLabel
 
     local spacer = AceGUI:Create("Label")
-    spacer:SetText(" ")
+    spacer:SetText("")
     spacer:SetFullWidth(true)
     frame:AddChild(spacer)
+    self.resultsSpacer = spacer
+    self:ApplyResultsTopPadding()
 
     local results = AceGUI:Create("ScrollFrame")
     results:SetFullWidth(true)
@@ -265,6 +649,14 @@ function UI:ToggleMainFrame()
         AceGUI:Release(self.mainFrame)
         self.mainFrame = nil
         self.resultsFrame = nil
+        self.controlsContainer = nil
+        self.debugControlsContainer = nil
+        self.debugFakeTierDropdown = nil
+        self.debugAddFakeBtn = nil
+        self.debugClearFakeBtn = nil
+        self.heroismPreferenceCheck = nil
+        self.battleResPreferenceCheck = nil
+        self.resultsSpacer = nil
         self:ClearAuxFrames()
     else
         Debug:Dev("ui", "Creating new main frame")
@@ -277,14 +669,289 @@ function UI:GetFakePlayerData(playerName)
     if not playerName or not NextKey222.ProfilesService then
         return nil
     end
-    
+
     -- Check if this is a fake player by getting their debug profile
     local debugProfile = NextKey222.ProfilesService:GetDebugProfile(playerName)
     if debugProfile and debugProfile.addonStatus then
         return debugProfile
     end
-    
+
     return nil
+end
+
+function UI:GetPlayerProfileCached(playerName)
+    if not playerName then return nil end
+    self.profileCache = self.profileCache or {}
+    if self.profileCache[playerName] then
+        return self.profileCache[playerName]
+    end
+
+    if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
+        local profile = NextKey222.ProfilesService:GetProfile(playerName)
+        self.profileCache[playerName] = profile
+        return profile
+    end
+
+    return nil
+end
+
+function UI:EnrichEntryMetadata(entry)
+    if not entry or not entry.key then return end
+
+    local ownerName = entry.key.ownerName or "Unknown"
+    entry.ownerName = ownerName
+
+    local normalizedName = NextKey222.UIComponents and NextKey222.UIComponents:NormalizePlayerName(ownerName) or ownerName
+    entry.normalizedOwnerName = normalizedName
+
+    local profile = self:GetPlayerProfileCached(normalizedName)
+
+    entry.profile = profile
+    entry.role = (profile and profile.role) or "DAMAGER"
+    -- Normalize role to uppercase to ensure consistency
+    if entry.role then
+        entry.role = string.upper(entry.role)
+    end
+    entry.specName = profile and profile.specName or nil
+
+    local classToken = entry.key.class or (profile and profile.class)
+    local specID = profile and profile.specID
+
+    entry.hasHeroism = self:PlayerProvidesHeroism(profile, classToken, specID)
+    entry.hasBattleRes = self:PlayerProvidesBattleRes(profile, classToken, specID)
+
+    if entry.key.dungeonID then
+        entry.dungeonName = NextKey222.Addon:GetDungeonName(entry.key.dungeonID) or ("Dungeon " .. entry.key.dungeonID)
+    else
+        entry.dungeonName = "No Dungeon"
+    end
+    entry.keyLevel = entry.key.level or 0
+
+    local expected = entry.ioGainRange and entry.ioGainRange.expected or entry.ioGainPotential or 0
+    entry.expectedGain = expected or 0
+
+    if entry.ioGainRange and entry.ioGainRange.playerBreakdown then
+        local breakdown = entry.ioGainRange.playerBreakdown[normalizedName]
+        if breakdown then
+            entry.currentDungeonIO = breakdown.current or 0
+        end
+    end
+
+    if not entry.currentDungeonIO then
+        if NextKey222.IOCalculator and entry.key.dungeonID then
+            entry.currentDungeonIO = NextKey222.IOCalculator:GetPlayerDungeonScore(normalizedName, entry.key.dungeonID) or 0
+        else
+            entry.currentDungeonIO = 0
+        end
+    end
+
+    if entry.profile and entry.profile.capabilities then
+        if entry.profile.capabilities.heroism then
+            entry.hasHeroism = true
+        end
+        if entry.profile.capabilities.battleRes then
+            entry.hasBattleRes = true
+        end
+    end
+end
+
+--- Adds a single fake player using the current debug tier selection
+function UI:HandleAddDebugFakePlayer()
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.CreatePlayer then
+        Debug:Dev("fakeplayerservice", "FakePlayerService unavailable - cannot add player from UI")
+        return
+    end
+
+    local tierSelection = self.debugFakeTierSelection or "random"
+    local highSkillTiers = { "expert", "skilled", "competent" }
+
+    local chosenTier = tierSelection
+    if tierSelection == "random" then
+        local index = math.random(#highSkillTiers)
+        chosenTier = highSkillTiers[index]
+    end
+
+    local createdName = NextKey222.FakePlayerService:CreatePlayer({ tier = chosenTier })
+    if createdName then
+        Debug:Dev("fakeplayerservice", "UI created fake player", createdName, "tier", chosenTier)
+        self:RenderResults()
+    else
+        Debug:Dev("fakeplayerservice", "UI failed to create fake player for tier", chosenTier)
+    end
+end
+
+--- Removes all fake players (debug helper)
+function UI:HandleDeleteAllFakePlayers()
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.ClearAllPlayers then
+        Debug:Dev("fakeplayerservice", "FakePlayerService unavailable - cannot clear players")
+        return
+    end
+
+    local removedCount = NextKey222.FakePlayerService:ClearAllPlayers() or 0
+    Debug:Dev("fakeplayerservice", "UI cleared fake players", removedCount)
+    self:RenderResults()
+end
+
+--- Removes a specific fake player by name
+-- @param playerName string Full normalized player name
+function UI:HandleDeleteFakePlayer(playerName)
+    if not playerName or not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.RemovePlayer then
+        return
+    end
+
+    NextKey222.FakePlayerService:RemovePlayer(playerName)
+    Debug:Dev("fakeplayerservice", "UI removed fake player", playerName)
+    self:RenderResults()
+end
+
+--- Shared tooltip handler for IO gain displays (full and compact rows)
+-- @param button Frame Button or region triggering the tooltip
+-- @param keyInfo table Keystone data for the row
+-- @param entry table Row entry containing cached ioRange (optional)
+-- @param ioRange table Range data (min/max/expected + playerBreakdown)
+function UI:ShowIOGainTooltip(button, keyInfo, entry, ioRange)
+    if not button or not keyInfo or not ioRange then
+        return
+    end
+
+    GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+
+    local usedPreCalculated = entry and entry.ioGainRange ~= nil
+    Debug:Dev("tooltip", " Using", usedPreCalculated and "pre-calculated" or "recalculated", "ioRange")
+
+    if ioRange.playerBreakdown then
+        local playerCount = 0
+        for _ in pairs(ioRange.playerBreakdown) do
+            playerCount = playerCount + 1
+        end
+        Debug:Dev("tooltip", " Player breakdown has", playerCount, "players")
+        for playerName in pairs(ioRange.playerBreakdown) do
+            Debug:Dev("tooltip", " Breakdown includes player:", playerName)
+        end
+    else
+        Debug:Dev("tooltip", " No player breakdown available")
+    end
+
+    local dungeonName = "Unknown Dungeon"
+    if keyInfo.dungeonID and keyInfo.dungeonID > 0 then
+        dungeonName = NextKey222.Addon:GetDungeonName(keyInfo.dungeonID) or ("Dungeon " .. keyInfo.dungeonID)
+    end
+
+    local ownerName = keyInfo.ownerName or "Unknown"
+    local keystoneLevel = keyInfo.level or 0
+    local headerText = string.format("%s (+%d) - %s's Key", dungeonName, keystoneLevel, ownerName:match("^([^%-]+)") or ownerName)
+    GameTooltip:SetText(headerText, 1, 1, 1, 1, true)
+    GameTooltip:AddLine("Group IO Gain Potential", 0.9, 0.9, 1)
+
+    local showedBreakpoints = false
+    if keystoneLevel > 0 and NextKey222.IOCalculator and ioRange.playerBreakdown then
+        local breakpointRanges = self:CalculateBreakpointRanges(keyInfo, ioRange.playerBreakdown)
+        if breakpointRanges then
+            GameTooltip:AddLine(" ", 1, 1, 1)
+            GameTooltip:AddLine(string.format("Untimed: +%d Group IO (+%d Avg)",
+                math.floor(breakpointRanges.untimed.total or 0),
+                math.floor(breakpointRanges.untimed.average or 0)), 0.8, 0.4, 0.4)
+            GameTooltip:AddLine(string.format("Timed: +%d Group IO (+%d Avg)",
+                math.floor(breakpointRanges.timed.total or 0),
+                math.floor(breakpointRanges.timed.average or 0)), 1, 1, 0.4)
+            GameTooltip:AddLine(string.format("+2: +%d Group IO (+%d Avg)",
+                math.floor(breakpointRanges.plus2.total or 0),
+                math.floor(breakpointRanges.plus2.average or 0)), 0.4, 1, 0.4)
+            GameTooltip:AddLine(string.format("+3: +%d Group IO (+%d Avg)",
+                math.floor(breakpointRanges.plus3.total or 0),
+                math.floor(breakpointRanges.plus3.average or 0)), 0.2, 1, 0.2)
+            showedBreakpoints = true
+        end
+    end
+
+    if not showedBreakpoints then
+        GameTooltip:AddLine(" ", 1, 1, 1)
+        GameTooltip:AddLine(string.format("Group IO Gain: +%d", math.floor(ioRange.expected or 0)), 0, 1, 0)
+        GameTooltip:AddLine(string.format("Range: +%d to +%d", math.floor(ioRange.min or 0), math.floor(ioRange.max or 0)), 0.8, 0.8, 0.8)
+    end
+
+    GameTooltip:AddLine(" ", 1, 1, 1)
+    GameTooltip:AddLine("Individual Player Breakdown:", 0.9, 0.9, 0.9)
+
+    if ioRange.playerBreakdown then
+        local playerEntries = {}
+        local dungeonID = keyInfo.dungeonID
+
+        for playerName, breakdown in pairs(ioRange.playerBreakdown) do
+            local entryData = {
+                name = playerName,
+                shortName = playerName:match("^([^%-]+)") or playerName,
+                breakdown = breakdown,
+                minGain = breakdown.min or 0,
+                maxGain = breakdown.max or 0,
+                currentIO = 0,
+                bestLevel = 0,
+                hasNextKey = false,
+                fakeProfile = self:GetFakePlayerData(playerName)
+            }
+
+            if dungeonID and NextKey222.IOCalculator then
+                entryData.currentIO = NextKey222.IOCalculator:GetPlayerDungeonScore(playerName, dungeonID) or 0
+                Debug:Dev("tooltip", "Current dungeon IO for", playerName, "dungeon", dungeonID .. ":", entryData.currentIO)
+            end
+
+            if entryData.fakeProfile and entryData.fakeProfile.addonStatus then
+                entryData.hasNextKey = entryData.fakeProfile.addonStatus.nextkey or false
+            else
+                entryData.hasNextKey = (entryData.minGain > 0 or entryData.maxGain > 0 or entryData.currentIO > 0)
+            end
+
+            local currentPlayerFull = UnitName("player") .. "-" .. GetRealmName()
+            local isCurrentPlayer = (playerName == currentPlayerFull) or (playerName:match("^([^%-]+)") == UnitName("player"))
+            if entryData.hasNextKey and dungeonID then
+                if isCurrentPlayer then
+                    entryData.bestLevel = self:GetBestLevel(dungeonID) or 0
+                elseif entryData.fakeProfile and entryData.fakeProfile.dungeonScores then
+                    local scoreEntry = entryData.fakeProfile.dungeonScores[dungeonID]
+                    if scoreEntry then
+                        entryData.bestLevel = scoreEntry.bestLevel or scoreEntry.level or 0
+                    end
+                end
+            end
+
+            table.insert(playerEntries, entryData)
+        end
+
+        table.sort(playerEntries, function(a, b)
+            if a.hasNextKey ~= b.hasNextKey then
+                return a.hasNextKey and not b.hasNextKey
+            end
+
+            if a.currentIO ~= b.currentIO then
+                return a.currentIO < b.currentIO
+            end
+
+            return (a.bestLevel or 0) < (b.bestLevel or 0)
+        end)
+
+        for _, data in ipairs(playerEntries) do
+            if data.hasNextKey then
+                local potentialColor = "|cff00ff00"
+                if math.floor(data.minGain) == 0 and math.floor(data.maxGain) == 0 then
+                    potentialColor = "|cff999999"
+                end
+
+                local bestLevelText = data.bestLevel > 0 and string.format(" |cff4aa3ff+%d|r", data.bestLevel) or ""
+                local playerLine = string.format("%s: %s(+%d-%d Potential IO)|r |cffffff00(Current IO: %d)|r%s",
+                    data.shortName,
+                    potentialColor,
+                    math.floor(data.minGain),
+                    math.floor(data.maxGain),
+                    math.floor(data.currentIO),
+                    bestLevelText)
+                GameTooltip:AddLine(playerLine, 1, 1, 1)
+            else
+                GameTooltip:AddLine(string.format("%s: NextKey Not Installed", data.shortName), 0.6, 0.6, 0.6)
+            end
+        end
+    end
+
+    GameTooltip:Show()
 end
 
 -- MARK: Individual Player Analysis
@@ -565,6 +1232,10 @@ function UI:RenderResults()
 
     -- No longer showing individual recommendations - just rank keystones by group IO gain
 
+    self.profileCache = {}
+    self.cachedItems = {}
+    self.cachedSortMode = mode
+
     local items = self:SortKeys(keys, mode)
     Debug:Dev("ui", string.format("[SORT DEBUG] SortKeys returned %d items for mode %s", 
         items and #items or 0, tostring(mode)))
@@ -577,10 +1248,14 @@ function UI:RenderResults()
     end
     
     local useCompactMode = shouldUseCompactMode(#items)
+    self.cachedUseCompactMode = useCompactMode
+    self.cachedItemsCount = #items
     
     for i, it in ipairs(items) do
         Debug:Dev("ui", string.format("[RENDER DEBUG] Attempting to render card %d for %s", 
             i, it.key and it.key.ownerName or "nil"))
+        self:EnrichEntryMetadata(it)
+        table.insert(self.cachedItems, it)
         local renderFunc = useCompactMode and self.AddKeyRowCompact or self.AddKeyRow
         local success = NextKey222.SafeRun(renderFunc, "Render keystone card", self, it)
         if not success then
@@ -588,6 +1263,14 @@ function UI:RenderResults()
         else
             Debug:Dev("ui", string.format("[RENDER DEBUG] Successfully rendered card for %s", 
                 it.key and it.key.ownerName or "nil"))
+        end
+    end
+
+    if self.suggestGroupsBtn and self.suggestGroupsBtn.frame then
+        if useCompactMode and #self.cachedItems > 0 then
+            self.suggestGroupsBtn.frame:Show()
+        else
+            self.suggestGroupsBtn.frame:Hide()
         end
     end
 end
@@ -632,13 +1315,23 @@ function UI:AddKeyRow(entry)
     local frame = NextKey222.UIComponents:CreateBackdrop(container.frame, "keystone")
     trackAuxFrame(self, frame)
     
-    -- Create class icon using component factory
-    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 32)
+    -- Create class icon using component factory with player data for tooltip
+    local playerData = {
+        ownerName = ownerName,
+        classToken = classToken,
+        specName = entry.specName,
+        role = entry.role
+    }
+    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 32, playerData)
     icon:SetPoint("LEFT", 12, 0)
+    
+    -- Create role icon using component factory
+    local roleIcon = NextKey222.UIComponents:CreateRoleIcon(frame, entry.role, NextKey222.UIConfig.ICON.ROLE_SIZE)
+    roleIcon:SetPoint("LEFT", icon, "RIGHT", 4, 0)
     
     -- Create formatted player name text
     local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, -2)
+    nameText:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 6, -2)
     nameText:SetText(NextKey222.UIComponents:FormatPlayerNameWithScore(ownerName, classToken, score))
     nameText:SetJustifyH("LEFT")
 
@@ -648,6 +1341,9 @@ function UI:AddKeyRow(entry)
     if currentSortMode == "IOGainPotential" then
         -- Use pre-calculated range data if available, otherwise calculate
         local ioRange = entry.ioGainRange or self:CalculateIOGainRange(keyInfo)
+        if ioRange and not entry.ioGainRange then
+            entry.ioGainRange = ioRange
+        end
         if ioRange.expected > 0 then
             ioGainText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
             ioGainText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -8)
@@ -660,119 +1356,9 @@ function UI:AddKeyRow(entry)
             -- Make it clickable for tooltip
             local ioGainButton = CreateFrame("Button", nil, frame)
             ioGainButton:SetAllPoints(ioGainText)
+            ioGainButton:SetFrameLevel(frame:GetFrameLevel() + 1)
             ioGainButton:SetScript("OnEnter", function(btn)
-                GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-                
-                -- Debug: Check where ioRange comes from
-                local usedPreCalculated = entry.ioGainRange ~= nil
-                Debug:Dev("tooltip", " Using", usedPreCalculated and "pre-calculated" or "recalculated", "ioRange")
-                if ioRange.playerBreakdown then
-                    -- Count players in breakdown
-                    local playerCount = 0
-                    for _ in pairs(ioRange.playerBreakdown) do
-                        playerCount = playerCount + 1
-                    end
-                    Debug:Dev("tooltip", " Player breakdown has", playerCount, "players")
-                    for playerName, _ in pairs(ioRange.playerBreakdown) do
-                        Debug:Dev("tooltip", " Breakdown includes player:", playerName)
-                    end
-                else
-                    Debug:Dev("tooltip", " No player breakdown available")
-                end
-                
-                -- Get dungeon name and owner info for enhanced header
-                local dungeonName = "Unknown Dungeon"
-                local ownerName = keyInfo and keyInfo.ownerName or "Unknown"
-                if keyInfo and keyInfo.dungeonID and keyInfo.dungeonID > 0 then
-                    dungeonName = NextKey222.Addon:GetDungeonName(keyInfo.dungeonID) or ("Dungeon " .. keyInfo.dungeonID)
-                end
-                
-                -- Enhanced header with dungeon, level, and owner information
-                local keystoneLevel = keyInfo and keyInfo.level or 0
-                local headerText = string.format("%s (+%d) - %s's Key", dungeonName, keystoneLevel, ownerName:match("^([^%-]+)") or ownerName)
-                GameTooltip:SetText(headerText, 1, 1, 1, 1, true)
-                GameTooltip:AddLine("Group IO Gain Potential", 0.9, 0.9, 1)
-                
-                -- Show simple group IO summary
-                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                GameTooltip:AddLine(string.format("Group IO Gain: +%d", math.floor(ioRange.expected)), 0, 1, 0)
-                GameTooltip:AddLine(string.format("Range: +%d to +%d", math.floor(ioRange.min), math.floor(ioRange.max)), 0.8, 0.8, 0.8)
-                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                GameTooltip:AddLine("Individual Player Breakdown:", 0.9, 0.9, 0.9)
-                
-                -- Add enhanced player breakdown with improved format
-                if ioRange.playerBreakdown then
-                    for playerName, breakdown in pairs(ioRange.playerBreakdown) do
-                        local shortName = playerName:match("^([^%-]+)") or playerName
-                        
-                        -- Check if this player has valid NextKey data
-                        local minGain = breakdown.min or 0
-                        local maxGain = breakdown.max or 0
-                        
-                        -- Get current dungeon-specific IO score using IOCalculator (handles all player types)
-                        local currentDungeonIO = 0
-                        local dungeonID = keyInfo and keyInfo.dungeonID
-                        
-                        if dungeonID and NextKey222.IOCalculator then
-                            -- IOCalculator handles fake players, communications, and real players properly
-                            currentDungeonIO = NextKey222.IOCalculator:GetPlayerDungeonScore(playerName, dungeonID) or 0
-                            Debug:Dev("tooltip", "Current dungeon IO for", playerName, "dungeon", dungeonID .. ":", currentDungeonIO)
-                        end
-                        
-                        -- Check for fake player addon status first
-                        local fakePlayerData = self:GetFakePlayerData(playerName)
-                        local hasNextKey = false
-                        
-                        if fakePlayerData and fakePlayerData.addonStatus then
-                            hasNextKey = fakePlayerData.addonStatus.nextkey or false
-                        else
-                            -- Determine if player has NextKey (valid score data)
-                            hasNextKey = (minGain > 0 or maxGain > 0 or currentDungeonIO > 0)
-                        end
-                        
-                        if hasNextKey then
-                            -- NextKey user: Single line format with colors
-                            local potentialColor = "|cff00ff00" -- Green by default
-                            if math.floor(minGain) == 0 and math.floor(maxGain) == 0 then
-                                potentialColor = "|cff999999" -- Grey when no potential gain
-                            end
-                            
-                            -- Get highest key level completed for this dungeon
-                            local bestLevel = 0
-                            local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
-                            local isCurrentPlayer = (playerName == currentPlayer) or 
-                                                  (playerName:match("^([^%-]+)") == UnitName("player"))
-                            
-                            if isCurrentPlayer and dungeonID then
-                                -- For current player, use GetBestLevel method
-                                bestLevel = self:GetBestLevel(dungeonID) or 0
-                            elseif fakePlayerData and fakePlayerData.best and dungeonID then
-                                -- For fake players, find their highest completed level for this dungeon
-                                local bestRun = fakePlayerData.best[dungeonID]
-                                if bestRun and bestRun.level then
-                                    bestLevel = bestRun.level
-                                end
-                            end
-                            
-                            -- Build the player line with best level info
-                            local bestLevelText = bestLevel > 0 and string.format(" |cff4aa3ff+%d|r", bestLevel) or ""
-                            local playerLine = string.format("%s: %s(+%d-%d Potential IO)|r |cffffff00(Current IO: %d)|r%s", 
-                                shortName, 
-                                potentialColor,
-                                math.floor(minGain), 
-                                math.floor(maxGain), 
-                                math.floor(currentDungeonIO),
-                                bestLevelText)
-                            GameTooltip:AddLine(playerLine, 1, 1, 1) -- White text for name
-                        else
-                            -- Non-NextKey user: Grey "NextKey Not Installed" message
-                            local playerLine = string.format("%s: NextKey Not Installed", shortName)
-                            GameTooltip:AddLine(playerLine, 0.6, 0.6, 0.6) -- Grey text
-                        end
-                    end
-                end
-                
-                GameTooltip:Show()
+                self:ShowIOGainTooltip(btn, keyInfo, entry, ioRange)
             end)
             ioGainButton:SetScript("OnLeave", GameTooltip_Hide)
             trackAuxFrame(self, ioGainButton)
@@ -799,7 +1385,7 @@ function UI:AddKeyRow(entry)
     local selectBtn = NextKey222.UIComponents:CreateButton(frame, "select", nil, nil)
     selectBtn:SetPoint("RIGHT", frame, "RIGHT", -12, 0)
     trackAuxFrame(self, selectBtn)
-    
+
     -- Configure button state and behavior
     local isLeader = NextKey222.Addon:IsLeaderOrSolo()
     local isSelected = NextKey222.Addon.IsKeySelected and NextKey222.Addon:IsKeySelected(keyInfo)
@@ -834,6 +1420,24 @@ function UI:AddKeyRow(entry)
         end)
     end
     selectBtn:SetScript("OnLeave", GameTooltip_Hide)
+
+    -- Debug helper: allow removing individual fake players directly from the card
+    if self:IsDebugMode() and NextKey222.FakePlayerService and ownerName and NextKey222.FakePlayerService:IsFakePlayer(ownerName) then
+        local deleteBtn = NextKey222.UIComponents:CreateButton(frame, "select", nil, nil)
+        deleteBtn:SetText("Delete")
+        deleteBtn:SetWidth(70)
+        deleteBtn:SetPoint("RIGHT", selectBtn, "LEFT", -6, 0)
+        deleteBtn:SetScript("OnClick", function()
+            self:HandleDeleteFakePlayer(ownerName)
+        end)
+        deleteBtn:SetScript("OnEnter", function(btn)
+            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Remove this fake player")
+            GameTooltip:Show()
+        end)
+        deleteBtn:SetScript("OnLeave", GameTooltip_Hide)
+        trackAuxFrame(self, deleteBtn)
+    end
 end
 
 --- Creates and renders a compact keystone card for high player counts
@@ -869,22 +1473,46 @@ function UI:AddKeyRowCompact(entry)
     local frame = NextKey222.UIComponents:CreateBackdrop(container.frame, "keystone_compact")
     trackAuxFrame(self, frame)
     
-    -- Create smaller class icon
-    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 20)
+    -- Create smaller class icon with player data for tooltip
+    local playerData = {
+        ownerName = ownerName,
+        classToken = classToken,
+        specName = entry.specName,
+        role = entry.role
+    }
+    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 20, playerData)
     icon:SetPoint("LEFT", 8, 0)
+    
+    -- Create role icon for compact view (smaller size)
+    local roleIcon = NextKey222.UIComponents:CreateRoleIcon(frame, entry.role, 12)
+    roleIcon:SetPoint("LEFT", icon, "RIGHT", 2, 0)
     
     -- Create compact single-line text
     local mainText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    mainText:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+    mainText:SetPoint("LEFT", roleIcon, "RIGHT", 6, 0)
     
     -- Format combined display text
     local nameDisplay = NextKey222.UIComponents:FormatPlayerNameWithScore(ownerName, classToken, score)
     local keyDisplay = NextKey222.UIComponents:FormatKeystoneDisplay(dungeonName, keyInfo.level)
     
-    -- Add IO gain if in IO gain mode
+    -- Determine IO gain display state for compact view
     local currentSortMode = self:GetCurrentSortMode()
+    local compactIORange = nil
+    local showCompactIO = false
+    if currentSortMode == "IOGainPotential" then
+        compactIORange = entry.ioGainRange or self:CalculateIOGainRange(keyInfo)
+        if compactIORange and (compactIORange.expected or 0) > 0 then
+            showCompactIO = true
+            if not entry.ioGainRange then
+                entry.ioGainRange = compactIORange
+            end
+        end
+    end
+
     local fullText
-    if currentSortMode == "IOGainPotential" and entry.ioGainPotential then
+    if showCompactIO then
+        fullText = string.format("%s | %s", nameDisplay, keyDisplay)
+    elseif currentSortMode == "IOGainPotential" and entry.ioGainPotential then
         local gainDisplay = string.format("|cff00ff00+%.1f IO|r", entry.ioGainPotential)
         fullText = string.format("%s | %s | %s", nameDisplay, keyDisplay, gainDisplay)
     else
@@ -897,7 +1525,7 @@ function UI:AddKeyRowCompact(entry)
     local selectBtn = NextKey222.UIComponents:CreateButton(frame, "select_compact", nil, nil)
     selectBtn:SetPoint("RIGHT", frame, "RIGHT", -6, 0)
     trackAuxFrame(self, selectBtn)
-    
+
     -- Configure compact button state
     local isLeader = NextKey222.Addon:IsLeaderOrSolo()
     local isSelected = NextKey222.Addon.IsKeySelected and NextKey222.Addon:IsKeySelected(keyInfo)
@@ -932,6 +1560,42 @@ function UI:AddKeyRowCompact(entry)
         end)
     end
     selectBtn:SetScript("OnLeave", GameTooltip_Hide)
+
+    local deleteBtn = nil
+    if self:IsDebugMode() and NextKey222.FakePlayerService and ownerName and NextKey222.FakePlayerService:IsFakePlayer(ownerName) then
+        deleteBtn = NextKey222.UIComponents:CreateButton(frame, "select_compact", nil, nil)
+        deleteBtn:SetText("Del")
+        deleteBtn:SetWidth(40)
+        deleteBtn:SetPoint("RIGHT", selectBtn, "LEFT", -4, 0)
+        deleteBtn:SetScript("OnClick", function()
+            self:HandleDeleteFakePlayer(ownerName)
+        end)
+        deleteBtn:SetScript("OnEnter", function(btn)
+            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Remove this fake player")
+            GameTooltip:Show()
+        end)
+        deleteBtn:SetScript("OnLeave", GameTooltip_Hide)
+        trackAuxFrame(self, deleteBtn)
+    end
+
+    if showCompactIO and compactIORange then
+        local anchorButton = deleteBtn or selectBtn
+        local ioGainText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        ioGainText:SetPoint("RIGHT", anchorButton, "LEFT", -6, 0)
+        ioGainText:SetText(string.format("|cff00ff00+%d IO|r", math.floor(compactIORange.expected or 0)))
+        ioGainText:SetJustifyH("RIGHT")
+
+        local ioGainButton = CreateFrame("Button", nil, frame)
+        ioGainButton:SetPoint("TOPLEFT", ioGainText, "TOPLEFT", -2, 2)
+        ioGainButton:SetPoint("BOTTOMRIGHT", ioGainText, "BOTTOMRIGHT", 2, -2)
+        ioGainButton:SetScript("OnEnter", function(btn)
+            self:ShowIOGainTooltip(btn, keyInfo, entry, compactIORange)
+        end)
+        ioGainButton:SetScript("OnLeave", GameTooltip_Hide)
+        ioGainButton:SetFrameLevel(frame:GetFrameLevel() + 1)
+        trackAuxFrame(self, ioGainButton)
+    end
 end
 
 -- MARK: Cleanup & Utility Functions
@@ -984,9 +1648,7 @@ function UI:ToggleViewMode()
             self.totalScoreLabel:SetText(self:FormatColoredTotalScore(NextKey222.Addon:GetRaiderIOTotalScore()))
         end
         -- Use centralized dungeon view height
-        if self.mainFrame then
-            self.mainFrame:SetHeight(NextKey222.UIConfig.WINDOW.DUNGEON_VIEW_HEIGHT)
-        end
+        self:ApplyWindowHeight()
         self:RenderDungeonCards()
     else
         self.viewMode = "keystones"
@@ -1000,9 +1662,7 @@ function UI:ToggleViewMode()
             self.totalScoreLabel:SetText("")
         end
         -- Use centralized keystone view height
-        if self.mainFrame then
-            self.mainFrame:SetHeight(NextKey222.UIConfig.WINDOW.PLAYER_VIEW_HEIGHT)
-        end
+        self:ApplyWindowHeight()
         self:RenderResults()
     end
 end
@@ -1837,6 +2497,51 @@ function UI:CalculateIOGainRange(keystoneData)
     return { min = 0, max = 0, expected = 0 }
 end
 
+--- Calculates group IO gain totals at key breakpoints (untimed/timed/+2/+3)
+-- @param keyInfo table Keystone information (expects .level and .dungeonID)
+-- @param playerBreakdown table Map of playerName -> { current, range = {min, expected, max} }
+-- @return table|nil { untimed={total,average}, timed={...}, plus2={...}, plus3={...} }
+function UI:CalculateBreakpointRanges(keyInfo, playerBreakdown)
+    if not keyInfo or not playerBreakdown or not NextKey222.IOCalculator then
+        return nil
+    end
+
+    local level = tonumber(keyInfo.level) or 0
+    if level <= 0 then return nil end
+
+    local count = 0
+    local totals = { untimed = 0, timed = 0, plus2 = 0, plus3 = 0 }
+
+    for _, pdata in pairs(playerBreakdown) do
+        count = count + 1
+        local pr = pdata.range or {}
+
+        -- Use per-player range for untimed/timed/+3 directly (consistent with IOCalculator)
+        local minGain = tonumber(pr.min) or 0
+        local expectedGain = tonumber(pr.expected) or 0
+        local maxGain = tonumber(pr.max) or 0
+
+        totals.untimed = totals.untimed + math.max(0, minGain)
+        totals.timed   = totals.timed   + math.max(0, expectedGain)
+        totals.plus3   = totals.plus3   + math.max(0, maxGain)
+
+        -- For +2, linearly interpolate the gain between timed (20% bonus) and 3-chest (40% bonus)
+        local timedGainClamped = math.max(0, expectedGain)
+        local maxGainClamped = math.max(timedGainClamped, maxGain)
+        local gainPlus2 = timedGainClamped + (maxGainClamped - timedGainClamped) * 0.5
+        totals.plus2 = totals.plus2 + gainPlus2
+    end
+
+    if count == 0 then return nil end
+
+    return {
+        untimed = { total = totals.untimed, average = totals.untimed / count },
+        timed   = { total = totals.timed,   average = totals.timed   / count },
+        plus2   = { total = totals.plus2,   average = totals.plus2   / count },
+        plus3   = { total = totals.plus3,   average = totals.plus3   / count },
+    }
+end
+
 --- Checks if the main frame is currently visible
 -- @return boolean true if the main frame is visible and shown
 function UI:IsMainFrameVisible()
@@ -1924,6 +2629,17 @@ end
 function UI:Initialize()
     Debug:Dev("ui", "UI module initialized")
     return true
+end
+
+-- Slash command for manual debug control refresh (for testing)
+SLASH_NEXTKEYREFRESHDEBUG1 = "/nextkeyrefreshdebug"
+SlashCmdList["NEXTKEYREFRESHDEBUG"] = function(msg)
+    Debug:User("Manual debug controls refresh triggered")
+    if NextKey222.UI and NextKey222.UI.RefreshDebugControls then
+        NextKey222.UI:RefreshDebugControls()
+    else
+        Debug:Error("UI module not available for debug refresh")
+    end
 end
 
 return UI

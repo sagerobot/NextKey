@@ -34,6 +34,7 @@ function BlizzardAdapter:GetProfile(playerName)
     local profile = {
         name = playerName,
         class = select(2, UnitClass("player")),
+        specID = GetSpecializationInfo and GetSpecializationInfo(GetSpecialization() or 0),
         io = 0, -- Will be calculated from dungeon scores
         dataSource = "blizzard",
         dungeonScores = {},

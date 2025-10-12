@@ -252,6 +252,10 @@ function DebugService:SetEnabled(enabled)
     end
     
     self:User("Debug", enabled and "enabled" or "disabled")
+
+    if NextKey222.UI and NextKey222.UI.OnDebugModeChanged then
+        NextKey222.UI:OnDebugModeChanged()
+    end
     
     return true
 end

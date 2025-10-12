@@ -24,39 +24,193 @@ local VALID_CLASSES = {
     "SHAMAN", "MAGE", "WARLOCK", "MONK", "DRUID", "DEMONHUNTER", "EVOKER"
 }
 
+-- Spec definitions with associated roles (uses specialization IDs from Blizzard API)
+local CLASS_SPEC_DATA = {
+    WARRIOR = {
+        { specID = 71, specName = "Arms", role = "DAMAGER" },
+        { specID = 72, specName = "Fury", role = "DAMAGER" },
+        { specID = 73, specName = "Protection", role = "TANK" }
+    },
+    PALADIN = {
+        { specID = 65, specName = "Holy", role = "HEALER" },
+        { specID = 66, specName = "Protection", role = "TANK" },
+        { specID = 70, specName = "Retribution", role = "DAMAGER" }
+    },
+    HUNTER = {
+        { specID = 253, specName = "Beast Mastery", role = "DAMAGER" },
+        { specID = 254, specName = "Marksmanship", role = "DAMAGER" },
+        { specID = 255, specName = "Survival", role = "DAMAGER" }
+    },
+    ROGUE = {
+        { specID = 259, specName = "Assassination", role = "DAMAGER" },
+        { specID = 260, specName = "Outlaw", role = "DAMAGER" },
+        { specID = 261, specName = "Subtlety", role = "DAMAGER" }
+    },
+    PRIEST = {
+        { specID = 256, specName = "Discipline", role = "HEALER" },
+        { specID = 257, specName = "Holy", role = "HEALER" },
+        { specID = 258, specName = "Shadow", role = "DAMAGER" }
+    },
+    DEATHKNIGHT = {
+        { specID = 250, specName = "Blood", role = "TANK" },
+        { specID = 251, specName = "Frost", role = "DAMAGER" },
+        { specID = 252, specName = "Unholy", role = "DAMAGER" }
+    },
+    SHAMAN = {
+        { specID = 262, specName = "Elemental", role = "DAMAGER" },
+        { specID = 263, specName = "Enhancement", role = "DAMAGER" },
+        { specID = 264, specName = "Restoration", role = "HEALER" }
+    },
+    MAGE = {
+        { specID = 62, specName = "Arcane", role = "DAMAGER" },
+        { specID = 63, specName = "Fire", role = "DAMAGER" },
+        { specID = 64, specName = "Frost", role = "DAMAGER" }
+    },
+    WARLOCK = {
+        { specID = 265, specName = "Affliction", role = "DAMAGER" },
+        { specID = 266, specName = "Demonology", role = "DAMAGER" },
+        { specID = 267, specName = "Destruction", role = "DAMAGER" }
+    },
+    MONK = {
+        { specID = 268, specName = "Brewmaster", role = "TANK" },
+        { specID = 269, specName = "Windwalker", role = "DAMAGER" },
+        { specID = 270, specName = "Mistweaver", role = "HEALER" }
+    },
+    DRUID = {
+        { specID = 102, specName = "Balance", role = "DAMAGER" },
+        { specID = 103, specName = "Feral", role = "DAMAGER" },
+        { specID = 104, specName = "Guardian", role = "TANK" },
+        { specID = 105, specName = "Restoration", role = "HEALER" }
+    },
+    DEMONHUNTER = {
+        { specID = 577, specName = "Havoc", role = "DAMAGER" },
+        { specID = 581, specName = "Vengeance", role = "TANK" }
+    },
+    EVOKER = {
+        { specID = 1467, specName = "Devastation", role = "DAMAGER" },
+        { specID = 1468, specName = "Preservation", role = "HEALER" },
+        { specID = 1473, specName = "Augmentation", role = "DAMAGER" }
+    }
+}
+
+local CLASS_CAPABILITIES = {
+    SHAMAN = { heroism = true },
+    MAGE = { heroism = true },
+    EVOKER = { heroism = true },
+    DRUID = { battleRes = true },
+    WARLOCK = { battleRes = true },
+    DEATHKNIGHT = { battleRes = true }
+}
+
+local SPEC_CAPABILITIES = {
+    [262] = { heroism = true },
+    [263] = { heroism = true },
+    [264] = { heroism = true },
+    [62]  = { heroism = true },
+    [63]  = { heroism = true },
+    [64]  = { heroism = true },
+    [1467] = { heroism = true },
+    [1468] = { heroism = true },
+    [1473] = { heroism = true },
+    [253] = { heroism = true },
+
+    [102] = { battleRes = true },
+    [103] = { battleRes = true },
+    [104] = { battleRes = true },
+    [105] = { battleRes = true },
+    [250] = { battleRes = true },
+    [251] = { battleRes = true },
+    [252] = { battleRes = true },
+    [265] = { battleRes = true },
+    [266] = { battleRes = true },
+    [267] = { battleRes = true }
+}
+
+-- Realistic IO distribution based on TWW Season 3 US cutoffs
+-- Target IO ranges derived from raider.io/mythic-plus/cutoffs/season-tww-3/us
 local SKILL_TIERS = {
-    elite = { baseLevel = {28, 30}, timingChance = 0.95 },
-    expert = { baseLevel = {22, 27}, timingChance = 0.85 },
-    skilled = { baseLevel = {16, 21}, timingChance = 0.70 },
-    average = { baseLevel = {10, 15}, timingChance = 0.50 },
-    casual = { baseLevel = {6, 9}, timingChance = 0.30 },
-    beginner = { baseLevel = {2, 5}, timingChance = 0.15 }
+    -- Top 0.1% - Title holders, all 20s+
+    title = { 
+        baseLevel = {20, 22}, 
+        timingChance = 0.98, 
+        targetIO = {3600, 3800},
+        description = "Top 0.1% - All 20s+" 
+    },
+    -- Top 1% - Elite pushers, 18-19s
+    elite = { 
+        baseLevel = {18, 20}, 
+        timingChance = 0.95, 
+        targetIO = {3300, 3600},
+        description = "Top 1% - 18-19s" 
+    },
+    -- Top 5% - Expert players, 15-17s
+    expert = { 
+        baseLevel = {15, 18}, 
+        timingChance = 0.88, 
+        targetIO = {3100, 3400},
+        description = "Top 5% - 15-17s" 
+    },
+    -- Top 10% - Skilled players, 13-14s (KSL territory)
+    skilled = { 
+        baseLevel = {13, 15}, 
+        timingChance = 0.75, 
+        targetIO = {2900, 3100},
+        description = "Top 10% - KSL 13-14s" 
+    },
+    -- Top 25% - Competent players, 11-12s (KSH territory)
+    competent = { 
+        baseLevel = {11, 13}, 
+        timingChance = 0.65, 
+        targetIO = {2500, 2900},
+        description = "Top 25% - KSH 11-12s" 
+    },
+    -- Top 50% - Average players, 7-10s (KSM territory)
+    average = { 
+        baseLevel = {7, 11}, 
+        timingChance = 0.50, 
+        targetIO = {2000, 2600},
+        description = "Top 50% - KSM 7-10s" 
+    },
+    -- Top 60% - Casual players, 4-6s (KSC territory)
+    casual = { 
+        baseLevel = {4, 7}, 
+        timingChance = 0.35, 
+        targetIO = {1500, 2000},
+        description = "Top 60% - KSC 4-6s" 
+    },
+    -- Top 70% - New players, 2-3s
+    beginner = { 
+        baseLevel = {2, 4}, 
+        timingChance = 0.20, 
+        targetIO = {1000, 1500},
+        description = "Top 70% - 2-3s" 
+    }
 }
 
 local PRESET_CONFIGS = {
     mixed_skill = {
-        { tier = "expert", addon = { nextkey = true, raiderio = true } },
-        { tier = "skilled", addon = { nextkey = true, raiderio = true } },
-        { tier = "average", addon = { nextkey = false, raiderio = true } },
-        { tier = "casual", addon = { nextkey = false, raiderio = false } }
+        { tier = "expert" },
+        { tier = "skilled" },
+        { tier = "competent" },
+        { tier = "average" }
     },
     beginner = {
-        { tier = "beginner", addon = { nextkey = false, raiderio = false } },
-        { tier = "casual", addon = { nextkey = false, raiderio = false } },
-        { tier = "casual", addon = { nextkey = false, raiderio = true } },
-        { tier = "average", addon = { nextkey = true, raiderio = true } }
+        { tier = "beginner" },
+        { tier = "casual" },
+        { tier = "casual" },
+        { tier = "average" }
     },
     expert = {
-        { tier = "elite", addon = { nextkey = true, raiderio = true } },
-        { tier = "expert", addon = { nextkey = true, raiderio = true } },
-        { tier = "expert", addon = { nextkey = true, raiderio = true } },
-        { tier = "skilled", addon = { nextkey = true, raiderio = true } }
+        { tier = "title" },
+        { tier = "elite" },
+        { tier = "expert" },
+        { tier = "skilled" }
     },
     high_keys = {
-        { tier = "elite", addon = { nextkey = true, raiderio = true } },
-        { tier = "elite", addon = { nextkey = true, raiderio = true } },
-        { tier = "expert", addon = { nextkey = true, raiderio = true } },
-        { tier = "expert", addon = { nextkey = true, raiderio = true } }
+        { tier = "title" },
+        { tier = "title" },
+        { tier = "elite" },
+        { tier = "expert" }
     }
 }
 
@@ -221,6 +375,23 @@ local function calculateTotalIO(dungeonScores)
     return total
 end
 
+local function pickSpecForClass(classToken)
+    local specs = CLASS_SPEC_DATA[classToken]
+    if not specs or #specs == 0 then
+        return nil
+    end
+    return specs[math.random(#specs)]
+end
+
+local function determineCapabilities(classToken, specID)
+    local specCaps = SPEC_CAPABILITIES[specID] or {}
+    local classCaps = CLASS_CAPABILITIES[classToken] or {}
+    return {
+        heroism = specCaps.heroism or classCaps.heroism or false,
+        battleRes = specCaps.battleRes or classCaps.battleRes or false
+    }
+end
+
 -- MARK: Public API - Player Management
 
 --- Initializes the fake player service
@@ -329,24 +500,33 @@ function FakePlayerService:CreatePlayer(config)
             keystone = generateKeystone(dungeonIDs, dungeonScores, baseLevel)
         end
         
+        local classToken = config.class and string.upper(config.class) or getRandomClass()
+        local specInfo = pickSpecForClass(classToken)
+        local capabilities = determineCapabilities(classToken, specInfo and specInfo.specID)
+
         -- Create player data structure
         local playerData = {
             id = playerID,
             name = playerName,
-            class = config.class or getRandomClass(),
+            class = classToken,
             tier = tier,
             dungeonScores = dungeonScores,
             keystone = keystone,
             addonStatus = config.addonStatus or { nextkey = false, raiderio = false },
             io = config.io or calculateTotalIO(dungeonScores),
             createdAt = GetTime(),
-            dataSource = "fake_player_service"
+            dataSource = "fake_player_service",
+            role = specInfo and specInfo.role or "DAMAGER",
+            specID = specInfo and specInfo.specID or nil,
+            specName = specInfo and specInfo.specName or nil,
+            heroismCaster = capabilities.heroism,
+            battleResCaster = capabilities.battleRes
         }
-        
+
         -- Save to storage
         saveToStorage(playerName, playerData)
-        
-        NextKey222.Debug:Dev("fakeplayerservice", "Created fake player:", playerName, "class:", playerData.class, "tier:", tier, "IO:", playerData.io)
+
+        NextKey222.Debug:Dev("fakeplayerservice", "Created fake player:", playerName, "class:", playerData.class, "spec:", playerData.specName or "Unknown", "tier:", tier, "IO:", playerData.io)
         
         return playerName
     end, "FakePlayerService:CreatePlayer")
@@ -462,7 +642,14 @@ function FakePlayerService:GetProfile(playerName)
             io = playerData.io or 0,
             dataSource = "fake_player_service",
             dungeonScores = {},
-            addonStatus = playerData.addonStatus or { nextkey = false, raiderio = false }
+            addonStatus = playerData.addonStatus or { nextkey = false, raiderio = false },
+            role = playerData.role or "DAMAGER",
+            specID = playerData.specID,
+            specName = playerData.specName,
+            capabilities = {
+                heroism = playerData.heroismCaster or false,
+                battleRes = playerData.battleResCaster or false
+            }
         }
         
         -- Convert dungeon scores to standard format
@@ -522,17 +709,28 @@ function FakePlayerService:GeneratePreset(presetType, count)
         -- Clear existing fake players
         self:ClearAllPlayers()
         
+        -- Get addon configuration from debug state (set by options UI)
+        local addonConfig = { nextkey = true, raiderio = true }  -- Default
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
         -- Determine player count
         local playerCount = count or #preset
         
-        NextKey222.Debug:Dev("fakeplayerservice", "Generating preset:", presetType, "with", playerCount, "players")
+        NextKey222.Debug:Dev("fakeplayerservice", "Generating preset:", presetType, "with", playerCount, "players", 
+            "NextKey:", addonConfig.nextkey and "YES" or "NO", 
+            "RaiderIO:", addonConfig.raiderio and "YES" or "NO")
         
         local created = 0
         for i = 1, playerCount do
             local spec = preset[((i - 1) % #preset) + 1]  -- Cycle through preset specs
             local playerName = self:CreatePlayer({
                 tier = spec.tier,
-                addonStatus = spec.addon
+                addonStatus = addonConfig  -- Use global addon config instead of per-player
             })
             
             if playerName then
@@ -547,7 +745,7 @@ end
 
 --- Generates random fake players
 -- @param count number Number of players to generate
--- @param addonMix table (optional) Distribution of addon status { nextkey = n, raiderio = n, none = n }
+-- @param addonMix table (optional) DEPRECATED - uses global addon config from options
 -- @return number Count of players created
 function FakePlayerService:GenerateRandomPlayers(count, addonMix)
     if not isInitialized then
@@ -561,12 +759,23 @@ function FakePlayerService:GenerateRandomPlayers(count, addonMix)
         -- Clear existing fake players
         self:ClearAllPlayers()
         
-        NextKey222.Debug:Dev("fakeplayerservice", "Generating", count, "random fake players")
+        -- Get addon configuration from debug state (set by options UI)
+        local addonConfig = { nextkey = true, raiderio = true }  -- Default
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        NextKey222.Debug:Dev("fakeplayerservice", "Generating", count, "random fake players",
+            "NextKey:", addonConfig.nextkey and "YES" or "NO", 
+            "RaiderIO:", addonConfig.raiderio and "YES" or "NO")
         
         local created = 0
         for i = 1, count do
             local playerName = self:CreatePlayer({
-                addonStatus = determineAddonStatus(i, addonMix)
+                addonStatus = addonConfig  -- Use global addon config
             })
             
             if playerName then

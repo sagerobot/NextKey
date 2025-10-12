@@ -41,6 +41,7 @@ function RaiderIOAdapter:GetProfile(playerName)
     local profile = {
         name = playerName,
         class = rioProfile.class,
+        specID = mkProfile.specID,
         io = mkProfile.currentScore or 0,
         dataSource = "raiderio",
         dungeonScores = {},
