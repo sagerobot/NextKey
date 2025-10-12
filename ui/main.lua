@@ -48,10 +48,7 @@ local UI = {
     viewToggleBtn = nil,  -- Button to switch between views
     guildToggleBtn = nil, -- Button to toggle guild/party filter
     debugFakeTierSelection = "random",
-    groupPreferences = {
-        prioritizeHeroism = true,
-        prioritizeBattleRes = true
-    }
+    suggestionMode = "auto" -- "auto", "best_key", or "best_groups"
 }
 NextKey222.UI = UI
 NextKey222.RegisterModule("UI", UI)
@@ -373,8 +370,6 @@ function UI:CreateMainFrame()
         self.debugFakeTierDropdown = nil
         self.debugAddFakeBtn = nil
         self.debugClearFakeBtn = nil
-        self.heroismPreferenceCheck = nil
-        self.battleResPreferenceCheck = nil
         self.resultsSpacer = nil
         self:ClearAuxFrames()
     end)
@@ -503,6 +498,27 @@ function UI:CreateMainFrame()
     -- Store reference for text updates
     self.viewToggleBtn = toggleBtn
 
+    -- Group suggestion buttons (visible when 6+ players)
+    local suggestBtn = AceGUI:Create("Button")
+    suggestBtn:SetText("Suggest Groups")
+    suggestBtn:SetAutoWidth(true)
+    suggestBtn:SetCallback("OnClick", function()
+        self:SuggestGroups()
+    end)
+    controls:AddChild(suggestBtn)
+    self.suggestGroupsBtn = suggestBtn
+    suggestBtn.frame:Hide() -- Initially hidden
+
+    local modeBtn = AceGUI:Create("Button")
+    modeBtn:SetText("Auto Mode")
+    modeBtn:SetAutoWidth(true)
+    modeBtn:SetCallback("OnClick", function()
+        self:ToggleSuggestionMode()
+    end)
+    controls:AddChild(modeBtn)
+    self.suggestionModeBtn = modeBtn
+    modeBtn.frame:Hide() -- Initially hidden
+
     -- Debug-only controls for managing fake players
     -- Always create widgets, but only add to layout when debug is enabled
     if NextKey222.FakePlayerService then
@@ -550,36 +566,6 @@ function UI:CreateMainFrame()
         end)
         debugContainer:AddChild(clearFakeBtn)
         self.debugClearFakeBtn = clearFakeBtn
-
-        -- Create heroism preference checkbox
-        local heroismCheck = AceGUI:Create("CheckBox")
-        heroismCheck:SetLabel("Prefer Heroism Support")
-        heroismCheck:SetValue(self.groupPreferences.prioritizeHeroism)
-        heroismCheck:SetCallback("OnValueChanged", function(_, _, value)
-            self.groupPreferences.prioritizeHeroism = value and true or false
-        end)
-        debugContainer:AddChild(heroismCheck)
-        self.heroismPreferenceCheck = heroismCheck
-
-        -- Create battle res preference checkbox
-        local battleResCheck = AceGUI:Create("CheckBox")
-        battleResCheck:SetLabel("Prefer Battle Res Support")
-        battleResCheck:SetValue(self.groupPreferences.prioritizeBattleRes)
-        battleResCheck:SetCallback("OnValueChanged", function(_, _, value)
-            self.groupPreferences.prioritizeBattleRes = value and true or false
-        end)
-        debugContainer:AddChild(battleResCheck)
-        self.battleResPreferenceCheck = battleResCheck
-
-        -- Create suggest groups button (always hidden initially)
-        local suggestBtn = AceGUI:Create("Button")
-        suggestBtn:SetText("Suggest Groups")
-        suggestBtn:SetAutoWidth(true)
-        suggestBtn:SetCallback("OnClick", function()
-            self:SuggestGroups()
-        end)
-        self.suggestGroupsBtn = suggestBtn
-        -- Note: suggestBtn is never added to any container, only shown/hidden in compact mode
 
         -- Add to controls if debug is currently enabled
         local showDebug = self:ShouldShowDebugControls()
@@ -654,8 +640,8 @@ function UI:ToggleMainFrame()
         self.debugFakeTierDropdown = nil
         self.debugAddFakeBtn = nil
         self.debugClearFakeBtn = nil
-        self.heroismPreferenceCheck = nil
-        self.battleResPreferenceCheck = nil
+        self.suggestionModeBtn = nil
+        self.suggestGroupsBtn = nil
         self.resultsSpacer = nil
         self:ClearAuxFrames()
     else
@@ -850,6 +836,66 @@ function UI:HandleDeleteFakePlayer(playerName)
     NextKey222.FakePlayerService:RemovePlayer(playerName)
     Debug:Dev("fakeplayerservice", "UI removed fake player", playerName)
     self:RenderResults()
+end
+
+--- Generate and display intelligent group suggestions
+function UI:SuggestGroups()
+    Debug:Dev("ui", "SuggestGroups called")
+
+    if not NextKey222.GroupSuggestions then
+        Debug:Error("ui", "GroupSuggestions module not available")
+        return
+    end
+
+    -- Generate suggestions based on current mode
+    local suggestion = NextKey222.GroupSuggestions:GenerateSuggestions(self.suggestionMode)
+
+    if not suggestion then
+        Debug:User("No group suggestions available. Need at least 5 players with keystones.")
+        return
+    end
+
+    -- Format for chat output
+    local chatMessage = NextKey222.GroupSuggestions:FormatSuggestionForChat(suggestion)
+
+    -- Send to party/raid chat
+    local chatType = UnitInRaid("player") and "RAID" or "PARTY"
+    if UnitInParty("player") or UnitInRaid("player") then
+        SendChatMessage(chatMessage, chatType)
+        Debug:User("Group suggestions posted to " .. chatType .. " chat")
+    else
+        -- Solo player - show in system chat
+        print(chatMessage)
+        Debug:User("Group suggestions displayed (solo player)")
+    end
+
+    -- Also show a brief summary in user chat
+    if suggestion.mode == "best_key" then
+        Debug:User(string.format("Suggested: %s +%d for %d group IO gain",
+            suggestion.selectedKey.dungeonName or "Unknown",
+            suggestion.selectedKey.level or 0,
+            suggestion.ioGain.total))
+    elseif suggestion.mode == "best_groups" then
+        Debug:User(string.format("Suggested: %d groups from %d players with key rotation",
+            #suggestion.groups, suggestion.totalPlayers))
+    end
+end
+
+--- Toggle between suggestion modes (Best Key vs Best Groups)
+function UI:ToggleSuggestionMode()
+    if self.suggestionMode == "auto" then
+        self.suggestionMode = "best_key"
+        self.suggestionModeBtn:SetText("Best Key Mode")
+        Debug:User("Suggestion mode: Best Key (single group optimization)")
+    elseif self.suggestionMode == "best_key" then
+        self.suggestionMode = "best_groups"
+        self.suggestionModeBtn:SetText("Best Groups Mode")
+        Debug:User("Suggestion mode: Best Groups (multi-group key rotation)")
+    else
+        self.suggestionMode = "auto"
+        self.suggestionModeBtn:SetText("Auto Mode")
+        Debug:User("Suggestion mode: Auto (intelligent selection)")
+    end
 end
 
 --- Shared tooltip handler for IO gain displays (full and compact rows)
@@ -1314,11 +1360,20 @@ function UI:RenderResults()
         end
     end
 
+    -- Update group suggestion button visibility based on compact mode
     if self.suggestGroupsBtn and self.suggestGroupsBtn.frame then
-        if useCompactMode and #self.cachedItems > 0 then
+        if #self.cachedItems >= 6 then
             self.suggestGroupsBtn.frame:Show()
         else
             self.suggestGroupsBtn.frame:Hide()
+        end
+    end
+
+    if self.suggestionModeBtn and self.suggestionModeBtn.frame then
+        if #self.cachedItems >= 6 then
+            self.suggestionModeBtn.frame:Show()
+        else
+            self.suggestionModeBtn.frame:Hide()
         end
     end
 end

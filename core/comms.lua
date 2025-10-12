@@ -501,7 +501,7 @@ function Communications:Initialize()
             NextKey222.Debug:Dev("startup", "Registered comm prefix:", NextKey222.Constants.COMM_PREFIX)
         end, "Communications:Initialize:RegisterComm")
     else
-        NextKey222.Debug:Dev("startup", "⚠️  Cannot register comm prefix - NextKey addon not ready")
+        NextKey222.Debug:Dev("startup", "[!] Cannot register comm prefix - NextKey addon not ready")
     end
     
     -- Initialize storage

@@ -16,7 +16,10 @@ core\config.lua
 # Debug Service (must load before boot.lua)
 core\debugService.lua
 
-# Core System - Consolidated Boot  
+# Debug UI (must load before boot.lua)
+core\debugUI.lua
+
+# Core System - Consolidated Boot
 boot.lua
 
 # Slash Commands (after boot.lua)
@@ -43,6 +46,7 @@ core\utils.lua
 core\season.lua
 core\libopenraid.lua
 core\ioCalculator.lua
+core\groupSuggestions.lua
 core\keystones.lua
 core\raiderio.lua
 core\scoring.lua
@@ -55,6 +59,7 @@ events\handlers.lua
 # Debug
 debug\init.lua
 debug\tools.lua
+debug\testSuite.lua
 
 # UI Components
 ui\main.lua

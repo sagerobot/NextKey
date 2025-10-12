@@ -2,6 +2,49 @@
 
 **🚨 CRITICAL: This is the ONLY authoritative guide for AI agents working on NextKey. All code must follow these standards without exception.**
 
+---
+
+## 🔥 **MANDATORY DEBUG SYSTEM - READ FIRST**
+
+**⚠️ CRITICAL**: NextKey uses a professional debug system. **ALL debugging MUST use this system. NO EXCEPTIONS.**
+
+### 🚨 **ABSOLUTE REQUIREMENTS**
+- **NEVER use `print()` - EVER**
+- **NEVER use custom debug functions - EVER**
+- **ALWAYS use `Debug:Error()`, `Debug:User()`, `Debug:Dev()`, `Debug:Trace()`**
+- **ALWAYS include categories for DEV/TRACE calls**
+- **ALL debug configuration via UI: `/nk config` → Debug System**
+
+### ⚡ **QUICK START**
+```lua
+-- ✅ CORRECT - ALWAYS USE THESE
+Debug:Error("Critical error message")                    -- Always shown
+Debug:User("User-facing message")                      -- Release + Debug
+Debug:Dev("category_name", "Development message")       -- Debug only
+Debug:Trace("category_name", "Verbose trace message")   -- Debug only
+
+-- ❌ FORBIDDEN - NEVER USE THESE
+print("Debug message")  -- NEVER!
+ChatFrame1:AddMessage("Debug")  -- NEVER!
+MyCustomDebug("Debug")  -- NEVER!
+```
+
+### 📚 **REQUIRED READING**
+1. **[DEBUG_SYSTEM_DEVELOPER_GUIDELINES.md](Documentation/DEBUG_SYSTEM_DEVELOPER_GUIDELINES.md)** - **🔥 MANDATORY**
+2. **[DEBUG_SYSTEM_QUICK_REFERENCE.md](Documentation/DEBUG_SYSTEM_QUICK_REFERENCE.md)** - **⚡ QUICK START**
+
+### 🧪 **TESTING**
+- Test your debug: `/script NextKeyRunTests()`
+- Access debug UI: `/nk config` → Debug System
+- Enable categories in Category Groups section
+
+### 🚨 **ENFORCEMENT**
+- Code WILL be rejected for debug violations
+- NO exceptions, NO workarounds, NO alternatives
+- Code review checklist includes debug compliance
+
+---
+
 This document consolidates all architectural requirements, coding standards, project context, and implementation guidelines into a single comprehensive reference.
 
 ---
@@ -300,387 +343,332 @@ end
 
 ---
 
-## 🐛 Debug System Standards (MANDATORY)
+## 🐛 Debug System Standards (MANDATORY - ENHANCED)
 
-**⚠️ CRITICAL**: NextKey uses a centralized DebugService with compile-time stripping for production builds. **NEVER use direct print() statements.**
+**⚠️ CRITICAL**: NextKey uses a professional debug system with UI controls. **NEVER use direct print() statements.**
 
-### Debug System Architecture
+### 🔥 **ENHANCED DEBUG SYSTEM ARCHITECTURE**
 
-NextKey uses a **5-level debug system** that allows:
-- ✅ **Development logging** that can be stripped from release builds
-- ✅ **User-facing messages** that remain in production
-- ✅ **Category-specific filtering** for focused debugging
-- ✅ **Zero performance cost** when debug is disabled
+NextKey now includes a **comprehensive professional debug system** with:
+- ✅ **5-level debug system** with UI-based configuration
+- ✅ **23 organized categories** in 5 logical groups
+- ✅ **Advanced filtering** with patterns, time ranges, and thresholds
+- ✅ **Performance monitoring** with microsecond precision
+- ✅ **Preset system** for quick configuration switching
+- ✅ **Professional UI** accessible via `/nk config` → Debug System
 
-### Debug Levels (STRICTLY ENFORCED)
+### 📋 **MANDATORY DEBUG USAGE PATTERNS**
 
+#### **NEW UI-First Approach**
 ```lua
-NextKey222.DebugLevel = {
-    NONE = 0,      -- Production/Release (completely silent)
-    ERROR = 1,     -- Critical errors only (ALWAYS shown to users)
-    USER = 2,      -- User-facing informational messages (shown in release)
-    DEV = 3,       -- Development logging (stripped from release builds)
-    TRACE = 4      -- Ultra-verbose tracing (stripped from release builds)
-}
+-- ❌ OLD - Manual debug configuration
+if self.db.global.debug.enabled then
+    print("Debug message")
+end
+
+-- ✅ NEW - UI-controlled debugging
+Debug:Dev("category", "Debug message")  -- Controlled via UI
 ```
 
-### ✅ REQUIRED: Debug Usage Patterns
+#### **Enhanced Debug Levels with UI Controls**
+```lua
+-- All levels now controlled via UI: /nk config → Debug System → Control Panel
+Debug:Error("Critical error")     -- Always shown, UI toggle has no effect
+Debug:User("User message")        -- Shown based on UI level setting
+Debug:Dev("category", "Dev msg")  -- Controlled by UI level + category toggle
+Debug:Trace("category", "Trace")  -- Controlled by UI level + category toggle
+```
 
-#### Level 1: ERROR - Critical Errors (Always Show)
-Use for addon-breaking errors that users need to know about:
+### 🎯 **ENHANCED CATEGORY SYSTEM**
+
+Categories are now organized into logical groups in the UI:
+
+#### **Core Systems** Group
+- `startup` - Addon loading and initialization
+- `events` - Event handling and dispatching
+- `performance` - Performance monitoring and metrics
+- `database` - SavedVariables and data persistence
+- `config` - Settings loading and management
+- `options` - Options panel interactions
+
+#### **Communications** Group
+- `communications` - Core communication system
+- `comms` - Low-level message handling
+- `libopenraid` - LibOpenRaid integration
+- `raiderio` - RaiderIO data operations
+- `blizzard` - Blizzard API interactions
+
+#### **Features & UI** Group
+- `ui` - Main user interface
+- `components` - UI components and widgets
+- `tooltip` - Tooltip system
+- `teleport` - Teleport functionality
+- `lootwindow` - Loot tracking interface
+- `profiles` - Profile management
+
+#### **Data Processing** Group
+- `keystones` - Keystone data processing
+- `season` - Seasonal information
+- `IOCalculator` - Score calculations
+- `ioc` - Detailed calculation operations
+- `fakeplayerservice` - Testing data simulation
+
+#### **Testing & Development** Group
+- `test` - Testing utilities
+- `debug` - Debug system self-monitoring
+
+### 🚀 **NEW PERFORMANCE MONITORING**
 
 ```lua
--- Critical errors that prevent functionality
+-- Start performance timer
+local timerId = Debug:StartPerformanceTimer("operation_name", "category")
+
+-- ... your code here ...
+
+-- End timer (automatically logs if thresholds exceeded)
+local measurement = Debug:EndPerformanceTimer(timerId)
+
+-- Or wrap entire function
+local result = Debug:MeasurePerformance("operation_name", "category", function()
+    return ExpensiveFunction()
+end)
+```
+
+### 🔍 **NEW ADVANCED FILTERING**
+
+```lua
+-- The debug system now supports advanced filtering controlled via UI
+-- Access: /nk config → Debug System → Output Options → Advanced Filtering
+
+-- Patterns are automatically applied - no code changes needed
+Debug:Dev("category", "This message may be filtered based on UI settings")
+```
+
+### 📋 **NEW PRESET SYSTEM**
+
+```lua
+-- Presets are now available via UI: /nk config → Debug System → Presets
+-- Common presets:
+--   - Minimal (ERROR only)
+--   - Standard (ERROR + USER)
+--   - Verbose (ERROR + USER + DEV)
+--   - Full (ERROR + USER + DEV + TRACE)
+--   - UI Testing (Focus on interface debugging)
+--   - Performance Testing (Focus on performance tracking)
+
+-- Apply presets via UI - no code changes needed
+```
+
+### ✅ **ENHANCED REQUIRED USAGE PATTERNS**
+
+#### **Level 1: ERROR - Critical Errors**
+```lua
+-- Use for addon-breaking errors
 Debug:Error("FakePlayerService failed to initialize!")
 Debug:Error("Database corruption detected:", errorMessage)
-Debug:Error("Required addon RaiderIO not found")
 
--- ❌ WRONG - Direct print bypasses settings
-print("NextKey: Error - Something broke")
+-- ❌ NEVER use direct print
+print("NextKey: Error - Something broke")  -- FORBIDDEN
 
--- ✅ CORRECT - Uses debug system
+-- ✅ ALWAYS use debug system
 Debug:Error("Something broke:", errorDetails)
 ```
 
-#### Level 2: USER - User Messages (Release-Appropriate)
-Use for helpful information that users should see in production:
-
+#### **Level 2: USER - User Messages**
 ```lua
--- Version and status messages
+-- Use for helpful user information
 Debug:User("NextKey v" .. version .. " loaded successfully")
-Debug:User("Guild keystone sharing requires RaiderIO addon")
-Debug:User("Season 1 dungeons detected")
-
--- User-initiated actions
 Debug:User("Refreshed keystone data")
-Debug:User("Cleared all fake players")
-Debug:User("Debug categories toggled")
 
--- ❌ WRONG - Dev debug left in code
-print("NextKey TELEPORT DEBUG: processing...")
+-- ❌ NEVER leave debug strings in user messages
+print("NextKey TELEPORT DEBUG: processing...")  -- FORBIDDEN
 
--- ✅ CORRECT - User-appropriate message
+-- ✅ ALWAYS use user-appropriate messages
 Debug:User("Teleport button ready")
 ```
 
-#### Level 3: DEV - Development Logging (Stripped from Release)
-Use for verbose development logging that should NOT appear in production:
-
+#### **Level 3: DEV - Development Logging**
 ```lua
--- Module state and flow
-Debug:Dev("fakeplayerservice", "Created fake player:", playerName, "IO:", io)
+-- Use for development logging (controlled by UI)
 Debug:Dev("keystones", "Processing keystone:", dungeonID, "level:", level)
 Debug:Dev("ui", "Refreshing display with", count, "items")
 
--- Data validation and checks
-Debug:Dev("profiles", "Cache hit for player:", playerName)
-Debug:Dev("comms", "Received message from", sender, "size:", dataSize)
-
--- Integration points
-Debug:Dev("raiderio", "Fetching score for player:", playerName)
-Debug:Dev("teleport", "Portal lookup for dungeon:", dungeonID)
-
--- ❌ WRONG - Conditional print still runs
-if self.db.global.debug.enabled then
+-- ❌ NEVER use manual debug checks
+if self.db.global.debug.enabled then  -- FORBIDDEN
     print("NextKey: Debug info")
 end
 
--- ✅ CORRECT - Automatically stripped when DEV_MODE = false
-Debug:Dev("category", "Debug info")
+-- ✅ ALWAYS use automatic category checking
+Debug:Dev("category", "Debug info")  -- Controlled by UI
 ```
 
-#### Level 4: TRACE - Ultra-Verbose (Stripped from Release)
-Use for function entry/exit and ultra-detailed debugging:
-
+#### **Level 4: TRACE - Ultra-Verbose**
 ```lua
--- Function tracing
+-- Use for detailed tracing (controlled by UI)
 Debug:Trace("ui", "RefreshUI() called")
 Debug:Trace("profiles", "BuildProfile() entry, player:", playerName)
-Debug:Trace("keystones", "ScanBags() found", itemCount, "items")
-
--- Performance checkpoints
-Debug:Trace("performance", "Cache lookup took", elapsed, "ms")
-Debug:Trace("comms", "Message queue size:", queueSize)
-
--- State dumps
-Debug:Trace("debug", "Current state:", self:DumpState())
 ```
 
-### Debug Categories (All Available)
-
-All modules must use appropriate debug categories:
+### 🚫 **STRICTLY FORBIDDEN PATTERNS**
 
 ```lua
--- Core functionality
-Debug:Dev("keystones", "...")        -- Keystone detection and processing
-Debug:Dev("communications", "...")   -- Inter-player messaging  
-Debug:Dev("ui", "...")              -- UI updates and rendering
-Debug:Dev("profiles", "...")        -- Player profile building
-Debug:Dev("season", "...")          -- Season data handling
-
--- Integrations
-Debug:Dev("raiderio", "...")        -- RaiderIO integration
-Debug:Dev("libopenraid", "...")     -- LibOpenRaid integration
-Debug:Dev("blizzard", "...")        -- Blizzard API calls
-
--- System components
-Debug:Dev("events", "...")          -- Event handling
-Debug:Dev("startup", "...")         -- Initialization phase
-Debug:Dev("performance", "...")     -- Performance profiling
-Debug:Dev("options", "...")         -- Configuration changes
-
--- Features
-Debug:Dev("teleport", "...")        -- Teleport/travel system
-Debug:Dev("tooltip", "...")         -- Tooltip generation
-Debug:Dev("components", "...")      -- UI components
-Debug:Dev("fakeplayerservice", "...") -- Fake player testing
-Debug:Dev("IOCalculator", "...")    -- Score calculations
-```
-
-### ✅ REQUIRED: Migration from Old Patterns
-
-#### Replace Direct print() Statements
-```lua
--- ❌ OLD - Bypasses settings
-print("NextKey: Loaded version " .. version)
-
--- ✅ NEW - User-appropriate level
-Debug:User("Loaded version " .. version)
-
----
-
--- ❌ OLD - Dev debug left in production
-print("NextKey TELEPORT DEBUG: tooltip called")
-
--- ✅ NEW - Dev level, stripped from release
-Debug:Dev("teleport", "Tooltip called")
-
----
-
--- ❌ OLD - Critical error without proper handling
-print("NextKey: ERROR - Service not available")
-
--- ✅ NEW - Error level, always shown
-Debug:Error("Service not available")
-```
-
-#### Replace Conditional print() Statements
-```lua
--- ❌ OLD - Manual debug checking
-if self.db.global.debug.enabled then
-    print("NextKey: [FAKE PLAYER] Created player", name)
-end
-
--- ✅ NEW - Automatic category checking
-Debug:Dev("fakeplayerservice", "Created player", name)
-
----
-
--- ❌ OLD - Inconsistent debug patterns
-if NextKey222.Addon.db.global.debug.enabled then
-    print("NextKey: Keystone found:", dungeonID)
-end
-
--- ✅ NEW - Standardized debug service
-Debug:Dev("keystones", "Keystone found:", dungeonID)
-```
-
-#### Replace Old NextKey222.Debug:Print()
-```lua
--- ⚠️ OLD - Still works but deprecated
-NextKey222.Debug:Print("keystones", "Processing keystone")
-
--- ✅ NEW - Standardized with levels
-Debug:Dev("keystones", "Processing keystone")
-
----
-
--- ⚠️ OLD - No level distinction
-NextKey222.Debug:Print("startup", "Module initialized")
-
--- ✅ NEW - Clear dev vs user distinction
-Debug:Dev("startup", "Module initialized")  -- Dev logging
-Debug:User("Module ready")                  -- User message
-```
-
-### 🚫 FORBIDDEN Patterns (CODE WILL BE REJECTED)
-
-```lua
--- ❌ NEVER use direct print()
+-- ❌ NEVER use direct print() - EVER
 print("NextKey: Something happened")
-print("Debug:", someVariable)
+
+-- ❌ NEVER use ChatFrame for debug
+ChatFrame1:AddMessage("NextKey: Debug")
 
 -- ❌ NEVER use manual debug checks
 if self.db.global.debug.enabled then
     print("Debug message")
 end
 
--- ❌ NEVER leave debug strings in production
-print("NextKey TELEPORT DEBUG: ...")
-print("NextKey TOGGLE DEBUG: ...")
-print("[KEY DEBUG] ...")
-print("[SORT DEBUG] ...")
-
--- ❌ NEVER use addon:Print() for debug
-addon:Print("Debug: Some debug message")  -- Only use for user messages
-
--- ❌ NEVER bypass debug system
-DEFAULT_CHAT_FRAME:AddMessage("NextKey: Debug")
-```
-
-### Compile-Time Stripping for Release
-
-Before releasing, set the DEV_MODE flag:
-
-```lua
--- core/debugService.lua
-local DebugService = {
-    DEV_MODE = false,  -- ⚠️ SET TO FALSE BEFORE RELEASE!
-    -- ... rest of implementation
-}
-```
-
-When `DEV_MODE = false`:
-- ✅ `Debug:Error()` - Still works (always show errors)
-- ✅ `Debug:User()` - Still works (user messages)
-- ❌ `Debug:Dev()` - Becomes no-op (stripped)
-- ❌ `Debug:Trace()` - Becomes no-op (stripped)
-
-**Result**: Zero performance cost, no debug spam, smaller addon size.
-
-### Debug Commands Available to Users
-
-```lua
--- Toggle debug on/off
-/nk debug
-
--- Set debug level (0-4)
-/nk debug level 0  -- NONE (production)
-/nk debug level 1  -- ERROR only
-/nk debug level 2  -- USER messages
-/nk debug level 3  -- DEV logging
-/nk debug level 4  -- TRACE everything
-
--- Toggle specific category
-/nk debug category ui
-/nk debug category keystones
-
--- Show current debug settings
-/nk debug status
-```
-
-### Module Debug Integration Example
-
-```lua
-local _, NextKey222 = ...
-local Debug = NextKey222.Debug  -- Local reference for convenience
-
--- MARK: Module Definition
-local MyModule = {}
-NextKey222.MyModule = MyModule
-NextKey222.RegisterModule("MyModule", MyModule)
-
--- MARK: Public Interface
-function MyModule:Initialize()
-    Debug:Dev("startup", "MyModule initializing...")
-    
-    local success = NextKey222.SafeRun(function()
-        -- Initialize module data
-        self:LoadConfiguration()
-        self:RegisterEvents()
-        
-        Debug:Dev("startup", "MyModule configuration loaded")
-        return true
-    end, "MyModule:Initialize")
-    
-    if success then
-        Debug:User("MyModule ready")  -- User sees this
-    else
-        Debug:Error("MyModule initialization failed!")  -- Always shown
-    end
-    
-    return success
+-- ❌ NEVER create custom debug functions
+function MyCustomDebug(msg)
+    print(msg)  -- FORBIDDEN
 end
 
-function MyModule:ProcessData(data)
-    -- Trace entry point
-    Debug:Trace("mymodule", "ProcessData() called with", data and "data" or "nil")
-    
-    -- Validate with error level
-    if not data then
-        Debug:Error("ProcessData called with nil data")
-        return nil
-    end
-    
-    -- Dev-level processing info
-    Debug:Dev("mymodule", "Processing", #data, "items")
-    
-    local result = NextKey222.SafeRun(function()
-        local processed = {}
-        for i, item in ipairs(data) do
-            -- Trace verbose details
-            Debug:Trace("mymodule", "Processing item", i, ":", item.name)
-            processed[i] = self:ProcessItem(item)
-        end
-        return processed
-    end, "MyModule:ProcessData")
-    
-    -- Dev-level completion
-    Debug:Dev("mymodule", "Processing complete:", result and "success" or "failed")
-    
-    return result
-end
-```
-
-### Performance Considerations
-
-The debug system is designed for **zero performance cost** when disabled:
-
-```lua
--- When DEV_MODE = false, this becomes:
-Debug:Dev("category", "message")
--- → function() end  (no-op, no string concatenation, no table creation)
-
--- String formatting is lazy-evaluated:
-Debug:Dev("ui", "Processing", complexCalculation())
--- → complexCalculation() never called if debug disabled
-
--- Conditional debug is redundant:
-if Debug.enabled then  -- ❌ DON'T DO THIS
+-- ❌ NEVER hardcode debug behavior
+if isDebugMode then  -- FORBIDDEN - use UI controls
     Debug:Dev("category", "message")
 end
--- Debug:Dev already checks enabled status internally
 ```
 
-### Testing Debug Output
-
-During development, test all debug levels:
+### 🎯 **NEW UI ACCESS METHODS**
 
 ```lua
--- Test script to verify debug levels
-/script NextKey222.Debug:Error("Test ERROR message")
-/script NextKey222.Debug:User("Test USER message")
-/script NextKey222.Debug:Dev("test", "Test DEV message")
-/script NextKey222.Debug:Trace("test", "Test TRACE message")
+-- Access debug system via UI (REQUIRED METHOD)
+/nk config → Debug System
 
--- Verify stripping works
--- 1. Set DEV_MODE = false
--- 2. /reload
--- 3. Dev and Trace messages should NOT appear
--- 4. Error and User messages should still appear
+-- Test the debug system
+/script NextKeyRunTests()
+
+-- Enable specific categories via UI
+-- /nk config → Debug System → Category Groups → [Group Name] → [Category]
 ```
 
-### Migration Checklist for Existing Code
+### 📊 **NEW STATISTICS AND MONITORING**
 
-When updating old code:
-- [ ] Search for all `print("NextKey:` patterns
-- [ ] Replace direct prints with appropriate debug level
-- [ ] Remove manual `if db.global.debug.enabled then` checks
-- [ ] Update `NextKey222.Debug:Print()` to use new levels
-- [ ] Verify category names match available categories
-- [ ] Test with debug enabled and disabled
-- [ ] Verify user messages remain user-friendly
-- [ ] Ensure dev debug doesn't leak to production
+```lua
+-- The debug system now provides comprehensive statistics
+-- Access via UI: /nk config → Debug System → Statistics & Monitoring
+
+-- Includes:
+-- Message counts by level
+-- Performance metrics
+-- Memory usage tracking
+-- Filter efficiency
+-- Cache performance
+```
+
+### 🔧 **ENHANCED MIGRATION REQUIREMENTS**
+
+#### **Replace ALL Direct print() Statements**
+```lua
+-- ❌ OLD - Bypasses all UI controls
+print("NextKey: Loaded version " .. version)
+
+-- ✅ NEW - Full UI control
+Debug:User("Loaded version " .. version)
+
+-- ❌ OLD - Dev debug in production
+print("NextKey TELEPORT DEBUG: tooltip called")
+
+-- ✅ NEW - UI-controlled debug level
+Debug:Dev("teleport", "Tooltip called")
+```
+
+#### **Remove ALL Manual Debug Controls**
+```lua
+-- ❌ OLD - Manual checking (FORBIDDEN)
+if self.db.global.debug.enabled then
+    print("NextKey: [FAKE PLAYER] Created player", name)
+end
+
+-- ✅ NEW - Automatic UI control
+Debug:Dev("fakeplayerservice", "Created player", name)
+```
+
+### 🎯 **PROFESSIONAL DEBUG SYSTEM FEATURES**
+
+#### **Performance Monitoring**
+- Real-time execution tracking
+- Configurable warning/critical thresholds
+- Slowest operations identification
+- Category-based performance breakdown
+
+#### **Advanced Filtering**
+- Pattern filtering (text, regex, wildcard)
+- Time range filtering
+- Level and category filters
+- Message buffering with automatic cleanup
+
+#### **Preset System**
+- 7 built-in presets for common scenarios
+- Custom preset creation and management
+- Quick configuration switching
+
+#### **Statistics & Analytics**
+- Comprehensive usage metrics
+- Performance benchmarking
+- Memory usage tracking
+- Export capabilities for analysis
+
+### 🧪 **ENHANCED TESTING REQUIREMENTS**
+
+```lua
+-- Test all debug levels via UI
+/nk config → Debug System → Control Panel
+-- Set debug level to test
+-- Enable relevant categories
+-- Test functionality
+
+-- Run comprehensive test suite
+/script NextKeyRunTests()
+
+-- Test performance monitoring
+-- Enable performance monitoring in UI
+-- Perform operations that should be tracked
+-- Check Statistics & Monitoring section
+```
+
+### 📋 **ENHANCED CODE REVIEW CHECKLIST**
+
+#### **Debug System Compliance (MANDATORY)**
+- [ ] **NO direct print() calls anywhere in code**
+- [ ] **NO custom debug functions**
+- [ ] **ALL DEV/TRACE calls have proper categories**
+- [ ] **Appropriate debug levels used**
+- [ ] **No manual debug state checking**
+- [ ] **No hardcoded debug behavior**
+- [ ] **UI controls used for all debug configuration**
+
+#### **Professional Debug System Usage**
+- [ ] **Performance monitoring used for expensive operations**
+- [ ] **Appropriate categories from organized groups**
+- [ ] **Context included in all debug messages**
+- [ ] **User messages are user-friendly**
+- [ ] **Error messages are clear and actionable**
+
+### 🚨 **CRITICAL ENFORCEMENT POLICY**
+
+**Code WILL be REJECTED for ANY debug system violations:**
+- ❌ Any direct `print()` usage
+- ❌ Any custom debug function
+- ❌ Missing debug categories
+- ❌ Manual debug state checking
+- ❌ Hardcoded debug behavior
+
+**NO EXCEPTIONS - NO WORKAROUNDS - NO ALTERNATIVES**
+
+---
+
+**📚 COMPLETE DEBUG SYSTEM DOCUMENTATION:**
+- **[DEBUG_SYSTEM_DEVELOPER_GUIDELINES.md](Documentation/DEBUG_SYSTEM_DEVELOPER_GUIDELINES.md)** - **🔥 MANDATORY READING**
+- **[DEBUG_SYSTEM_QUICK_REFERENCE.md](Documentation/DEBUG_SYSTEM_QUICK_REFERENCE.md)** - **⚡ QUICK START**
+- **[DEBUG_SYSTEM_USER_GUIDE.md](Documentation/DEBUG_SYSTEM_USER_GUIDE.md)** - **📖 USER DOCUMENTATION**
+
+**🎯 DEBUG SYSTEM IS MANDATORY - USE IT PROPERLY OR DON'T USE DEBUG AT ALL**
 
 ---
 

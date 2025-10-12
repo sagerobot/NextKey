@@ -726,6 +726,44 @@ function addon:SetupOptions()
                             if reg then reg:NotifyChange("NextKey") end
                         end,
                     },
+                    groupHeader = {
+                        type = "header",
+                        name = "Group Composition Preferences",
+                    },
+                    prioritizeHeroism = {
+                        type = "toggle",
+                        name = "Prefer Heroism Support",
+                        desc = "When suggesting groups, prioritize including players with Heroism/Bloodlust (Mage, Shaman, Evoker).",
+                        width = "full",
+                        get = function()
+                            return addon.db.global.groupPreferences and addon.db.global.groupPreferences.prioritizeHeroism
+                        end,
+                        set = function(_, value)
+                            if not addon.db.global.groupPreferences then
+                                addon.db.global.groupPreferences = {}
+                            end
+                            addon.db.global.groupPreferences.prioritizeHeroism = value
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                    },
+                    prioritizeBattleRes = {
+                        type = "toggle",
+                        name = "Prefer Battle Res Support",
+                        desc = "When suggesting groups, prioritize including players with Battle Resurrection (Druid, Warlock, Death Knight).",
+                        width = "full",
+                        get = function()
+                            return addon.db.global.groupPreferences and addon.db.global.groupPreferences.prioritizeBattleRes
+                        end,
+                        set = function(_, value)
+                            if not addon.db.global.groupPreferences then
+                                addon.db.global.groupPreferences = {}
+                            end
+                            addon.db.global.groupPreferences.prioritizeBattleRes = value
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                    },
                 },
             },
             teleport = {
@@ -748,9 +786,16 @@ function addon:SetupOptions()
         },
     }
 
-    -- Inject debug options if the function exists
-    if self.InjectDebugOptions then
+    -- Inject enhanced debug options using the new DebugUI module
+    if NextKey222.DebugUI and NextKey222.DebugUI.CreateDebugOptions then
+        options.args.debugSystem = NextKey222.DebugUI:CreateDebugOptions()
+        Debug:Dev("options", "Enhanced debug system loaded successfully")
+    elseif self.InjectDebugOptions then
+        -- Fallback to old debug options if new system not available
         self:InjectDebugOptions(options)
+        Debug:Dev("options", "Using legacy debug options as fallback")
+    else
+        Debug:Error("No debug options system available")
     end
 
     local AceConfig = LibStub("AceConfig-3.0")

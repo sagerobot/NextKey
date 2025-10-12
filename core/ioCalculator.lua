@@ -494,35 +494,35 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     -- For current player, use the same reliable method as the UI
     if isCurrentPlayer and NextKey222.UI then
         local currentScore = NextKey222.UI:GetDungeonScore(dungeonID)
-        print("NextKey IOCalc DEBUG: Current player", playerName, "dungeon", dungeonID, "score via UI method:", currentScore)
+        NextKey222.Debug:Dev("IOCalculator", "Current player", playerName, "dungeon", dungeonID, "score via UI method:", currentScore)
         if currentScore and currentScore > 0 then
             return currentScore
         end
     end
     
     -- First priority: Check shared IO data from communications
-    print("NextKey IOCalc DEBUG: Checking Communications for", playerName, "dungeon", dungeonID)
+    NextKey222.Debug:Dev("IOCalculator", "Checking Communications for", playerName, "dungeon", dungeonID)
     if NextKey222.Communications then
         local hasData = NextKey222.Communications:HasIODataForPlayer(playerName)
-        print("NextKey IOCalc DEBUG: Communications HasIODataForPlayer(", playerName .. "):", hasData)
+        NextKey222.Debug:Dev("IOCalculator", "Communications HasIODataForPlayer(", playerName .. "):", hasData)
         
         if hasData then
             local score = NextKey222.Communications:GetPlayerDungeonScore(playerName, dungeonID)
-            print("NextKey IOCalc DEBUG: Communications GetPlayerDungeonScore returned:", score)
+            NextKey222.Debug:Dev("IOCalculator", "Communications GetPlayerDungeonScore returned:", score)
             
             -- Debug: Show what dungeons are in the Communications cache for Ryuza
             if playerName:match("Ryuza") then
-                print("NextKey CACHE CONTENT DEBUG: Dungeons in Communications cache for", playerName .. ":")
+                NextKey222.Debug:Dev("IOCalculator", "Dungeons in Communications cache for", playerName .. ":")
                 local playerData = NextKey222.Communications.playerIOCache[playerName]
                 if playerData and playerData.dungeons then
                     local dungeonCount = 0
                     for dungID, scoreData in pairs(playerData.dungeons) do
-                        print("NextKey CACHE CONTENT DEBUG:   Dungeon", dungID .. ":", scoreData.score or "no score")
+                        NextKey222.Debug:Dev("IOCalculator", "  Dungeon", dungID .. ":", scoreData.score or "no score")
                         dungeonCount = dungeonCount + 1
                     end
-                    print("NextKey CACHE CONTENT DEBUG: Total dungeons in cache:", dungeonCount)
+                    NextKey222.Debug:Dev("IOCalculator", "Total dungeons in cache:", dungeonCount)
                 else
-                    print("NextKey CACHE CONTENT DEBUG: No dungeon data found in cache")
+                    NextKey222.Debug:Dev("IOCalculator", "No dungeon data found in cache")
                 end
             end
             
@@ -532,12 +532,12 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
             -- Debug: Check what's in the cache
             if NextKey222.Communications.playerIOCache then
                 local cacheCount = 0
-                print("NextKey IOCalc DEBUG: Communications cache contents:")
+                NextKey222.Debug:Dev("IOCalculator", "Communications cache contents:")
                 for cacheName, _ in pairs(NextKey222.Communications.playerIOCache) do
                     cacheCount = cacheCount + 1
-                    print("NextKey IOCalc DEBUG:   Cache has:", cacheName)
+                    NextKey222.Debug:Dev("IOCalculator", "  Cache has:", cacheName)
                 end
-                print("NextKey IOCalc DEBUG: Total cache entries:", cacheCount)
+                NextKey222.Debug:Dev("IOCalculator", "Total cache entries:", cacheCount)
             end
         end
     end
@@ -545,34 +545,34 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     -- Second priority: Check RaiderIO data for real players without NextKey
     if not playerName:match("^FakePlayer") and NextKey222.RaiderIOAdapter then
         if NextKey222.RaiderIOAdapter:HasPlayerData(playerName) then
-            print("NextKey IOCalc DEBUG: Checking RaiderIO for", playerName, "dungeon", dungeonID)
+            NextKey222.Debug:Dev("IOCalculator", "Checking RaiderIO for", playerName, "dungeon", dungeonID)
             
             -- Get profile and extract dungeon score
             local profile = NextKey222.RaiderIOAdapter:GetProfile(playerName)
             if profile and profile.dungeonScores and profile.dungeonScores[dungeonID] then
                 local dungeonScore = profile.dungeonScores[dungeonID].bestScore or 0
-                print("NextKey IOCalc DEBUG: RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
+                NextKey222.Debug:Dev("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
                 NextKey222.Debug:Dev("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
                 return dungeonScore
             else
-                print("NextKey IOCalc DEBUG: No RaiderIO score found for", playerName, "dungeon", dungeonID)
+                NextKey222.Debug:Dev("IOCalculator", "No RaiderIO score found for", playerName, "dungeon", dungeonID)
             end
         else
-            print("NextKey IOCalc DEBUG: No RaiderIO data available for", playerName)
+            NextKey222.Debug:Dev("IOCalculator", "No RaiderIO data available for", playerName)
         end
     end
     
     -- Third priority: Check fake players through legacy method
-    print("NextKey IOCalc DEBUG: Checking fake player data for", playerName)
-    print("NextKey IOCalc DEBUG: NextKey222.Addon.UI exists:", NextKey222.Addon.UI and "yes" or "no")
+    NextKey222.Debug:Dev("IOCalculator", "Checking fake player data for", playerName)
+    NextKey222.Debug:Dev("IOCalculator", "NextKey222.Addon.UI exists:", NextKey222.Addon.UI and "yes" or "no")
     
     local fakePlayerData = NextKey222.Addon.UI and NextKey222.Addon.UI:GetFakePlayerData(playerName)
-    print("NextKey IOCalc DEBUG: GetFakePlayerData returned:", fakePlayerData and "data found" or "nil")
+    NextKey222.Debug:Dev("IOCalculator", "GetFakePlayerData returned:", fakePlayerData and "data found" or "nil")
     
     if fakePlayerData then
-        print("NextKey IOCalc DEBUG: fakePlayerData.best exists:", fakePlayerData.best and "yes" or "no")
+        NextKey222.Debug:Dev("IOCalculator", "fakePlayerData.best exists:", fakePlayerData.best and "yes" or "no")
         if fakePlayerData.best then
-            print("NextKey IOCalc DEBUG: Fake player dungeons available:", table.concat(self:GetKeys(fakePlayerData.best), ", "))
+            NextKey222.Debug:Dev("IOCalculator", "Fake player dungeons available:", table.concat(self:GetKeys(fakePlayerData.best), ", "))
         end
     end
     
@@ -647,9 +647,9 @@ function IOCalculator:GetPlayerTotalIO(playerName)
     
     if isCurrentPlayer and NextKey222.Communications then
         -- Ensure current player's IO data is available
-        print("NextKey IOCalc DEBUG: Calling EnsureCurrentPlayerIOData for", playerName, "(total IO)")
+        NextKey222.Debug:Dev("IOCalculator", "Calling EnsureCurrentPlayerIOData for", playerName, "(total IO)")
         local success = NextKey222.Communications:EnsureCurrentPlayerIOData()
-        print("NextKey IOCalc DEBUG: EnsureCurrentPlayerIOData returned:", success, "(total IO)")
+        NextKey222.Debug:Dev("IOCalculator", "EnsureCurrentPlayerIOData returned:", success, "(total IO)")
     end
     
     -- First priority: Check shared IO data from communications
@@ -700,30 +700,30 @@ end
 -- Debug function to test RaiderIO integration for a player
 function IOCalculator:DebugRaiderIOIntegration(playerName)
     if not NextKey222.RaiderIOAdapter then
-        print("NextKey DEBUG: RaiderIO adapter not available")
+        NextKey222.Debug:Dev("IOCalculator", "RaiderIO adapter not available")
         return
     end
     
-    print("NextKey DEBUG: Testing RaiderIO integration for", playerName)
+    NextKey222.Debug:Dev("IOCalculator", "Testing RaiderIO integration for", playerName)
     
     local hasData = NextKey222.RaiderIOAdapter:HasPlayerData(playerName)
-    print("NextKey DEBUG: HasPlayerData:", hasData)
+    NextKey222.Debug:Dev("IOCalculator", "HasPlayerData:", hasData)
     
     if hasData then
         local profile = NextKey222.RaiderIOAdapter:GetProfile(playerName)
         if profile then
-            print("NextKey DEBUG: Profile found - Total IO:", profile.io)
-            print("NextKey DEBUG: Data source:", profile.dataSource)
+            NextKey222.Debug:Dev("IOCalculator", "Profile found - Total IO:", profile.io)
+            NextKey222.Debug:Dev("IOCalculator", "Data source:", profile.dataSource)
             if profile.dungeonScores then
                 local count = 0
                 for dungeonID, scoreData in pairs(profile.dungeonScores) do
                     count = count + 1
-                    print("NextKey DEBUG:   Dungeon", dungeonID .. ":", scoreData.bestScore, "(level +" .. (scoreData.bestLevel or 0) .. ")")
+                    NextKey222.Debug:Dev("IOCalculator", "  Dungeon", dungeonID .. ":", scoreData.bestScore, "(level +" .. (scoreData.bestLevel or 0) .. ")")
                 end
-                print("NextKey DEBUG: Total dungeons with scores:", count)
+                NextKey222.Debug:Dev("IOCalculator", "Total dungeons with scores:", count)
             end
         else
-            print("NextKey DEBUG: Failed to get profile")
+            NextKey222.Debug:Dev("IOCalculator", "Failed to get profile")
         end
     end
 end

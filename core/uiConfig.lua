@@ -7,10 +7,10 @@ local _, NextKey222 = ...
 local UIConfig = {
     -- MARK: Window Dimensions
     WINDOW = {
-        WIDTH = 550,                    -- Overall window width
-        BASE_HEIGHT = 605,              -- Base window height (changes dynamically)
+        WIDTH = 570,                    -- Overall window width
+        BASE_HEIGHT = 645,              -- Base window height (changes dynamically)
         DUNGEON_VIEW_HEIGHT = 775,      -- Height when showing dungeon cards
-        PLAYER_VIEW_HEIGHT = 605,       -- Height when showing player keystones
+        PLAYER_VIEW_HEIGHT = 645,       -- Height when showing player keystones
         PLAYER_VIEW_HEIGHT_DEBUG = 675  -- Height for keystone view when debug controls are visible
     },
     

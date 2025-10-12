@@ -259,6 +259,12 @@ NextKey222.StartUp:RegisterPhaseHandler("Init", function()
         NextKey222.Debug:Dev("startup", "Debug service initialized from database")
     end
     
+    -- Initialize DebugUI after DebugService is ready
+    if NextKey222.DebugUI and NextKey222.DebugUI.InitializeAfterLoad then
+        NextKey222.DebugUI:InitializeAfterLoad()
+        NextKey222.Debug:Dev("startup", "DebugUI initialized after DebugService")
+    end
+    
     -- Initialize FakePlayerService
     if NextKey222.FakePlayerService and NextKey222.FakePlayerService.Initialize then
         NextKey222.Debug:Dev("startup", "Initializing FakePlayerService")
@@ -290,11 +296,19 @@ NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
         NextKey222.Debug:Error("Warning: UI system not available for initialization")
     end
     
+    -- Initialize GroupSuggestions
+    if NextKey222.GroupSuggestions and NextKey222.GroupSuggestions.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing GroupSuggestions")
+        NextKey.SafeRun(function()
+            NextKey222.GroupSuggestions:Initialize()
+        end, "Initialize GroupSuggestions")
+    end
+    
     -- Initialize Communications
     if NextKey222.Communications and NextKey222.Communications.Initialize then
         NextKey222.Debug:Dev("startup", "Initializing Communications")
-        NextKey.SafeRun(function() 
-            NextKey222.Communications:Initialize() 
+        NextKey.SafeRun(function()
+            NextKey222.Communications:Initialize()
         end, "Initialize Communications")
     end
     

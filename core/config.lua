@@ -112,6 +112,12 @@ NextKey222.Defaults = {
             suggestionDelay = 3
         },
         
+        -- Group composition preferences
+        groupPreferences = {
+            prioritizeHeroism = true,
+            prioritizeBattleRes = true
+        },
+        
         -- Teleport/travel settings
         teleport = {
             showHearthstone = false,
