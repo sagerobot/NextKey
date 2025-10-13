@@ -783,6 +783,175 @@ function addon:SetupOptions()
                     },
                 },
             },
+            pugHelper = {
+                type = "group",
+                name = "PUG Helper",
+                desc = "Settings for the PUG (Pick Up Group) Helper that assists with LFG workflow",
+                args = {
+                    enabled = {
+                        type = "toggle",
+                        name = "Enable PUG Helper",
+                        desc = "Enable automatic assistance when using the LFG tool for Mythic+ dungeons",
+                        get = function()
+                            if NextKey222.PUGHelper then
+                                return NextKey222.PUGHelper:IsEnabled()
+                            else
+                                return addon.db.global.pugHelper and addon.db.global.pugHelper.enabled or false
+                            end
+                        end,
+                        set = function(_, value)
+                            if NextKey222.PUGHelper then
+                                NextKey222.PUGHelper:SetEnabled(value)
+                            else
+                                if not addon.db.global.pugHelper then
+                                    addon.db.global.pugHelper = {}
+                                end
+                                addon.db.global.pugHelper.enabled = value
+                            end
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        width = "full",
+                    },
+                    notificationsHeader = {
+                        type = "header",
+                        name = "Invite Notifications",
+                        order = 10,
+                    },
+                    showNotifications = {
+                        type = "toggle",
+                        name = "Show Invite Notifications",
+                        desc = "Display enhanced invite notifications with dungeon information when receiving invites from tracked LFG applications",
+                        get = function()
+                            if NextKey222.PUGHelper then
+                                local config = NextKey222.PUGHelper:GetConfig()
+                                return config.showNotifications
+                            else
+                                return addon.db.global.pugHelper and addon.db.global.pugHelper.showNotifications ~= false
+                            end
+                        end,
+                        set = function(_, value)
+                            if NextKey222.PUGHelper then
+                                NextKey222.PUGHelper:Configure({showNotifications = value})
+                            else
+                                if not addon.db.global.pugHelper then
+                                    addon.db.global.pugHelper = {}
+                                end
+                                addon.db.global.pugHelper.showNotifications = value
+                            end
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        width = "full",
+                        order = 11,
+                    },
+                    autoAcceptInvites = {
+                        type = "toggle",
+                        name = "Auto-Accept Invites",
+                        desc = "Automatically accept group invitations from tracked LFG applications (use with caution)",
+                        get = function()
+                            if NextKey222.PUGHelper then
+                                local config = NextKey222.PUGHelper:GetConfig()
+                                return config.autoAcceptInvites
+                            else
+                                return addon.db.global.pugHelper and addon.db.global.pugHelper.autoAcceptInvites or false
+                            end
+                        end,
+                        set = function(_, value)
+                            if NextKey222.PUGHelper then
+                                NextKey222.PUGHelper:Configure({autoAcceptInvites = value})
+                            else
+                                if not addon.db.global.pugHelper then
+                                    addon.db.global.pugHelper = {}
+                                end
+                                addon.db.global.pugHelper.autoAcceptInvites = value
+                            end
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        width = "full",
+                        order = 12,
+                    },
+                    travelHeader = {
+                        type = "header",
+                        name = "Travel Assistance",
+                        order = 20,
+                    },
+                    travelAssistant = {
+                        type = "toggle",
+                        name = "Travel Assistant",
+                        desc = "Show travel assistance window when joining a PUG group with teleport, hearthstone, and summon options",
+                        get = function()
+                            if NextKey222.PUGHelper then
+                                local config = NextKey222.PUGHelper:GetConfig()
+                                return config.travelAssistant
+                            else
+                                return addon.db.global.pugHelper and addon.db.global.pugHelper.travelAssistant ~= false
+                            end
+                        end,
+                        set = function(_, value)
+                            if NextKey222.PUGHelper then
+                                NextKey222.PUGHelper:Configure({travelAssistant = value})
+                            else
+                                if not addon.db.global.pugHelper then
+                                    addon.db.global.pugHelper = {}
+                                end
+                                addon.db.global.pugHelper.travelAssistant = value
+                            end
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        width = "full",
+                        order = 21,
+                    },
+                    getawayUI = {
+                        type = "toggle",
+                        name = "Post-Run Getaway UI",
+                        desc = "Show quick exit options after completing a Mythic+ dungeon with a PUG group",
+                        get = function()
+                            if NextKey222.PUGHelper then
+                                local config = NextKey222.PUGHelper:GetConfig()
+                                return config.getawayUI
+                            else
+                                return addon.db.global.pugHelper and addon.db.global.pugHelper.getawayUI ~= false
+                            end
+                        end,
+                        set = function(_, value)
+                            if NextKey222.PUGHelper then
+                                NextKey222.PUGHelper:Configure({getawayUI = value})
+                            else
+                                if not addon.db.global.pugHelper then
+                                    addon.db.global.pugHelper = {}
+                                end
+                                addon.db.global.pugHelper.getawayUI = value
+                            end
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        width = "full",
+                        order = 22,
+                    },
+                    testHeader = {
+                        type = "header",
+                        name = "Testing",
+                        order = 30,
+                    },
+                    testApplication = {
+                        type = "execute",
+                        name = "Test Application Tracking",
+                        desc = "Simulate applying to an LFG group to test the PUG Helper functionality",
+                        func = function()
+                            if NextKey222.PUGHelper and NextKey222.PUGHelper.TestApplicationTracking then
+                                NextKey222.PUGHelper:TestApplicationTracking()
+                                addon:Print("PUG Helper: Test application tracking activated")
+                            else
+                                addon:Print("PUG Helper: Module not available")
+                            end
+                        end,
+                        order = 31,
+                    },
+                },
+            },
         },
     }
 

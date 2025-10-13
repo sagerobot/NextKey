@@ -67,6 +67,13 @@ local Commands = {
         cmd = {"rio"},
         desc = "Debug RaiderIO data structure",
         handler = "DebugRaiderIO"
+    },
+    
+    -- PUG Helper commands
+    {
+        cmd = {"pug"},
+        desc = "PUG Helper commands (use '/nk pug help' for details)",
+        handler = "PUGCommands"
     }
 }
 
@@ -167,6 +174,51 @@ local TestCommands = {
     }
 }
 
+-- PUG Helper subcommands
+local PUGCommands = {
+    {
+        cmd = {"", "help", "?"},
+        desc = "Show PUG Helper command help",
+        handler = "ShowPUGHelp"
+    },
+    {
+        cmd = {"status"},
+        desc = "Show PUG Helper status and current state",
+        handler = "ShowPUGStatus"
+    },
+    {
+        cmd = {"test"},
+        desc = "Test PUG Helper application tracking",
+        handler = "TestPUGTracking"
+    },
+    {
+        cmd = {"simulate"},
+        desc = "Simulate PUG workflow: /nk pug simulate <invite|join|complete>",
+        usage = "/nk pug simulate <invite|join|complete>",
+        details = {
+            "  invite - Simulate receiving a group invite",
+            "  join - Simulate joining a group",
+            "  complete - Simulate completing a dungeon"
+        },
+        handler = "SimulatePUGWorkflow"
+    },
+    {
+        cmd = {"enable"},
+        desc = "Enable PUG Helper",
+        handler = "EnablePUGHelper"
+    },
+    {
+        cmd = {"disable"},
+        desc = "Disable PUG Helper",
+        handler = "DisablePUGHelper"
+    },
+    {
+        cmd = {"reset"},
+        desc = "Reset PUG Helper state",
+        handler = "ResetPUGHelper"
+    }
+}
+
 -- MARK: - Command Handlers
 
 local SlashCommands = {}
@@ -233,6 +285,11 @@ function SlashCommands:ShowStatus()
     NextKey222.Debug:User("- Communications Ready:", NextKey222.Communications and "Yes" or "No")
     NextKey222.Debug:User("- Debug Ready:", NextKey222.Debug and "Yes" or "No")
     NextKey222.Debug:User("- IOCalculator Ready:", NextKey222.IOCalculator and "Yes" or "No")
+    NextKey222.Debug:User("- PUG Helper Ready:", NextKey222.PUGHelper and "Yes" or "No")
+    if NextKey222.PUGHelper then
+        NextKey222.Debug:User("- PUG Helper Enabled:", NextKey222.PUGHelper:IsEnabled() and "Yes" or "No")
+        NextKey222.Debug:User("- PUG Helper State:", NextKey222.PUGHelper:GetState())
+    end
 end
 
 -- Reload
@@ -428,6 +485,128 @@ function SlashCommands:DebugRaiderIO()
     end
 end
 
+-- MARK: - PUG Helper Command Handlers
+
+function SlashCommands:ShowPUGHelp()
+    NextKey222.Debug:User("=== PUG Helper Commands ===")
+    for _, cmd in ipairs(PUGCommands) do
+        local cmdStr = "/" .. "nk pug " .. cmd.cmd[1]
+        if cmd.cmd[1] == "" then
+            cmdStr = "/" .. "nk pug"
+        end
+        NextKey222.Debug:User("  " .. cmdStr .. " - " .. cmd.desc)
+        if cmd.details then
+            for _, detail in ipairs(cmd.details) do
+                NextKey222.Debug:User(detail)
+            end
+        end
+    end
+end
+
+function SlashCommands:ShowPUGStatus()
+    if not NextKey222.PUGHelper then
+        NextKey222.Debug:User("PUG Helper module not available")
+        return
+    end
+    
+    NextKey222.Debug:User("=== PUG Helper Status ===")
+    NextKey222.Debug:User("- Enabled:", NextKey222.PUGHelper:IsEnabled() and "Yes" or "No")
+    NextKey222.Debug:User("- Current State:", NextKey222.PUGHelper:GetState())
+    
+    local config = NextKey222.PUGHelper:GetConfig()
+    NextKey222.Debug:User("- Show Notifications:", config.showNotifications and "Yes" or "No")
+    NextKey222.Debug:User("- Auto Accept Invites:", config.autoAcceptInvites and "Yes" or "No")
+    NextKey222.Debug:User("- Travel Assistant:", config.travelAssistant and "Yes" or "No")
+    NextKey222.Debug:User("- Getaway UI:", config.getawayUI and "Yes" or "No")
+end
+
+function SlashCommands:TestPUGTracking()
+    if not NextKey222.PUGHelper then
+        NextKey222.Debug:User("PUG Helper module not available")
+        return
+    end
+    
+    if NextKey222.PUGHelper.TestApplicationTracking then
+        NextKey222.PUGHelper:TestApplicationTracking()
+        NextKey222.Debug:User("PUG Helper: Test application tracking activated")
+    else
+        NextKey222.Debug:User("PUG Helper: Test function not available")
+    end
+end
+
+function SlashCommands:SimulatePUGWorkflow(action)
+    if not NextKey222.PUGHelper then
+        NextKey222.Debug:User("PUG Helper module not available")
+        return
+    end
+    
+    if not action or action == "" then
+        NextKey222.Debug:User("Usage: /nk pug simulate <invite|join|complete>")
+        return
+    end
+    
+    action = string.lower(action)
+    
+    if action == "invite" then
+        -- Simulate receiving an invite
+        NextKey222.Debug:User("PUG Helper: Simulating group invite...")
+        if NextKey222.Events and NextKey222.Events.OnGroupInviteConfirmation then
+            NextKey222.Events:OnGroupInviteConfirmation("TestLeader-Realm")
+        end
+    elseif action == "join" then
+        -- Simulate joining a group
+        NextKey222.Debug:User("PUG Helper: Simulating group join...")
+        if NextKey222.Events and NextKey222.Events.OnGroupJoined then
+            NextKey222.Events:OnGroupJoined()
+        end
+    elseif action == "complete" then
+        -- Simulate completing a dungeon
+        NextKey222.Debug:User("PUG Helper: Simulating dungeon completion...")
+        if NextKey222.Events and NextKey222.Events.OnChallengeModeCompleted then
+            NextKey222.Events:OnChallengeModeCompleted(503, 10) -- Ara-Kara, level 10
+        end
+    else
+        NextKey222.Debug:User("Usage: /nk pug simulate <invite|join|complete>")
+        NextKey222.Debug:User("  invite - Simulate receiving a group invite")
+        NextKey222.Debug:User("  join - Simulate joining a group")
+        NextKey222.Debug:User("  complete - Simulate completing a dungeon")
+    end
+end
+
+function SlashCommands:EnablePUGHelper()
+    if not NextKey222.PUGHelper then
+        NextKey222.Debug:User("PUG Helper module not available")
+        return
+    end
+    
+    NextKey222.PUGHelper:SetEnabled(true)
+    NextKey222.Debug:User("PUG Helper enabled")
+end
+
+function SlashCommands:DisablePUGHelper()
+    if not NextKey222.PUGHelper then
+        NextKey222.Debug:User("PUG Helper module not available")
+        return
+    end
+    
+    NextKey222.PUGHelper:SetEnabled(false)
+    NextKey222.Debug:User("PUG Helper disabled")
+end
+
+function SlashCommands:ResetPUGHelper()
+    if not NextKey222.PUGHelper then
+        NextKey222.Debug:User("PUG Helper module not available")
+        return
+    end
+    
+    if NextKey222.PUGHelper.ResetState then
+        NextKey222.PUGHelper:ResetState()
+        NextKey222.Debug:User("PUG Helper state reset")
+    else
+        NextKey222.Debug:User("PUG Helper: Reset function not available")
+    end
+end
+
 -- MARK: - Main Slash Command Handler
 
 local function HandleSlashCommand(input)
@@ -475,6 +654,24 @@ local function HandleSlashCommand(input)
         end
         -- Unknown test subcommand - show help
         SlashCommands:ShowTestHelp()
+        return
+    end
+    
+    -- Handle PUG commands
+    if mainCmd == "pug" then
+        for _, cmdDef in ipairs(PUGCommands) do
+            for _, cmdName in ipairs(cmdDef.cmd) do
+                if subCmd == cmdName then
+                    local handler = SlashCommands[cmdDef.handler]
+                    if handler then
+                        handler(SlashCommands, subArgs[1], subArgs)
+                    end
+                    return
+                end
+            end
+        end
+        -- Unknown PUG subcommand - show help
+        SlashCommands:ShowPUGHelp()
         return
     end
     

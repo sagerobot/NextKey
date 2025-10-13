@@ -312,6 +312,38 @@ NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
         end, "Initialize Communications")
     end
     
+    -- Initialize PUG Helper
+    if NextKey222.PUGHelper and NextKey222.PUGHelper.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing PUG Helper")
+        NextKey.SafeRun(function()
+            NextKey222.PUGHelper:Initialize()
+        end, "Initialize PUG Helper")
+    end
+    
+    -- Initialize PUG Invite Notification
+    if NextKey222.PUGInviteNotification and NextKey222.PUGInviteNotification.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing PUG Invite Notification")
+        NextKey.SafeRun(function()
+            NextKey222.PUGInviteNotification:Initialize()
+        end, "Initialize PUG Invite Notification")
+    end
+    
+    -- Initialize PUG Travel Assistant
+    if NextKey222.PUGTravelAssistant and NextKey222.PUGTravelAssistant.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing PUG Travel Assistant")
+        NextKey.SafeRun(function()
+            NextKey222.PUGTravelAssistant:Initialize()
+        end, "Initialize PUG Travel Assistant")
+    end
+    
+    -- Initialize PUG Getaway UI
+    if NextKey222.PUGGetawayUI and NextKey222.PUGGetawayUI.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing PUG Getaway UI")
+        NextKey.SafeRun(function()
+            NextKey222.PUGGetawayUI:Initialize()
+        end, "Initialize PUG Getaway UI")
+    end
+    
     NextKey222.Debug:Dev("startup", "PostInit phase completed")
 end)
 

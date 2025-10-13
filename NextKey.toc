@@ -53,6 +53,9 @@ core\scoring.lua
 core\comms.lua
 core\dungeonCards.lua
 
+# PUG Helper
+core\pugHelper.lua
+
 # Events
 events\handlers.lua
 
@@ -66,6 +69,11 @@ ui\main.lua
 ui\teleport.lua
 ui\dungeonCards.lua
 ui\lootWindow.lua
+
+# PUG Helper UI Components
+ui\pugInviteNotification.lua
+ui\pugTravelAssistant.lua
+ui\pugGetawayUI.lua
 
 # Options
 options\main.lua

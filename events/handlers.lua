@@ -34,6 +34,23 @@ function Events:RegisterCoreEvents()
         self:OnChatMsgAddon(prefix, message, distribution, sender)
     end)
     
+    -- PUG Helper events
+    NextKey:RegisterEvent("LFG_LIST_APPLICATION_LIST_UPDATED", function()
+        self:OnLFGApplicationListUpdated()
+    end)
+    
+    NextKey:RegisterEvent("LFG_LIST_APPLICATION_STATUS_CHANGED", function(_, resultID, newStatus, oldStatus)
+        self:OnLFGApplicationStatusChanged(resultID, newStatus, oldStatus)
+    end)
+    
+    NextKey:RegisterEvent("GROUP_INVITE_CONFIRMATION", function(_, name)
+        self:OnGroupInviteConfirmation(name)
+    end)
+    
+    NextKey:RegisterEvent("CHALLENGE_MODE_COMPLETED", function(_, mapID, level)
+        self:OnChallengeModeCompleted(mapID, level)
+    end)
+    
     NextKey222.Debug:Dev("events", "Core events registered")
 end
 
@@ -158,10 +175,60 @@ function Events:OnChatMsgAddon(prefix, message, distribution, sender)
     NextKey222.Performance:StopProfile("OnChatMsgAddon")
 end
 
+-- MARK: PUG Helper Event Handlers
+function Events:OnLFGApplicationListUpdated()
+    NextKey222.Performance:StartProfile("OnLFGApplicationListUpdated")
+    
+    -- Forward to PUG Helper if available
+    if NextKey222.PUGHelper and NextKey222.PUGHelper.OnApplicationListUpdated then
+        NextKey.SafeRun(NextKey222.PUGHelper.OnApplicationListUpdated, "PUG Helper application list updated", NextKey222.PUGHelper)
+    end
+    
+    NextKey222.Performance:StopProfile("OnLFGApplicationListUpdated")
+end
+
+function Events:OnLFGApplicationStatusChanged(resultID, newStatus, oldStatus)
+    NextKey222.Performance:StartProfile("OnLFGApplicationStatusChanged")
+    
+    -- Forward to PUG Helper if available
+    if NextKey222.PUGHelper and NextKey222.PUGHelper.OnApplicationStatusChanged then
+        NextKey.SafeRun(NextKey222.PUGHelper.OnApplicationStatusChanged, "PUG Helper application status changed", NextKey222.PUGHelper, resultID, newStatus, oldStatus)
+    end
+    
+    NextKey222.Performance:StopProfile("OnLFGApplicationStatusChanged")
+end
+
+function Events:OnGroupInviteConfirmation(name)
+    NextKey222.Performance:StartProfile("OnGroupInviteConfirmation")
+    
+    -- Forward to PUG Helper if available
+    if NextKey222.PUGHelper and NextKey222.PUGHelper.OnGroupInvite then
+        NextKey.SafeRun(NextKey222.PUGHelper.OnGroupInvite, "PUG Helper group invite", NextKey222.PUGHelper, name)
+    end
+    
+    NextKey222.Performance:StopProfile("OnGroupInviteConfirmation")
+end
+
+function Events:OnChallengeModeCompleted(mapID, level)
+    NextKey222.Performance:StartProfile("OnChallengeModeCompleted")
+    
+    -- Forward to PUG Helper if available
+    if NextKey222.PUGHelper and NextKey222.PUGHelper.OnChallengeModeCompleted then
+        NextKey.SafeRun(NextKey222.PUGHelper.OnChallengeModeCompleted, "PUG Helper challenge mode completed", NextKey222.PUGHelper, mapID, level)
+    end
+    
+    NextKey222.Performance:StopProfile("OnChallengeModeCompleted")
+end
+
 -- MARK: Module Interface
 function Events:Initialize()
     self:RegisterCoreEvents()
     NextKey222.Debug:Dev("events", "Events module initialized")
+    return true
+end
+
+function Events:Enable()
+    NextKey222.Debug:Dev("events", "Events module enabled")
     return true
 end
 
