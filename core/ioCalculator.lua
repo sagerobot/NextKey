@@ -36,6 +36,8 @@ local dungeonMatrix = {
 }
 
 -- MARK: Initialization & Setup
+--- Initializes the IOCalculator module.
+--- This function resets the player score caches and logs the initialization.
 function IOCalculator:Initialize()
     self.playerScores = {}
     self.fakePlayerScores = {}
@@ -46,7 +48,10 @@ end
 -- MARK: Utility Functions for Score Estimation
 -- These functions provide utility for score estimation and time approximation
 
--- Convert number of chests achieved to approximate fractional completion time
+--- Converts the number of chests from a Mythic+ run into an approximate fractional completion time.
+--- For example, 3 chests is equivalent to completing the dungeon in 60% of the allotted time.
+---@param chests number The number of chests (0-3).
+---@return number The approximate fractional completion time (e.g., 0.6 for 3 chests).
 function IOCalculator:ApproximateFractionalFromChests(chests)
     if not chests or chests < 0 then return 1.0 end
     if chests > 3 then chests = 3 end
@@ -62,8 +67,12 @@ function IOCalculator:ApproximateFractionalFromChests(chests)
     return fractions[chests] or 1.0
 end
 
--- Simple score estimation for debug/testing purposes
--- For accurate scoring, use CalculateDungeonScore() with actual run/time limit data
+--- Estimates the score of a Mythic+ run based on the keystone level and whether it was timed.
+--- This is a simplified estimation for UI and debugging purposes.
+---@param level number The keystone level.
+---@param timed boolean Whether the run was completed within the timer.
+---@param fractionalTime number|nil An optional fractional completion time for a more accurate estimation.
+---@return number The estimated score.
 function IOCalculator:EstimateRunScore(level, timed, fractionalTime)
     level = tonumber(level) or 0
     if level < 2 then return 0 end
@@ -91,9 +100,12 @@ end
 
 
 -- MARK: Core Rating Calculations
--- Calculate dungeon score using MythicPlanner.com formula
--- PT = Min[ (TLimit - TRun) / TLimit , 0.40 ]
--- Rating = BaseLevel + (PT * 37.5) - (overtime penalty of 15 if over time)
+--- Calculates the precise Mythic+ score for a completed run using the MythicPlanner.com formula.
+--- The formula considers the run time, time limit, and keystone level to provide an accurate score.
+---@param runTime number The time taken to complete the dungeon, in seconds.
+---@param timeLimit number The time limit for the dungeon, in seconds.
+---@param keyLevel number The keystone level.
+---@return number The calculated score.
 function IOCalculator:CalculateDungeonScore(runTime, timeLimit, keyLevel)
     if not runTime or not timeLimit or not keyLevel then
         return 0
@@ -130,7 +142,9 @@ function IOCalculator:CalculateDungeonScore(runTime, timeLimit, keyLevel)
 end
 
 -- MARK: Dungeon Metrics Lookup
--- Get base/min/max scores for a key level
+--- Retrieves the base, minimum, and maximum possible scores for a given keystone level.
+---@param keyLevel number The keystone level.
+---@return table|nil A table with base, min, and max scores, or nil if the level is invalid.
 function IOCalculator:GetDungeonMetrics(keyLevel)
     if keyLevel <= 0 then
         return nil
@@ -156,7 +170,10 @@ function IOCalculator:GetDungeonMetrics(keyLevel)
 end
 
 -- MARK: Player Score Analysis
--- Calculate what key level a player needs for a target score in a specific dungeon
+--- Calculates the keystone level a player needs to complete to achieve a target score in a specific dungeon.
+---@param targetScore number The desired Mythic+ score.
+---@param dungeonTimeLimit number The time limit of the dungeon in seconds.
+---@return table|nil A table with the required key level and time, or nil if the score is unachievable.
 function IOCalculator:GetRequiredKeyLevel(targetScore, dungeonTimeLimit)
     if not targetScore or targetScore <= 0 then
         return nil
@@ -183,7 +200,11 @@ function IOCalculator:GetRequiredKeyLevel(targetScore, dungeonTimeLimit)
 end
 
 -- MARK: Time Requirement Calculations  
--- Calculate required completion time to achieve target score
+--- Calculates the required completion time for a given keystone level to achieve a specific target score.
+---@param targetScore number The target Mythic+ score.
+---@param keyLevel number The keystone level.
+---@param timeLimit number The time limit of the dungeon in seconds.
+---@return number|nil The required completion time in seconds, or nil if the score is unachievable.
 function IOCalculator:GetRequiredTime(targetScore, keyLevel, timeLimit)
     local metrics = self:GetDungeonMetrics(keyLevel)
     if not metrics or not timeLimit then
@@ -229,7 +250,10 @@ function IOCalculator:GetRequiredTime(targetScore, keyLevel, timeLimit)
 end
 
 -- MARK: Player Improvement Analysis
--- Analyze a player's current scores and suggest improvements
+--- Analyzes a player's profile to suggest dungeons they can run to improve their overall Mythic+ score.
+---@param playerProfile table The player's profile, including their dungeon scores.
+---@param targetOverallRating number The player's target overall score.
+---@return table A sorted list of dungeon improvement suggestions.
 function IOCalculator:AnalyzePlayerImprovement(playerProfile, targetOverallRating)
     if not playerProfile or not targetOverallRating then
         return {}
@@ -282,7 +306,10 @@ function IOCalculator:AnalyzePlayerImprovement(playerProfile, targetOverallRatin
 end
 
 -- MARK: Range-Based IO Calculations
--- Calculate IO gain range (min/max/expected) for a player on a specific keystone
+--- Calculates the potential IO gain range (minimum, maximum, and expected) for a player completing a specific keystone.
+---@param keystoneData table The data for the keystone being considered.
+---@param playerProfile table The profile of the player.
+---@return table A table containing the min, max, and expected IO gain.
 function IOCalculator:CalculateIORange(keystoneData, playerProfile)
     if not keystoneData or not playerProfile then
         NextKey222.Debug:Dev("IOCalculator", "CalculateIORange: Missing keystoneData or playerProfile")
@@ -350,7 +377,11 @@ function IOCalculator:CalculateIORange(keystoneData, playerProfile)
 end
 
 -- MARK: Keystone Value Analysis (Legacy compatibility)
--- Calculate the value of completing a specific keystone for IO gain
+--- Calculates the expected IO gain from completing a specific keystone for a player.
+--- This is a legacy function for backward compatibility.
+---@param keystoneData table The data for the keystone.
+---@param playerProfile table The profile of the player.
+---@return number The expected IO gain.
 function IOCalculator:CalculateKeystoneValue(keystoneData, playerProfile)
     -- Return expected value for backward compatibility
     local range = self:CalculateIORange(keystoneData, playerProfile)
@@ -358,7 +389,10 @@ function IOCalculator:CalculateKeystoneValue(keystoneData, playerProfile)
 end
 
 -- MARK: Group Range Calculations
--- Calculate total group IO gain range for a specific keystone
+--- Calculates the total IO gain range for a group of players for a specific keystone.
+---@param keystoneData table The keystone being considered.
+---@param partyProfiles table A table of player profiles for the party.
+---@return table A table with the total min, max, and expected IO gain for the group, and a player-by-player breakdown.
 function IOCalculator:CalculateGroupIORange(keystoneData, partyProfiles)
     local groupRange = {
         min = 0,
@@ -403,7 +437,9 @@ end
 -- MARK: Unified Dungeon Scoring System
 -- Handles both real and fake player dungeon scores in a unified way
 
--- Helper function to get table keys
+--- A helper function to get the keys of a table.
+---@param t table The table to get the keys from.
+---@return table A list of the table's keys.
 function IOCalculator:GetKeys(t)
     local keys = {}
     for k, _ in pairs(t or {}) do
@@ -412,7 +448,11 @@ function IOCalculator:GetKeys(t)
     return keys
 end
 
--- Store real player's dungeon score (from communications or current player)
+--- Stores a player's score for a specific dungeon.
+---@param playerName string The name of the player.
+---@param dungeonID number The ID of the dungeon.
+---@param score number The player's score in the dungeon.
+---@param level number|nil The keystone level of the run.
 function IOCalculator:StorePlayerDungeonScore(playerName, dungeonID, score, level)
     if not self.playerScores[playerName] then
         self.playerScores[playerName] = {}
@@ -427,7 +467,11 @@ function IOCalculator:StorePlayerDungeonScore(playerName, dungeonID, score, leve
     NextKey222.Debug:Dev("IOCalculator", "Stored score for", playerName, "dungeon", dungeonID .. ":", score)
 end
 
--- Get any player's dungeon score (real or fake) using unified data source
+--- Retrieves a player's score for a specific dungeon from various sources.
+--- The function checks the profile service, communication cache, Raider.IO data, and fake player data.
+---@param playerName string The name of the player.
+---@param dungeonID number The ID of the dungeon.
+---@return number The player's score for the dungeon.
 function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     if not playerName or not dungeonID then
         return 0
@@ -636,7 +680,10 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     return 0
 end
 
--- Get player's overall IO score (for both real and fake players) using unified data source
+--- Retrieves a player's total Mythic+ IO score from various sources.
+--- This function is the unified entry point for getting any player's total IO, whether they are real or fake.
+---@param playerName string The name of the player.
+---@return number The player's total IO score.
 function IOCalculator:GetPlayerTotalIO(playerName)
     NextKey222.Debug:Dev("IOCalculator", "GetPlayerTotalIO called for:", playerName)
     
@@ -697,7 +744,9 @@ function IOCalculator:GetPlayerTotalIO(playerName)
     return 0
 end
 
--- Debug function to test RaiderIO integration for a player
+--- A debug function to test the Raider.IO integration for a specific player.
+--- It prints the player's profile data to the debug log.
+---@param playerName string The name of the player to test.
 function IOCalculator:DebugRaiderIOIntegration(playerName)
     if not NextKey222.RaiderIOAdapter then
         NextKey222.Debug:Dev("IOCalculator", "RaiderIO adapter not available")
@@ -728,7 +777,8 @@ function IOCalculator:DebugRaiderIOIntegration(playerName)
     end
 end
 
--- Update current player's scores for all dungeons
+--- Updates the current player's scores for all dungeons and shares them with the group.
+---@return boolean True if any scores were updated, false otherwise.
 function IOCalculator:UpdateCurrentPlayerScores()
     local playerName = UnitName("player")
     if not playerName or not NextKey222.Addon.UI then
@@ -756,7 +806,8 @@ function IOCalculator:UpdateCurrentPlayerScores()
     return updated
 end
 
--- Get stored scores for communications
+--- Gets the current player's stored dungeon scores for sharing with the group.
+---@return table A table of the player's dungeon scores.
 function IOCalculator:GetCurrentPlayerDungeonScores()
     local playerName = UnitName("player")
     if not playerName then return {} end
@@ -764,7 +815,9 @@ function IOCalculator:GetCurrentPlayerDungeonScores()
     return self.playerScores[playerName] or {}
 end
 
--- Receive dungeon scores from communications
+--- Receives and stores dungeon scores from other players in the group.
+---@param playerName string The name of the player whose scores are being received.
+---@param dungeonScores table A table of the player's dungeon scores.
 function IOCalculator:ReceivePlayerDungeonScores(playerName, dungeonScores)
     if not playerName or not dungeonScores then return end
     
@@ -776,7 +829,11 @@ function IOCalculator:ReceivePlayerDungeonScores(playerName, dungeonScores)
 end
 
 -- MARK: Group Recommendation Logic
--- Generate recommendations for a group based on available keystones
+--- Generates and sorts keystone recommendations for a group based on potential IO gain.
+---@param availableKeystones table A list of available keystones.
+---@param partyProfiles table A table of player profiles for the party.
+---@param sortMode string|nil The sorting mode ("min", "max", "players", or "expected").
+---@return table A sorted list of keystone recommendations.
 function IOCalculator:GenerateGroupRecommendations(availableKeystones, partyProfiles, sortMode)
     local recommendations = {}
     

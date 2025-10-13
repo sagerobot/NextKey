@@ -49,10 +49,10 @@ local cacheTimeout = 300 -- 5 minutes
 
 -- MARK: Core Functions
 
----Get a player's RaiderIO profile with caching
----@param target string Unit token or "Name-Realm"
----@param skipCache boolean? Skip cache lookup
----@return table? profile, string? error RaiderIO profile and optional error message
+--- Retrieves a player's Raider.IO profile, using a cache to avoid redundant API calls.
+---@param target string The player's unit token (e.g., "player", "target") or a "Name-Realm" string.
+---@param skipCache boolean? If true, the cache will be bypassed and fresh data will be fetched.
+---@return table|nil, string|nil The player's Raider.IO profile, or nil and an error message if not found.
 function RaiderIO:GetProfile(target, skipCache)
     -- Make sure we can access the function safely
     if not self or not target then
@@ -93,9 +93,9 @@ function RaiderIO:GetProfile(target, skipCache)
     return nil, "No RaiderIO data found"
 end
 
----Format dungeon scores for sync
----@param profile table RaiderIO profile
----@return table scores Formatted dungeon scores
+--- Formats the dungeon scores from a Raider.IO profile into a structured table.
+---@param profile table The Raider.IO profile of the player.
+---@return table|nil A table of formatted dungeon scores, or nil if the profile is invalid.
 function RaiderIO:FormatDungeonScores(profile)
     if not profile or not profile.mythicKeystoneProfile then
         return nil
@@ -123,9 +123,9 @@ function RaiderIO:FormatDungeonScores(profile)
     return scores
 end
 
----Get run counts at different key levels
----@param profile table RaiderIO profile
----@return table counts Run counts by level
+--- Extracts the number of runs completed at various keystone levels from a Raider.IO profile.
+---@param profile table The Raider.IO profile of the player.
+---@return table|nil A table with the counts of +5, +10, +15, and +20 keys completed, or nil if the profile is invalid.
 function RaiderIO:GetRunCounts(profile)
     if not profile or not profile.mythicKeystoneProfile then
         return nil
@@ -140,9 +140,9 @@ function RaiderIO:GetRunCounts(profile)
     }
 end
 
----Get role-specific performance data
----@param profile table RaiderIO profile
----@return table? roleData Role performance data
+--- Retrieves role-specific performance data, such as scores for tanking, healing, and DPS, from a Raider.IO profile.
+---@param profile table The Raider.IO profile of the player.
+---@return table|nil A table of role-specific data, or nil if the profile is invalid.
 function RaiderIO:GetRoleData(profile)
     if not profile or not profile.mythicKeystoneProfile then
         return nil
@@ -166,9 +166,9 @@ function RaiderIO:GetRoleData(profile)
     return roleData
 end
 
----Format a complete sync payload
----@param target string Unit token or "Name-Realm"
----@return table? payload Formatted sync data
+--- Creates a complete data payload for syncing a player's Raider.IO data with other addons or services.
+---@param target string The player's unit token or "Name-Realm" string.
+---@return table|nil, string|nil The formatted data payload, or nil and an error message if the profile cannot be retrieved.
 function RaiderIO:FormatSyncPayload(target)
     local profile, err = self:GetProfile(target)
     if not profile then
@@ -190,9 +190,9 @@ end
 
 -- MARK: Score Color Functions
 
----Get color for a M+ score
----@param score number Score value
----@return number r, number g, number b RGB components (0-1)
+--- Retrieves the appropriate color for a given Mythic+ score, using the Raider.IO addon's color scale if available.
+---@param score number The Mythic+ score.
+---@return number, number, number The R, G, and B components of the color, ranging from 0 to 1.
 function RaiderIO:GetScoreColor(score)
     if _G.RaiderIO and _G.RaiderIO.GetScoreColor then
         return _G.RaiderIO.GetScoreColor(score)
@@ -205,9 +205,9 @@ function RaiderIO:GetScoreColor(score)
     return 1, 1, 1 -- White as final fallback
 end
 
----Format a colored score string
----@param score number Score value
----@return string coloredScore Score with color
+--- Formats a Mythic+ score as a color-coded string for display in the game UI.
+---@param score number The Mythic+ score.
+---@return string The color-coded score string.
 function RaiderIO:FormatScore(score)
     local r, g, b = self:GetScoreColor(score)
     return string.format("|cff%02x%02x%02x%d|r", r*255, g*255, b*255, score)

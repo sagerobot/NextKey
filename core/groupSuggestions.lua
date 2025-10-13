@@ -42,8 +42,9 @@ local Debug = NextKey222.Debug
 
 -- MARK: Utility Functions
 
---- Get group preferences from saved variables
----@return table Group preferences
+--- Gets the group preferences from the saved variables.
+--- These preferences determine the desired group composition, such as prioritizing heroism and battle resurrection.
+---@return table A table containing the group preferences.
 function GroupSuggestions:GetGroupPreferences()
     local prefs = NextKey.db and NextKey.db.global and NextKey.db.global.groupPreferences
     if not prefs then
@@ -56,9 +57,9 @@ function GroupSuggestions:GetGroupPreferences()
     return prefs
 end
 
---- Check if player provides heroism
----@param player PlayerProfile
----@return boolean
+--- Checks if a player's class or spec provides the Heroism/Bloodlust buff.
+---@param player PlayerProfile The player profile to check.
+---@return boolean True if the player provides Heroism, false otherwise.
 function GroupSuggestions:PlayerProvidesHeroism(player)
     if not player then return false end
 
@@ -97,9 +98,9 @@ function GroupSuggestions:PlayerProvidesHeroism(player)
     return false
 end
 
---- Check if player provides battle resurrection
----@param player PlayerProfile
----@return boolean
+--- Checks if a player's class or spec provides a battle resurrection.
+---@param player PlayerProfile The player profile to check.
+---@return boolean True if the player provides a battle resurrection, false otherwise.
 function GroupSuggestions:PlayerProvidesBattleRes(player)
     if not player then return false end
 
@@ -139,9 +140,10 @@ function GroupSuggestions:PlayerProvidesBattleRes(player)
     return false
 end
 
---- Validate role composition of a roster
----@param roster table Array of PlayerProfile
----@return boolean, string isValid, errorMessage
+--- Validates the role composition of a given roster.
+--- A valid roster must have exactly 1 tank, 1 healer, and 3 DPS.
+---@param roster table An array of PlayerProfile objects.
+---@return boolean, string True if the composition is valid, otherwise false and an error message.
 function GroupSuggestions:ValidateRoleComposition(roster)
     if not roster or #roster ~= 5 then
         return false, "Roster must have exactly 5 players"
@@ -177,9 +179,9 @@ function GroupSuggestions:ValidateRoleComposition(roster)
     return true
 end
 
---- Check if roster meets group preferences
----@param roster table Array of PlayerProfile
----@return boolean, table meetsPrefs, warnings
+--- Checks if a roster meets the configured group preferences (e.g., has Heroism and Battle Res).
+---@param roster table An array of PlayerProfile objects.
+---@return boolean, table True if the roster meets the preferences, otherwise false and a table of warnings.
 function GroupSuggestions:MeetsGroupPreferences(roster)
     local prefs = self:GetGroupPreferences()
     local warnings = {}
@@ -221,10 +223,11 @@ function GroupSuggestions:MeetsGroupPreferences(roster)
     return #warnings == 0, warnings
 end
 
---- Calculate IO gain for a player running a specific keystone
----@param player PlayerProfile
----@param keystone table Keystone data
----@return number IO gain
+--- Calculates the potential IO gain for a player from completing a specific keystone.
+--- This function delegates to the IOCalculator module if available, otherwise uses a fallback estimation.
+---@param player PlayerProfile The player's profile.
+---@param keystone table The keystone data.
+---@return number The estimated IO gain.
 function GroupSuggestions:CalculatePlayerIOGain(player, keystone)
     if not player or not keystone then return 0 end
 
@@ -247,8 +250,8 @@ function GroupSuggestions:CalculatePlayerIOGain(player, keystone)
     return math.floor(baseGain)
 end
 
---- Get all available players with their profiles
----@return table Array of PlayerProfile
+--- Gathers a list of all available players, including the current player, party members, and fake players for debugging.
+---@return table An array of enhanced PlayerProfile objects for all available players.
 function GroupSuggestions:GetAvailablePlayers()
     local players = {}
 
@@ -333,8 +336,8 @@ end
     return players
 end
 
---- Get all available keystones
----@return table Array of keystone data
+--- Gathers all available keystones from the party and fake players.
+---@return table An array of keystone data tables.
 function GroupSuggestions:GetAllKeystones()
     local keystones = NextKey:GetAvailableKeys() or {}
     
@@ -362,11 +365,12 @@ end
 
 -- MARK: Best Key Mode Implementation
 
---- Generate all possible roster combinations of specified size
----@param players table Array of PlayerProfile
----@param size number Group size (typically 5)
----@param requiredPlayers table|nil Players that must be included
----@return table Array of roster arrays
+--- Generates all possible roster combinations of a specified size from a list of players.
+--- This is a simplified implementation and does not generate all permutations for performance reasons.
+---@param players table An array of PlayerProfile objects.
+---@param size number The desired size of the group (typically 5).
+---@param requiredPlayers table|nil An array of players who must be included in the roster.
+---@return table An array of possible roster combinations.
 function GroupSuggestions:GenerateRosterCombinations(players, size, requiredPlayers)
     local combinations = {}
     
@@ -438,8 +442,9 @@ function GroupSuggestions:GenerateRosterCombinations(players, size, requiredPlay
     return combinations
 end
 
---- Suggest the best single key and optimal group
----@return GroupSuggestion|nil
+--- Analyzes all available players and keystones to suggest the single best key to run and the optimal group for it.
+--- The "best" key is determined by the highest potential total IO gain for the group.
+---@return GroupSuggestion|nil A GroupSuggestion object, or nil if no valid suggestion could be made.
 function GroupSuggestions:SuggestBestKey()
     Debug:Dev("groupSuggestions", "Starting Best Key mode suggestion")
 
@@ -594,9 +599,10 @@ end
 
 -- MARK: Best Groups Mode Implementation
 
---- Calculate synergy matrix between players
----@param players table Array of PlayerProfile
----@return table 2D matrix of synergy scores
+--- Calculates a synergy matrix between all players.
+--- Synergy is defined as the mutual IO gain between two players from running each other's keystones.
+---@param players table An array of PlayerProfile objects.
+---@return table A 2D matrix of synergy scores.
 function GroupSuggestions:CalculateSynergyMatrix(players)
     local matrix = {}
 
@@ -632,10 +638,10 @@ function GroupSuggestions:CalculateSynergyMatrix(players)
     return matrix
 end
 
---- Form an optimal group from remaining players
----@param players table Array of PlayerProfile
----@param synergyMatrix table 2D synergy matrix
----@return table Group data with roster and key rotation
+--- Forms an optimal group from a list of players using a greedy approach based on the synergy matrix.
+---@param players table An array of PlayerProfile objects.
+---@param synergyMatrix table A 2D synergy matrix for the players.
+---@return table|nil A table representing the formed group, or nil if not enough players.
 function GroupSuggestions:FormOptimalGroup(players, synergyMatrix)
     if #players < 3 then
         return nil
@@ -720,9 +726,10 @@ function GroupSuggestions:FormOptimalGroup(players, synergyMatrix)
     }
 end
 
---- Generate key rotation schedule for a group
----@param roster table Array of PlayerProfile
----@return table Array of rotation steps
+--- Generates a prioritized rotation of all keystones owned by players in a roster.
+--- The rotation is sorted by the highest potential IO gain for the group.
+---@param roster table An array of PlayerProfile objects.
+---@return table An array of rotation steps, each containing key data and IO gain information.
 function GroupSuggestions:GenerateKeyRotation(roster)
     local rotation = {}
     local processedKeys = {}
@@ -779,9 +786,9 @@ function GroupSuggestions:GenerateKeyRotation(roster)
     return rotation
 end
 
---- Calculate total potential IO from key rotation
----@param keyRotation table Array of rotation steps
----@return number Total IO potential
+--- Calculates the total potential IO gain from a key rotation schedule.
+---@param keyRotation table An array of rotation steps from GenerateKeyRotation.
+---@return number The total potential IO gain.
 function GroupSuggestions:CalculateTotalPotential(keyRotation)
     local total = 0
     for _, step in ipairs(keyRotation) do
@@ -790,8 +797,9 @@ function GroupSuggestions:CalculateTotalPotential(keyRotation)
     return total
 end
 
---- Suggest multiple groups with key rotation
----@return MultiGroupSuggestion|nil
+--- Suggests multiple groups from a larger pool of players, including key rotations for each group.
+--- This mode is ideal for guild groups or communities.
+---@return MultiGroupSuggestion|nil A MultiGroupSuggestion object, or nil if no valid groups could be formed.
 function GroupSuggestions:SuggestBestGroups()
     Debug:Dev("groupSuggestions", "Starting Best Groups mode suggestion")
 
@@ -866,8 +874,8 @@ function GroupSuggestions:SuggestBestGroups()
     return result
 end
 
---- Validate a group and add warnings/errors
----@param group table Group data
+--- Validates a group's composition and preferences, adding warnings and errors to the group object.
+---@param group table The group data to validate.
 function GroupSuggestions:ValidateGroup(group)
     group.isValid = true
     group.warnings = {}
@@ -893,8 +901,8 @@ function GroupSuggestions:ValidateGroup(group)
     end
 end
 
---- Generate recruit suggestions for incomplete groups
----@param group table Group data
+--- Generates recruitment suggestions for incomplete groups, recommending roles and classes to fill the gaps.
+---@param group table The group data, which may be incomplete.
 function GroupSuggestions:GenerateRecruitSuggestions(group)
     group.recruitSuggestions = {}
 
@@ -964,9 +972,10 @@ end
 
 -- MARK: Main Interface Functions
 
---- Generate group suggestions based on available players and keys
----@param mode string|nil "best_key" or "best_groups", auto-detect if nil
----@return GroupSuggestion|MultiGroupSuggestion|nil
+--- The main entry point for generating group suggestions.
+--- It auto-detects the best mode ("best_key" or "best_groups") based on the number of available players.
+---@param mode string|nil The desired mode ("best_key" or "best_groups"). If nil, the mode is auto-detected.
+---@return GroupSuggestion|MultiGroupSuggestion|nil The generated suggestion object, or nil if no suggestion could be made.
 function GroupSuggestions:GenerateSuggestions(mode)
     local availablePlayers = self:GetAvailablePlayers()
     local availableKeys = self:GetAllKeystones()
@@ -993,9 +1002,9 @@ function GroupSuggestions:GenerateSuggestions(mode)
     end
 end
 
---- Format suggestion for chat output
----@param suggestion GroupSuggestion|MultiGroupSuggestion
----@return string Formatted chat message
+--- Formats a group suggestion into a human-readable string for chat output.
+---@param suggestion GroupSuggestion|MultiGroupSuggestion The suggestion object to format.
+---@return string The formatted chat message.
 function GroupSuggestions:FormatSuggestionForChat(suggestion)
     if not suggestion then return "No suggestion available" end
 
@@ -1162,6 +1171,7 @@ end
 
 -- MARK: Module Initialization
 
+--- Initializes the GroupSuggestions module.
 function GroupSuggestions:Initialize()
     Debug:Dev("groupSuggestions", "GroupSuggestions module initialized")
     return true
