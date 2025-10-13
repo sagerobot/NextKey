@@ -271,17 +271,6 @@ function DungeonCards:GetSortedCards()
             -- Finally sort alphabetically
             return a.name < b.name
         end)
-    elseif self.sortMethod == "manual" then
-        -- Load manual sort order from DB
-        local order = NextKey.db.char.dungeonOrder or {}
-        table.sort(cards, function(a, b)
-            local aOrder = order[a.dungeonID] or 999
-            local bOrder = order[b.dungeonID] or 999
-            if aOrder ~= bOrder then
-                return aOrder < bOrder
-            end
-            return a.name < b.name
-        end)
     else -- alphabetical (default)
         table.sort(cards, function(a, b)
             return a.name < b.name
@@ -292,29 +281,8 @@ function DungeonCards:GetSortedCards()
 end
 
 ---Set manual sort order for a dungeon
----@param dungeonID number The dungeon to set order for
----@param order number The order value (lower = earlier)
-function DungeonCards:SetManualOrder(dungeonID, order)
-    -- Initialize order table if needed
-    NextKey.db.char.dungeonOrder = NextKey.db.char.dungeonOrder or {}
-    NextKey.db.char.dungeonOrder[dungeonID] = order
-end
-
----Get the manual sort order for a dungeon
----@param dungeonID number The dungeon to get order for
----@return number order The order value (999 if not set)
-function DungeonCards:GetManualOrder(dungeonID)
-    if not NextKey.db.char.dungeonOrder then return 999 end
-    return NextKey.db.char.dungeonOrder[dungeonID] or 999
-end
-
----Reset all manual sort orders
-function DungeonCards:ResetManualOrder()
-    NextKey.db.char.dungeonOrder = {}
-end
-
 ---Set the current sort method
----@param method string "alphabetical"|"highest"|"lowest"|"smart"|"manual"
+---@param method string "alphabetical"|"highest"|"lowest"|"smart"
 function DungeonCards:SetSortMethod(method)
     self.sortMethod = method
     -- Save to DB
