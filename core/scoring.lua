@@ -9,6 +9,11 @@ if not NextKey then
 end
 
 -- MARK: Season Score Functions  
+-- MARK: Season Score Functions
+--- Estimates the Mythic+ score for a given keystone level and timing.
+--- @param level number The keystone level.
+--- @param timed boolean Whether the run was completed within the timer.
+--- @return number The estimated score.
 function NextKey:GetRunScoreForLevel(level, timed)
     if not level or level < 2 then return 0 end
     -- Use IOCalculator directly for score estimation
@@ -19,6 +24,9 @@ function NextKey:GetRunScoreForLevel(level, timed)
     return 0
 end
 
+--- Gets the player's best keystone level for a specific dungeon this season.
+--- @param dungeonID number The ID of the dungeon.
+--- @return number|nil The player's best keystone level for the dungeon, or nil if not found.
 function NextKey:GetSeasonBestLevel(dungeonID)
     if not dungeonID then return nil end
     local bestRun = C_MythicPlus.GetSeasonBestForMap(dungeonID)
@@ -26,14 +34,19 @@ function NextKey:GetSeasonBestLevel(dungeonID)
 end
 
 -- MARK: Score Functions
+--- Gets the player's current Mythic+ score.
+--- @return number The player's current score.
 function NextKey:GetCurrentScore()
     return self.currentSeasonScore or 0
 end
 
+--- Gets the player's Mythic+ score from the previous season.
+--- @return number The player's previous season score.
 function NextKey:GetPreviousScore()
     return self.previousSeasonScore or 0
 end
 
+--- Updates the player's current and previous Mythic+ scores from the game API and Raider.IO.
 function NextKey:UpdatePlayerScore()
     -- Get base score from game API
     self.currentSeasonScore = C_ChallengeMode.GetOverallDungeonScore() or 0
@@ -53,6 +66,8 @@ function NextKey:UpdatePlayerScore()
 end
 
 -- MARK: RaiderIO Integration Functions
+--- Gets the player's total Mythic+ score from Raider.IO.
+--- @return number The player's Raider.IO score.
 function NextKey:GetRaiderIOTotalScore()
     if not _G.RaiderIO or not _G.RaiderIO.GetProfile then
         return 0
@@ -70,6 +85,10 @@ function NextKey:GetRaiderIOTotalScore()
 end
 
 -- Helper function to calculate Mythic+ score from level and chests
+--- Calculates an approximate Mythic+ score based on keystone level and number of chests.
+--- @param level number The keystone level.
+--- @param chests number The number of chests earned (0-3).
+--- @return number The calculated score.
 function NextKey:CalculateMythicPlusScore(level, chests)
     if not level or level <= 0 then
         return 0
