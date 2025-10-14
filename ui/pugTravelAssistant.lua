@@ -36,6 +36,8 @@ NextKey222.RegisterModule("PUGTravelAssistant", PUGTravelAssistant)
 -- Initialize the travel assistant module
 function PUGTravelAssistant:Initialize()
     Debug:Dev("pughelper", "PUGTravelAssistant:Initialize() called")
+    Debug:Dev("pughelper", "UIParent is available: " .. tostring(UIParent ~= nil))
+    Debug:Dev("pughelper", "Current time: " .. GetTime())
     
     -- Initialize teleport spells
     self:InitializeTeleportSpells()
@@ -163,13 +165,35 @@ function PUGTravelAssistant:CreateFrame()
     -- Position it on the right side of the screen
     frame:SetPoint("RIGHT", UIParent, "RIGHT", -50, 0)
     
-    -- Set backdrop
-    frame:SetBackdrop({
-        bgFile = "Interface/DialogFrame/UI-DialogBox-Background",
-        edgeFile = "Interface/DialogFrame/UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 11, right = 12, top = 12, bottom = 11 }
-    })
+    -- Set backdrop with error handling
+    Debug:Dev("pughelper", "Frame type: " .. type(frame))
+    Debug:Dev("pughelper", "SetBackdrop method exists: " .. tostring(frame.SetBackdrop ~= nil))
+    Debug:Dev("pughelper", "SetBackdropColor method exists: " .. tostring(frame.SetBackdropColor ~= nil))
+    Debug:Dev("pughelper", "SetBackdropBorderColor method exists: " .. tostring(frame.SetBackdropBorderColor ~= nil))
+    
+    if frame.SetBackdrop then
+        Debug:Dev("pughelper", "Setting backdrop with SetBackdrop method")
+        frame:SetBackdrop({
+            bgFile = "Interface/DialogFrame/UI-DialogBox-Background",
+            edgeFile = "Interface/DialogFrame/UI-DialogBox-Border",
+            tile = true, tileSize = 32, edgeSize = 32,
+            insets = { left = 11, right = 12, top = 12, bottom = 11 }
+        })
+    else
+        Debug:Dev("pughelper", "SetBackdrop not available, attempting alternative background")
+        -- Try alternative background methods
+        if frame.SetBackdropColor then
+            frame:SetBackdropColor(0, 0, 0, 0.8)
+        else
+            Debug:Dev("pughelper", "SetBackdropColor also not available, skipping background")
+        end
+        
+        if frame.SetBackdropBorderColor then
+            frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+        else
+            Debug:Dev("pughelper", "SetBackdropBorderColor also not available, skipping border")
+        end
+    end
     
     -- Make it movable
     frame:SetMovable(true)
