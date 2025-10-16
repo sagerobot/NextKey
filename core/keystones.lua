@@ -1092,8 +1092,14 @@ function NextKey:SetTeleportTargetKey(key, opts)
             receivedFrom = opts.receivedFrom,
             timestamp = GetUtils().currentTime(),
         })
+        
+        -- DEBUG: Log teleport target setting
+        NextKey222.Debug:User("SetTeleportTargetKey: " .. (key.ownerName or "Unknown") .. " - " ..
+                              (self:GetDungeonName(key.dungeonID) or "Unknown") ..
+                              " +" .. (key.level or 0) .. " (source: " .. (key.source or "unknown") .. ")")
     else
         self.teleportTargetKey = nil
+        NextKey222.Debug:User("SetTeleportTargetKey: Cleared teleport target")
     end
 
     if opts.broadcast and self:IsLeaderOrSolo() then
@@ -1109,6 +1115,30 @@ function NextKey:SetTeleportTargetKey(key, opts)
     local isDungeonPortal = key and key.source == "dungeon_portal"
     if NextKey222.UI and NextKey222.UI.RenderResults and NextKey222.UI.mainFrame and not same and not isDungeonPortal then
         NextKey222.UI:RenderResults()
+    end
+end
+
+function NextKey:SetTeleportWindowContext(context)
+    Debug:Dev("teleport", "SetTeleportWindowContext called with mode:", context and context.mode or "nil")
+    self.teleportWindowContext = context
+    
+    -- Refresh the teleport window if it's open to apply the new context
+    if self.RefreshTeleportWindow then
+        self:RefreshTeleportWindow()
+    end
+end
+
+function NextKey:GetTeleportWindowContext()
+    return self.teleportWindowContext
+end
+
+function NextKey:ClearTeleportWindowContext()
+    self.teleportWindowContext = nil
+    Debug:Dev("teleport", "Teleport window context cleared.")
+    
+    -- Refresh the teleport window if it's open to remove contextual elements
+    if self.RefreshTeleportWindow then
+        self:RefreshTeleportWindow()
     end
 end
 
@@ -1273,6 +1303,123 @@ function Keystones:RequestGuildKeystones()
     end
     
     return true
+end
+
+-- MARK: Visual Testing Functions
+
+---Visual test for keystone detection and management
+---Follows "In-Game First" testing protocol
+function Keystones:TestVisualDetection()
+    NextKey222.Debug:Dev("keystones", "Starting visual keystone detection test")
+    
+    -- Create visual test frame for user interaction
+    local testFrame = CreateFrame("Frame", "NextKeyKeystoneTestFrame", UIParent, "BackdropTemplate")
+    testFrame:SetSize(400, 300)
+    testFrame:SetPoint("CENTER")
+    testFrame:SetFrameStrata("DIALOG")
+    testFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    
+    -- Title
+    local title = testFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", 0, -20)
+    title:SetText("Visual Keystone Detection Test")
+    
+    -- Instructions
+    local instructions = testFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    instructions:SetPoint("TOP", title, "BOTTOM", 0, -15)
+    instructions:SetWidth(380)
+    instructions:SetText("This test validates keystone detection through visual confirmation:\n\n" ..
+                       "1. Check your bags for a keystone\n" ..
+                       "2. Open the main NextKey window (/nk)\n" ..
+                       "3. Verify your keystone appears in the list\n" ..
+                       "4. Hover over the keystone to see tooltip details\n\n" ..
+                       "Expected visual results:\n" ..
+                       "• Your keystone should be detected and displayed\n" ..
+                       "• Dungeon name and level should be correct\n" ..
+                       "• Tooltip should show detailed information\n" ..
+                       "• IO score should be calculated if available")
+    
+    -- Test buttons
+    local scanButton = CreateFrame("Button", nil, testFrame, "UIPanelButtonTemplate")
+    scanButton:SetSize(120, 25)
+    scanButton:SetPoint("BOTTOMLEFT", 20, 20)
+    scanButton:SetText("Scan Now")
+    scanButton:SetScript("OnClick", function()
+        NextKey222.Debug:Dev("keystones", "Manual keystone scan triggered")
+        
+        -- Trigger keystone scan
+        local NextKey = NextKey222.Addon
+        if NextKey and NextKey.CollectPartyKeys then
+            local keys = NextKey:CollectPartyKeys()
+            NextKey222.Debug:Dev("keystones", "Scan found", #keys, "keystones")
+            
+            -- Show visual feedback
+            for i, key in ipairs(keys) do
+                if NextKey:IsPlayerOwner(key.ownerName) then
+                    NextKey:User("Found your keystone: " .. (NextKey:GetDungeonName(key.dungeonID) or "Unknown") .. " +" .. (key.level or 0))
+                end
+            end
+        end
+    end)
+    
+    local openMainButton = CreateFrame("Button", nil, testFrame, "UIPanelButtonTemplate")
+    openMainButton:SetSize(120, 25)
+    openMainButton:SetPoint("BOTTOMRIGHT", -20, 20)
+    openMainButton:SetText("Open NextKey")
+    openMainButton:SetScript("OnClick", function()
+        -- Open main NextKey window
+        if NextKey222.UI and NextKey222.UI.ToggleMainFrame then
+            NextKey222.UI:ToggleMainFrame()
+        else
+            NextKey222.Debug:Error("Main UI not available")
+        end
+    end)
+    
+    -- Close button
+    local closeButton = CreateFrame("Button", nil, testFrame, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", -5, -5)
+    closeButton:SetScript("OnClick", function()
+        testFrame:Hide()
+    end)
+    
+    testFrame:Show()
+    
+    -- Auto-refresh timer
+    local timer = 0
+    testFrame:SetScript("OnUpdate", function(self, elapsed)
+        timer = timer + elapsed
+        if timer >= 5 then
+            timer = 0
+            -- Periodically check for keystore changes
+            local NextKey = NextKey222.Addon
+            if NextKey and NextKey.CollectPartyKeys then
+                local keys = NextKey:CollectPartyKeys()
+                local hasPlayerKey = false
+                for _, key in ipairs(keys) do
+                    if NextKey:IsPlayerOwner(key.ownerName) and key.dungeonID and key.dungeonID > 0 then
+                        hasPlayerKey = true
+                        break
+                    end
+                end
+                
+                if hasPlayerKey then
+                    instructions:SetText("✓ Keystone detected! Check the main NextKey window.\n\n" ..
+                                       "Visual validation steps:\n" ..
+                                       "1. Open /nk and find your keystone\n" ..
+                                       "2. Verify dungeon name and level\n" ..
+                                       "3. Hover to see detailed tooltip\n" ..
+                                       "4. Check IO score calculation")
+                end
+            end
+        end
+    end)
+    
+    NextKey222.Debug:Dev("keystones", "Visual keystone detection test frame created")
 end
 
 -- Module interface

@@ -288,10 +288,94 @@ end, 10) -- High priority for database initialization
 NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
     NextKey222.Debug:Dev("startup", "=== PostInit Phase ===")
     
+    -- Phase 7: Initialize Configuration Context (must be before UI)
+    if NextKey222.ConfigurationContext then
+        if NextKey222.ConfigurationContext.Initialize then
+            NextKey222.Debug:Dev("startup", "Initializing Configuration Context")
+            NextKey.SafeRun(function() NextKey222.ConfigurationContext:Initialize() end, "Initialize Configuration Context")
+        else
+            NextKey222.Debug:Error("Configuration Context missing Initialize function")
+        end
+    else
+        NextKey222.Debug:Dev("startup", "Configuration Context not available - Phase 7 features disabled")
+    end
+    
+    -- Phase 7: Initialize Tooltip System (must be before UI)
+    if NextKey222.Tooltip then
+        if NextKey222.Tooltip.Initialize then
+            NextKey222.Debug:Dev("startup", "Initializing Tooltip System")
+            NextKey.SafeRun(function() NextKey222.Tooltip:Initialize() end, "Initialize Tooltip System")
+        else
+            NextKey222.Debug:Error("Tooltip System missing Initialize function")
+        end
+    else
+        NextKey222.Debug:Dev("startup", "Tooltip System not available - Phase 7 features disabled")
+    end
+    
+    -- Phase 7: Initialize Theme System (must be before UI)
+    if NextKey222.Theme then
+        if NextKey222.Theme.Initialize then
+            NextKey222.Debug:Dev("startup", "Initializing Theme System")
+            NextKey.SafeRun(function() NextKey222.Theme:Initialize() end, "Initialize Theme System")
+        else
+            NextKey222.Debug:Error("Theme System missing Initialize function")
+        end
+    else
+        NextKey222.Debug:Dev("startup", "Theme System not available - Phase 7 features disabled")
+    end
+    
+    -- Phase 7: Initialize UI Scale System (must be before UI)
+    if NextKey222.UIScale then
+        if NextKey222.UIScale.Initialize then
+            NextKey222.Debug:Dev("startup", "Initializing UI Scale System")
+            NextKey.SafeRun(function() NextKey222.UIScale:Initialize() end, "Initialize UI Scale System")
+        else
+            NextKey222.Debug:Error("UI Scale System missing Initialize function")
+        end
+    else
+        NextKey222.Debug:Dev("startup", "UI Scale System not available - Phase 7 features disabled")
+    end
+    
+    -- Phase 7: Initialize Responsive Layout System (must be before UI)
+    if NextKey222.Responsive then
+        if NextKey222.Responsive.Initialize then
+            NextKey222.Debug:Dev("startup", "Initializing Responsive Layout System")
+            NextKey.SafeRun(function() NextKey222.Responsive:Initialize() end, "Initialize Responsive Layout System")
+        else
+            NextKey222.Debug:Error("Responsive Layout System missing Initialize function")
+        end
+    else
+        NextKey222.Debug:Dev("startup", "Responsive Layout System not available - Phase 7 features disabled")
+    end
+    
+    -- Phase 7: Initialize Performance Optimization System (must be before UI)
+    if NextKey222.Performance then
+        if NextKey222.Performance.Initialize then
+            NextKey222.Debug:Dev("startup", "Initializing Performance Optimization System")
+            NextKey.SafeRun(function() NextKey222.Performance:Initialize() end, "Initialize Performance Optimization System")
+        else
+            NextKey222.Debug:Error("Performance Optimization System missing Initialize function")
+        end
+    else
+        NextKey222.Debug:Dev("startup", "Performance Optimization System not available - Phase 7 features disabled")
+    end
+    
+    -- Phase 7: Initialize Validation System (must be before UI)
+    if NextKey222.Validation then
+        if NextKey222.Validation.Initialize then
+            NextKey222.Debug:Dev("startup", "Initializing Validation System")
+            NextKey.SafeRun(function() NextKey222.Validation:Initialize() end, "Initialize Validation System")
+        else
+            NextKey222.Debug:Error("Validation System missing Initialize function")
+        end
+    else
+        NextKey222.Debug:Dev("startup", "Validation System not available - Phase 7 features disabled")
+    end
+    
     -- Initialize UI system
     if NextKey222.UI and NextKey222.UI.Initialize then
         NextKey222.Debug:Dev("startup", "Initializing UI system")
-        NextKey.SafeRun(NextKey222.UI.Initialize, "Initialize UI system")
+        NextKey.SafeRun(function() NextKey222.UI:Initialize() end, "Initialize UI system")
     else
         NextKey222.Debug:Error("Warning: UI system not available for initialization")
     end
@@ -344,6 +428,14 @@ NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
         end, "Initialize PUG Getaway UI")
     end
     
+    -- Initialize PUG Application Tracker
+    if NextKey222.PUGApplicationTracker and NextKey222.PUGApplicationTracker.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing PUG Application Tracker")
+        NextKey.SafeRun(function()
+            NextKey222.PUGApplicationTracker:Initialize()
+        end, "Initialize PUG Application Tracker")
+    end
+    
     NextKey222.Debug:Dev("startup", "PostInit phase completed")
 end)
 
@@ -354,7 +446,7 @@ NextKey222.StartUp:RegisterPhaseHandler("Enable", function()
     -- Enable event systems
     if NextKey222.Events and NextKey222.Events.Enable then
         NextKey222.Debug:Dev("startup", "Enabling Events system")
-        NextKey.SafeRun(NextKey222.Events.Enable, "Enable Events system")
+        NextKey.SafeRun(function() NextKey222.Events:Enable() end, "Enable Events system")
     end
     
     NextKey222.Debug:Dev("startup", "Enable phase completed")

@@ -214,11 +214,18 @@ local function setButtonTexture(button, texture)
 end
 
 local function createTeleportButton(parent, texture, tooltipFunc)
+    -- Hybrid approach: Keep native SecureActionButtonTemplate but style with Components
     local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
     button:SetSize(48, 48)
     -- Allow actions to fire regardless of ActionButtonUseKeyDown
     button:RegisterForClicks("LeftButtonDown", "LeftButtonUp")
     setButtonTexture(button, texture)
+    
+    -- Apply Components styling to the native button
+    NextKey222.UIComponents:ConfigureBackdrop(button, "compact", {
+        colorScheme = "transparent"
+    })
+    
     if tooltipFunc then
         button:SetScript("OnEnter", tooltipFunc)
         button:SetScript("OnLeave", function()
@@ -233,6 +240,7 @@ local function updateTeleportLayout(window)
         return
     end
     local frame = window.frame
+    local mainContainer = window.mainContainer
     local closeButton = window.closeButton
     local titleLabel = window.titleLabel
     local hearthButton = window.hearthButton
@@ -277,63 +285,50 @@ local function updateTeleportLayout(window)
         keystoneButton:SetPoint("TOPLEFT", frame, "TOPLEFT", leftPadding, -contentTop)
     end
 
-    local aliasWidth = aliasLabel and aliasLabel:GetStringWidth() or 0
+    local aliasWidth = aliasLabel and aliasLabel.frame and aliasLabel.frame:GetWidth() or 0
     local aliasHeight = 0
     if aliasLabel then
-        aliasLabel:ClearAllPoints()
-        aliasLabel:SetPoint("TOP", keystoneButton, "BOTTOM", 0, -4)
-        aliasLabel:SetJustifyH("CENTER")
-        if aliasLabel:IsShown() and aliasLabel:GetText() ~= "" then
-            aliasHeight = aliasLabel:GetStringHeight() or 0
-            local aliasFont = aliasLabel:GetFontObject()
-            if aliasFont and aliasFont.GetLineHeight then
-                local lh = aliasFont:GetLineHeight()
-                if lh and lh > 0 then
-                    aliasHeight = math.max(aliasHeight, lh)
-                end
-            end
+        local aliasFrame = aliasLabel.frame
+        aliasFrame:ClearAllPoints()
+        aliasFrame:SetPoint("TOP", keystoneButton, "BOTTOM", 0, -4)
+        if aliasFrame:IsShown() and aliasLabel:GetText() ~= "" then
+            aliasHeight = aliasFrame:GetHeight() or 0
         else
             aliasHeight = 0
             aliasWidth = 0
-            aliasLabel:Hide()
+            aliasFrame:Hide()
         end
     end
 
-    local levelWidth = levelLabel and levelLabel:GetStringWidth() or 0
+    local levelWidth = levelLabel and levelLabel.frame and levelLabel.frame:GetWidth() or 0
     local noteHeight = 0
     local noteColumnWidth = levelWidth
     if noteLabel and levelLabel then
-        noteLabel:ClearAllPoints()
-        noteLabel:SetPoint("TOP", levelLabel, "BOTTOM", 0, -4)
-        noteLabel:SetJustifyH("CENTER")
-        if noteLabel:IsShown() and noteLabel:GetText() ~= "" then
+        local noteFrame = noteLabel.frame
+        local levelFrame = levelLabel.frame
+        noteFrame:ClearAllPoints()
+        noteFrame:SetPoint("TOP", levelFrame, "BOTTOM", 0, -4)
+        if noteFrame:IsShown() and noteLabel:GetText() ~= "" then
             local preferredWidth = 72
             noteLabel:SetWidth(preferredWidth)
             noteColumnWidth = math.max(levelWidth, preferredWidth)
-            noteHeight = noteLabel:GetStringHeight() or 0
-            local noteFont = noteLabel:GetFontObject()
-            if noteFont and noteFont.GetLineHeight then
-                local lh = noteFont:GetLineHeight()
-                if lh and lh > 0 then
-                    noteHeight = math.max(noteHeight, lh)
-                end
-            end
+            noteHeight = noteFrame:GetHeight() or 0
         else
-            noteLabel:Hide()
+            noteFrame:Hide()
             noteColumnWidth = levelWidth
             noteHeight = 0
         end
     elseif noteLabel then
-        noteLabel:Hide()
+        noteLabel.frame:Hide()
     end
 
     local iconColumnWidth = math.max(48, aliasWidth)
     if aliasLabel then
         aliasLabel:SetWidth(iconColumnWidth)
         if aliasHeight <= 0 then
-            aliasLabel:Hide()
+            aliasLabel.frame:Hide()
         else
-            aliasLabel:Show()
+            aliasLabel.frame:Show()
         end
     end
 
@@ -341,7 +336,7 @@ local function updateTeleportLayout(window)
     if noteLabel then
         noteLabel:SetWidth(levelColumnWidth)
         if noteHeight <= 0 then
-            noteLabel:Hide()
+            noteLabel.frame:Hide()
         end
     end
 
@@ -355,7 +350,12 @@ local function updateTeleportLayout(window)
     
     local baseHeight = contentTop + 48 + extraHeight + config.BOTTOM_PADDING
     
+    -- Update both the native frame and the AceGUI container
     frame:SetSize(frameWidth, math.ceil(baseHeight))
+    if mainContainer then
+        mainContainer:SetWidth(frameWidth)
+        mainContainer:SetHeight(math.ceil(baseHeight))
+    end
 
     if closeButton then
         closeButton:ClearAllPoints()
@@ -407,13 +407,13 @@ local function updateKeystoneButton(window)
     if aliasLabel then
         if data and (data.alias or data.dungeonName or data.destination) then
             aliasLabel:SetText(data.alias or data.dungeonName or data.destination)
-            aliasLabel:Show()
+            aliasLabel.frame:Show()
         elseif data and data.source == "dungeon_portal" then
             aliasLabel:SetText("Dungeon Portal")
-            aliasLabel:Show()
+            aliasLabel.frame:Show()
         else
             aliasLabel:SetText("No keystone selected.")
-            aliasLabel:Show()
+            aliasLabel.frame:Show()
         end
     end
 
@@ -421,20 +421,20 @@ local function updateKeystoneButton(window)
         local lines = {}
         if isPlayersKey then
             lines[#lines + 1] = "*YOUR KEY*"
-            noteLabel:SetTextColor(0.1, 1, 0.4)
+            noteLabel:SetColor(0.1, 1, 0.4)
         elseif data and data.source == "dungeon_portal" then
             lines[#lines + 1] = "Direct Portal Access"
-            noteLabel:SetTextColor(0.85, 0.85, 0.85)
+            noteLabel:SetColor(0.85, 0.85, 0.85)
         else
-            noteLabel:SetTextColor(0.85, 0.85, 0.85)
+            noteLabel:SetColor(0.85, 0.85, 0.85)
         end
         
         if #lines > 0 then
             noteLabel:SetText(table.concat(lines, "\n"))
-            noteLabel:Show()
+            noteLabel.frame:Show()
         else
             noteLabel:SetText("")
-            noteLabel:Hide()
+            noteLabel.frame:Hide()
         end
     end
 
@@ -447,10 +447,10 @@ local function updateKeystoneButton(window)
         if levelLabel then
             if data and data.source == "dungeon_portal" then
                 levelLabel:SetText("Portal")
-                levelLabel:SetTextColor(0.4, 1, 0.9)  -- Cyan color for portals
+                levelLabel:SetColor(0.4, 1, 0.9)  -- Cyan color for portals
             elseif data.level and data.level > 0 then
-                levelLabel:SetFormattedText("+%d", data.level)
-                levelLabel:SetTextColor(1, 0.82, 0)
+                levelLabel:SetText(string.format("+%d", data.level))
+                levelLabel:SetColor(1, 0.82, 0)
             else
                 levelLabel:SetText("")
             end
@@ -464,10 +464,10 @@ local function updateKeystoneButton(window)
         if levelLabel then
             if data and data.source == "dungeon_portal" then
                 levelLabel:SetText("Portal")
-                levelLabel:SetTextColor(0.3, 0.7, 0.6)  -- Dimmed cyan for disabled portals
+                levelLabel:SetColor(0.3, 0.7, 0.6)  -- Dimmed cyan for disabled portals
             elseif data and data.level and data.level > 0 then
-                levelLabel:SetFormattedText("+%d", data.level)
-                levelLabel:SetTextColor(0.7, 0.7, 0.7)
+                levelLabel:SetText(string.format("+%d", data.level))
+                levelLabel:SetColor(0.7, 0.7, 0.7)
             else
                 levelLabel:SetText("")
             end
@@ -540,8 +540,16 @@ function addon:EnsureTeleportWindow()
     if self.teleportWindow and self.teleportWindow.frame then
         return self.teleportWindow
     end
-    local frame = CreateFrame("Frame", "NextKeyTeleportWindow", UIParent, "BackdropTemplate")
-    frame:SetSize(200, 140)
+    
+    -- Create main window using AceGUI Frame with Components styling
+    local mainContainer = NextKey222.UIComponents:CreateFrame("window", nil, {
+        width = 200,
+        height = 140,
+        colorScheme = "dark"
+    })
+    
+    local frame = mainContainer.frame
+    _G["NextKeyTeleportWindow"] = frame
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -549,31 +557,65 @@ function addon:EnsureTeleportWindow()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    frame:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 },
-    })
-    frame:SetBackdropColor(0, 0, 0, 0.95)
-    frame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
     frame:SetFrameStrata("FULLSCREEN_DIALOG")
     frame:SetFrameLevel(600)
     frame:SetToplevel(true)
     frame:Hide()
-    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -2)
-    close:SetFrameLevel(frame:GetFrameLevel() + 10)
-    close:SetFrameStrata(frame:GetFrameStrata())
-    close:EnableMouse(true)
-    close:SetHitRectInsets(0, 0, 0, 0)
-    close:Raise()
-    close:SetScript("OnClick", function() frame:Hide() end)
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    title:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -12)
-    title:SetText("NextKey")
+    -- Create close button using AceGUI with Components styling
+    local close = NextKey222.UIComponents:CreateButton("small", frame, {
+        text = "×",
+        onClick = function()
+            frame:Hide()
+            addon:ClearTeleportWindowContext()
+        end
+    })
+    
+    -- Position the close button
+    local closeFrame = close.frame
+    closeFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -2)
+    closeFrame:SetFrameLevel(frame:GetFrameLevel() + 10)
+    closeFrame:SetFrameStrata(frame:GetFrameStrata())
+    closeFrame:EnableMouse(true)
+    closeFrame:SetHitRectInsets(0, 0, 0, 0)
+    closeFrame:Raise()
+    
+    -- Add the close button to the main container for proper cleanup
+    mainContainer:AddChild(close)
+    
+    -- Add cleanup function for proper AceGUI container management
+    function addon:CleanupTeleportWindow()
+        if self.teleportWindow then
+            if self.teleportWindow.mainContainer then
+                self.teleportWindow.mainContainer:ReleaseChildren()
+                self.teleportWindow.mainContainer:Release()
+                self.teleportWindow.mainContainer = nil
+            end
+            self.teleportWindow = nil
+        end
+    end
+    -- Create title using AceGUI Label with Components styling
+    local title = NextKey222.UIComponents:CreateText("header", frame, {
+        text = "NextKey",
+        width = 100,
+        justifyH = "LEFT"
+    })
+    
+    -- Position the title label
+    local titleFrame = title.frame
+    titleFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -12)
+
+   -- Summon button (for PUG mode)
+   local summonButton = createTeleportButton(frame, "Interface/Icons/Spell_Nature_SummonTreant", function(btn)
+       GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+       GameTooltip:SetText("Request Summon")
+       GameTooltip:AddLine("Asks your party for a summon.", 0.8, 0.8, 0.8, true)
+       GameTooltip:Show()
+   end)
+   summonButton:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -100)
+   summonButton:SetAttribute("type", "macro")
+   summonButton:SetAttribute("macrotext", "/p Summon please!")
+   summonButton:Hide() -- Initially hidden
+
     local hearthTexture = select(10, safeGetItemInfo(HEARTH_ITEM_ID)) or "Interface/Icons/INV_Misc_Rune_01"
     local hearthButton = createTeleportButton(frame, hearthTexture, function(btn)
         GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
@@ -591,27 +633,42 @@ function addon:EnsureTeleportWindow()
     keystoneButton:SetScript("PostClick", function(_, mouseButton)
         addon:Print("Debug: Keystone button PostClick (" .. tostring(mouseButton) .. ")")
     end)
-    local keystoneAlias = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    keystoneAlias:SetJustifyH("CENTER")
-    keystoneAlias:SetText("")
-    keystoneAlias:SetTextColor(0.85, 0.85, 0.85)
-    local keystoneLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    keystoneLevel:SetPoint("LEFT", keystoneButton, "RIGHT", 12, 0)
-    keystoneLevel:SetJustifyH("LEFT")
-    keystoneLevel:SetText("")
-    keystoneLevel:SetTextColor(1, 0.82, 0)
-    local keystoneNote = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    keystoneNote:SetJustifyH("CENTER")
-    keystoneNote:SetText("")
-    keystoneNote:SetTextColor(0.1, 1, 0.4)
-    keystoneNote:Hide()
-    local noteFont, noteSize, noteFlags = keystoneNote:GetFont()
-    if noteFont and noteSize then
-        local targetSize = math.min(noteSize + 2, 18)
-        keystoneNote:SetFont(noteFont, targetSize, noteFlags)
-    end
+    -- Create keystone alias label using AceGUI Label with Components styling
+    local keystoneAlias = NextKey222.UIComponents:CreateText("label", frame, {
+        text = "",
+        justifyH = "CENTER",
+        color = {0.85, 0.85, 0.85}
+    })
+    
+    -- Create keystone level label using AceGUI Label with Components styling
+    local keystoneLevel = NextKey222.UIComponents:CreateText("large", frame, {
+        text = "",
+        justifyH = "LEFT",
+        color = {1, 0.82, 0}
+    })
+    
+    -- Position the level label relative to keystone button
+    local keystoneLevelFrame = keystoneLevel.frame
+    keystoneLevelFrame:SetPoint("LEFT", keystoneButton, "RIGHT", 12, 0)
+    
+    -- Create keystone note label using AceGUI Label with Components styling
+    local keystoneNote = NextKey222.UIComponents:CreateText("label", frame, {
+        text = "",
+        justifyH = "CENTER",
+        color = {0.1, 1, 0.4}
+    })
+    
+    -- Initially hide the note label
+    keystoneNote.frame:Hide()
+    -- Add all AceGUI widgets to main container for proper cleanup
+    mainContainer:AddChild(title)
+    mainContainer:AddChild(keystoneAlias)
+    mainContainer:AddChild(keystoneLevel)
+    mainContainer:AddChild(keystoneNote)
+    
     self.teleportWindow = {
         frame = frame,
+        mainContainer = mainContainer,  -- Store AceGUI container for proper cleanup
         closeButton = close,
         titleLabel = title,
         hearthButton = hearthButton,
@@ -619,6 +676,7 @@ function addon:EnsureTeleportWindow()
         keystoneAliasLabel = keystoneAlias,
         keystoneLevelLabel = keystoneLevel,
         keystoneOwnerNoteLabel = keystoneNote,
+        summonButton = summonButton,
     }
 
     updateKeystoneButton(self.teleportWindow)
@@ -629,9 +687,27 @@ end
 function addon:ToggleTeleportWindow()
     local window = self:EnsureTeleportWindow()
     if not window then return end
+    
+    NextKey222.Debug:User("Teleport Window: Toggle called")
+    
     if window.frame:IsShown() then
+        NextKey222.Debug:User("Teleport Window: Hiding window")
         window.frame:Hide()
+        addon:ClearTeleportWindowContext()
         return
+    end
+
+    local context = addon:GetTeleportWindowContext()
+    NextKey222.Debug:User("Teleport Window: Context: " .. (context and ("mode=" .. (context.mode or "nil")) or "nil"))
+    
+    if context and context.mode == "PUG" then
+       NextKey222.Debug:User("Teleport Window: Setting PUG mode - showing summon button")
+       window.titleLabel:SetText("NextKey - PUG Travel")
+       window.summonButton:Show()
+    else
+       NextKey222.Debug:User("Teleport Window: Setting normal mode - hiding summon button")
+       window.titleLabel:SetText("NextKey")
+       window.summonButton:Hide()
     end
 
     updateKeystoneButton(window)
@@ -642,6 +718,8 @@ function addon:ToggleTeleportWindow()
     window.frame:SetToplevel(true)
     window.frame:Show()
     window.frame:Raise()
+    
+    NextKey222.Debug:User("Teleport Window: Window shown and raised")
 end
 
 function addon:RefreshTeleportWindow()

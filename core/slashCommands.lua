@@ -61,6 +61,21 @@ local Commands = {
         desc = "Generate fake players for testing (use '/nk test help' for details)",
         handler = "TestCommands"
     },
+    {
+        cmd = {"components"},
+        desc = "Test UI component system (use '/nk components help' for details)",
+        handler = "ComponentCommands"
+    },
+    {
+        cmd = {"validate", "validation"},
+        desc = "Run Phase 7 validation tests (use '/nk validate help' for details)",
+        handler = "ValidationCommands"
+    },
+    {
+        cmd = {"scroll"},
+        desc = "Test scroll bar visibility fix",
+        handler = "TestScrollBar"
+    },
     
     -- Developer commands
     {
@@ -74,7 +89,8 @@ local Commands = {
         cmd = {"pug"},
         desc = "PUG Helper commands (use '/nk pug help' for details)",
         handler = "PUGCommands"
-    }
+    },
+    
 }
 
 -- Debug subcommands
@@ -192,6 +208,11 @@ local PUGCommands = {
         handler = "TestPUGTracking"
     },
     {
+        cmd = {"detect"},
+        desc = "Manually trigger LFG application detection",
+        handler = "DetectApplications"
+    },
+    {
         cmd = {"simulate"},
         desc = "Simulate PUG workflow: /nk pug simulate <invite|join|complete>",
         usage = "/nk pug simulate <invite|join|complete>",
@@ -216,7 +237,173 @@ local PUGCommands = {
         cmd = {"reset"},
         desc = "Reset PUG Helper state",
         handler = "ResetPUGHelper"
+    },
+   {
+       cmd = {"testui"},
+       desc = "Test PUG UI components: /nk pug testui <invite|travel|getaway>",
+       usage = "/nk pug testui <invite|travel|getaway>",
+       details = {
+           "  invite - Test invite notification UI",
+           "  travel - Test travel assistant UI",
+           "  getaway - Test getaway UI"
+       },
+       handler = "TestPUGUI"
+   },
+   {
+       cmd = {"scenario"},
+       desc = "Set test scenario: /nk pug scenario <invite|travel|getaway> <name>",
+       usage = "/nk pug scenario <type> <name>",
+       handler = "SetTestScenario"
+   },
+   {
+       cmd = {"tracker"},
+       desc = "Application tracker commands: /nk pug tracker <show|hide|toggle|enable>",
+       usage = "/nk pug tracker <show|hide|toggle|enable>",
+       details = {
+           "  show - Show the application tracker window",
+           "  hide - Hide the application tracker window",
+           "  toggle - Toggle the application tracker window",
+           "  enable - Force-enable the application tracker"
+       },
+       handler = "ApplicationTrackerCommands"
+   },
+   {
+       cmd = {"fixes"},
+       desc = "Test PUG Helper fixes for API issues",
+       handler = "TestPUGHelperFixes"
+   }
+}
+
+-- Component testing subcommands
+local ComponentCommands = {
+    {
+        cmd = {"", "test", "run"},
+        desc = "Run all component system tests",
+        handler = "RunComponentTests"
+    },
+    {
+        cmd = {"backdrop"},
+        desc = "Test backdrop factory specifically",
+        handler = "TestBackdropFactory"
+    },
+    {
+        cmd = {"button"},
+        desc = "Test button factory specifically",
+        handler = "TestButtonFactory"
+    },
+    {
+        cmd = {"frame"},
+        desc = "Test frame factory specifically",
+        handler = "TestFrameFactory"
+    },
+    {
+        cmd = {"text", "label"},
+        desc = "Test text/label factory specifically",
+        handler = "TestTextFactory"
+    },
+    {
+        cmd = {"icon"},
+        desc = "Test icon factory specifically",
+        handler = "TestIconFactory"
+    },
+    {
+        cmd = {"integration"},
+        desc = "Test component integration scenarios",
+        handler = "TestComponentIntegration"
+    },
+    {
+        cmd = {"performance", "perf"},
+        desc = "Test component creation performance",
+        handler = "TestComponentPerformance"
+    },
+    {
+        cmd = {"validation"},
+        desc = "Test component validation functions",
+        handler = "TestComponentValidation"
+    },
+    {
+        cmd = {"help", "?"},
+        desc = "Show component testing help",
+        handler = "ShowComponentHelp"
     }
+}
+
+-- Validation subcommands
+local ValidationCommands = {
+    {
+        cmd = {"", "help", "?"},
+        desc = "Show validation command help",
+        handler = "ShowValidationHelp"
+    },
+    {
+        cmd = {"all", "run"},
+        desc = "Run all Phase 7 validation tests",
+        handler = "RunAllValidations"
+    },
+    {
+        cmd = {"unit"},
+        desc = "Run unit tests for individual systems",
+        handler = "RunUnitTests"
+    },
+    {
+        cmd = {"integration"},
+        desc = "Run integration tests for system interaction",
+        handler = "RunIntegrationTests"
+    },
+    {
+        cmd = {"performance"},
+        desc = "Run performance validation tests",
+        handler = "RunPerformanceTests"
+    },
+    {
+        cmd = {"ui"},
+        desc = "Run UI-specific validation tests",
+        handler = "RunUITests"
+    },
+    {
+        cmd = {"status"},
+        desc = "Show validation system status",
+        handler = "ShowValidationStatus"
+    }
+}
+
+-- Visual testing subcommands
+local VisualCommands = {
+   {
+       cmd = {"", "help", "?"},
+       desc = "Show visual testing command help",
+       handler = "ShowVisualHelp"
+   },
+   {
+       cmd = {"keystones", "keys"},
+       desc = "Test keystone detection and management visually",
+       handler = "TestKeystonesVisual"
+   },
+   {
+       cmd = {"communication", "comm"},
+       desc = "Test communication system visually",
+       handler = "TestCommunicationVisual"
+   },
+   {
+       cmd = {"ui", "components"},
+       desc = "Test UI components visually",
+       handler = "TestUIComponentsVisual"
+   },
+   {
+       cmd = {"pug", "workflow"},
+       desc = "Test PUG Mode workflow visually",
+       handler = "TestPUGWorkflowVisual"
+   },
+   {
+       cmd = {"all", "complete"},
+       desc = "Run all visual tests in sequence",
+       handler = "RunAllVisualTests"
+   },
+   {
+       cmd = {"status"},
+       desc = "Show visual testing status",
+       handler = "ShowVisualStatus"
+   }
 }
 
 -- MARK: - Command Handlers
@@ -225,9 +412,16 @@ local SlashCommands = {}
 
 -- Main window commands
 function SlashCommands:ShowMainWindow()
-    if NextKey222.UI and NextKey222.UI.ToggleMainFrame then
+    NextKey222.Debug:Dev("slashcommands", "ShowMainWindow called - UI available:", NextKey222.UI and "YES" or "NO")
+    
+    if NextKey222.UI and NextKey222.UI.ShowMainFrame then
+        NextKey222.Debug:Dev("slashcommands", "Using ShowMainFrame method")
+        NextKey222.UI:ShowMainFrame()
+    elseif NextKey222.UI and NextKey222.UI.ToggleMainFrame then
+        NextKey222.Debug:Dev("slashcommands", "Using ToggleMainFrame method")
         NextKey222.UI:ToggleMainFrame()
     elseif NextKey222.UI and NextKey222.UI.CreateMainFrame then
+        NextKey222.Debug:Dev("slashcommands", "Using CreateMainFrame method")
         NextKey222.UI:CreateMainFrame()
     else
         NextKey222.Debug:User("UI not ready yet")
@@ -534,6 +728,21 @@ function SlashCommands:TestPUGTracking()
     end
 end
 
+function SlashCommands:DetectApplications()
+    if not NextKey222.PUGHelper then
+        NextKey222.Debug:User("PUG Helper module not available")
+        return
+    end
+    
+    print("NextKey PUG: Manually triggering application detection...")
+    if NextKey222.PUGHelper.OnApplicationListUpdated then
+        NextKey222.PUGHelper:OnApplicationListUpdated()
+        NextKey222.Debug:User("PUG Helper: Manual application detection triggered")
+    else
+        NextKey222.Debug:User("PUG Helper: OnApplicationListUpdated function not available")
+    end
+end
+
 function SlashCommands:SimulatePUGWorkflow(action)
     if not NextKey222.PUGHelper then
         NextKey222.Debug:User("PUG Helper module not available")
@@ -607,6 +816,386 @@ function SlashCommands:ResetPUGHelper()
     end
 end
 
+function SlashCommands:TestPUGUI(uiType)
+   NextKey222.Debug:User("PUG UI testing functionality has been removed")
+   NextKey222.Debug:User("Use the basic PUG Helper commands for testing")
+end
+
+function SlashCommands:SetTestScenario(scenarioType, scenarioName)
+   NextKey222.Debug:User("PUG test scenario functionality has been removed")
+   NextKey222.Debug:User("Use the basic PUG Helper commands for testing")
+end
+
+function SlashCommands:ApplicationTrackerCommands(action)
+   if not NextKey222.PUGApplicationTracker then
+       NextKey222.Debug:User("Application Tracker module not available")
+       return
+   end
+   
+   if not action or action == "" then
+       NextKey222.Debug:User("Usage: /nk pug tracker <show|hide|toggle|enable>")
+       return
+   end
+   
+   action = string.lower(action)
+   
+   if action == "show" then
+       -- Force enable before showing
+       NextKey222.PUGApplicationTracker:SetEnabled(true)
+       NextKey222.PUGApplicationTracker:Show()
+       NextKey222.Debug:User("Application tracker shown (force-enabled)")
+   elseif action == "hide" then
+       NextKey222.PUGApplicationTracker:Hide()
+       NextKey222.Debug:User("Application tracker hidden")
+   elseif action == "toggle" then
+       -- Force enable before toggling
+       NextKey222.PUGApplicationTracker:SetEnabled(true)
+       NextKey222.PUGApplicationTracker:Toggle()
+       NextKey222.Debug:User("Application tracker toggled (force-enabled)")
+   elseif action == "enable" then
+       NextKey222.PUGApplicationTracker:SetEnabled(true)
+       NextKey222.Debug:User("Application tracker force-enabled")
+   else
+       NextKey222.Debug:User("Usage: /nk pug tracker <show|hide|toggle|enable>")
+       NextKey222.Debug:User("  show - Show the application tracker window")
+       NextKey222.Debug:User("  hide - Hide the application tracker window")
+       NextKey222.Debug:User("  toggle - Toggle the application tracker window")
+       NextKey222.Debug:User("  enable - Force-enable the application tracker")
+   end
+end
+
+function SlashCommands:TestPUGHelperFixes()
+    if not NextKey222.PUGHelper then
+        NextKey222.Debug:User("PUG Helper module not available")
+        return
+    end
+    
+    if NextKey222.PUGHelper.TestPUGHelperFixes then
+        NextKey222.Debug:User("Testing PUG Helper fixes...")
+        local success = NextKey222.PUGHelper:TestPUGHelperFixes()
+        if success then
+            NextKey222.Debug:User("✓ All PUG Helper fix tests passed!")
+        else
+            NextKey222.Debug:User("✗ Some PUG Helper fix tests failed")
+        end
+    else
+        NextKey222.Debug:User("PUG Helper: TestPUGHelperFixes function not available")
+    end
+end
+
+
+-- MARK: - Component Command Handlers
+
+function SlashCommands:ShowComponentHelp()
+    NextKey222.Debug:User("=== Component Testing Commands ===")
+    for _, cmd in ipairs(ComponentCommands) do
+        local cmdStr = "/" .. "nk components " .. cmd.cmd[1]
+        if cmd.cmd[1] == "" then
+            cmdStr = "/" .. "nk components"
+        end
+        NextKey222.Debug:User("  " .. cmdStr .. " - " .. cmd.desc)
+    end
+end
+
+function SlashCommands:RunComponentTests()
+    if NextKeyRunComponentTests then
+        NextKey222.Debug:User("Running all component system tests...")
+        local success = NextKeyRunComponentTests()
+        
+        local results = NextKeyGetComponentTestResults()
+        if results then
+            NextKey222.Debug:User(string.format("Component Tests Complete: %d/%d passed",
+                results.passed, results.total))
+            
+            if results.failed > 0 then
+                NextKey222.Debug:User("Failed tests:")
+                for _, failure in ipairs(results.failures) do
+                    NextKey222.Debug:User("  - " .. failure)
+                end
+            end
+        end
+        
+        if success then
+            NextKey222.Debug:User("✓ All component tests passed!")
+        else
+            NextKey222.Debug:User("✗ Some component tests failed")
+        end
+    else
+        NextKey222.Debug:User("Component tests not available")
+    end
+end
+
+function SlashCommands:TestBackdropFactory()
+    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestBackdropFactory then
+        NextKey222.Debug:User("Testing backdrop factory...")
+        local success = NextKey222.ComponentTests:TestBackdropFactory()
+        NextKey222.Debug:User(success and "✓ Backdrop factory tests passed" or "✗ Backdrop factory tests failed")
+    else
+        NextKey222.Debug:User("Backdrop factory tests not available")
+    end
+end
+
+function SlashCommands:TestButtonFactory()
+    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestButtonFactory then
+        NextKey222.Debug:User("Testing button factory...")
+        local success = NextKey222.ComponentTests:TestButtonFactory()
+        NextKey222.Debug:User(success and "✓ Button factory tests passed" or "✗ Button factory tests failed")
+    else
+        NextKey222.Debug:User("Button factory tests not available")
+    end
+end
+
+function SlashCommands:TestFrameFactory()
+    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestFrameFactory then
+        NextKey222.Debug:User("Testing frame factory...")
+        local success = NextKey222.ComponentTests:TestFrameFactory()
+        NextKey222.Debug:User(success and "✓ Frame factory tests passed" or "✗ Frame factory tests failed")
+    else
+        NextKey222.Debug:User("Frame factory tests not available")
+    end
+end
+
+function SlashCommands:TestTextFactory()
+    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestTextFactory then
+        NextKey222.Debug:User("Testing text/label factory...")
+        local success = NextKey222.ComponentTests:TestTextFactory()
+        NextKey222.Debug:User(success and "✓ Text factory tests passed" or "✗ Text factory tests failed")
+    else
+        NextKey222.Debug:User("Text factory tests not available")
+    end
+end
+
+function SlashCommands:TestIconFactory()
+    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestIconFactory then
+        NextKey222.Debug:User("Testing icon factory...")
+        local success = NextKey222.ComponentTests:TestIconFactory()
+        NextKey222.Debug:User(success and "✓ Icon factory tests passed" or "✗ Icon factory tests failed")
+    else
+        NextKey222.Debug:User("Icon factory tests not available")
+    end
+end
+
+function SlashCommands:TestComponentIntegration()
+    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestComponentIntegration then
+        NextKey222.Debug:User("Testing component integration...")
+        local success = NextKey222.ComponentTests:TestComponentIntegration()
+        NextKey222.Debug:User(success and "✓ Integration tests passed" or "✗ Integration tests failed")
+    else
+        NextKey222.Debug:User("Integration tests not available")
+    end
+end
+
+function SlashCommands:TestComponentPerformance()
+    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestComponentPerformance then
+        NextKey222.Debug:User("Testing component performance...")
+        local success = NextKey222.ComponentTests:TestComponentPerformance()
+        NextKey222.Debug:User(success and "✓ Performance tests passed" or "✗ Performance tests failed")
+    else
+        NextKey222.Debug:User("Performance tests not available")
+    end
+end
+
+function SlashCommands:TestComponentValidation()
+    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestComponentValidation then
+        NextKey222.Debug:User("Testing component validation...")
+        local success = NextKey222.ComponentTests:TestComponentValidation()
+        NextKey222.Debug:User(success and "✓ Validation tests passed" or "✗ Validation tests failed")
+    else
+        NextKey222.Debug:User("Validation tests not available")
+    end
+end
+
+-- MARK: - Validation Command Handlers
+
+function SlashCommands:ShowValidationHelp()
+    NextKey222.Debug:User("=== Phase 7 Validation Commands ===")
+    for _, cmd in ipairs(ValidationCommands) do
+        local cmdStr = "/" .. "nk validate " .. cmd.cmd[1]
+        if cmd.cmd[1] == "" then
+            cmdStr = "/" .. "nk validate"
+        end
+        NextKey222.Debug:User("  " .. cmdStr .. " - " .. cmd.desc)
+    end
+end
+
+function SlashCommands:RunAllValidations()
+    if not NextKey222.Validation then
+        NextKey222.Debug:User("Validation system not available")
+        return
+    end
+    
+    NextKey222.Debug:User("=== Running Phase 7 Validation Tests ===")
+    NextKey222.Debug:User("This may take a moment...")
+    
+    local results, summary = NextKey222.Validation:RunAllValidations("all")
+    NextKey222.Validation:PrintValidationResults(results, summary)
+    
+    if summary.success then
+        NextKey222.Debug:User("✓ All validation tests passed!")
+    else
+        NextKey222.Debug:User("✗ Some validation tests failed")
+    end
+end
+
+function SlashCommands:RunUnitTests()
+    if not NextKey222.Validation then
+        NextKey222.Debug:User("Validation system not available")
+        return
+    end
+    
+    NextKey222.Debug:User("=== Running Unit Tests ===")
+    
+    local results, summary = NextKey222.Validation:RunAllValidations("unit")
+    NextKey222.Validation:PrintValidationResults(results, summary)
+    
+    if summary.success then
+        NextKey222.Debug:User("✓ All unit tests passed!")
+    else
+        NextKey222.Debug:User("✗ Some unit tests failed")
+    end
+end
+
+function SlashCommands:RunIntegrationTests()
+    if not NextKey222.Validation then
+        NextKey222.Debug:User("Validation system not available")
+        return
+    end
+    
+    NextKey222.Debug:User("=== Running Integration Tests ===")
+    
+    local results, summary = NextKey222.Validation:RunAllValidations("integration")
+    NextKey222.Validation:PrintValidationResults(results, summary)
+    
+    if summary.success then
+        NextKey222.Debug:User("✓ All integration tests passed!")
+    else
+        NextKey222.Debug:User("✗ Some integration tests failed")
+    end
+end
+
+function SlashCommands:RunPerformanceTests()
+    if not NextKey222.Validation then
+        NextKey222.Debug:User("Validation system not available")
+        return
+    end
+    
+    NextKey222.Debug:User("=== Running Performance Tests ===")
+    
+    -- Run performance-specific tests
+    local results = {}
+    results.performance = NextKey222.Validation:TestPerformanceSystem()
+    
+    local summary = NextKey222.Validation:GenerateValidationSummary(results, 0)
+    NextKey222.Validation:PrintValidationResults(results, summary)
+    
+    if summary.success then
+        NextKey222.Debug:User("✓ All performance tests passed!")
+    else
+        NextKey222.Debug:User("✗ Some performance tests failed")
+    end
+end
+
+function SlashCommands:RunUITests()
+    if not NextKey222.Validation then
+        NextKey222.Debug:User("Validation system not available")
+        return
+    end
+    
+    NextKey222.Debug:User("=== Running UI Tests ===")
+    
+    -- Run UI-specific tests
+    local results = {}
+    results.tooltip = NextKey222.Validation:TestTooltipSystem()
+    results.theme = NextKey222.Validation:TestThemeSystem()
+    results.uiScale = NextKey222.Validation:TestUIScaleSystem()
+    results.responsive = NextKey222.Validation:TestResponsiveSystem()
+    
+    local summary = NextKey222.Validation:GenerateValidationSummary(results, 0)
+    NextKey222.Validation:PrintValidationResults(results, summary)
+    
+    if summary.success then
+        NextKey222.Debug:User("✓ All UI tests passed!")
+    else
+        NextKey222.Debug:User("✗ Some UI tests failed")
+    end
+end
+
+function SlashCommands:ShowValidationStatus()
+    if not NextKey222.Validation then
+        NextKey222.Debug:User("Validation system not available")
+        return
+    end
+    
+    NextKey222.Debug:User("=== Validation System Status ===")
+    NextKey222.Debug:User("- Available:", "Yes")
+    
+    -- Check which systems are available for validation
+    local systems = {
+        "ConfigurationContext",
+        "Tooltip",
+        "Theme",
+        "UIScale",
+        "Responsive",
+        "Performance",
+        "UIComponents",
+        "UI"
+    }
+    
+    NextKey222.Debug:User("- Available Systems:")
+    for _, system in ipairs(systems) do
+        local available = NextKey222[system] ~= nil
+        NextKey222.Debug:User("  - " .. system .. ": " .. (available and "✓" or "✗"))
+    end
+end
+
+-- MARK: - Scroll Bar Test Command Handler
+
+function SlashCommands:TestScrollBar()
+    NextKey222.Debug:User("Testing scroll bar visibility fix...")
+    
+    -- Check main UI frame
+    if NextKey222.UI and NextKey222.UI.mainFrame then
+        local mainVisible = NextKey222.UI.mainFrame:IsShown()
+        NextKey222.Debug:User("Main UI frame visibility: " .. (mainVisible and "VISIBLE" or "HIDDEN"))
+        
+        if NextKey222.UI.resultsFrame and NextKey222.UI.resultsFrame.frame then
+            local resultsVisible = NextKey222.UI.resultsFrame.frame:IsShown()
+            NextKey222.Debug:User("Main results frame visibility: " .. (resultsVisible and "VISIBLE" or "HIDDEN"))
+        end
+    else
+        NextKey222.Debug:User("Main UI frame not created")
+    end
+    
+    -- Check PUG Application Tracker
+    if NextKey222.PUGApplicationTracker and NextKey222.PUGApplicationTracker.frame then
+        local pugVisible = NextKey222.PUGApplicationTracker.frame.frame:IsShown()
+        NextKey222.Debug:User("PUG Application Tracker visibility: " .. (pugVisible and "VISIBLE" or "HIDDEN"))
+        
+        if NextKey222.PUGApplicationTracker.scrollFrame and NextKey222.PUGApplicationTracker.scrollFrame.frame then
+            local pugScrollVisible = NextKey222.PUGApplicationTracker.scrollFrame.frame:IsShown()
+            NextKey222.Debug:User("PUG Application Tracker scroll frame visibility: " .. (pugScrollVisible and "VISIBLE" or "HIDDEN"))
+        end
+    else
+        NextKey222.Debug:User("PUG Application Tracker frame not created")
+    end
+    
+    -- Check Loot Window
+    if NextKey222.LootWindow and NextKey222.LootWindow.frame then
+        local lootVisible = NextKey222.LootWindow.frame:IsShown()
+        NextKey222.Debug:User("Loot Window visibility: " .. (lootVisible and "VISIBLE" or "HIDDEN"))
+        
+        if NextKey222.LootWindow.scrollFrame and NextKey222.LootWindow.scrollFrame.frame then
+            local lootScrollVisible = NextKey222.LootWindow.scrollFrame.frame:IsShown()
+            NextKey222.Debug:User("Loot Window scroll frame visibility: " .. (lootScrollVisible and "VISIBLE" or "HIDDEN"))
+        end
+    else
+        NextKey222.Debug:User("Loot Window frame not created")
+    end
+    
+    NextKey222.Debug:User("Scroll bar visibility test completed")
+    NextKey222.Debug:User("If any scroll frames are visible when they shouldn't be, the fix may need adjustment")
+end
+
 -- MARK: - Main Slash Command Handler
 
 local function HandleSlashCommand(input)
@@ -672,6 +1261,42 @@ local function HandleSlashCommand(input)
         end
         -- Unknown PUG subcommand - show help
         SlashCommands:ShowPUGHelp()
+        return
+    end
+    
+    -- Handle component commands
+    if mainCmd == "components" then
+        for _, cmdDef in ipairs(ComponentCommands) do
+            for _, cmdName in ipairs(cmdDef.cmd) do
+                if subCmd == cmdName then
+                    local handler = SlashCommands[cmdDef.handler]
+                    if handler then
+                        handler(SlashCommands, subArgs[1], subArgs)
+                    end
+                    return
+                end
+            end
+        end
+        -- Unknown component subcommand - show help
+        SlashCommands:ShowComponentHelp()
+        return
+    end
+    
+    -- Handle validation commands
+    if mainCmd == "validate" then
+        for _, cmdDef in ipairs(ValidationCommands) do
+            for _, cmdName in ipairs(cmdDef.cmd) do
+                if subCmd == cmdName then
+                    local handler = SlashCommands[cmdDef.handler]
+                    if handler then
+                        handler(SlashCommands, subArgs[1], subArgs)
+                    end
+                    return
+                end
+            end
+        end
+        -- Unknown validation subcommand - show help
+        SlashCommands:ShowValidationHelp()
         return
     end
     

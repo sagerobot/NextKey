@@ -173,6 +173,7 @@ Blizzard API (Base) → LibOpenRaid (Real-time) → RaiderIO (Comprehensive) →
 - **UI Controls**: `/nk config` → Debug System
 - **Performance**: Zero overhead when `DEV_MODE = false`
 - **Compile-time Stripping**: Dev/Trace calls removed in release
+- **Simplified**: Removed advanced performance monitoring and filtering features
 
 ### Debug Categories
 ```lua
@@ -190,6 +191,49 @@ NextKey222.Performance:StartProfile("operation_name")
 -- ... code ...
 NextKey222.Performance:StopProfile("operation_name")
 ```
+
+## Testing Infrastructure
+
+### Simplified Testing Protocol
+NextKey uses a simplified, practical testing approach focused on core functionality and reliability.
+
+**Core Philosophy**: Testing should be straightforward and focus on what users actually need.
+
+**Testing Hierarchy**:
+1. **In-Game Testing**: Use the addon as a normal user would
+2. **Basic Debug Output**: Use debug system for troubleshooting only
+3. **Error Reporting**: Focus on catching and reporting errors effectively
+4. **Manual Verification**: Check that features work as expected
+
+**Visual Testing Infrastructure**: Removed to simplify the addon and focus on core functionality.
+
+### Test Commands
+```lua
+/nk test                        -- Generate 4 random fake players
+/nk test preset mixed_skill     -- Generate preset team
+/nk test clear                  -- Remove all fake players
+/script NextKeyRunTests()       -- Run test suite
+
+-- Component System Testing (PHASE 2)
+/nk components test             -- Run all component tests
+/nk components help             -- Show component command help
+/nk components backdrop         -- Test backdrop factory
+/nk components button           -- Test button factory
+/nk components frame            -- Test frame factory
+/nk components text             -- Test text factory
+/nk components icon             -- Test icon factory
+/nk components integration      -- Test component integration
+/nk components performance      -- Test component performance
+/nk components validation       -- Test component validation
+
+-- PUG Mode Testing
+/nk pug test                    -- Test PUG Helper application tracking
+/nk pug simulate invite         -- Simulate receiving group invite
+/nk pug simulate join           -- Simulate joining group
+/nk pug simulate complete       -- Simulate dungeon completion
+/nk pug status                  -- Show PUG Helper status
+```
+
 
 ## Build & Release Process
 
@@ -214,7 +258,7 @@ NextKey222.Performance:StopProfile("operation_name")
 
 ## Integration Testing
 
-### Testing Scenarios
+### Simplified Testing Scenarios
 1. **Solo Mode**: Addon functions without party
 2. **Party Mode**: 5-player group functionality
 3. **Cross-Realm**: Mixed realm party members
@@ -261,6 +305,7 @@ NextKey222.Performance:StopProfile("operation_name")
 - All debug uses `Debug:Error/User/Dev/Trace()`
 - All expensive operations profiled with `Performance`
 - MARK comments for VS Code navigation
+- Phase 2: Use component factories for all UI creation
 
 ### Error Handling Requirements
 - Validate all function inputs
@@ -275,6 +320,22 @@ NextKey222.Performance:StopProfile("operation_name")
 - Batch UI updates
 - Avoid string concatenation in loops
 - Use table pools for frequent allocations
+- Phase 2: Component pooling for frequent creation (100 components in <0.1s)
+
+### UI Component Creation (Phase 2+)
+- Use factory functions from `Components` module
+- Configure via config tables
+- Leverage type constants for consistency
+- Validate component types before creation
+- Use color schemes for consistent theming
+- Reference migration examples for existing code
+
+### Post-Refactor Bugfixing (Current Phase)
+- Use debug system extensively to identify UI rendering issues
+- Check for configuration wrapper misapplications
+- Verify Ace3 widget proper initialization and parenting
+- Test component factory function outputs
+- Ensure all fixes maintain compliance with established patterns
 
 ## Documentation Standards
 

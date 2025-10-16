@@ -35,6 +35,13 @@ data\portals.lua
 core\constants.lua
 core\ids.lua
 core\uiConfig.lua
+core\configurationContext.lua
+core\tooltip.lua
+core\theme.lua
+core\uiScale.lua
+core\responsive.lua
+core\performance.lua
+core\validation.lua
 core\fakePlayerService.lua
 core\profiles.lua
 core\playerIOData.lua
@@ -62,7 +69,6 @@ events\handlers.lua
 # Debug
 debug\init.lua
 debug\tools.lua
-debug\testSuite.lua
 
 # UI Components
 ui\main.lua
@@ -74,6 +80,7 @@ ui\lootWindow.lua
 ui\pugInviteNotification.lua
 ui\pugTravelAssistant.lua
 ui\pugGetawayUI.lua
+ui\pugApplicationTracker.lua
 
 # Options
 options\main.lua

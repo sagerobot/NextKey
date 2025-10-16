@@ -16,9 +16,10 @@ local UIConfig = {
     
     -- MARK: Card Layout
     CARD = {
-        HEIGHT = 35,                    -- Height of each individual card
-        VERTICAL_SPACING = 0,           -- Vertical space between cards (0 = no gap)
-        MARGIN = 0,                     -- Margin around each card
+        HEIGHT = 88,                    -- Standard keystone card height (matches UI factory)
+        HEIGHT_COMPACT = 28,            -- Compact keystone card height
+        VERTICAL_SPACING = 8,           -- Vertical space between cards
+        MARGIN = 8,                     -- Margin around each card
         HEADER_PADDING = 10             -- Extra space for headers and padding
     },
     
@@ -32,7 +33,7 @@ local UIConfig = {
     
     -- MARK: Text Element Widths
     TEXT = {
-        NAME_LABEL_WIDTH = 180,         -- Dungeon name display width
+        NAME_LABEL_WIDTH = 260,         -- Dungeon name display width
         SCORE_LABEL_WIDTH = 90          -- IO score display width
     },
     

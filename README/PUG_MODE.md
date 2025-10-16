@@ -1,214 +1,213 @@
-# NextKey PUG Mode Implementation
+# NextKey PUG Mode
 
 ## Overview
 
-PUG Mode is an automatic feature in NextKey that assists with the LFG (Pick Up Group) workflow for Mythic+ dungeons. Unlike traditional "modes", PUG Mode activates automatically when using the LFG tool and provides contextual assistance throughout the entire PUG experience.
+PUG Mode is an automated workflow assistant for World of Warcraft's Premade Group Finder (LFG) tool. It helps streamline the process of applying to groups, managing invites, traveling to dungeons, and handling post-run activities.
 
-## Key Features
+## Features
 
-### 1. Application Tracking
-- Automatically tracks LFG applications when you apply to groups
-- Caches group information including dungeon, key level, and leader details
-- Monitors application status changes (accepted, declined, cancelled)
+### Application Tracker (NEW)
+- Visual window showing all active LFG applications in real-time
+- Displays dungeon alias, key level, group leader, and application status
+- Color-coded status indicators (pending=yellow, invited=green, declined=red)
+- Time tracking showing how long ago each application was submitted
+- Auto-shows when you have active applications (configurable)
+- Manual control via slash commands: `/nk pug tracker show/hide/toggle`
+- Configurable in Options → PUG Helper → Show Application Tracker (off by default)
 
-### 2. Contextual Invite Notifications
-- Enhanced invite notifications when receiving invites from tracked applications
-- Shows dungeon name, key level, and group information
-- Provides accept/decline buttons with timeout handling
-- Optional auto-accept for trusted groups
+### Automated Workflow Tracking
+- Tracks your LFG applications with timestamps and status history
+- Matches received invites to your tracked applications
+- Provides contextual information about dungeon invites including key level and group details
+- Automatically detects when you join a group and completes a dungeon run
+- Enhanced status tracking (pending, invited, declined, cancelled, failed)
 
-### 3. Travel Assistant
-- Automatically appears when joining a PUG group
-- Provides one-click access to dungeon teleports
-- Shows hearthstone status and cooldown
-- Includes summon request functionality with cooldown management
-- Displays relevant travel options based on current location
+### Contextual Notifications
+- **Invite Notifications**: Enhanced invite notifications that show dungeon information, key level, and group comments
+- **Travel Assistance**: Automatic travel suggestions when joining a group, including hearthstone status and teleport options
+- **Enhanced Detection**: Travel window automatically appears when Blizzard's invite popup shows
+- **Getaway UI**: Quick exit options after dungeon completion with hearthstone, leave group, and exit dungeon options
 
-### 4. Post-Run Getaway UI
-- Appears after completing Mythic+ dungeons with PUG groups
-- Quick exit options: hearthstone, leave group, exit dungeon
-- Shows completion summary with dungeon and key level
-- Auto-dismisses after 2 minutes
-
-## Architecture
-
-### State Machine
-PUG Helper operates on a 5-state machine:
-- **IDLE**: Not tracking any LFG activity
-- **TRACKING**: Applied to groups, monitoring applications
-- **INVITE_RECEIVED**: Received invite, showing notification
-- **IN_GROUP**: Joined group, providing travel assistance
-- **RUN_COMPLETE**: Dungeon completed, providing getaway options
-
-### Event Flow
-```
-LFG Application → Tracking → Invite Received → In Group → Run Complete → Idle
-```
-
-### Module Structure
-```
-core/
-├── pugHelper.lua              # Core logic and state management
-ui/
-├── pugInviteNotification.lua  # Invite notification UI
-├── pugTravelAssistant.lua    # Travel assistance UI
-└── pugGetawayUI.lua          # Post-run getaway UI
-```
+### State Management
+- Intelligent state machine with 5 states: IDLE, TRACKING, INVITE_RECEIVED, IN_GROUP, RUN_COMPLETE
+- Validates all state transitions to ensure proper workflow progression
+- Automatic cleanup of timers and data when transitioning between states
 
 ## Configuration
 
-PUG Helper settings are available in `/nk config` under the "PUG Helper" section:
+PUG Mode can be configured through the NextKey options panel (`/nk config`):
 
-### General Settings
-- **Enable PUG Helper**: Master toggle for all PUG features
-- **Show Invite Notifications**: Display enhanced invite notifications
-- **Auto-Accept Invites**: Automatically accept invites from tracked applications
-- **Travel Assistant**: Show travel assistance when joining groups
-- **Post-Run Getaway UI**: Show quick exit options after dungeon completion
+- **Enable/Disable PUG Mode**: Turn the entire feature on or off
+- **Show Application Tracker**: Display the application tracker window (off by default)
+- **Auto-Show Tracker**: Automatically show tracker when you have applications
+- **Show Notifications**: Control whether contextual invite notifications are displayed
+- **Travel Assistant**: Enable/disable travel assistance when joining groups
+- **Getaway UI**: Enable/disable the post-run getaway options
+- **Auto-Accept Invites**: Automatically accept invites from tracked applications (disabled by default)
 
 ## Usage
 
-### Automatic Operation
-PUG Helper works automatically in the background:
-1. Apply to LFG groups as normal
-2. Receive enhanced invite notifications when invited
-3. Get travel assistance when joining groups
-4. Use getaway UI after completing dungeons
+### Basic Usage
 
-### Manual Control
-Use slash commands for manual control:
+1. **Enable PUG Mode**: Make sure PUG Mode is enabled in the NextKey options
+2. **(Optional) Enable Application Tracker**: Check "Show Application Tracker" in PUG Helper options
+3. **Apply to Groups**: Use the LFG tool to apply to Mythic+ groups as usual
+4. **Application Tracker**: Window will automatically show your active applications with status
+5. **Receive Invites**: When you receive an invite that matches a tracked application, you'll see an enhanced notification with dungeon details
+6. **Travel Window**: Automatically appears when Blizzard's invite popup shows
+7. **Join Group**: Accept the invite to join the group - PUG Mode will detect this and offer travel assistance
+8. **Complete Dungeon**: Run the Mythic+ dungeon - PUG Mode will detect completion and show getaway options
+
+### Application Tracker Usage
+
+- **Auto-Show**: Automatically appears when you have active applications
+- **Manual Control**: Use `/nk pug tracker show/hide/toggle` for manual control
+- **Status Indicators**: Color-coded status for quick visual reference
+- **Time Tracking**: Shows elapsed time since application submission
+- **Auto-Hide**: Automatically hides when all applications are resolved
+
+### Testing PUG Mode
+
+You can test PUG Mode functionality with these commands:
+
 ```
-/nk pug status      - Show PUG Helper status
-/nk pug enable      - Enable PUG Helper
-/nk pug disable     - Disable PUG Helper
-/nk pug reset       - Reset PUG Helper state
-/nk pug test        - Test application tracking
-/nk pug simulate    - Simulate workflow steps
+/nk pug test                    -- Test application tracking with a fake application
+/nk pug simulate invite         -- Simulate receiving a group invite
+/nk pug simulate join           -- Simulate joining a group
+/nk pug simulate complete       -- Simulate dungeon completion
+/nk pug status                  -- Show current PUG Mode status
+/nk pug tracker show            -- Show the application tracker window
+/nk pug tracker hide            -- Hide the application tracker window
+/nk pug tracker toggle          -- Toggle the application tracker window
 ```
 
-### Testing and Debugging
-For development and testing:
+### Integration Testing
+
+For comprehensive testing of the refactored PUG Mode:
+
 ```
-/nk pug test        - Create test application
-/nk pug simulate invite - Simulate receiving invite
-/nk pug simulate join   - Simulate joining group
-/nk pug simulate complete - Simulate dungeon completion
-/nk debug category pughelper - Enable PUG debug logging
+/script TestPUGIntegration()          -- Run full integration test suite
+/script TestPUGQuick()                 -- Run quick module validation
+/script TestPUGApplicationTracker()    -- Run application tracker test suite
 ```
 
-## Technical Implementation
+#### How to Use the Tests
 
-### Event Integration
-PUG Helper integrates with the existing event system:
-- Events registered in `events/handlers.lua`
-- Forwarded to PUG Helper module for processing
-- Follows NextKey architecture patterns
+1. **Quick Validation**:
+   - Type `/script TestPUGQuick()` in chat
+   - This will check if all PUG Mode modules are loaded correctly
+   - You should see "All PUG Mode modules loaded successfully!" if everything is working
 
-### Data Storage
-Configuration stored in `NextKeyDB.global.pugHelper`:
-```lua
-{
-    enabled = true,
-    autoAcceptInvites = false,
-    showNotifications = true,
-    travelAssistant = true,
-    getawayUI = true
-}
-```
+2. **Full Integration Test**:
+   - Type `/script TestPUGIntegration()` in chat
+   - This will run 6 comprehensive tests covering:
+     - State Management
+     - UI Components Integration
+     - Teleport System Integration
+     - Event Handlers Integration
+     - Configuration Management
+     - PUG Workflow Simulation
+   - Each test will show ✓ PASSED or ✗ FAILED with details if something goes wrong
+
+3. **Manual Testing Commands**:
+   - `/nk pug test` - Creates a fake LFG application to test tracking
+   - `/nk pug simulate invite` - Simulates receiving a group invite (should show notification)
+   - `/nk pug simulate join` - Simulates joining a group (should show travel assistant)
+   - `/nk pug simulate complete` - Simulates dungeon completion (should show getaway UI)
+   - `/nk pug status` - Shows current PUG Mode state
+
+4. **Debug Mode**:
+   - Enable debug mode in `/nk config` → Debug System
+   - Set "PUG Helper" category to DEV or TRACE level
+   - This will show detailed debug messages for all PUG Mode operations
+
+## Technical Details
+
+### Architecture
+
+PUG Mode has been refactored to integrate with NextKey's existing systems:
+
+- **UI Components**: All PUG UI components now use the standardized UIComponents system for consistent styling and behavior
+- **Teleport System**: The travel assistant leverages the existing teleport window instead of creating duplicate UI
+- **State Management**: Unified state management system with validation and proper cleanup
+- **Event Handling**: All PUG events are handled through the centralized events system
+
+### State Machine
+
+PUG Mode uses a 5-state machine:
+
+1. **IDLE**: Not tracking any LFG activity
+2. **TRACKING**: Applied to groups, tracking applications
+3. **INVITE_RECEIVED**: Received invite, showing notification
+4. **IN_GROUP**: Joined group, providing travel assistance
+5. **RUN_COMPLETE**: Dungeon completed, providing getaway options
+
+All state transitions are validated to ensure proper workflow progression.
 
 ### UI Components
-All UI components follow NextKey patterns:
-- AceGUI-3.0 widget system
-- Movable frames with backdrop styling
-- Proper cleanup and memory management
-- Integration with debug system
 
-## Performance Considerations
+PUG Mode consists of four main UI components:
 
-### Memory Management
-- Application cache cleared when not needed
-- Timers properly cancelled on state changes
-- UI components created on-demand and cleaned up
+1. **Application Tracker** (`ui/pugApplicationTracker.lua`): Shows active LFG applications with real-time status
+2. **Invite Notification** (`ui/pugInviteNotification.lua`): Shows contextual information about received invites
+3. **Travel Assistant** (`ui/pugTravelAssistant.lua`): Provides travel options when joining groups
+4. **Getaway UI** (`ui/pugGetawayUI.lua`): Offers quick exit options after dungeon completion
 
-### Event Throttling
-- Application list updates processed efficiently
-- No blocking operations during combat
-- Minimal impact on game performance
-
-### Error Handling
-- All operations wrapped in SafeRun() calls
-- Graceful degradation when data unavailable
-- Comprehensive debug logging
+All components use the NextKey UIComponents system for consistent styling and behavior.
 
 ## Troubleshooting
 
-### Common Issues
+### PUG Mode Not Working
 
-#### PUG Helper Not Working
-1. Check if enabled: `/nk pug status`
-2. Enable debug: `/nk debug category pughelper`
-3. Test with: `/nk pug test`
-4. Reload UI: `/reload`
+1. Check if PUG Mode is enabled in the NextKey options (`/nk config`)
+2. Make sure you're not in a group when applying to LFG listings
+3. Try reloading the UI (`/reload`) and testing again
 
-#### Invite Notifications Not Showing
-1. Check setting: `/nk config` → PUG Helper → Show Invite Notifications
-2. Verify you're applying to LFG groups
-3. Check debug logs for errors
+### Invites Not Being Tracked
 
-#### Travel Assistant Not Appearing
-1. Check setting: `/nk config` → PUG Helper → Travel Assistant
-2. Verify you joined a group from a tracked application
-3. Check if PUG Helper is in IN_GROUP state: `/nk pug status`
+1. Make sure you've applied to groups through the LFG tool
+2. Check if the group leader's name matches the invite sender
+3. Use `/nk pug status` to see the current PUG Mode state
 
-#### Getaway UI Not Showing
-1. Check setting: `/nk config` → PUG Helper → Post-Run Getaway UI
-2. Verify you completed a Mythic+ dungeon
-3. Check if PUG Helper is in RUN_COMPLETE state: `/nk pug status`
+### Application Tracker Not Working
 
-### Debug Commands
-Enable detailed debugging:
-```
-/nk debug level 4                    # Enable TRACE level
-/nk debug category pughelper          # Enable PUG Helper category
-/nk pug test                         # Test functionality
-```
+1. Check if Application Tracker is enabled in the NextKey options
+2. Ensure Auto-Show is enabled if you want it to appear automatically
+3. Use `/nk pug tracker show` to test manual display
+4. Check your active applications in the LFG tool
 
-## Development Notes
+### Travel Assistant Not Showing
 
-### Adding New Features
-1. Add functionality to appropriate state in `core/pugHelper.lua`
-2. Update configuration in `options/main.lua`
-3. Add debug capabilities in `core/slashCommands.lua`
-4. Test with simulation commands
+1. Ensure Travel Assistant is enabled in the options
+2. Check if you've successfully joined a group
+3. Verify the PUG Mode state is IN_GROUP (`/nk pug status`)
+4. Check if travel window appears when invite popup shows
 
-### Testing Workflow
-1. Use `/nk pug test` to create test application
-2. Use `/nk pug simulate` to test workflow steps
-3. Check state transitions with `/nk pug status`
-4. Monitor debug output with pughelper category
+### Getaway UI Not Appearing
 
-### Code Patterns
-- Follow NextKey module registration pattern
-- Use SafeRun() for all critical operations
-- Use Debug:Dev() for development logging
-- Implement proper cleanup in all UI components
+1. Make sure Getaway UI is enabled in the options
+2. Verify you've completed a Mythic+ dungeon run
+3. Check if the PUG Mode state is RUN_COMPLETE (`/nk pug status`)
 
-## Future Enhancements
+## Changelog
 
-### Planned Features
-- Guild keystone coordination
-- Historical PUG performance tracking
-- Advanced group composition analysis
-- Integration with more external addons
+### Version 0.2.0.2 (Current)
+- **NEW**: Application Tracker window showing active LFG applications
+- **NEW**: Enhanced travel window detection - appears automatically when invite popup shows
+- **NEW**: Improved application status tracking with timestamps and history
+- **NEW**: Application tracker configuration options (disabled by default)
+- **NEW**: Slash commands for manual tracker control (`/nk pug tracker`)
+- Enhanced event handling for better application status updates
+- Added comprehensive test suite for application tracker
 
-### Extension Points
-- Additional travel options (flight paths, portals)
-- Enhanced group matching algorithms
-- Performance analytics and reporting
-- Mobile companion app integration
+### Version 0.2.0.1
+- Refactored PUG Mode to integrate with existing NextKey systems
+- Unified state management with validation and proper cleanup
+- Integrated UI components with standardized styling
+- Simplified travel assistant to use existing teleport window
+- Added comprehensive integration testing
 
-## Conclusion
-
-PUG Mode transforms the LFG experience from manual coordination into automatic, intelligent assistance. By tracking applications, providing contextual notifications, and offering travel assistance, it streamlines the entire PUG workflow while maintaining the flexibility and control that players expect.
-
-The implementation follows NextKey's architectural patterns, ensuring reliability, performance, and maintainability while providing a seamless user experience that enhances rather than interrupts gameplay.
+### Version 0.1.0.0 (Initial)
+- Basic PUG Mode implementation with application tracking
+- Invite notifications with basic dungeon information
+- Simple travel assistance and getaway UI

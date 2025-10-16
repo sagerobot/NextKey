@@ -48,7 +48,10 @@ local UI = {
     viewToggleBtn = nil,  -- Button to switch between views
     guildToggleBtn = nil, -- Button to toggle guild/party filter
     debugFakeTierSelection = "random",
-    suggestionMode = "auto" -- "auto", "best_key", or "best_groups"
+    suggestionMode = "auto", -- "auto", "best_key", or "best_groups"
+    
+    -- Phase 7: Dynamic Configuration Context Reference
+    configContext = nil -- Will be set to NextKey222.ConfigurationContext
 }
 NextKey222.UI = UI
 NextKey222.RegisterModule("UI", UI)
@@ -72,36 +75,61 @@ function UI:IsDebugMode()
     return debugEnabled
 end
 
---- Determines if debug-only controls should be visible
+--- Determines if debug-only controls should be visible (Phase 7: Now using dynamic configuration)
 -- @return boolean true when debug mode is active and the fake player service exists and not in dungeon view
 function UI:ShouldShowDebugControls()
+    if self.configContext then
+        return self.configContext:ShouldShowDebugControls()
+    end
+    
+    -- Fallback to original logic if context not available
     local isDebug = self:IsDebugMode()
     local hasFakeService = NextKey222.FakePlayerService ~= nil
     local isNotDungeonView = self.viewMode ~= "dungeons"
     local result = isDebug and hasFakeService and isNotDungeonView
-    Debug:Dev("ui", "ShouldShowDebugControls: isDebug =", isDebug, "hasFakeService =", hasFakeService, "isNotDungeonView =", isNotDungeonView, "result =", result)
+    Debug:Dev("ui", "ShouldShowDebugControls (fallback): isDebug =", isDebug, "hasFakeService =", hasFakeService, "isNotDungeonView =", isNotDungeonView, "result =", result)
     return result
 end
 
---- Determines if keystone-specific controls should be visible
+--- Determines if keystone-specific controls should be visible (Phase 7: Now using dynamic configuration)
 -- @return boolean true when in keystone view (not dungeon view)
 function UI:ShouldShowKeystoneControls()
+    if self.configContext then
+        return self.configContext:ShouldShowKeystoneControls()
+    end
+    
+    -- Fallback to original logic if context not available
     local isNotDungeonView = self.viewMode ~= "dungeons"
-    Debug:Dev("ui", "ShouldShowKeystoneControls: isNotDungeonView =", isNotDungeonView)
+    Debug:Dev("ui", "ShouldShowKeystoneControls (fallback): isNotDungeonView =", isNotDungeonView)
     return isNotDungeonView
 end
 
---- Applies the appropriate window height based on the current view and debug state
+--- Applies the appropriate window height based on the current view and debug state (Phase 7: Enhanced with dynamic configuration and UI scale)
 function UI:ApplyWindowHeight()
-    if not self.mainFrame or not NextKey222.UIConfig then
+    if not self.mainFrame then
         return
     end
 
-    local height = NextKey222.UIConfig:GetWindowHeight(self.viewMode or "keystones", {
-        isDebugMode = self:ShouldShowDebugControls()
-    })
+    local height = 645 -- Default fallback height
+    
+    -- Try using dynamic configuration context first
+    if self.configContext then
+        local windowConfig = self.configContext:GetResolvedConfig("window")
+        height = windowConfig.height or height
+    elseif NextKey222.UIConfig then
+        -- Fallback to original UIConfig system
+        height = NextKey222.UIConfig:GetWindowHeight(self.viewMode or "keystones", {
+            isDebugMode = self:ShouldShowDebugControls()
+        })
+    end
+
+    -- Phase 7: Apply UI scale to height
+    if NextKey222.UIScale then
+        height = NextKey222.UIScale:ScaleValue(height, true)
+    end
 
     self.mainFrame:SetHeight(height)
+    Debug:Dev("ui", "ApplyWindowHeight: Set height to", height, "using", self.configContext and "dynamic config" or "fallback config")
 end
 
 --- Applies configurable spacing between controls and the results list
@@ -124,12 +152,17 @@ function UI:ApplyResultsTopPadding()
     end
 end
 
---- Shows or hides debug-specific widgets and reapplies layout
+--- Shows or hides debug-specific widgets and reapplies layout (Phase 7: Enhanced with dynamic configuration)
 -- Dynamically adds or removes debug container based on debug mode state
 function UI:UpdateDebugControlsVisibility()
     if not self.controlsContainer or not self.debugControlsContainer then
         Debug:Dev("ui", "UpdateDebugControlsVisibility: Missing containers")
         return
+    end
+    
+    -- Phase 7: Update configuration context first
+    if self.configContext then
+        self.configContext:SynchronizeWithUI(self)
     end
     
     local showDebug = self:ShouldShowDebugControls()
@@ -192,7 +225,7 @@ function UI:UpdateDebugControlsVisibility()
     end
 end
 
---- Shows or hides keystone-specific controls based on view mode
+--- Shows or hides keystone-specific controls based on view mode (Phase 7: Enhanced with dynamic configuration)
 -- Handles visibility of Suggest Groups, Auto Mode, and Guild/Party toggle buttons
 function UI:UpdateKeystoneControlsVisibility()
     if not self.mainFrame then
@@ -205,13 +238,32 @@ function UI:UpdateKeystoneControlsVisibility()
         return
     end
     
+    -- Phase 7: Update configuration context first
+    if self.configContext then
+        self.configContext:SynchronizeWithUI(self)
+    end
+    
+    -- Phase 7: Get controls configuration from context
     local showKeystoneControls = self:ShouldShowKeystoneControls()
-    Debug:Dev("ui", "UpdateKeystoneControlsVisibility: showKeystoneControls =", showKeystoneControls, "cachedItemsCount =", self.cachedItemsCount)
+    local shouldShowSuggestGroups = false
+    local shouldShowSuggestionMode = false
+    
+    if self.configContext then
+        local controlsConfig = self.configContext:GetResolvedConfig("controls")
+        shouldShowSuggestGroups = controlsConfig.keystone.children.suggestGroups.visible
+        shouldShowSuggestionMode = controlsConfig.keystone.children.suggestionMode.visible
+    else
+        -- Fallback to original logic
+        shouldShowSuggestGroups = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
+        shouldShowSuggestionMode = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
+    end
+    
+    Debug:Dev("ui", "UpdateKeystoneControlsVisibility: showKeystoneControls =", showKeystoneControls,
+              "shouldShowSuggestGroups =", shouldShowSuggestGroups,
+              "shouldShowSuggestionMode =", shouldShowSuggestionMode)
     
     -- Handle Suggest Groups button (add/remove from layout like debug controls)
     if self.suggestGroupsBtn then
-        local shouldShow = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
-        
         -- Check if button is currently in the layout
         local isInLayout = false
         if self.controlsContainer.children then
@@ -223,9 +275,9 @@ function UI:UpdateKeystoneControlsVisibility()
             end
         end
         
-        Debug:Dev("ui", "Suggest Groups button: shouldShow =", shouldShow, "isInLayout =", isInLayout)
+        Debug:Dev("ui", "Suggest Groups button: shouldShow =", shouldShowSuggestGroups, "isInLayout =", isInLayout)
         
-        if shouldShow and not isInLayout then
+        if shouldShowSuggestGroups and not isInLayout then
             -- Add button to layout at the correct position (after guild toggle button)
             Debug:Dev("ui", "Adding Suggest Groups button to layout")
             
@@ -247,7 +299,7 @@ function UI:UpdateKeystoneControlsVisibility()
             end
             
             table.insert(self.controlsContainer.children, insertPosition, self.suggestGroupsBtn)
-        elseif not shouldShow and isInLayout then
+        elseif not shouldShowSuggestGroups and isInLayout then
             -- Remove button from layout
             Debug:Dev("ui", "Removing Suggest Groups button from layout")
             local buttonIndex = nil
@@ -270,8 +322,6 @@ function UI:UpdateKeystoneControlsVisibility()
     
     -- Handle Suggestion Mode button (add/remove from layout like debug controls)
     if self.suggestionModeBtn then
-        local shouldShow = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
-        
         -- Check if button is currently in the layout
         local isInLayout = false
         if self.controlsContainer.children then
@@ -283,9 +333,9 @@ function UI:UpdateKeystoneControlsVisibility()
             end
         end
         
-        Debug:Dev("ui", "Suggestion Mode button: shouldShow =", shouldShow, "isInLayout =", isInLayout)
+        Debug:Dev("ui", "Suggestion Mode button: shouldShow =", shouldShowSuggestionMode, "isInLayout =", isInLayout)
         
-        if shouldShow and not isInLayout then
+        if shouldShowSuggestionMode and not isInLayout then
             -- Add button to layout at the correct position (after suggest groups button)
             Debug:Dev("ui", "Adding Suggestion Mode button to layout")
             
@@ -309,7 +359,7 @@ function UI:UpdateKeystoneControlsVisibility()
             end
             
             table.insert(self.controlsContainer.children, insertPosition, self.suggestionModeBtn)
-        elseif not shouldShow and isInLayout then
+        elseif not shouldShowSuggestionMode and isInLayout then
             -- Remove button from layout
             Debug:Dev("ui", "Removing Suggestion Mode button from layout")
             local buttonIndex = nil
@@ -421,40 +471,7 @@ function UI:PlayerProvidesBattleRes(profile, classToken, specID)
     return false
 end
 
-local function normalizeClassToken(classToken)
-    if not classToken then return nil end
-    return string.upper(classToken)
-end
-
-function UI:PlayerProvidesHeroism(profile, classToken, specID)
-    if profile and profile.capabilities and profile.capabilities.heroism ~= nil then
-        return profile.capabilities.heroism
-    end
-    classToken = normalizeClassToken(classToken) or (profile and profile.class) or nil
-    specID = specID or (profile and profile.specID)
-    if specID and SPEC_CAPABILITIES_UI[specID] and SPEC_CAPABILITIES_UI[specID].heroism then
-        return true
-    end
-    if classToken and HEROISM_CLASSES[classToken] then
-        return true
-    end
-    return false
-end
-
-function UI:PlayerProvidesBattleRes(profile, classToken, specID)
-    if profile and profile.capabilities and profile.capabilities.battleRes ~= nil then
-        return profile.capabilities.battleRes
-    end
-    classToken = normalizeClassToken(classToken) or (profile and profile.class) or nil
-    specID = specID or (profile and profile.specID)
-    if specID and SPEC_CAPABILITIES_UI[specID] and SPEC_CAPABILITIES_UI[specID].battleRes then
-        return true
-    end
-    if classToken and BATTLE_RES_CLASSES[classToken] then
-        return true
-    end
-    return false
-end
+-- Duplicate function definitions removed - they already exist above (lines 436-452)
 
 
 -- MARK: Private Helper Functions
@@ -508,9 +525,9 @@ end
 function UI:CreateMainFrame()
     Debug:Trace("ui", "CreateMainFrame called")
     
-    if self.mainFrame then 
+    if self.mainFrame then
         Debug:Dev("ui", "Main frame already exists, skipping creation")
-        return 
+        return
     end
 
     Debug:Dev("ui", "Creating AceGUI Frame...")
@@ -524,6 +541,13 @@ function UI:CreateMainFrame()
     }) or NextKey222.UIConfig.WINDOW.BASE_HEIGHT
     frame:SetHeight(initialHeight)
     frame:EnableResize(true)
+    
+    -- CRITICAL: Hide frame immediately after creation to prevent scroll bar showing on load
+    frame:Hide()
+    Debug:Dev("ui", "Frame created and immediately HIDDEN to prevent scroll bar on load")
+    
+    -- Apply component backdrop styling to main frame
+    NextKey222.UIComponents:ConfigureBackdrop(frame, "dialog", { colorScheme = "dark" })
 
     -- Standard close button behavior
     frame:SetCallback("OnClose", function(widget)
@@ -541,19 +565,40 @@ function UI:CreateMainFrame()
 
     darkenContent(frame)
 
-    local header = AceGUI:Create("Label")
-    header:SetText("Choose a sort mode; results area below.")
-    header:SetFullWidth(true)
+    local header = NextKey222.UIComponents:CreateText("body", nil, {
+        text = "Choose a sort mode; results area below.",
+        width = nil -- Full width
+    })
     frame:AddChild(header)
 
-    local controls = AceGUI:Create("SimpleGroup")
-    controls:SetFullWidth(true)
-    controls:SetLayout("Flow")
+    local controls = NextKey222.UIComponents:CreateFrame("container", nil, {
+        fullWidth = true,
+        layout = "Flow"
+    })
+    
     frame:AddChild(controls)
     self.controlsContainer = controls
 
-    local sortDrop = AceGUI:Create("Dropdown")
-    sortDrop:SetLabel("Sort Mode")
+    local sortDrop = NextKey222.UIComponents:CreateDropdown("primary", nil, {
+        label = "Sort Mode",
+        width = 200,
+        onValueChanged = function(_, _, key)
+            self:SetCurrentSortMode(key)
+            -- Show/hide IO display mode button based on sort mode
+            if self.ioDisplayModeBtn then
+                if key == "IOGainPotential" then
+                    self.ioDisplayModeBtn.frame:Show()
+                else
+                    self.ioDisplayModeBtn.frame:Hide()
+                end
+            end
+            if self.viewMode == "dungeons" then
+                self:RenderDungeonCards()
+            else
+                self:RenderResults()
+            end
+        end
+    })
     
     -- Store reference to dropdown for updates
     self.sortDropdown = sortDrop
@@ -563,101 +608,85 @@ function UI:CreateMainFrame()
     self:UpdateSortDropdownOptions()
     
     sortDrop:SetValue(self:GetCurrentSortMode())
-    sortDrop:SetCallback("OnValueChanged", function(_, _, key)
-        self:SetCurrentSortMode(key)
-        -- Show/hide IO display mode button based on sort mode
-        if self.ioDisplayModeBtn then
-            if key == "IOGainPotential" then
-                self.ioDisplayModeBtn.frame:Show()
-            else
-                self.ioDisplayModeBtn.frame:Hide()
-            end
-        end
-        if self.viewMode == "dungeons" then
-            self:RenderDungeonCards()
-        else
-            self:RenderResults()
-        end
-    end)
     controls:AddChild(sortDrop)
 
-    local refreshBtn = AceGUI:Create("Button")
-    refreshBtn:SetText("Refresh")
-    refreshBtn:SetAutoWidth(true)
-    refreshBtn:SetCallback("OnClick", function()
-        if self.viewMode == "dungeons" then
-            self:RenderDungeonCards()
-        else
-            -- Use enhanced refresh that re-scans keystones
-            self:RefreshResults()
+    local refreshBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
+        text = "Refresh",
+        onClick = function()
+            if self.viewMode == "dungeons" then
+                self:RenderDungeonCards()
+            else
+                -- Use enhanced refresh that re-scans keystones
+                self:RefreshResults()
+            end
         end
-    end)
+    })
     controls:AddChild(refreshBtn)
 
-    local syncBtn = AceGUI:Create("Button")
-    syncBtn:SetText("Sync")
-    syncBtn:SetAutoWidth(true)
-    syncBtn:SetCallback("OnClick", function()
-        if NextKey222.Communications then
-            -- Ensure current player's IO data is refreshed
-            NextKey222.Communications:EnsureCurrentPlayerIOData()
-            
-            -- Send sync to request data from others
-            if NextKey222.Communications.SendSync then
-                NextKey222.Communications:SendSync()
+    local syncBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
+        text = "Sync",
+        onClick = function()
+            if NextKey222.Communications then
+                -- Ensure current player's IO data is refreshed
+                NextKey222.Communications:EnsureCurrentPlayerIOData()
+                
+                -- Send sync to request data from others
+                if NextKey222.Communications.SendSync then
+                    NextKey222.Communications:SendSync()
+                end
+                
+                -- Request IO data from party members
+                if NextKey222.Communications.RequestPartyIOData then
+                    NextKey222.Communications:RequestPartyIOData()
+                end
+            else
+                Debug:Error("Communications not available")
             end
-            
-            -- Request IO data from party members  
-            if NextKey222.Communications.RequestPartyIOData then
-                NextKey222.Communications:RequestPartyIOData()
-            end
-        else
-            Debug:Error("Communications not available")
         end
-    end)
+    })
     controls:AddChild(syncBtn)
 
     -- Guild/Party Filter Toggle Button
-    local guildToggleBtn = AceGUI:Create("Button")
-    guildToggleBtn:SetText(self.showGuildKeys and "Guild Keys" or "Party Keys")
-    guildToggleBtn:SetAutoWidth(true)
-    guildToggleBtn:SetCallback("OnClick", function()
-        -- Enhanced guild toggle with immediate feedback
-        if not self.showGuildKeys and IsInGuild() then
-            -- Switching to guild mode - show immediate feedback
-            Debug:User("Requesting guild keystones... (requires LibOpenRaid-compatible addons)")
-            
-            -- Try direct LibOpenRaid request as well as our integration
-            if LibStub then
-                local lib = LibStub:GetLibrary("LibOpenRaid-1.0", true)
-                if lib then
-                    lib.RequestKeystoneDataFromGuild()
+    local guildToggleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
+        text = self.showGuildKeys and "Guild Keys" or "Party Keys",
+        onClick = function()
+            -- Enhanced guild toggle with immediate feedback
+            if not self.showGuildKeys and IsInGuild() then
+                -- Switching to guild mode - show immediate feedback
+                Debug:User("Requesting guild keystones... (requires LibOpenRaid-compatible addons)")
+                
+                -- Try direct LibOpenRaid request as well as our integration
+                if LibStub then
+                    local lib = LibStub:GetLibrary("LibOpenRaid-1.0", true)
+                    if lib then
+                        lib.RequestKeystoneDataFromGuild()
+                    end
                 end
+            elseif not self.showGuildKeys and not IsInGuild() then
+                Debug:User("Not in a guild - cannot show guild keystones")
             end
-        elseif not self.showGuildKeys and not IsInGuild() then
-            Debug:User("Not in a guild - cannot show guild keystones")
+            
+            self:ToggleGuildFilter()
         end
-        
-        self:ToggleGuildFilter()
-    end)
+    })
     controls:AddChild(guildToggleBtn)
     self.guildToggleBtn = guildToggleBtn
 
-    local teleportWindowBtn = AceGUI:Create("Button")
-    teleportWindowBtn:SetText("Open Teleport")
-    teleportWindowBtn:SetAutoWidth(true)
-    teleportWindowBtn:SetCallback("OnClick", function()
-        NextKey222.Addon:ToggleTeleportWindow()
-    end)
+    local teleportWindowBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
+        text = "Open Teleport",
+        onClick = function()
+            NextKey222.Addon:ToggleTeleportWindow()
+        end
+    })
     controls:AddChild(teleportWindowBtn)
 
     -- Add view toggle button to controls (this approach works reliably)
-    local toggleBtn = AceGUI:Create("Button")
-    toggleBtn:SetText("Switch to Dungeons View")  -- Initial text - starts in Keystone View
-    toggleBtn:SetAutoWidth(true)
-    toggleBtn:SetCallback("OnClick", function()
-        self:ToggleViewMode()
-    end)
+    local toggleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
+        text = "Switch to Dungeons View",  -- Initial text - starts in Keystone View
+        onClick = function()
+            self:ToggleViewMode()
+        end
+    })
     controls:AddChild(toggleBtn)
 
     -- Store reference for text updates
@@ -665,21 +694,21 @@ function UI:CreateMainFrame()
 
     -- Group suggestion buttons (conditionally added when 6+ players)
     -- Create buttons but don't add to layout yet
-    local suggestBtn = AceGUI:Create("Button")
-    suggestBtn:SetText("Suggest Groups")
-    suggestBtn:SetAutoWidth(true)
-    suggestBtn:SetCallback("OnClick", function()
-        self:SuggestGroups()
-    end)
+    local suggestBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
+        text = "Suggest Groups",
+        onClick = function()
+            self:SuggestGroups()
+        end
+    })
     self.suggestGroupsBtn = suggestBtn
     Debug:Dev("ui", "Suggest Groups button created (not added to layout yet)")
 
-    local modeBtn = AceGUI:Create("Button")
-    modeBtn:SetText("Auto Mode")
-    modeBtn:SetAutoWidth(true)
-    modeBtn:SetCallback("OnClick", function()
-        self:ToggleSuggestionMode()
-    end)
+    local modeBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
+        text = "Auto Mode",
+        onClick = function()
+            self:ToggleSuggestionMode()
+        end
+    })
     self.suggestionModeBtn = modeBtn
     Debug:Dev("ui", "Suggestion Mode button created (not added to layout yet)")
 
@@ -688,46 +717,49 @@ function UI:CreateMainFrame()
     if NextKey222.FakePlayerService then
         Debug:Dev("ui", "Creating debug controls")
 
-        -- Create a simple group container for all debug widgets
-        local debugContainer = AceGUI:Create("SimpleGroup")
-        debugContainer:SetFullWidth(true)
-        debugContainer:SetLayout("Flow")
+        -- Create a simple group container for all debug widgets using component system
+        local debugContainer = NextKey222.UIComponents:CreateFrame("container", nil, {
+            fullWidth = true,
+            layout = "Flow"
+        })
+        
         self.debugControlsContainer = debugContainer
 
-        -- Create fake player tier dropdown
-        local tierDropdown = AceGUI:Create("Dropdown")
-        tierDropdown:SetLabel("Fake Player Tier")
-        tierDropdown:SetWidth(200)
-        tierDropdown:SetList({
-            random = "Random (Expert/Skilled/Competent)",
-            expert = "Expert",
-            skilled = "Skilled",
-            competent = "Competent"
+        -- Create fake player tier dropdown using component system
+        local tierDropdown = NextKey222.UIComponents:CreateDropdown("compact", nil, {
+            label = "Fake Player Tier",
+            width = 200,
+            list = {
+                random = "Random (Expert/Skilled/Competent)",
+                expert = "Expert",
+                skilled = "Skilled",
+                competent = "Competent"
+            },
+            value = self.debugFakeTierSelection or "random",
+            onValueChanged = function(widget, event, value)
+                self.debugFakeTierSelection = value or "random"
+            end
         })
-        tierDropdown:SetValue(self.debugFakeTierSelection or "random")
-        tierDropdown:SetCallback("OnValueChanged", function(widget, event, value)
-            self.debugFakeTierSelection = value or "random"
-        end)
         debugContainer:AddChild(tierDropdown)
         self.debugFakeTierDropdown = tierDropdown
 
         -- Create add fake player button
-        local addFakeBtn = AceGUI:Create("Button")
-        addFakeBtn:SetText("Add Fake Player")
-        addFakeBtn:SetAutoWidth(true)
-        addFakeBtn:SetCallback("OnClick", function()
-            self:HandleAddDebugFakePlayer()
-        end)
+        local addFakeBtn = NextKey222.UIComponents:CreateButton("compact_list", nil, {
+            text = "Add Fake Player",
+            onClick = function()
+                self:HandleAddDebugFakePlayer()
+            end
+        })
         debugContainer:AddChild(addFakeBtn)
         self.debugAddFakeBtn = addFakeBtn
 
         -- Create clear fake players button
-        local clearFakeBtn = AceGUI:Create("Button")
-        clearFakeBtn:SetText("Delete All Fakes")
-        clearFakeBtn:SetAutoWidth(true)
-        clearFakeBtn:SetCallback("OnClick", function()
-            self:HandleDeleteAllFakePlayers()
-        end)
+        local clearFakeBtn = NextKey222.UIComponents:CreateButton("compact_list", nil, {
+            text = "Delete All Fakes",
+            onClick = function()
+                self:HandleDeleteAllFakePlayers()
+            end
+        })
         debugContainer:AddChild(clearFakeBtn)
         self.debugClearFakeBtn = clearFakeBtn
 
@@ -743,26 +775,36 @@ function UI:CreateMainFrame()
         Debug:Dev("ui", "FakePlayerService not available - debug controls disabled")
     end
 
-    -- Add total IO score display
-    local totalScoreLabel = AceGUI:Create("Label")
-    totalScoreLabel:SetText("")
-    totalScoreLabel:SetWidth(120)
-    totalScoreLabel:SetFontObject(GameFontNormalLarge)
-    totalScoreLabel:SetColor(1, 0.8, 0) -- Gold color
+    -- Add total IO score display using component system
+    local totalScoreLabel = NextKey222.UIComponents:CreateText("large", nil, {
+        text = "",
+        width = 120,
+        fontObject = GameFontNormalLarge,
+        color = {1, 0.8, 0} -- Gold color
+    })
     controls:AddChild(totalScoreLabel)
     self.totalScoreLabel = totalScoreLabel
 
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText("")
-    spacer:SetFullWidth(true)
+    local spacer = NextKey222.UIComponents:CreateText("body", nil, {
+        text = "",
+        width = nil -- Full width
+    })
     frame:AddChild(spacer)
     self.resultsSpacer = spacer
     self:ApplyResultsTopPadding()
 
-    local results = AceGUI:Create("ScrollFrame")
-    results:SetFullWidth(true)
-    results:SetFullHeight(true)
-    results:SetLayout("List")
+    local results = NextKey222.UIComponents:CreateScrollFrame("primary", nil, {
+        fullWidth = true,
+        fullHeight = true,
+        layout = "List"
+    })
+    
+    Debug:Dev("ui", "Scroll frame created - checking visibility state")
+    if results.frame then
+        Debug:Dev("ui", "Scroll frame underlying frame visibility:", results.frame:IsShown() and "VISIBLE" or "HIDDEN")
+        Debug:Dev("ui", "Scroll frame parent:", results.frame:GetParent() and results.frame:GetParent():GetName() or "nil")
+    end
+    
     frame:AddChild(results)
 
     self.resultsFrame = results
@@ -783,9 +825,8 @@ function UI:CreateMainFrame()
     self:UpdateKeystoneControlsVisibility()
     Debug:Dev("ui", "CreateMainFrame: Initial setup complete")
     
-    -- Show the frame
-    Debug:Dev("ui", "Showing main frame...")
-    frame:Show()
+    -- CRITICAL: Do NOT show frame here - frame should only show when explicitly toggled
+    Debug:Dev("ui", "CreateMainFrame: Frame remains HIDDEN - will only show via ToggleMainFrame")
     
     -- Double-check button visibility after frame is shown
     Debug:Dev("ui", "CreateMainFrame: Final button visibility check")
@@ -802,13 +843,32 @@ end
 -- Functions responsible for showing, hiding, and managing the visibility
 -- state of the main UI frame and related components.
 
+--- Shows the main NextKey UI window
+-- Creates the main frame if it doesn't exist, then shows it
+function UI:ShowMainFrame()
+    Debug:Trace("ui", "ShowMainFrame called")
+    
+    if not self.mainFrame then
+        Debug:Dev("ui", "Creating new main frame")
+        self:CreateMainFrame()
+    end
+    
+    if self.mainFrame then
+        Debug:Dev("ui", "Showing main frame - current visibility:", self.mainFrame:IsShown() and "VISIBLE" or "HIDDEN")
+        self.mainFrame:Show()
+        Debug:Dev("ui", "Frame show command executed - new visibility:", self.mainFrame:IsShown() and "VISIBLE" or "HIDDEN")
+    else
+        Debug:Error("Failed to create main frame")
+    end
+end
+
 --- Toggles the visibility of the main NextKey UI window
 -- Creates the main frame if it doesn't exist, then destroys/recreates it on hide
 -- Properly releases AceGUI resources and clears auxiliary frames
 function UI:ToggleMainFrame()
     Debug:Trace("ui", "ToggleMainFrame called")
     
-    if self.mainFrame then
+    if self.mainFrame and self.mainFrame:IsShown() then
         Debug:Dev("ui", "Hiding existing main frame")
         self.mainFrame:Hide()
         AceGUI:Release(self.mainFrame)
@@ -824,8 +884,8 @@ function UI:ToggleMainFrame()
         self.resultsSpacer = nil
         self:ClearAuxFrames()
     else
-        Debug:Dev("ui", "Creating new main frame")
-        self:CreateMainFrame()
+        Debug:Dev("ui", "Showing or creating main frame")
+        self:ShowMainFrame()
     end
 end
 
@@ -1496,9 +1556,10 @@ function UI:RenderResults()
     Debug:Dev("ui", statusText)
 
     if not keys or #keys == 0 then
-        local none = AceGUI:Create("Label")
-        none:SetText("No keys detected. Enable Debug in options or acquire a keystone.")
-        none:SetFullWidth(true)
+        local none = NextKey222.UIComponents:CreateText("body", nil, {
+            text = "No keys detected. Enable Debug in options or acquire a keystone.",
+            width = nil -- Full width
+        })
         self.resultsFrame:AddChild(none)
         
         -- Set cachedItemsCount to 0 even when no keys exist
@@ -1506,6 +1567,11 @@ function UI:RenderResults()
         
         -- Update all keystone controls visibility (this handles all button visibility logic)
         self:UpdateKeystoneControlsVisibility()
+        
+        -- Phase 7: Synchronize configuration context after rendering
+        if self.configContext then
+            self.configContext:SynchronizeWithUI(self)
+        end
         return
     end
 
@@ -1599,18 +1665,19 @@ function UI:AddKeyRow(entry)
         hasHeroism = entry.hasHeroism,
         hasBattleRes = entry.hasBattleRes
     }
-    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 32, playerData)
-    icon:SetPoint("LEFT", 12, 0)
+    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, NextKey222.UIConfig.ICON.SIZE, playerData)
+    icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
     
     -- Create role icon using component factory
     local roleIcon = NextKey222.UIComponents:CreateRoleIcon(frame, entry.role, NextKey222.UIConfig.ICON.ROLE_SIZE)
-    roleIcon:SetPoint("LEFT", icon, "RIGHT", 4, 0)
+    roleIcon:SetPoint("TOPLEFT", icon, "TOPRIGHT", 6, 0)
     
-    -- Create formatted player name text
-    local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    nameText:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 6, -2)
-    nameText:SetText(NextKey222.UIComponents:FormatPlayerNameWithScore(ownerName, classToken, score))
-    nameText:SetJustifyH("LEFT")
+    -- Create formatted player name text using component system
+    local nameText = NextKey222.UIComponents:CreateText("body", frame, {
+        text = NextKey222.UIComponents:FormatPlayerNameWithScore(ownerName, classToken, score),
+        fontObject = GameFontNormal,
+        justifyH = "LEFT"
+    })
 
     -- Add prominent IO gain display for IOGainPotential sort mode
     local ioGainText = nil
@@ -1622,46 +1689,69 @@ function UI:AddKeyRow(entry)
             entry.ioGainRange = ioRange
         end
         if ioRange.expected > 0 then
-            ioGainText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-            ioGainText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -8)
+            ioGainText = NextKey222.UIComponents:CreateText("large", frame, {
+                text = string.format("|cff00ff00+%d IO|r", math.floor(ioRange.expected)),
+                fontObject = GameFontNormalLarge,
+                justifyH = "RIGHT",
+                color = {0, 1, 0}
+            })
+            ioGainText.frame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
             
-            -- Format IO gain display (simple range format)
-            local displayText = string.format("+%d IO", math.floor(ioRange.expected))
-            ioGainText:SetText(string.format("|cff00ff00%s|r", displayText))
-            ioGainText:SetJustifyH("RIGHT")
-            
-            -- Make it clickable for tooltip
-            local ioGainButton = CreateFrame("Button", nil, frame)
-            ioGainButton:SetAllPoints(ioGainText)
-            ioGainButton:SetFrameLevel(frame:GetFrameLevel() + 1)
-            ioGainButton:SetScript("OnEnter", function(btn)
-                self:ShowIOGainTooltip(btn, keyInfo, entry, ioRange)
-            end)
-            ioGainButton:SetScript("OnLeave", GameTooltip_Hide)
-            trackAuxFrame(self, ioGainButton)
+            -- Make it clickable for tooltip using component system
+            local ioGainButton = NextKey222.UIComponents:CreateButton("icon", nil, {
+                size = { ioGainText:GetStringWidth() + 4, ioGainText:GetStringHeight() + 4 },
+                onClick = function()
+                    -- No click action, just tooltip
+                end,
+                onEnter = function(btn)
+                    self:ShowIOGainTooltip(btn.frame, keyInfo, entry, ioRange)
+                end,
+                onLeave = function(btn)
+                    GameTooltip_Hide()
+                end
+            })
+            ioGainButton.frame:SetAllPoints(ioGainText.frame)
+            ioGainButton.frame:SetFrameLevel(frame:GetFrameLevel() + 1)
+            trackAuxFrame(self, ioGainButton.frame)
         end
     end
 
-    local levelText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    levelText:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 10, 2)
-    
-    -- Simple keystone display (IO gain shown in prominent green number instead)
-    local keystoneText = string.format("Keystone: %s |cff4aa3ff+%d|r", dungeonName, keyInfo.level or 0)
-    levelText:SetText(keystoneText)
-    levelText:SetJustifyH("LEFT")
+    local levelText = NextKey222.UIComponents:CreateText("small", frame, {
+        text = string.format("Keystone: %s |cff4aa3ff+%d|r", dungeonName, keyInfo.level or 0),
+        fontObject = GameFontHighlightSmall,
+        justifyH = "LEFT"
+    })
 
+    local bestText = nil
     local bestLevel = self.GetSeasonBestLevel and self:GetSeasonBestLevel(keyInfo.dungeonID)
     if bestLevel and bestLevel > 0 then
-        local bestText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        bestText:SetPoint("TOPLEFT", levelText, "BOTTOMLEFT", 0, -4)
-        bestText:SetText(string.format("Your best: |cff4aa3ff+%d|r", bestLevel))
-        bestText:SetJustifyH("LEFT")
+        bestText = NextKey222.UIComponents:CreateText("small", frame, {
+            text = string.format("Your best: |cff4aa3ff+%d|r", bestLevel),
+            fontObject = GameFontHighlightSmall,
+            justifyH = "LEFT"
+        })
     end
 
     -- Create select button using component factory
-    local selectBtn = NextKey222.UIComponents:CreateButton(frame, "select", nil, nil)
-    selectBtn:SetPoint("RIGHT", frame, "RIGHT", -12, 0)
+    local selectBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select")
+    selectBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
+    selectBtn:SetWidth(110)
+    selectBtn:SetHeight(24)
     trackAuxFrame(self, selectBtn)
+
+    nameText.frame:ClearAllPoints()
+    nameText.frame:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 8, -2)
+    nameText.frame:SetPoint("TOPRIGHT", selectBtn, "TOPLEFT", -12, 0)
+
+    levelText.frame:ClearAllPoints()
+    levelText.frame:SetPoint("TOPLEFT", nameText.frame, "BOTTOMLEFT", 0, -6)
+    levelText.frame:SetPoint("TOPRIGHT", nameText.frame, "BOTTOMRIGHT", 0, -6)
+
+    if bestText then
+        bestText.frame:ClearAllPoints()
+        bestText.frame:SetPoint("TOPLEFT", levelText.frame, "BOTTOMLEFT", 0, -6)
+        bestText.frame:SetPoint("TOPRIGHT", levelText.frame, "BOTTOMRIGHT", 0, -6)
+    end
 
     -- Configure button state and behavior
     local isLeader = NextKey222.Addon:IsLeaderOrSolo()
@@ -1700,10 +1790,10 @@ function UI:AddKeyRow(entry)
 
     -- Debug helper: allow removing individual fake players directly from the card
     if self:IsDebugMode() and NextKey222.FakePlayerService and ownerName and NextKey222.FakePlayerService:IsFakePlayer(ownerName) then
-        local deleteBtn = NextKey222.UIComponents:CreateButton(frame, "select", nil, nil)
+        local deleteBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select")
         deleteBtn:SetText("Delete")
         deleteBtn:SetWidth(70)
-        deleteBtn:SetPoint("RIGHT", selectBtn, "LEFT", -6, 0)
+        deleteBtn:SetPoint("TOPRIGHT", selectBtn, "BOTTOMRIGHT", 0, -4)
         deleteBtn:SetScript("OnClick", function()
             self:HandleDeleteFakePlayer(ownerName)
         end)
@@ -1761,17 +1851,13 @@ function UI:AddKeyRowCompact(entry)
         hasBattleRes = entry.hasBattleRes
     }
     local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 20, playerData)
-    icon:SetPoint("LEFT", 8, 0)
+    icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -6)
     
     -- Create role icon for compact view (smaller size)
     local roleIcon = NextKey222.UIComponents:CreateRoleIcon(frame, entry.role, 12)
-    roleIcon:SetPoint("LEFT", icon, "RIGHT", 2, 0)
+    roleIcon:SetPoint("TOPLEFT", icon, "TOPRIGHT", 2, 0)
     
-    -- Create compact single-line text
-    local mainText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    mainText:SetPoint("LEFT", roleIcon, "RIGHT", 6, 0)
-    
-    -- Format combined display text
+    -- Create compact single-line text using component system
     local nameDisplay = NextKey222.UIComponents:FormatPlayerNameWithScore(ownerName, classToken, score)
     local keyDisplay = NextKey222.UIComponents:FormatKeystoneDisplay(dungeonName, keyInfo.level)
     
@@ -1798,13 +1884,22 @@ function UI:AddKeyRowCompact(entry)
     else
         fullText = string.format("%s | %s", nameDisplay, keyDisplay)
     end
-    mainText:SetText(fullText)
-    mainText:SetJustifyH("LEFT")
+    
+    local mainText = NextKey222.UIComponents:CreateText("small", frame, {
+        text = fullText,
+        fontObject = GameFontNormalSmall,
+        justifyH = "LEFT"
+    })
+    mainText.frame:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 4, 0)
 
     -- Create compact select button
-    local selectBtn = NextKey222.UIComponents:CreateButton(frame, "select_compact", nil, nil)
-    selectBtn:SetPoint("RIGHT", frame, "RIGHT", -6, 0)
+    local selectBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select_compact")
+    selectBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -4)
     trackAuxFrame(self, selectBtn)
+
+    mainText.frame:ClearAllPoints()
+    mainText.frame:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 4, 0)
+    mainText.frame:SetPoint("RIGHT", selectBtn, "LEFT", -6, 0)
 
     -- Configure compact button state
     local isLeader = NextKey222.Addon:IsLeaderOrSolo()
@@ -1843,10 +1938,10 @@ function UI:AddKeyRowCompact(entry)
 
     local deleteBtn = nil
     if self:IsDebugMode() and NextKey222.FakePlayerService and ownerName and NextKey222.FakePlayerService:IsFakePlayer(ownerName) then
-        deleteBtn = NextKey222.UIComponents:CreateButton(frame, "select_compact", nil, nil)
+        deleteBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select_compact")
         deleteBtn:SetText("Del")
         deleteBtn:SetWidth(40)
-        deleteBtn:SetPoint("RIGHT", selectBtn, "LEFT", -4, 0)
+        deleteBtn:SetPoint("TOPRIGHT", selectBtn, "BOTTOMRIGHT", 0, -2)
         deleteBtn:SetScript("OnClick", function()
             self:HandleDeleteFakePlayer(ownerName)
         end)
@@ -1861,20 +1956,30 @@ function UI:AddKeyRowCompact(entry)
 
     if showCompactIO and compactIORange then
         local anchorButton = deleteBtn or selectBtn
-        local ioGainText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        ioGainText:SetPoint("RIGHT", anchorButton, "LEFT", -6, 0)
-        ioGainText:SetText(string.format("|cff00ff00+%d IO|r", math.floor(compactIORange.expected or 0)))
-        ioGainText:SetJustifyH("RIGHT")
+        local ioGainText = NextKey222.UIComponents:CreateText("small", frame, {
+            text = string.format("|cff00ff00+%d IO|r", math.floor(compactIORange.expected or 0)),
+            fontObject = GameFontNormalSmall,
+            justifyH = "RIGHT",
+            color = {0, 1, 0}
+        })
+        ioGainText.frame:SetPoint("RIGHT", anchorButton, "LEFT", -6, 0)
 
-        local ioGainButton = CreateFrame("Button", nil, frame)
-        ioGainButton:SetPoint("TOPLEFT", ioGainText, "TOPLEFT", -2, 2)
-        ioGainButton:SetPoint("BOTTOMRIGHT", ioGainText, "BOTTOMRIGHT", 2, -2)
-        ioGainButton:SetScript("OnEnter", function(btn)
-            self:ShowIOGainTooltip(btn, keyInfo, entry, compactIORange)
-        end)
-        ioGainButton:SetScript("OnLeave", GameTooltip_Hide)
-        ioGainButton:SetFrameLevel(frame:GetFrameLevel() + 1)
-        trackAuxFrame(self, ioGainButton)
+        local ioGainButton = NextKey222.UIComponents:CreateButton("icon", nil, {
+            size = { ioGainText:GetStringWidth() + 4, ioGainText:GetStringHeight() + 4 },
+            onClick = function()
+                -- No click action, just tooltip
+            end,
+            onEnter = function(btn)
+                self:ShowIOGainTooltip(btn.frame, keyInfo, entry, compactIORange)
+            end,
+            onLeave = function(btn)
+                GameTooltip_Hide()
+            end
+        })
+        ioGainButton.frame:SetPoint("TOPLEFT", ioGainText.frame, "TOPLEFT", -2, 2)
+        ioGainButton.frame:SetPoint("BOTTOMRIGHT", ioGainText.frame, "BOTTOMRIGHT", 2, -2)
+        ioGainButton.frame:SetFrameLevel(frame:GetFrameLevel() + 1)
+        trackAuxFrame(self, ioGainButton.frame)
     end
 end
 
@@ -2034,9 +2139,10 @@ function UI:RenderDungeonCards()
     Debug:Dev("ui", string.format("Dungeon Cards: Mode: Dungeons | Count: %d", count))
     
     if not next(dungeons) then
-        local none = AceGUI:Create("Label")
-        none:SetText("No dungeon data available for current season.")
-        none:SetFullWidth(true)
+        local none = NextKey222.UIComponents:CreateText("body", nil, {
+            text = "No dungeon data available for current season.",
+            width = nil -- Full width
+        })
         self.resultsFrame:AddChild(none)
         return
     end
@@ -2104,6 +2210,9 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     container:SetHeight(NextKey222.UIConfig.CARD.HEIGHT)
     container:SetLayout("Flow")
     
+    -- Apply component backdrop styling to dungeon card container
+    NextKey222.UIComponents:ConfigureBackdrop(container, "tooltip", { colorScheme = "standard" })
+    
     -- Apply ultra-tight spacing by modifying frame properties
     if NextKey222.UIConfig.LAYOUT.USE_TIGHT_LAYOUT and NextKey222.UIConfig.LAYOUT.USE_ULTRA_TIGHT and container.content then
         -- Remove extra padding from the container's content frame
@@ -2119,30 +2228,30 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     local bestLevel = self:GetBestLevel(dungeonID)
     local ioScore = self:GetDungeonIOScore(dungeonID) -- New function for IO score per dungeon
     
-    -- Dungeon icon
-    local iconWidget = AceGUI:Create("Icon")
+    -- Dungeon icon using component system
+    local iconTexture = "Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider" -- Default dungeon icon
     if dungeonData.mapArtID then
         -- Convert NextKey dungeon ID to proper Challenge Mode map ID for icon lookup
         local challengeModeMapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
         -- Try to get dungeon icon from challenge mode using converted map ID
-        local iconTexture = select(4, C_ChallengeMode.GetMapUIInfo(challengeModeMapID)) or "Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider"
-        iconWidget:SetImage(iconTexture)
-    else
-        iconWidget:SetImage("Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider") -- Default dungeon icon
+        iconTexture = select(4, C_ChallengeMode.GetMapUIInfo(challengeModeMapID)) or iconTexture
     end
-    -- Use centralized icon size variables
-    iconWidget:SetImageSize(NextKey222.UIConfig.ICON.SIZE, NextKey222.UIConfig.ICON.SIZE)
-    iconWidget:SetWidth(NextKey222.UIConfig.ICON.WIDTH)
+    
+    local iconWidget = NextKey222.UIComponents:CreateIcon("dungeon", nil, {
+        image = iconTexture,
+        imageWidth = NextKey222.UIConfig.ICON.SIZE,
+        imageHeight = NextKey222.UIConfig.ICON.SIZE,
+        width = NextKey222.UIConfig.ICON.WIDTH
+    })
     container:AddChild(iconWidget)
     
-    -- Dungeon name (use full name with more space)
-    local nameLabel = AceGUI:Create("Label")
-    local displayName = dungeonData.name -- Use full name now that we have more width
-    nameLabel:SetText(displayName)
-    nameLabel:SetFontObject(GameFontNormal)
-    -- Use centralized text width variables
-    nameLabel:SetWidth(NextKey222.UIConfig.TEXT.NAME_LABEL_WIDTH)
-    nameLabel:SetColor(1, 1, 1)
+    -- Dungeon name (use full name with more space) using component system
+    local nameLabel = NextKey222.UIComponents:CreateText("body", nil, {
+        text = dungeonData.name, -- Use full name now that we have more width
+        width = NextKey222.UIConfig.TEXT.NAME_LABEL_WIDTH,
+        fontObject = GameFontNormal,
+        color = {1, 1, 1}
+    })
     container:AddChild(nameLabel)
     
     -- IO Score and level display (more compact)
@@ -2180,90 +2289,82 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
         infoColor = {0.5, 0.5, 0.5} -- Gray for zero score
     end
     
-    local scoreLabel = AceGUI:Create("Label")
-    scoreLabel:SetText(infoText)
-    scoreLabel:SetFontObject(GameFontNormalSmall)
-    -- Use centralized score display width
-    scoreLabel:SetWidth(NextKey222.UIConfig.TEXT.SCORE_LABEL_WIDTH)
-    scoreLabel:SetColor(infoColor[1], infoColor[2], infoColor[3])
+    local scoreLabel = NextKey222.UIComponents:CreateText("small", nil, {
+        text = infoText,
+        width = NextKey222.UIConfig.TEXT.SCORE_LABEL_WIDTH,
+        fontObject = GameFontNormalSmall,
+        color = infoColor
+    })
     container:AddChild(scoreLabel)
     
     -- Use centralized button size variables for all buttons
     
     -- Action buttons (teleport and loot)
-    local teleBtn = AceGUI:Create("Button")
-    teleBtn:SetText("Teleport")
-    teleBtn:SetWidth(NextKey222.UIConfig.BUTTON.TELEPORT_WIDTH)
-    teleBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
-    
-    -- Debug: verify button creation
-    Debug:Dev("teleport", "Creating teleport button for dungeonID:", dungeonID)
-    teleBtn:SetCallback("OnClick", function()
-        Debug:Dev("teleport", "Teleport button clicked for dungeonID:", dungeonID)
-        
-        -- Create a fake keystone that mimics a real keystone for teleport selection
-        -- This uses the exact same logic path as working keystone selection
-        local fakeKeyInfo = {
-            dungeonID = dungeonID,
-            level = 0,  -- No level for dungeon portals
-            ownerName = "Dungeon Portal",  -- Clear indication this is not a player keystone
-            ownerShort = "Portal",
-            source = "dungeon_portal",
-            class = "MAGE",  -- Neutral class for portals
-            io = 0  -- Default IO
-        }
-        
-        -- Debug: check what GetDungeonName returns for this dungeonID
-        local dungeonName = NextKey222.Addon:GetDungeonName(dungeonID)
-        Debug:Dev("teleport", "Fake keystone created - dungeonID:", dungeonID, "dungeonName:", dungeonName or "nil")
-        
-        Debug:Dev("teleport", "Setting fake keystone as teleport target:", fakeKeyInfo.dungeonID, fakeKeyInfo.ownerName)
-        
-        -- Use the exact same method that works for keystone selection
-        -- The "dungeon_portal" source prevents automatic UI refresh in SetTeleportTargetKey
-        NextKey222.Addon:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
-        
-        -- Open teleport window which should now show the correct spell
-        NextKey222.Addon:ToggleTeleportWindow()
-    end)
+    local teleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
+        text = "Teleport",
+        size = { NextKey222.UIConfig.BUTTON.TELEPORT_WIDTH, NextKey222.UIConfig.BUTTON.HEIGHT },
+        onClick = function()
+            -- Debug: verify button creation
+            Debug:Dev("teleport", "Teleport button clicked for dungeonID:", dungeonID)
+            
+            -- Create a fake keystone that mimics a real keystone for teleport selection
+            -- This uses the exact same logic path as working keystone selection
+            local fakeKeyInfo = {
+                dungeonID = dungeonID,
+                level = 0,  -- No level for dungeon portals
+                ownerName = "Dungeon Portal",  -- Clear indication this is not a player keystone
+                ownerShort = "Portal",
+                source = "dungeon_portal",
+                class = "MAGE",  -- Neutral class for portals
+                io = 0  -- Default IO
+            }
+            
+            -- Debug: check what GetDungeonName returns for this dungeonID
+            local dungeonName = NextKey222.Addon:GetDungeonName(dungeonID)
+            Debug:Dev("teleport", "Fake keystone created - dungeonID:", dungeonID, "dungeonName:", dungeonName or "nil")
+            
+            Debug:Dev("teleport", "Setting fake keystone as teleport target:", fakeKeyInfo.dungeonID, fakeKeyInfo.ownerName)
+            
+            -- Use the exact same method that works for keystone selection
+            -- The "dungeon_portal" source prevents automatic UI refresh in SetTeleportTargetKey
+            NextKey222.Addon:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
+            
+            -- Open teleport window which should now show the correct spell
+            NextKey222.Addon:ToggleTeleportWindow()
+        end
+    })
     container:AddChild(teleBtn)
 
-    local lootBtn = AceGUI:Create("Button")
-    lootBtn:SetText("Loot")
-    lootBtn:SetWidth(NextKey222.UIConfig.BUTTON.LOOT_WIDTH)
-    lootBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
-    lootBtn:SetCallback("OnClick", function()
-        NextKey222.Addon:HandleLootClick(dungeonID, dungeonData)
-    end)
+    local lootBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
+        text = "Loot",
+        size = { NextKey222.UIConfig.BUTTON.LOOT_WIDTH, NextKey222.UIConfig.BUTTON.HEIGHT },
+        onClick = function()
+            NextKey222.Addon:HandleLootClick(dungeonID, dungeonData)
+        end
+    })
     container:AddChild(lootBtn)
     
     -- Preference buttons after action buttons
     local preference = NextKey222.ProfilesService:GetDungeonPreference(dungeonID)
     
-    local likeBtn = AceGUI:Create("Button")
-    likeBtn:SetText("+")
-    likeBtn:SetWidth(NextKey222.UIConfig.BUTTON.PREFERENCE_WIDTH)
-    likeBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
-    if preference and preference.liked then
-        likeBtn:SetText("|cFF00FF00+|r") -- Green if liked
-    end
-    likeBtn:SetCallback("OnClick", function()
-        NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, true)
-        self:RenderDungeonCards() -- Refresh to show updated preference
-    end)
+    local likeBtn = NextKey222.UIComponents:CreateButton("small", nil, {
+        text = preference and preference.liked and "|cFF00FF00+|r" or "+",
+        size = { NextKey222.UIConfig.BUTTON.PREFERENCE_WIDTH, NextKey222.UIConfig.BUTTON.HEIGHT },
+        onClick = function()
+            NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, true)
+            self:RenderDungeonCards() -- Refresh to show updated preference
+        end
+    })
     container:AddChild(likeBtn)
     
-    local dislikeBtn = AceGUI:Create("Button")
-    dislikeBtn:SetText("-")
-    dislikeBtn:SetWidth(NextKey222.UIConfig.BUTTON.PREFERENCE_WIDTH)
-    dislikeBtn:SetHeight(NextKey222.UIConfig.BUTTON.HEIGHT)
-    if preference and preference.disliked then
-        dislikeBtn:SetText("|cFFFF0000-|r") -- Red if disliked
-    end
-    dislikeBtn:SetCallback("OnClick", function()
-        NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, false)
-        self:RenderDungeonCards() -- Refresh to show updated preference
-    end)
+    local dislikeBtn = NextKey222.UIComponents:CreateButton("small", nil, {
+        text = preference and preference.disliked and "|cFFFF0000-|r" or "-",
+        size = { NextKey222.UIConfig.BUTTON.PREFERENCE_WIDTH, NextKey222.UIConfig.BUTTON.HEIGHT },
+        onClick = function()
+            NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, false)
+            self:RenderDungeonCards() -- Refresh to show updated preference
+        end
+    })
     container:AddChild(dislikeBtn)
     
     -- Add the container to the results frame
@@ -2271,28 +2372,18 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
     
     -- Add configurable vertical spacing between cards
     if NextKey222.UIConfig.CARD.VERTICAL_SPACING > 0 then
-        local spacer = AceGUI:Create("Label")
-        spacer:SetText(" ")
-        spacer:SetFullWidth(true)
-        spacer:SetHeight(NextKey222.UIConfig.CARD.VERTICAL_SPACING)
+        local spacer = NextKey222.UIComponents:CreateText("body", nil, {
+            text = " ",
+            width = nil, -- Full width
+            height = NextKey222.UIConfig.CARD.VERTICAL_SPACING
+        })
         self.resultsFrame:AddChild(spacer)
     end
 end
 
 function UI:AddDungeonRow(dungeonID, dungeonData)
-    local container = AceGUI:Create("SimpleGroup")
-    container:SetLayout("Fill")
-    container:SetAutoAdjustHeight(false)
-    
-    local frame = CreateFrame("Frame", nil, container.frame, "BackdropTemplate")
-    frame:SetAllPoints(container.frame)
-    frame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 32,
-        edgeSize = 32,
-        insets = { left = 11, right = 12, top = 12, bottom = 11 },
+    local container = NextKey222.UIComponents:CreateFrame("dialog", nil, {
+        layout = "Fill"
     })
     
     -- Get player's best scores for this dungeon
@@ -2317,22 +2408,24 @@ function UI:AddDungeonRow(dungeonID, dungeonData)
     -- Loot tracking info (placeholder)
     local lootText = "Loot tracking: Not implemented yet"
     
-    local content = AceGUI:Create("SimpleGroup")
-    content:SetLayout("List")
-    content:SetFullWidth(true)
-    content:SetAutoAdjustHeight(true)
+    local content = NextKey222.UIComponents:CreateFrame("container", nil, {
+        layout = "List",
+        fullWidth = true
+    })
     
-    -- Dungeon name
-    local nameLabel = AceGUI:Create("Label")
-    nameLabel:SetText(nameText)
-    nameLabel:SetFontObject(GameFontNormalLarge)
-    nameLabel:SetFullWidth(true)
+    -- Dungeon name using component system
+    local nameLabel = NextKey222.UIComponents:CreateText("header", nil, {
+        text = nameText,
+        width = nil, -- Full width
+        fontObject = GameFontNormalLarge
+    })
     content:AddChild(nameLabel)
     
-    -- Score info with proper coloring
-    local scoreLabel = AceGUI:Create("Label")
-    scoreLabel:SetText(scoreText)
-    scoreLabel:SetFullWidth(true)
+    -- Score info with proper coloring using component system
+    local scoreLabel = NextKey222.UIComponents:CreateText("body", nil, {
+        text = scoreText,
+        width = nil -- Full width
+    })
     
     -- Apply RaiderIO color to the score if available
     if playerScore and playerScore > 0 and NextKey222.RaiderIO then
@@ -2344,11 +2437,11 @@ function UI:AddDungeonRow(dungeonID, dungeonData)
     
     content:AddChild(scoreLabel)
     
-    -- Loot info
-    local lootLabel = AceGUI:Create("Label")
-    lootLabel:SetText(lootText)
-    lootLabel:SetColor(0.7, 0.7, 0.7) -- Gray text
-    lootLabel:SetFullWidth(true)
+    -- Loot info using component system
+    local lootLabel = NextKey222.UIComponents:CreateText("small", nil, {
+        text = lootText,
+        width = nil -- Full width
+    })
     content:AddChild(lootLabel)
     
     container:AddChild(content)
@@ -2925,19 +3018,39 @@ end
 --
 -- Initialization function called during addon startup to prepare the UI module.
 
---- Initializes the UI module
+--- Initializes the UI module (Phase 7: Enhanced with dynamic configuration context)
 -- Called during addon startup to set up the UI system
 -- @return boolean true if initialization succeeded
 function UI:Initialize()
     Debug:Dev("ui", "UI module initialized")
+    
+    -- Phase 7: Initialize configuration context
+    if NextKey222.ConfigurationContext then
+        self.configContext = NextKey222.ConfigurationContext
+        Debug:Dev("ui", "Configuration context initialized for UI module")
+    else
+        Debug:Error("ConfigurationContext not available - dynamic configuration disabled")
+    end
 
-    -- Register for spec change events directly
-    local specChangeFrame = CreateFrame("Frame")
-    specChangeFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    specChangeFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-    specChangeFrame:SetScript("OnEvent", function(self, event, unit, ...)
+    -- Register for spec change events using component system
+    local specChangeFrame = NextKey222.UIComponents:CreateFrame("container", nil, {
+        width = 0, -- Hidden frame, no size needed
+        height = 0,
+        layout = "Flow"
+    })
+    
+    -- Register events on the underlying frame
+    specChangeFrame.frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    specChangeFrame.frame:RegisterEvent("GROUP_ROSTER_UPDATE")
+    specChangeFrame.frame:SetScript("OnEvent", function(self, event, unit, ...)
         if event == "PLAYER_SPECIALIZATION_CHANGED" then
             Debug:Dev("ui", "PLAYER_SPECIALIZATION_CHANGED event received")
+            
+            -- Phase 7: Update configuration context
+            if UI.configContext then
+                UI.configContext:SynchronizeWithUI(UI)
+            end
+            
             -- Invalidate profile cache
             if NextKey222.ProfilesService then
                 NextKey222.ProfilesService:InvalidateCache()
@@ -2952,6 +3065,12 @@ function UI:Initialize()
             end)
         elseif event == "GROUP_ROSTER_UPDATE" then
             Debug:Dev("ui", "GROUP_ROSTER_UPDATE event received")
+            
+            -- Phase 7: Update configuration context
+            if UI.configContext then
+                UI.configContext:SynchronizeWithUI(UI)
+            end
+            
             -- Refresh for group changes
             C_Timer.After(0.2, function()
                 if NextKey222.UI and NextKey222.UI.RefreshResults then

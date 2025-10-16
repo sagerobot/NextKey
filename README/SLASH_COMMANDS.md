@@ -86,6 +86,7 @@ Example: /nk debug category keystones
 - **System**: `performance`, `options`, `config`, `database`
 - **UI**: `ui`, `teleport`, `tooltip`, `components`, `lootwindow`
 - **Testing**: `fakeplayerservice`, `IOCalculator`, `ioc`, `test`, `debug`
+- **PUG Helper**: `pughelper` (for PUG Mode debugging)
 
 ## Test Commands
 
@@ -125,6 +126,65 @@ Example: /nk test preset expert
 ```
 /nk test clear         - Remove all fake players
 /nk test status        - Show FakePlayerService statistics
+```
+
+## PUG Helper Commands
+
+Commands for the PUG (Pick Up Group) Helper system that assists with LFG workflow:
+
+### Basic PUG Commands
+```
+/nk pug                - Show PUG Helper help
+/nk pug help           - Show PUG Helper help (alias)
+/nk pug ?              - Show PUG Helper help (alias)
+
+/nk pug status         - Show current PUG Helper state and configuration
+
+/nk pug test           - Test PUG Helper application tracking
+/nk pug enable         - Enable PUG Helper
+/nk pug disable        - Disable PUG Helper
+/nk pug reset          - Reset PUG Helper state
+```
+
+### Workflow Simulation
+```
+/nk pug simulate <action>  - Simulate PUG workflow actions
+  Actions:
+    invite    - Simulate receiving a group invite
+    join      - Simulate joining a group
+    complete  - Simulate completing a dungeon
+
+Example: /nk pug simulate invite
+```
+
+### UI Testing
+```
+/nk pug testui <type>     - Test PUG UI components
+  Types:
+    invite    - Test invite notification UI
+    travel    - Test travel assistant UI
+    getaway   - Test getaway UI
+
+Example: /nk pug testui invite
+```
+
+### Test Scenarios
+```
+/nk pug scenario <type> <name>  - Set test scenarios
+  Types: invite, travel, getaway
+
+Example: /nk pug scenario invite standard
+```
+
+### Application Tracker (NEW)
+```
+/nk pug tracker <action>  - Control application tracker window
+  Actions:
+    show     - Show the application tracker window
+    hide     - Hide the application tracker window
+    toggle   - Toggle the application tracker window
+
+Example: /nk pug tracker show
 ```
 
 ## Developer Commands

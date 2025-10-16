@@ -642,4 +642,164 @@ function Communications:RequestGuildKeystones()
     return true
 end
 
+-- MARK: Visual Testing Functions
+
+---Visual test for communication system
+---Follows "In-Game First" testing protocol
+function Communications:TestVisualCommunication()
+    NextKey222.Debug:Dev("comms", "Starting visual communication test")
+    
+    -- Create visual test frame for user interaction
+    local testFrame = CreateFrame("Frame", "NextKeyCommTestFrame", UIParent, "BackdropTemplate")
+    testFrame:SetSize(450, 350)
+    testFrame:SetPoint("CENTER")
+    testFrame:SetFrameStrata("DIALOG")
+    testFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    
+    -- Title
+    local title = testFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", 0, -20)
+    title:SetText("Visual Communication Test")
+    
+    -- Instructions
+    local instructions = testFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    instructions:SetPoint("TOP", title, "BOTTOM", 0, -15)
+    instructions:SetWidth(430)
+    instructions:SetText("This test validates the communication system through visual confirmation:\n\n" ..
+                       "1. Join a party or create one with friends\n" ..
+                       "2. Click 'Send Test Message' below\n" ..
+                       "3. Ask party members if they received the message\n" ..
+                       "4. Check chat for communication logs\n\n" ..
+                       "Expected visual results:\n" ..
+                       "• Test messages should appear in chat\n" ..
+                       "• Party members should receive data\n" ..
+                       "• IO scores should sync between players\n" ..
+                       "• No error messages should appear")
+    
+    -- Test status display
+    local statusDisplay = testFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    statusDisplay:SetPoint("TOP", instructions, "BOTTOM", 0, -15)
+    statusDisplay:SetWidth(430)
+    statusDisplay:SetText("|cFF888888Status: Ready to test|r")
+    
+    -- Test buttons
+    local sendTestButton = CreateFrame("Button", nil, testFrame, "UIPanelButtonTemplate")
+    sendTestButton:SetSize(140, 25)
+    sendTestButton:SetPoint("BOTTOMLEFT", 20, 60)
+    sendTestButton:SetText("Send Test Message")
+    sendTestButton:SetScript("OnClick", function()
+        NextKey222.Debug:Dev("comms", "Manual communication test triggered")
+        statusDisplay:SetText("|cFFFFFF00Status: Sending test message...|r")
+        
+        -- Send test IO data
+        local success = self:SharePlayerIOData()
+        if success then
+            NextKey:User("Test communication message sent successfully")
+            statusDisplay:SetText("|cFF00FF00Status: Test message sent! Check chat logs.|r")
+        else
+            NextKey:User("Test communication failed - not in group or throttled")
+            statusDisplay:SetText("|cFFFF4444Status: Failed - Join a party and try again|r")
+        end
+    end)
+    
+    local syncButton = CreateFrame("Button", nil, testFrame, "UIPanelButtonTemplate")
+    syncButton:SetSize(140, 25)
+    syncButton:SetPoint("BOTTOM", 0, 60)
+    syncButton:SetText("Sync Party Data")
+    syncButton:SetScript("OnClick", function()
+        NextKey222.Debug:Dev("comms", "Manual party sync triggered")
+        statusDisplay:SetText("|cFFFFFF00Status: Syncing party data...|r")
+        
+        -- Trigger party sync
+        local success = self:SendSync()
+        if success then
+            NextKey:User("Party sync initiated successfully")
+            statusDisplay:SetText("|cFF00FF00Status: Sync sent! Watch for data updates.|r")
+        else
+            NextKey:User("Party sync failed - not in group or throttled")
+            statusDisplay:SetText("|cFFFF4444Status: Sync failed - Join a party and try again|r")
+        end
+    end)
+    
+    local checkCacheButton = CreateFrame("Button", nil, testFrame, "UIPanelButtonTemplate")
+    checkCacheButton:SetSize(140, 25)
+    checkCacheButton:SetPoint("BOTTOMRIGHT", -20, 60)
+    checkCacheButton:SetText("Check Data Cache")
+    checkCacheButton:SetScript("OnClick", function()
+        NextKey222.Debug:Dev("comms", "Checking communication data cache")
+        
+        local cacheCount = 0
+        local playerList = {}
+        
+        for playerName, ioData in pairs(self.playerIOCache) do
+            cacheCount = cacheCount + 1
+            table.insert(playerList, string.format("%s: %d IO", playerName, ioData.totalIO or 0))
+        end
+        
+        if cacheCount > 0 then
+            NextKey:User(string.format("Data cache contains %d players:", cacheCount))
+            for _, playerInfo in ipairs(playerList) do
+                NextKey:User("  " .. playerInfo)
+            end
+            statusDisplay:SetText(string.format("|cFF00FF00Status: Found %d players in cache|r", cacheCount))
+        else
+            NextKey:User("No player data in cache - try sending test messages first")
+            statusDisplay:SetText("|cFF888888Status: No data in cache - Send messages first|r")
+        end
+    end)
+    
+    -- Request data button
+    local requestDataButton = CreateFrame("Button", nil, testFrame, "UIPanelButtonTemplate")
+    requestDataButton:SetSize(200, 25)
+    requestDataButton:SetPoint("BOTTOM", 0, 25)
+    requestDataButton:SetText("Request Party IO Data")
+    requestDataButton:SetScript("OnClick", function()
+        NextKey222.Debug:Dev("comms", "Manual IO data request triggered")
+        statusDisplay:SetText("|cFFFFFF00Status: Requesting IO data from party...|r")
+        
+        -- Request IO data from party
+        local success = self:RequestPartyIOData()
+        if success then
+            NextKey:User("IO data request sent to party")
+            statusDisplay:SetText("|cFF00FF00Status: Request sent! Wait for responses.|r")
+        else
+            NextKey:User("IO data request failed - not in group")
+            statusDisplay:SetText("|cFFFF4444Status: Failed - Join a party and try again|r")
+        end
+    end)
+    
+    -- Close button
+    local closeButton = CreateFrame("Button", nil, testFrame, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", -5, -5)
+    closeButton:SetScript("OnClick", function()
+        testFrame:Hide()
+    end)
+    
+    testFrame:Show()
+    
+    -- Auto-refresh timer to monitor incoming messages
+    local lastCacheCount = 0
+    testFrame:SetScript("OnUpdate", function(self, elapsed)
+        -- Check cache count every 2 seconds
+        local currentCacheCount = 0
+        for _ in pairs(self.playerIOCache) do
+            currentCacheCount = currentCacheCount + 1
+        end
+        
+        if currentCacheCount ~= lastCacheCount then
+            lastCacheCount = currentCacheCount
+            if currentCacheCount > 0 then
+                statusDisplay:SetText(string.format("|cFF00FF00Status: %d players in cache - Data received!|r", currentCacheCount))
+            end
+        end
+    end)
+    
+    NextKey222.Debug:Dev("comms", "Visual communication test frame created")
+end
+
 return Communications

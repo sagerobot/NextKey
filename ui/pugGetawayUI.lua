@@ -33,8 +33,6 @@ NextKey222.RegisterModule("PUGGetawayUI", PUGGetawayUI)
 -- Initialize the getaway UI module
 function PUGGetawayUI:Initialize()
     Debug:Dev("pughelper", "PUGGetawayUI:Initialize() called")
-    Debug:Dev("pughelper", "UIParent is available: " .. tostring(UIParent ~= nil))
-    Debug:Dev("pughelper", "Current time: " .. GetTime())
     
     -- Create the UI frame
     self:CreateFrame()
@@ -61,13 +59,13 @@ function PUGGetawayUI:Show(groupInfo)
     self:UpdateGetawayInfo()
     
     -- Show the frame
-    frame:Show()
+    frame.frame:Show()
 end
 
 -- Hide the getaway UI
 function PUGGetawayUI:Hide()
     if frame then
-        frame:Hide()
+        frame.frame:Hide()
     end
     
     currentGroupInfo = nil
@@ -76,198 +74,205 @@ end
 
 -- MARK: Private Implementation
 
--- Create the UI frame
+-- Create the UI frame using AceGUI and configuration wrappers
 function PUGGetawayUI:CreateFrame()
     if frame then
         return
     end
     
-    -- Create main frame
-    frame = CreateFrame("Frame", "NextKeyPUGGetawayUI", UIParent)
-    frame:SetWidth(400)
-    frame:SetHeight(300)
-    frame:SetFrameStrata("DIALOG")
-    frame:SetFrameLevel(95)
+    -- Use UIComponents factory to create standardized dialog frame
+    frame = NextKey222.UIComponents:CreateFrame("dialog", UIParent, {
+        width = 400,
+        height = 300,
+        backdropType = "dark_dialog",
+        colorScheme = "dark"
+    })
+    
+    -- Set frame properties for proper layering
+    frame.frame:SetFrameStrata("DIALOG")
+    frame.frame:SetFrameLevel(95)
     
     -- Position it in the center of the screen
-    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    frame.frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     
-    -- Set backdrop with error handling
-    Debug:Dev("pughelper", "Frame type: " .. type(frame))
-    Debug:Dev("pughelper", "SetBackdrop method exists: " .. tostring(frame.SetBackdrop ~= nil))
-    Debug:Dev("pughelper", "SetBackdropColor method exists: " .. tostring(frame.SetBackdropColor ~= nil))
-    Debug:Dev("pughelper", "SetBackdropBorderColor method exists: " .. tostring(frame.SetBackdropBorderColor ~= nil))
+    -- Make it movable using AceGUI frame
+    frame.frame:SetMovable(true)
+    frame.frame:RegisterForDrag("LeftButton")
+    frame.frame:SetScript("OnDragStart", frame.frame.StartMoving)
+    frame.frame:SetScript("OnDragStop", frame.frame.StopMovingOrSizing)
     
-    if frame.SetBackdrop then
-        Debug:Dev("pughelper", "Setting backdrop with SetBackdrop method")
-        frame:SetBackdrop({
-            bgFile = "Interface/DialogFrame/UI-DialogBox-Background",
-            edgeFile = "Interface/DialogFrame/UI-DialogBox-Border",
-            tile = true, tileSize = 32, edgeSize = 32,
-            insets = { left = 11, right = 12, top = 12, bottom = 11 }
-        })
-    else
-        Debug:Dev("pughelper", "SetBackdrop not available, attempting alternative background")
-        -- Try alternative background methods
-        if frame.SetBackdropColor then
-            frame:SetBackdropColor(0, 0, 0, 0.8)
-        else
-            Debug:Dev("pughelper", "SetBackdropColor also not available, skipping background")
-        end
-        
-        if frame.SetBackdropBorderColor then
-            frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-        else
-            Debug:Dev("pughelper", "SetBackdropBorderColor also not available, skipping border")
-        end
-    end
+    Debug:Dev("pughelper", "PUG getaway UI frame created with AceGUI and configuration wrappers")
     
-    -- Make it movable
-    frame:SetMovable(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    
-    -- Create title
-    local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    title:SetPoint("TOP", frame, "TOP", 0, -20)
-    title:SetText("NextKey - Dungeon Complete!")
+    -- Create title using UIComponents factory
+    local title = NextKey222.UIComponents:CreateText("header", nil, {
+        text = "NextKey - Dungeon Complete!",
+        width = 380
+    })
+    title.frame:SetPoint("TOP", frame.frame, "TOP", 0, -20)
     frame.title = title
     
-    -- Create completion message
-    local completionMessage = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    completionMessage:SetPoint("TOP", title, "BOTTOM", 0, -15)
-    completionMessage:SetWidth(380)
-    completionMessage:SetJustifyH("CENTER")
+    -- Create completion message using UIComponents factory
+    local completionMessage = NextKey222.UIComponents:CreateText("body", nil, {
+        text = "Congratulations on completing the dungeon!",
+        width = 380,
+        justifyH = "CENTER"
+    })
+    completionMessage.frame:SetPoint("TOP", title.frame, "BOTTOM", 0, -15)
     frame.completionMessage = completionMessage
     
-    -- Create results section
-    local resultsSection = CreateFrame("Frame", nil, frame)
-    resultsSection:SetWidth(380)
-    resultsSection:SetHeight(60)
-    resultsSection:SetPoint("TOP", completionMessage, "BOTTOM", 0, -15)
+    -- Create results section using UIComponents factory
+    local resultsSection = NextKey222.UIComponents:CreateFrame("panel", frame.frame, {
+        width = 380,
+        height = 60,
+        backdropType = "tooltip",
+        colorScheme = "standard"
+    })
+    resultsSection.frame:SetPoint("TOP", completionMessage.frame, "BOTTOM", 0, -15)
     frame.resultsSection = resultsSection
     
-    -- Results section title
-    local resultsTitle = resultsSection:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    resultsTitle:SetPoint("TOP", resultsSection, "TOP", 0, 0)
-    resultsTitle:SetText("Run Results")
+    -- Results section title using UIComponents factory
+    local resultsTitle = NextKey222.UIComponents:CreateText("body", nil, {
+        text = "Run Results",
+        width = 380,
+        justifyH = "CENTER"
+    })
+    resultsTitle.frame:SetPoint("TOP", resultsSection.frame, "TOP", 0, -5)
     resultsSection.title = resultsTitle
     
-    -- Dungeon name and level
-    local dungeonInfo = resultsSection:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    dungeonInfo:SetPoint("TOP", resultsTitle, "BOTTOM", 0, -5)
-    dungeonInfo:SetWidth(380)
-    dungeonInfo:SetJustifyH("CENTER")
+    -- Dungeon name and level using UIComponents factory
+    local dungeonInfo = NextKey222.UIComponents:CreateText("small", nil, {
+        width = 380,
+        justifyH = "CENTER"
+    })
+    dungeonInfo.frame:SetPoint("TOP", resultsTitle.frame, "BOTTOM", 0, -5)
     resultsSection.dungeonInfo = dungeonInfo
     
-    -- Completion time (placeholder - would need to be tracked)
-    local completionTime = resultsSection:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    completionTime:SetPoint("TOP", dungeonInfo, "BOTTOM", 0, -5)
-    completionTime:SetWidth(380)
-    completionTime:SetJustifyH("CENTER")
+    -- Completion time using UIComponents factory
+    local completionTime = NextKey222.UIComponents:CreateText("small", nil, {
+        text = "Completion time: Unknown",
+        width = 380,
+        justifyH = "CENTER"
+    })
+    completionTime.frame:SetPoint("TOP", dungeonInfo.frame, "BOTTOM", 0, -5)
     resultsSection.completionTime = completionTime
     
-    -- Create exit options section
-    local exitOptionsSection = CreateFrame("Frame", nil, frame)
-    exitOptionsSection:SetWidth(380)
-    exitOptionsSection:SetHeight(120)
-    exitOptionsSection:SetPoint("TOP", resultsSection, "BOTTOM", 0, -15)
+    -- Create exit options section using UIComponents factory
+    local exitOptionsSection = NextKey222.UIComponents:CreateFrame("panel", frame.frame, {
+        width = 380,
+        height = 120,
+        backdropType = "tooltip",
+        colorScheme = "standard"
+    })
+    exitOptionsSection.frame:SetPoint("TOP", resultsSection.frame, "BOTTOM", 0, -15)
     frame.exitOptionsSection = exitOptionsSection
     
-    -- Exit options title
-    local exitOptionsTitle = exitOptionsSection:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    exitOptionsTitle:SetPoint("TOP", exitOptionsSection, "TOP", 0, 0)
-    exitOptionsTitle:SetText("Quick Exit Options")
+    -- Exit options title using UIComponents factory
+    local exitOptionsTitle = NextKey222.UIComponents:CreateText("body", nil, {
+        text = "Quick Exit Options",
+        width = 380,
+        justifyH = "CENTER"
+    })
+    exitOptionsTitle.frame:SetPoint("TOP", exitOptionsSection.frame, "TOP", 0, -5)
     exitOptionsSection.title = exitOptionsTitle
     
-    -- Hearthstone button
-    local hearthButton = CreateFrame("Button", nil, exitOptionsSection, "UIPanelButtonTemplate")
-    hearthButton:SetWidth(150)
-    hearthButton:SetHeight(25)
-    hearthButton:SetPoint("TOP", exitOptionsTitle, "BOTTOM", -80, -10)
-    hearthButton:SetText("Use Hearthstone")
-    hearthButton:SetScript("OnClick", function()
-        self:UseHearthstone()
-    end)
+    -- Exit options title using UIComponents factory
+    local exitOptionsTitle = NextKey222.UIComponents:CreateText("body", nil, {
+        text = "Quick Exit Options",
+        width = 380,
+        justifyH = "CENTER"
+    })
+    exitOptionsTitle.frame:SetPoint("TOP", exitOptionsSection.frame, "TOP", 0, -5)
+    exitOptionsSection.title = exitOptionsTitle
+    
+    Debug:Dev("pughelper", "Creating buttons with UIComponents factory for PUG getaway UI")
+    
+    -- Hearthstone button using UIComponents factory
+    local hearthButton = NextKey222.UIComponents:CreateButton("select", nil, {
+        text = "Use Hearthstone",
+        onClick = function()
+            self:UseHearthstone()
+        end
+    })
+    hearthButton.frame:SetPoint("TOP", exitOptionsTitle.frame, "BOTTOM", -80, -10)
     exitOptionsSection.hearthButton = hearthButton
     
-    -- Hearthstone status
-    local hearthStatus = exitOptionsSection:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    hearthStatus:SetPoint("TOP", hearthButton, "BOTTOM", 0, -5)
-    hearthStatus:SetWidth(150)
-    hearthStatus:SetJustifyH("CENTER")
-    exitOptionsSection.hearthStatus = hearthStatus
-    
-    -- Leave group button
-    local leaveButton = CreateFrame("Button", nil, exitOptionsSection, "UIPanelButtonTemplate")
-    leaveButton:SetWidth(150)
-    leaveButton:SetHeight(25)
-    leaveButton:SetPoint("TOP", exitOptionsTitle, "BOTTOM", 80, -10)
-    leaveButton:SetText("Leave Group")
-    leaveButton:SetScript("OnClick", function()
-        self:LeaveGroup()
-    end)
+    -- Leave group button using UIComponents factory
+    local leaveButton = NextKey222.UIComponents:CreateButton("select", nil, {
+        text = "Leave Group",
+        onClick = function()
+            self:LeaveGroup()
+        end
+    })
+    leaveButton.frame:SetPoint("TOP", exitOptionsTitle.frame, "BOTTOM", 80, -10)
     exitOptionsSection.leaveButton = leaveButton
     
-    -- Leave group info
-    local leaveInfo = exitOptionsSection:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    leaveInfo:SetPoint("TOP", leaveButton, "BOTTOM", 0, -5)
-    leaveInfo:SetWidth(150)
-    leaveInfo:SetJustifyH("CENTER")
-    leaveInfo:SetText("Leave party and return to own realm")
-    exitOptionsSection.leaveInfo = leaveInfo
-    
-    -- Exit dungeon button
-    local exitButton = CreateFrame("Button", nil, exitOptionsSection, "UIPanelButtonTemplate")
-    exitButton:SetWidth(150)
-    exitButton:SetHeight(25)
-    exitButton:SetPoint("TOP", hearthButton, "BOTTOM", 0, -25)
-    exitButton:SetText("Exit Dungeon")
-    exitButton:SetScript("OnClick", function()
-        self:ExitDungeon()
-    end)
+    -- Exit dungeon button using UIComponents factory
+    local exitButton = NextKey222.UIComponents:CreateButton("select", nil, {
+        text = "Exit Dungeon",
+        onClick = function()
+            self:ExitDungeon()
+        end
+    })
+    exitButton.frame:SetPoint("TOP", hearthButton.frame, "BOTTOM", 0, -25)
     exitOptionsSection.exitButton = exitButton
     
-    -- Exit dungeon info
-    local exitInfo = exitOptionsSection:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    exitInfo:SetPoint("TOP", exitButton, "BOTTOM", 0, -5)
-    exitInfo:SetWidth(150)
-    exitInfo:SetJustifyH("CENTER")
-    exitInfo:SetText("Teleport out of dungeon")
-    exitOptionsSection.exitInfo = exitInfo
-    
-    -- Stay in group button
-    local stayButton = CreateFrame("Button", nil, exitOptionsSection, "UIPanelButtonTemplate")
-    stayButton:SetWidth(150)
-    stayButton:SetHeight(25)
-    stayButton:SetPoint("TOP", leaveButton, "BOTTOM", 0, -25)
-    stayButton:SetText("Stay in Group")
-    stayButton:SetScript("OnClick", function()
-        self:StayInGroup()
-    end)
+    -- Stay in group button using UIComponents factory
+    local stayButton = NextKey222.UIComponents:CreateButton("select", nil, {
+        text = "Stay in Group",
+        onClick = function()
+            self:StayInGroup()
+        end
+    })
+    stayButton.frame:SetPoint("TOP", leaveButton.frame, "BOTTOM", 0, -25)
     exitOptionsSection.stayButton = stayButton
     
-    -- Stay in group info
-    local stayInfo = exitOptionsSection:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    stayInfo:SetPoint("TOP", stayButton, "BOTTOM", 0, -5)
-    stayInfo:SetWidth(150)
-    stayInfo:SetJustifyH("CENTER")
-    stayInfo:SetText("Continue with current group")
+    -- Hearthstone status using UIComponents factory
+    local hearthStatus = NextKey222.UIComponents:CreateText("small", nil, {
+        width = 150,
+        justifyH = "CENTER"
+    })
+    hearthStatus.frame:SetPoint("TOP", hearthButton.frame, "BOTTOM", 0, -5)
+    exitOptionsSection.hearthStatus = hearthStatus
+    
+    -- Leave group info using UIComponents factory
+    local leaveInfo = NextKey222.UIComponents:CreateText("small", nil, {
+        text = "Leave party and return to own realm",
+        width = 150,
+        justifyH = "CENTER"
+    })
+    leaveInfo.frame:SetPoint("TOP", leaveButton.frame, "BOTTOM", 0, -5)
+    exitOptionsSection.leaveInfo = leaveInfo
+    
+    -- Exit dungeon info using UIComponents factory
+    local exitInfo = NextKey222.UIComponents:CreateText("small", nil, {
+        text = "Teleport out of dungeon",
+        width = 150,
+        justifyH = "CENTER"
+    })
+    exitInfo.frame:SetPoint("TOP", exitButton.frame, "BOTTOM", 0, -5)
+    exitOptionsSection.exitInfo = exitInfo
+    
+    -- Stay in group info using UIComponents factory
+    local stayInfo = NextKey222.UIComponents:CreateText("small", nil, {
+        text = "Continue with current group",
+        width = 150,
+        justifyH = "CENTER"
+    })
+    stayInfo.frame:SetPoint("TOP", stayButton.frame, "BOTTOM", 0, -5)
     exitOptionsSection.stayInfo = stayInfo
     
-    -- Create close button
-    local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
+    -- Create close button using native close button (still needed for X button)
+    local closeButton = CreateFrame("Button", nil, frame.frame, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", frame.frame, "TOPRIGHT", -5, -5)
     closeButton:SetScript("OnClick", function()
         self:Hide()
     end)
     frame.closeButton = closeButton
     
     -- Hide initially
-    frame:Hide()
+    frame.frame:Hide()
     
-    Debug:Dev("pughelper", "Getaway UI frame created")
+    Debug:Dev("pughelper", "Getaway UI frame created with pure AceGUI components")
 end
 
 -- Update getaway information in the UI
@@ -336,9 +341,11 @@ function PUGGetawayUI:UpdateHearthstoneInfo()
     }
     
     -- Check for Hearthstone in bags
-    for bag = 0, NUM_BAG_SLOTS do
-        for slot = 1, GetContainerNumSlots(bag) do
-            local itemID = GetContainerItemID(bag, slot)
+    local numBagSlots = NUM_BAG_SLOTS or 4
+    for bag = 0, numBagSlots do
+        local numSlots = GetContainerNumSlots and GetContainerNumSlots(bag) or 0
+        for slot = 1, numSlots do
+            local itemID = GetContainerItemID and GetContainerItemID(bag, slot)
             if itemID == 6948 then -- Hearthstone item ID
                 hearthstoneInfo.hasItem = true
                 break

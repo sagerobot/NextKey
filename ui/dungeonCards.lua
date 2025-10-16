@@ -32,178 +32,109 @@ local CARD_HEIGHT = 80
 local CARD_PADDING = 10
 local CARDS_PER_ROW = 2
 
-local function createScoreText(parent, score, affix)
-    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    text:SetText(string.format("%s: %d", affix, score))
-    
-    -- Color based on score
-    if NextKey222.RaiderIO then
-        local r, g, b = NextKey222.RaiderIO:GetScoreColor(score)
-        text:SetTextColor(r, g, b)
-    end
-    
-    return text
-end
+-- createScoreText and createButton functions removed - now using AceGUI components directly in PopulateCard
 
-local function createButton(parent, texture, tooltip)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetSize(24, 24)
-    
-    local icon = btn:CreateTexture(nil, "ARTWORK")
-    icon:SetAllPoints()
-    icon:SetTexture(texture)
-    
-    btn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(tooltip)
-        GameTooltip:Show()
-    end)
-    btn:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    
-    return btn
-end
-
-local function createDungeonCard(parent, card)
-    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    frame:SetSize(CARD_WIDTH, CARD_HEIGHT)
-    frame:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    frame:SetBackdropColor(0, 0, 0, 0.8)
-    frame:SetBackdropBorderColor(0.6, 0.6, 0.6)
-    
-    -- Dungeon name
-    local name = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    name:SetPoint("TOPLEFT", 10, -10)
-    name:SetText(card.name)
-    
-    -- Score breakdown
-    local fortScore = createScoreText(frame, card.fortifiedScore, "Fortified")
-    fortScore:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -5)
-    
-    local tyrScore = createScoreText(frame, card.tyrannicalScore, "Tyrannical")
-    tyrScore:SetPoint("LEFT", fortScore, "RIGHT", 10, 0)
-    
-    -- Best level text
-    local bestLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    bestLevel:SetPoint("TOPLEFT", fortScore, "BOTTOMLEFT", 0, -5)
-    bestLevel:SetText(string.format("Best: +%d %s", card.bestLevel, card.bestLevelAffix))
-    
-    -- Like button
-    local likeBtn = createButton(frame, "Interface/Icons/Ability_Paladin_BeaconofLight", "Like this dungeon")
-    likeBtn:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -30, 10)
-    likeBtn:SetScript("OnClick", function()
-        DungeonCards:ToggleLike(card.dungeonID, NextKey.playerFullName)
-        UI:UpdateCard(card.dungeonID)
-    end)
-    
-    -- Dislike button
-    local dislikeBtn = createButton(frame, "Interface/Icons/Ability_Creature_Cursed_02", "Dislike this dungeon")
-    dislikeBtn:SetPoint("RIGHT", likeBtn, "LEFT", -5, 0)
-    dislikeBtn:SetScript("OnClick", function()
-        DungeonCards:ToggleDislike(card.dungeonID, NextKey.playerFullName)
-        UI:UpdateCard(card.dungeonID)
-    end)
-    
-    -- Loot button
-    local lootBtn = createButton(frame, "Interface/Icons/INV_Misc_Bag_08", "View loot options")
-    lootBtn:SetPoint("RIGHT", dislikeBtn, "LEFT", -5, 0)
-    lootBtn:SetScript("OnClick", function()
-        NextKey:ShowLootWindow(card.dungeonID)
-    end)
-    
-    -- Preference tooltip
-    frame:SetScript("OnEnter", function(self)
-        local likes, dislikes = DungeonCards:GetPreferenceTooltip(card.dungeonID)
-        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-        GameTooltip:SetText(card.name)
-        if likes ~= "" then
-            GameTooltip:AddLine("Likes: " .. likes, 0, 1, 0)
-        end
-        if dislikes ~= "" then
-            GameTooltip:AddLine("Dislikes: " .. dislikes, 1, 0, 0)
-        end
-        GameTooltip:Show()
-    end)
-    frame:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    
-    return frame
-end
+-- createDungeonCard function removed - now using PopulateCard with AceGUI components
 
 -- MARK: Main Frame
 function UI:Show()
     if not self.frame then
-        -- Create main frame
-        self.frame = CreateFrame("Frame", "NextKeyDungeonCards", UIParent, "BackdropTemplate")
-        self.frame:SetSize(CARD_WIDTH * CARDS_PER_ROW + CARD_PADDING * 3, 600)
-        self.frame:SetPoint("CENTER")
-        self.frame:SetBackdrop({
-            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-            edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-            edgeSize = 16,
-            insets = { left = 4, right = 4, top = 4, bottom = 4 }
+        -- Create main window using AceGUI Frame with Components styling
+        local mainContainer = NextKey222.UIComponents:CreateFrame("window", nil, {
+            width = CARD_WIDTH * CARDS_PER_ROW + CARD_PADDING * 3,
+            height = 600,
+            colorScheme = "standard"
         })
-        self.frame:SetBackdropColor(0, 0, 0, 0.9)
         
-        -- Title
-        local title = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        title:SetPoint("TOPLEFT", 15, -15)
-        title:SetText("Dungeon Overview")
+        local frame = mainContainer.frame
+        frame:SetName("NextKeyDungeonCards")
+        frame:SetPoint("CENTER")
         
-        -- Sort dropdown
-        local sortLabel = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        sortLabel:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
-        sortLabel:SetText("Sort by:")
+        -- Store both the native frame and the AceGUI container
+        self.frame = frame
+        self.mainContainer = mainContainer
         
-        self.sortDropdown = CreateFrame("Frame", "NextKeyDungeonSort", self.frame, "UIDropDownMenuTemplate")
-        self.sortDropdown:SetPoint("LEFT", sortLabel, "RIGHT", -10, -2)
+        -- Create title using AceGUI Label with Components styling
+        local title = NextKey222.UIComponents:CreateText("header", frame, {
+            text = "Dungeon Overview",
+            width = 200,
+            justifyH = "LEFT"
+        })
+        local titleFrame = title.frame
+        titleFrame:SetPoint("TOPLEFT", 15, -15)
+        self.title = title
         
-        UIDropDownMenu_Initialize(self.sortDropdown, function(frame, level, menuList)
-            local info = UIDropDownMenu_CreateInfo()
-            local methods = {
-                { text = "Alphabetical", value = "alphabetical" },
-                { text = "Highest Score", value = "highest" },
-                { text = "Lowest Score", value = "lowest" },
-                { text = "Smart Sort", value = "smart" }
-            }
-            
-            for _, method in ipairs(methods) do
-                info.text = method.text
-                info.value = method.value
-                info.checked = DungeonCards.sortMethod == method.value
-                info.func = function(self)
-                    DungeonCards:SetSortMethod(self.value)
-                    UI:Update()
-                end
-                UIDropDownMenu_AddButton(info)
+        -- Create sort label using AceGUI Label with Components styling
+        local sortLabel = NextKey222.UIComponents:CreateText("label", frame, {
+            text = "Sort by:",
+            justifyH = "LEFT"
+        })
+        local sortLabelFrame = sortLabel.frame
+        sortLabelFrame:SetPoint("TOPLEFT", titleFrame, "BOTTOMLEFT", 0, -10)
+        self.sortLabel = sortLabel
+        
+        -- Create sort dropdown using AceGUI Dropdown with Components styling
+        local sortDropdown = NextKey222.UIComponents:CreateDropdown("primary", frame, {
+            width = 150,
+            label = "",
+            list = {
+                ["alphabetical"] = "Alphabetical",
+                ["highest"] = "Highest Score",
+                ["lowest"] = "Lowest Score",
+                ["smart"] = "Smart Sort"
+            },
+            value = DungeonCards.sortMethod or "smart",
+            onValueChanged = function(widget, value, text)
+                DungeonCards:SetSortMethod(value)
+                UI:Update()
             end
-        end)
+        })
+        local sortDropdownFrame = sortDropdown.frame
+        sortDropdownFrame:SetPoint("LEFT", sortLabelFrame, "RIGHT", -10, -2)
+        self.sortDropdown = sortDropdown
         
-        -- Total score
-        self.totalScore = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        self.totalScore:SetPoint("TOPRIGHT", -15, -15)
+        -- Create total score using AceGUI Label with Components styling
+        local totalScore = NextKey222.UIComponents:CreateText("large", frame, {
+            text = "Total Score: 0",
+            justifyH = "RIGHT",
+            color = {0, 1, 0}
+        })
+        local totalScoreFrame = totalScore.frame
+        totalScoreFrame:SetPoint("TOPRIGHT", -15, -15)
+        self.totalScore = totalScore
         
-        -- Close button
-        local closeBtn = CreateFrame("Button", nil, self.frame, "UIPanelCloseButton")
-        closeBtn:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", 0, 0)
+        -- Create close button using AceGUI with Components styling
+        local closeBtn = NextKey222.UIComponents:CreateButton("small", frame, {
+            text = "×",
+            onClick = function()
+                UI:Hide()
+            end
+        })
+        local closeFrame = closeBtn.frame
+        closeFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -2)
+        closeFrame:SetFrameLevel(frame:GetFrameLevel() + 10)
+        self.closeButton = closeBtn
         
-        -- Scroll frame for cards
-        local scrollFrame = CreateFrame("ScrollFrame", nil, self.frame, "UIPanelScrollFrameTemplate")
-        scrollFrame:SetPoint("TOPLEFT", sortLabel, "BOTTOMLEFT", 0, -10)
-        scrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
+        -- Create scroll frame using AceGUI ScrollFrame with Components styling
+        local scrollFrame = NextKey222.UIComponents:CreateScrollFrame("primary", frame, {
+            width = CARD_WIDTH * CARDS_PER_ROW + CARD_PADDING * 3 - 60,
+            height = 500,
+            layout = "Flow"
+        })
+        local scrollFrameFrame = scrollFrame.frame
+        scrollFrameFrame:SetPoint("TOPLEFT", sortLabelFrame, "BOTTOMLEFT", 0, -10)
+        scrollFrameFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -30, 10)
         
-        local content = CreateFrame("Frame", nil, scrollFrame)
-        content:SetSize(scrollFrame:GetWidth(), 1) -- Height will be set dynamically
-        scrollFrame:SetScrollChild(content)
+        self.scrollFrame = scrollFrame
+        self.content = scrollFrame -- Use scrollFrame as content container
         
-        self.content = content
+        -- Add all AceGUI widgets to main container for proper cleanup
+        mainContainer:AddChild(title)
+        mainContainer:AddChild(sortLabel)
+        mainContainer:AddChild(sortDropdown)
+        mainContainer:AddChild(totalScore)
+        mainContainer:AddChild(closeBtn)
+        mainContainer:AddChild(scrollFrame)
     end
     
     self:Update()
@@ -216,27 +147,65 @@ function UI:Hide()
     end
 end
 
+-- Add cleanup function for proper AceGUI container management
+function UI:Cleanup()
+    if self.mainContainer then
+        self.mainContainer:ReleaseChildren()
+        self.mainContainer:Release()
+        self.mainContainer = nil
+    end
+    self.frame = nil
+    self.title = nil
+    self.sortLabel = nil
+    self.sortDropdown = nil
+    self.totalScore = nil
+    self.closeButton = nil
+    self.scrollFrame = nil
+    self.content = nil
+end
+
 function UI:Update()
     local cards = DungeonCards:GetSortedCards()
     local totalScore = 0
     
     -- Clear existing cards
     for _, card in pairs(self.cards) do
-        card:Hide()
+        if card and card.Hide then
+            card:Hide()
+        end
     end
     wipe(self.cards)
     
-    -- Create/update cards
+    -- Clear existing AceGUI children from scroll frame
+    if self.scrollFrame then
+        self.scrollFrame:ReleaseChildren()
+    end
+    
+    -- Create/update cards using AceGUI containers
     for i, cardData in ipairs(cards) do
         local col = (i-1) % CARDS_PER_ROW
         local row = math.floor((i-1) / CARDS_PER_ROW)
         
-        local card = createDungeonCard(self.content, cardData)
-        card:SetPoint("TOPLEFT", self.content, "TOPLEFT", 
+        -- Create card container using AceGUI InlineGroup
+        local cardContainer = NextKey222.UIComponents:CreateFrame("panel", nil, {
+            width = CARD_WIDTH,
+            height = CARD_HEIGHT,
+            colorScheme = "standard"
+        })
+        
+        -- Position the card container (using native frame positioning for layout)
+        local cardFrame = cardContainer.frame
+        cardFrame:SetPoint("TOPLEFT", self.scrollFrame.frame, "TOPLEFT",
             CARD_PADDING + col * (CARD_WIDTH + CARD_PADDING),
             -(CARD_PADDING + row * (CARD_HEIGHT + CARD_PADDING)))
         
-        self.cards[cardData.dungeonID] = card
+        -- Add card content using the existing createDungeonCard logic but adapted for AceGUI
+        self:PopulateCard(cardContainer, cardData)
+        
+        -- Add to scroll frame and track
+        self.scrollFrame:AddChild(cardContainer)
+        self.cards[cardData.dungeonID] = cardContainer
+        
         totalScore = totalScore + cardData.totalScore
     end
     
@@ -244,23 +213,162 @@ function UI:Update()
     if NextKey222.RaiderIO then
         local r, g, b = NextKey222.RaiderIO:GetScoreColor(totalScore)
         self.totalScore:SetText(string.format("Total Score: %d", totalScore))
-        self.totalScore:SetTextColor(r, g, b)
+        self.totalScore:SetColor(r, g, b)
     else
         self.totalScore:SetText(string.format("Total Score: %d", totalScore))
+        self.totalScore:SetColor(0, 1, 0)
     end
     
-    -- Update content height
+    -- Update scroll frame content height
     local rows = math.ceil(#cards / CARDS_PER_ROW)
-    self.content:SetHeight(rows * (CARD_HEIGHT + CARD_PADDING) + CARD_PADDING)
+    local totalHeight = rows * (CARD_HEIGHT + CARD_PADDING) + CARD_PADDING
+    if self.scrollFrame then
+        self.scrollFrame.frame:SetHeight(totalHeight)
+    end
+end
+
+-- Populate card with AceGUI components
+function UI:PopulateCard(cardContainer, card)
+    local cardFrame = cardContainer.frame
+    
+    -- Create dungeon name using AceGUI Label with Components styling
+    local name = NextKey222.UIComponents:CreateText("header", cardContainer, {
+        text = card.name,
+        width = CARD_WIDTH - 20,
+        justifyH = "LEFT"
+    })
+    local nameFrame = name.frame
+    nameFrame:SetPoint("TOPLEFT", cardFrame, "TOPLEFT", 10, -10)
+    
+    -- Create score breakdown using AceGUI Labels with Components styling
+    local fortScore = NextKey222.UIComponents:CreateText("score", cardContainer, {
+        text = string.format("Fortified: %d", card.fortifiedScore),
+        justifyH = "LEFT"
+    })
+    local fortScoreFrame = fortScore.frame
+    fortScoreFrame:SetPoint("TOPLEFT", nameFrame, "BOTTOMLEFT", 0, -5)
+    
+    local tyrScore = NextKey222.UIComponents:CreateText("score", cardContainer, {
+        text = string.format("Tyrannical: %d", card.tyrannicalScore),
+        justifyH = "LEFT"
+    })
+    local tyrScoreFrame = tyrScore.frame
+    tyrScoreFrame:SetPoint("LEFT", fortScoreFrame, "RIGHT", 10, 0)
+    
+    -- Create best level text using AceGUI Label with Components styling
+    local bestLevel = NextKey222.UIComponents:CreateText("body", cardContainer, {
+        text = string.format("Best: +%d %s", card.bestLevel, card.bestLevelAffix),
+        justifyH = "LEFT"
+    })
+    local bestLevelFrame = bestLevel.frame
+    bestLevelFrame:SetPoint("TOPLEFT", fortScoreFrame, "BOTTOMLEFT", 0, -5)
+    
+    -- Create like button using AceGUI Button with Components styling
+    local likeBtn = NextKey222.UIComponents:CreateButton("icon", cardContainer, {
+        imagePath = "Interface/Icons/Ability_Paladin_BeaconofLight",
+        onClick = function()
+            DungeonCards:ToggleLike(card.dungeonID, NextKey.playerFullName)
+            UI:UpdateCard(card.dungeonID)
+        end,
+        onEnter = function()
+            GameTooltip:SetOwner(likeBtn.frame, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Like this dungeon")
+            GameTooltip:Show()
+        end,
+        onLeave = function()
+            GameTooltip:Hide()
+        end
+    })
+    local likeFrame = likeBtn.frame
+    likeFrame:SetPoint("BOTTOMRIGHT", cardFrame, "BOTTOMRIGHT", -30, 10)
+    
+    -- Create dislike button using AceGUI Button with Components styling
+    local dislikeBtn = NextKey222.UIComponents:CreateButton("icon", cardContainer, {
+        imagePath = "Interface/Icons/Ability_Creature_Cursed_02",
+        onClick = function()
+            DungeonCards:ToggleDislike(card.dungeonID, NextKey.playerFullName)
+            UI:UpdateCard(card.dungeonID)
+        end,
+        onEnter = function()
+            GameTooltip:SetOwner(dislikeBtn.frame, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Dislike this dungeon")
+            GameTooltip:Show()
+        end,
+        onLeave = function()
+            GameTooltip:Hide()
+        end
+    })
+    local dislikeFrame = dislikeBtn.frame
+    dislikeFrame:SetPoint("RIGHT", likeFrame, "LEFT", -5, 0)
+    
+    -- Create loot button using AceGUI Button with Components styling
+    local lootBtn = NextKey222.UIComponents:CreateButton("icon", cardContainer, {
+        imagePath = "Interface/Icons/INV_Misc_Bag_08",
+        onClick = function()
+            NextKey:ShowLootWindow(card.dungeonID)
+        end,
+        onEnter = function()
+            GameTooltip:SetOwner(lootBtn.frame, "ANCHOR_RIGHT")
+            GameTooltip:SetText("View loot options")
+            GameTooltip:Show()
+        end,
+        onLeave = function()
+            GameTooltip:Hide()
+        end
+    })
+    local lootFrame = lootBtn.frame
+    lootFrame:SetPoint("RIGHT", dislikeFrame, "LEFT", -5, 0)
+    
+    -- Add preference tooltip to card container
+    cardFrame:SetScript("OnEnter", function()
+        local likes, dislikes = DungeonCards:GetPreferenceTooltip(card.dungeonID)
+        GameTooltip:SetOwner(cardFrame, "ANCHOR_CURSOR")
+        GameTooltip:SetText(card.name)
+        if likes ~= "" then
+            GameTooltip:AddLine("Likes: " .. likes, 0, 1, 0)
+        end
+        if dislikes ~= "" then
+            GameTooltip:AddLine("Dislikes: " .. dislikes, 1, 0, 0)
+        end
+        GameTooltip:Show()
+    end)
+    cardFrame:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
 end
 
 function UI:UpdateCard(dungeonID)
     if self.cards[dungeonID] then
         local cardData = DungeonCards:GetCard(dungeonID)
         local oldCard = self.cards[dungeonID]
-        self.cards[dungeonID] = createDungeonCard(self.content, cardData)
-        self.cards[dungeonID]:SetPoint("TOPLEFT", oldCard, "TOPLEFT")
-        oldCard:Hide()
+        
+        -- Create new card container
+        local newCard = NextKey222.UIComponents:CreateFrame("panel", nil, {
+            width = CARD_WIDTH,
+            height = CARD_HEIGHT,
+            colorScheme = "standard"
+        })
+        
+        -- Position at same location as old card
+        local newCardFrame = newCard.frame
+        newCardFrame:SetPoint("TOPLEFT", oldCard.frame, "TOPLEFT")
+        
+        -- Populate new card
+        self:PopulateCard(newCard, cardData)
+        
+        -- Replace in scroll frame
+        if self.scrollFrame then
+            self.scrollFrame:RemoveChild(oldCard)
+            self.scrollFrame:AddChild(newCard)
+        end
+        
+        -- Update tracking
+        self.cards[dungeonID] = newCard
+        
+        -- Clean up old card
+        if oldCard and oldCard.Release then
+            oldCard:Release()
+        end
     end
 end
 

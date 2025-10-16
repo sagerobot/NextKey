@@ -62,6 +62,11 @@ end
 
 local function updateDungeonScore(mapID, level, timed)
     local seasonData = addon:EnsureSeasonData()
+    if not seasonData then
+        addon:Print("Error: Could not access season data.")
+        return
+    end
+    
     if not seasonData.bestLevels then
         seasonData.bestLevels = {}
     end
@@ -699,6 +704,7 @@ function addon:SetupOptions()
             leader = {
                 type = "group",
                 name = "General Settings",
+                order = 10,
                 args = {
                     autoSuggest = {
                         type = "toggle",
@@ -766,9 +772,409 @@ function addon:SetupOptions()
                     },
                 },
             },
+            appearance = {
+                type = "group",
+                name = "Appearance & Themes",
+                order = 20,
+                args = {
+                    themeHeader = {
+                        type = "header",
+                        name = "Theme Selection",
+                        order = 1
+                    },
+                    currentTheme = {
+                        type = "select",
+                        name = "UI Theme",
+                        desc = "Choose the visual theme for NextKey interface",
+                        values = {
+                            ["default"] = "Default (Balanced)",
+                            ["dark"] = "Dark (Enhanced Contrast)",
+                            ["light"] = "Light (Bright Backgrounds)",
+                            ["colorblind"] = "Colorblind Friendly",
+                            ["high_contrast"] = "High Contrast (Accessibility)"
+                        },
+                        get = function()
+                            if NextKey222.Theme then
+                                return NextKey222.Theme:GetCurrentTheme()
+                            end
+                            return "default"
+                        end,
+                        set = function(_, value)
+                            if NextKey222.Theme then
+                                NextKey222.Theme:SetCurrentTheme(value)
+                                NextKey222.Theme:SaveTheme()
+                                refreshUI()
+                            end
+                        end,
+                        order = 2
+                    },
+                    themePreview = {
+                        type = "description",
+                        name = function()
+                            if NextKey222.Theme then
+                                local theme = NextKey222.Theme:GetCurrentTheme()
+                                local themeData = NextKey222.Theme.themes[theme]
+                                return themeData and themeData.description or "No theme selected"
+                            end
+                            return "Theme system not available"
+                        end,
+                        fontSize = "medium",
+                        order = 3
+                    },
+                    uiScaleHeader = {
+                        type = "header",
+                        name = "UI Scaling",
+                        order = 10
+                    },
+                    scaleMode = {
+                        type = "select",
+                        name = "Scale Mode",
+                        desc = "Choose how UI scaling is applied",
+                        values = {
+                            ["manual"] = "Manual Scale",
+                            ["auto"] = "Auto Scale (Screen Resolution)"
+                        },
+                        get = function()
+                            if NextKey222.UIScale then
+                                return NextKey222.UIScale:IsAutoScaleEnabled() and "auto" or "manual"
+                            end
+                            return "manual"
+                        end,
+                        set = function(_, value)
+                            if NextKey222.UIScale then
+                                if value == "auto" then
+                                    NextKey222.UIScale:EnableAutoScale()
+                                else
+                                    NextKey222.UIScale:DisableAutoScale()
+                                end
+                                refreshUI()
+                            end
+                        end,
+                        order = 11
+                    },
+                    manualScale = {
+                        type = "range",
+                        name = "UI Scale",
+                        desc = "Adjust the size of the NextKey interface",
+                        min = 0.5,
+                        max = 2.0,
+                        step = 0.1,
+                        isPercent = true,
+                        disabled = function()
+                            return NextKey222.UIScale and NextKey222.UIScale:IsAutoScaleEnabled()
+                        end,
+                        get = function()
+                            if NextKey222.UIScale then
+                                return NextKey222.UIScale:GetCurrentScale()
+                            end
+                            return 1.0
+                        end,
+                        set = function(_, value)
+                            if NextKey222.UIScale then
+                                NextKey222.UIScale:SetScale(value)
+                                refreshUI()
+                            end
+                        end,
+                        order = 12
+                    },
+                    scalePreset = {
+                        type = "select",
+                        name = "Scale Preset",
+                        desc = "Quick select common scale values",
+                        values = {
+                            ["0.6"] = "Tiny (60%)",
+                            ["0.8"] = "Small (80%)",
+                            ["1.0"] = "Normal (100%)",
+                            ["1.2"] = "Large (120%)",
+                            ["1.5"] = "Huge (150%)",
+                            ["1.8"] = "Massive (180%)"
+                        },
+                        disabled = function()
+                            return NextKey222.UIScale and NextKey222.UIScale:IsAutoScaleEnabled()
+                        end,
+                        get = function()
+                            if NextKey222.UIScale then
+                                return tostring(NextKey222.UIScale:GetCurrentScale())
+                            end
+                            return "1.0"
+                        end,
+                        set = function(_, value)
+                            if NextKey222.UIScale then
+                                NextKey222.UIScale:SetScale(tonumber(value))
+                                refreshUI()
+                            end
+                        end,
+                        order = 13
+                    },
+                    animateScaleChanges = {
+                        type = "toggle",
+                        name = "Animate Scale Changes",
+                        desc = "Smoothly animate between different scale values",
+                        width = "full",
+                        get = function() return addon.db.char.animateScaleChanges ~= false end,
+                        set = function(_, value)
+                            addon.db.char.animateScaleChanges = value
+                            refreshUI()
+                        end,
+                        order = 14
+                    },
+                    responsiveHeader = {
+                        type = "header",
+                        name = "Responsive Layout",
+                        order = 20
+                    },
+                    layoutMode = {
+                        type = "select",
+                        name = "Layout Mode",
+                        desc = "Choose how the interface adapts to different screen sizes",
+                        values = {
+                            ["auto"] = "Auto (Detect Screen Size)",
+                            ["compact"] = "Compact (Small Screens)",
+                            ["standard"] = "Standard (Medium Screens)",
+                            ["expanded"] = "Expanded (Large Screens)"
+                        },
+                        get = function()
+                            if NextKey222.Responsive then
+                                return NextKey222.Responsive:GetCurrentLayoutMode():lower()
+                            end
+                            return "auto"
+                        end,
+                        set = function(_, value)
+                            if NextKey222.Responsive then
+                                NextKey222.Responsive:SetLayoutMode(value)
+                                refreshUI()
+                            end
+                        end,
+                        order = 21
+                    },
+                    currentBreakpoint = {
+                        type = "description",
+                        name = function()
+                            if NextKey222.Responsive then
+                                local breakpoint = NextKey222.Responsive:GetCurrentBreakpoint()
+                                local mode = NextKey222.Responsive:GetLayoutMode()
+                                return string.format("Current: %s screen, %s layout",
+                                    breakpoint:sub(1,1):upper() .. breakpoint:sub(2),
+                                    mode:sub(1,1):upper() .. mode:sub(2))
+                            end
+                            return "Responsive system not available"
+                        end,
+                        fontSize = "small",
+                        order = 22
+                    }
+                }
+            },
+            interface = {
+                type = "group",
+                name = "Interface",
+                order = 30,
+                args = {
+                    tooltipHeader = {
+                        type = "header",
+                        name = "Tooltip Configuration",
+                        order = 1
+                    },
+                    smartPositioning = {
+                        type = "toggle",
+                        name = "Smart Tooltip Positioning",
+                        desc = "Automatically adjust tooltip position to avoid screen edges",
+                        width = "full",
+                        get = function() return addon.db.char.tooltipSmartPositioning ~= false end,
+                        set = function(_, value)
+                            addon.db.char.tooltipSmartPositioning = value
+                            refreshUI()
+                        end,
+                        order = 2
+                    },
+                    tooltipDelay = {
+                        type = "range",
+                        name = "Tooltip Delay",
+                        desc = "Delay before tooltips appear when hovering over elements",
+                        min = 0,
+                        max = 2.0,
+                        step = 0.1,
+                        get = function() return addon.db.char.tooltipDelay or 0.2 end,
+                        set = function(_, value)
+                            addon.db.char.tooltipDelay = value
+                            refreshUI()
+                        end,
+                        order = 3
+                    },
+                    tooltipScale = {
+                        type = "range",
+                        name = "Tooltip Scale",
+                        desc = "Adjust the size of tooltips relative to UI scale",
+                        min = 0.5,
+                        max = 1.5,
+                        step = 0.1,
+                        isPercent = true,
+                        get = function() return addon.db.char.tooltipScale or 1.0 end,
+                        set = function(_, value)
+                            addon.db.char.tooltipScale = value
+                            refreshUI()
+                        end,
+                        order = 4
+                    },
+                    animationHeader = {
+                        type = "header",
+                        name = "Animations & Transitions",
+                        order = 10
+                    },
+                    enableAnimations = {
+                        type = "toggle",
+                        name = "Enable UI Animations",
+                        desc = "Show smooth transitions and animations throughout the interface",
+                        width = "full",
+                        get = function() return addon.db.char.enableUIAnimations ~= false end,
+                        set = function(_, value)
+                            addon.db.char.enableUIAnimations = value
+                            refreshUI()
+                        end,
+                        order = 11
+                    },
+                    animationSpeed = {
+                        type = "range",
+                        name = "Animation Speed",
+                        desc = "Control the speed of UI animations",
+                        min = 0.1,
+                        max = 2.0,
+                        step = 0.1,
+                        isPercent = true,
+                        disabled = function() return addon.db.char.enableUIAnimations == false end,
+                        get = function() return addon.db.char.animationSpeed or 1.0 end,
+                        set = function(_, value)
+                            addon.db.char.animationSpeed = value
+                            refreshUI()
+                        end,
+                        order = 12
+                    },
+                    dynamicHeader = {
+                        type = "header",
+                        name = "Dynamic Configuration",
+                        order = 20
+                    },
+                    enableDynamicConfig = {
+                        type = "toggle",
+                        name = "Enable Dynamic UI",
+                        desc = "Automatically show/hide UI elements based on context (debug mode, party size, etc.)",
+                        width = "full",
+                        get = function() return addon.db.char.enableDynamicConfig ~= false end,
+                        set = function(_, value)
+                            addon.db.char.enableDynamicConfig = value
+                            if NextKey222.ConfigurationContext then
+                                NextKey222.ConfigurationContext:InvalidateCache()
+                            end
+                            refreshUI()
+                        end,
+                        order = 21
+                    },
+                    debugModeIntegration = {
+                        type = "toggle",
+                        name = "Debug Mode Integration",
+                        desc = "When debug mode is enabled, automatically show debug controls and enhanced features",
+                        width = "full",
+                        disabled = function() return addon.db.char.enableDynamicConfig == false end,
+                        get = function() return addon.db.char.debugModeIntegration ~= false end,
+                        set = function(_, value)
+                            addon.db.char.debugModeIntegration = value
+                            if NextKey222.ConfigurationContext then
+                                NextKey222.ConfigurationContext:InvalidateCache()
+                            end
+                            refreshUI()
+                        end,
+                        order = 22
+                    }
+                }
+            },
+            performance = {
+                type = "group",
+                name = "Performance",
+                order = 40,
+                args = {
+                    cachingHeader = {
+                        type = "header",
+                        name = "Caching & Optimization",
+                        order = 1
+                    },
+                    enableCaching = {
+                        type = "toggle",
+                        name = "Enable UI Caching",
+                        desc = "Cache UI calculations to improve performance",
+                        width = "full",
+                        get = function() return addon.db.char.enableUICaching ~= false end,
+                        set = function(_, value)
+                            addon.db.char.enableUICaching = value
+                            refreshUI()
+                        end,
+                        order = 2
+                    },
+                    cacheTimeout = {
+                        type = "range",
+                        name = "Cache Timeout",
+                        desc = "How long to cache UI calculations before refreshing (in seconds)",
+                        min = 30,
+                        max = 600,
+                        step = 30,
+                        disabled = function() return addon.db.char.enableUICaching == false end,
+                        get = function() return addon.db.char.cacheTimeout or 300 end,
+                        set = function(_, value)
+                            addon.db.char.cacheTimeout = value
+                            refreshUI()
+                        end,
+                        order = 3
+                    },
+                    batchUpdates = {
+                        type = "toggle",
+                        name = "Batch UI Updates",
+                        desc = "Group UI updates together for better performance",
+                        width = "full",
+                        get = function() return addon.db.char.batchUIUpdates ~= false end,
+                        set = function(_, value)
+                            addon.db.char.batchUIUpdates = value
+                            refreshUI()
+                        end,
+                        order = 4
+                    },
+                    advancedHeader = {
+                        type = "header",
+                        name = "Advanced Performance",
+                        order = 10
+                    },
+                    throttleInterval = {
+                        type = "range",
+                        name = "Update Throttling",
+                        desc = "Minimum time between UI updates (lower = more responsive, higher = better performance)",
+                        min = 0.01,
+                        max = 1.0,
+                        step = 0.01,
+                        get = function() return addon.db.char.updateThrottleInterval or 0.1 end,
+                        set = function(_, value)
+                            addon.db.char.updateThrottleInterval = value
+                            refreshUI()
+                        end,
+                        order = 11
+                    },
+                    enableProfiling = {
+                        type = "toggle",
+                        name = "Enable Performance Profiling",
+                        desc = "Track performance metrics for optimization (development use only)",
+                        width = "full",
+                        get = function() return addon.db.char.enablePerformanceProfiling or false end,
+                        set = function(_, value)
+                            addon.db.char.enablePerformanceProfiling = value
+                            if NextKey222.Performance then
+                                NextKey222.Performance.enabled = value
+                            end
+                            refreshUI()
+                        end,
+                        order = 12
+                    }
+                }
+            },
             teleport = {
                 type = "group",
                 name = "Teleport Window",
+                order = 50,
                 args = {
                     showHearthstone = {
                         type = "toggle",
@@ -787,6 +1193,7 @@ function addon:SetupOptions()
                 type = "group",
                 name = "PUG Helper",
                 desc = "Settings for the PUG (Pick Up Group) Helper that assists with LFG workflow",
+                order = 60,
                 args = {
                     enabled = {
                         type = "toggle",
@@ -931,6 +1338,64 @@ function addon:SetupOptions()
                         width = "full",
                         order = 22,
                     },
+                    applicationTrackerHeader = {
+                        type = "header",
+                        name = "Application Tracker",
+                        order = 23,
+                    },
+                    applicationTracker = {
+                        type = "toggle",
+                        name = "Show Application Tracker",
+                        desc = "Display a window showing active LFG applications with dungeon, key level, leader, and status",
+                        get = function()
+                            if NextKey222.PUGApplicationTracker then
+                                return NextKey222.PUGApplicationTracker:IsEnabled()
+                            else
+                                return addon.db.global.pugApplicationTracker and addon.db.global.pugApplicationTracker.enabled or false
+                            end
+                        end,
+                        set = function(_, value)
+                            if NextKey222.PUGApplicationTracker then
+                                NextKey222.PUGApplicationTracker:SetEnabled(value)
+                            else
+                                if not addon.db.global.pugApplicationTracker then
+                                    addon.db.global.pugApplicationTracker = {}
+                                end
+                                addon.db.global.pugApplicationTracker.enabled = value
+                            end
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        width = "full",
+                        order = 24,
+                    },
+                    autoShowTracker = {
+                        type = "toggle",
+                        name = "Auto-Show Tracker",
+                        desc = "Automatically show the application tracker when you have active applications",
+                        get = function()
+                            if NextKey222.PUGApplicationTracker then
+                                local config = NextKey222.PUGApplicationTracker:GetConfig()
+                                return config.autoShow
+                            else
+                                return addon.db.global.pugApplicationTracker and addon.db.global.pugApplicationTracker.autoShow ~= false
+                            end
+                        end,
+                        set = function(_, value)
+                            if NextKey222.PUGApplicationTracker then
+                                NextKey222.PUGApplicationTracker:Configure({autoShow = value})
+                            else
+                                if not addon.db.global.pugApplicationTracker then
+                                    addon.db.global.pugApplicationTracker = {}
+                                end
+                                addon.db.global.pugApplicationTracker.autoShow = value
+                            end
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        width = "full",
+                        order = 25,
+                    },
                     testHeader = {
                         type = "header",
                         name = "Testing",
@@ -951,6 +1416,162 @@ function addon:SetupOptions()
                         order = 31,
                     },
                 },
+            },
+            mythicPlus = {
+                type = "group",
+                name = "M+ Data",
+                order = 70,
+                args = {
+                    currentScore = {
+                        type = "description",
+                        name = function()
+                            local seasonData = addon:EnsureSeasonData()
+                            if not seasonData then
+                                return "Current M+ Score: Not available"
+                            end
+                            local score = seasonData.currentScore or 0
+                            local color = C_ChallengeMode.GetDungeonScoreRarityColor(score)
+                            if color then
+                                return string.format("Current M+ Score: |cff%02x%02x%02x%d|r",
+                                    color.r * 255, color.g * 255, color.b * 255, score)
+                            else
+                                return string.format("Current M+ Score: %d", score)
+                            end
+                        end,
+                        fontSize = "large",
+                        order = 0
+                    },
+                    description = {
+                        type = "description",
+                        name = "Configure your Mythic+ data and scores",
+                        order = 1
+                    },
+                    fetchGroup = {
+                        type = "group",
+                        name = "Data Import",
+                        inline = true,
+                        order = 2,
+                        args = {
+                            fetchBlizzard = {
+                                type = "execute",
+                                name = "Fetch from Blizzard",
+                                desc = "Import your Mythic+ data from Blizzard API",
+                                func = function()
+                                    if addon.CollectPartyKeys then
+                                        addon:CollectPartyKeys()
+                                        print("NextKey: Refreshed keystone data")
+                                    end
+                                    refreshUI()
+                                end,
+                                order = 1
+                            },
+                            fetchRaiderIO = {
+                                type = "execute",
+                                name = "Fetch from RaiderIO",
+                                desc = "Import your Mythic+ data from RaiderIO addon",
+                                func = function()
+                                    if not RaiderIO then
+                                        addon:Print("RaiderIO addon is not installed or enabled.")
+                                        return
+                                    end
+                                    
+                                    local profile = RaiderIO.GetProfile("player")
+                                    if not profile or not profile.mythicKeystoneProfile then
+                                        addon:Print("Could not fetch RaiderIO data for player.")
+                                        return
+                                    end
+                                    
+                                    local seasonData = addon:EnsureSeasonData()
+                                    if not seasonData then
+                                        addon:Print("Could not initialize season data.")
+                                        return
+                                    end
+                                    
+                                    seasonData.currentScore = profile.mythicKeystoneProfile.currentScore or 0
+                                    refreshUI()
+                                    addon:Print("Successfully imported RaiderIO score: " .. seasonData.currentScore)
+                                end,
+                                order = 2
+                            }
+                        }
+                    },
+                    dungeonScores = {
+                        type = "group",
+                        name = "Dungeon Scores",
+                        inline = true,
+                        order = 3,
+                        args = (function()
+                            local args = {}
+                            local dungeons = {}
+                            
+                            -- Get active season dungeons with error handling
+                            if addon.GetActiveSeasonDungeonIDs then
+                                local success, dungeonIDs = pcall(addon.GetActiveSeasonDungeonIDs, addon)
+                                if success and dungeonIDs then
+                                    for _, mapID in ipairs(dungeonIDs) do
+                                        local success, name = pcall(addon.GetDungeonName, addon, mapID)
+                                        if success and name then
+                                            dungeons[tostring(mapID)] = name
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            -- If no dungeons found, show message
+                            if next(dungeons) == nil then
+                                args.noDungeons = {
+                                    type = "description",
+                                    name = "No dungeon data available. Please try refreshing data first.",
+                                    fontSize = "medium",
+                                    order = 1
+                                }
+                                return args
+                            end
+                            
+                            -- Add dungeon score inputs for each dungeon
+                            for mapID, name in pairs(dungeons) do
+                                local mid = tonumber(mapID)
+                                local mythicData = getMythicPlusData()
+                                local bestEntry = mythicData and mythicData[mid]
+                                
+                                args[mapID .. "_header"] = {
+                                    type = "header",
+                                    name = name,
+                                    order = mid * 10
+                                }
+                                
+                                args[mapID .. "_level"] = {
+                                    type = "range",
+                                    name = "Level",
+                                    min = 0,
+                                    max = 30,
+                                    step = 1,
+                                    get = function()
+                                        return bestEntry and bestEntry.level or 0
+                                    end,
+                                    set = function(_, value)
+                                        updateDungeonScore(mid, value, bestEntry and bestEntry.timed or false)
+                                    end,
+                                    order = mid * 10 + 1
+                                }
+                                
+                                args[mapID .. "_timed"] = {
+                                    type = "toggle",
+                                    name = "Timed",
+                                    get = function()
+                                        return bestEntry and bestEntry.timed or false
+                                    end,
+                                    set = function(_, value)
+                                        updateDungeonScore(mid, bestEntry and bestEntry.level or 0, value)
+                                    end,
+                                    order = mid * 10 + 2
+                                }
+                            end
+                            
+                            return args
+                        end)()
+                    }
+                }
             },
         },
     }

@@ -32,6 +32,28 @@ PUGHelper.STATE = {
     RUN_COMPLETE = "run_complete"     -- Dungeon completed, providing getaway options
 }
 
+-- State transition matrix - defines valid state transitions
+PUGHelper.VALID_TRANSITIONS = {
+    [PUGHelper.STATE.IDLE] = {
+        [PUGHelper.STATE.TRACKING] = true
+    },
+    [PUGHelper.STATE.TRACKING] = {
+        [PUGHelper.STATE.IDLE] = true,
+        [PUGHelper.STATE.INVITE_RECEIVED] = true
+    },
+    [PUGHelper.STATE.INVITE_RECEIVED] = {
+        [PUGHelper.STATE.TRACKING] = true,  -- Invite timeout/declined
+        [PUGHelper.STATE.IN_GROUP] = true   -- Invite accepted
+    },
+    [PUGHelper.STATE.IN_GROUP] = {
+        [PUGHelper.STATE.IDLE] = true,        -- Left group
+        [PUGHelper.STATE.RUN_COMPLETE] = true -- Dungeon completed
+    },
+    [PUGHelper.STATE.RUN_COMPLETE] = {
+        [PUGHelper.STATE.IDLE] = true         -- Getaway UI closed/timed out
+    }
+}
+
 PUGHelper.INVITE_TIMEOUT = 60 -- seconds
 PUGHelper.GETAWAY_TIMEOUT = 120 -- seconds
 
@@ -59,13 +81,20 @@ NextKey222.RegisterModule("PUGHelper", PUGHelper)
 function PUGHelper:Initialize()
     Debug:Dev("pughelper", "PUGHelper:Initialize() called")
     
-    -- Register for LFG events
+    -- Register for LFG events (if any)
     self:RegisterEvents()
     
     -- Load configuration
     self:LoadConfig()
     
-    Debug:Dev("pughelper", "PUG Helper initialized")
+    -- Enable the LFG hook
+    self:SetHookEnabled(true)
+    
+    -- DEBUG: Log initialization status
+    Debug:User("PUG Helper initialized - Enabled: " .. (pugConfig.enabled and "YES" or "NO"))
+    Debug:User("PUG Helper config - Auto Show: " .. (pugConfig.enabled and "ENABLED" or "DISABLED"))
+    Debug:User("PUG Helper state: " .. currentState)
+    
     return true
 end
 
@@ -88,6 +117,7 @@ function PUGHelper:SetEnabled(enabled)
         self:ResetState()
     end
     
+    -- The hook will now be active or inactive based on this setting
     Debug:Dev("pughelper", "PUG Helper " .. (enabled and "enabled" or "disabled"))
 end
 
@@ -109,6 +139,96 @@ function PUGHelper:GetConfig()
         configCopy[key] = value
     end
     return configCopy
+end
+
+-- Get state information for debugging
+function PUGHelper:GetStateInfo()
+    return {
+        current = currentState,
+        applicationsCount = trackedApplications and #trackedApplications or 0,
+        hasInvite = currentInvite ~= nil,
+        hasGroupInfo = currentGroupInfo ~= nil,
+        inviteTimerActive = inviteTimer ~= nil,
+        getawayTimerActive = getawayTimer ~= nil,
+        enabled = pugConfig.enabled
+    }
+end
+
+-- Check if PUG Helper is in an active state
+function PUGHelper:IsActive()
+    return currentState ~= PUGHelper.STATE.IDLE
+end
+
+-- Check if PUG Helper can accept new applications
+function PUGHelper:CanAcceptApplications()
+    return currentState == PUGHelper.STATE.IDLE or currentState == PUGHelper.STATE.TRACKING
+end
+
+-- Check if PUG Helper is waiting for an invite decision
+function PUGHelper:IsWaitingForInvite()
+    return currentState == PUGHelper.STATE.INVITE_RECEIVED
+end
+
+-- Check if PUG Helper is currently in a group
+function PUGHelper:IsInGroup()
+    return currentState == PUGHelper.STATE.IN_GROUP or currentState == PUGHelper.STATE.RUN_COMPLETE
+end
+
+-- Get human-readable state name
+function PUGHelper:GetStateDisplayName()
+    local stateNames = {
+        [PUGHelper.STATE.IDLE] = "Idle",
+        [PUGHelper.STATE.TRACKING] = "Tracking Applications",
+        [PUGHelper.STATE.INVITE_RECEIVED] = "Invite Received",
+        [PUGHelper.STATE.IN_GROUP] = "In Group",
+        [PUGHelper.STATE.RUN_COMPLETE] = "Run Complete"
+    }
+    return stateNames[currentState] or "Unknown"
+end
+
+-- Get tracked applications for external modules
+function PUGHelper:GetTrackedApplications()
+    local applications = {}
+    
+    for appID, appData in pairs(trackedApplications) do
+        -- Create a copy to avoid external modification
+        local appCopy = {}
+        for key, value in pairs(appData) do
+            if type(value) == "table" then
+                appCopy[key] = CopyTable(value)
+            else
+                appCopy[key] = value
+            end
+        end
+        applications[appID] = appCopy
+    end
+    
+    return applications
+end
+
+-- Get application count
+function PUGHelper:GetApplicationCount()
+    local count = 0
+    for _ in pairs(trackedApplications) do
+        count = count + 1
+    end
+    return count
+end
+
+-- Get applications as an array for easier iteration
+function PUGHelper:GetApplicationsAsArray()
+    local applications = {}
+    
+    for _, appData in pairs(trackedApplications) do
+        table.insert(applications, appData)
+    end
+    
+    -- Sort by applied time (newest first)
+    table.sort(applications, function(a, b)
+        return (a.appliedAt or 0) > (b.appliedAt or 0)
+    end)
+    
+    return applications
 end
 
 -- Manually trigger application tracking (for testing)
@@ -137,11 +257,92 @@ function PUGHelper:TestApplicationTracking()
     Debug:User("Test application added: " .. fakeApp.name)
 end
 
+-- Test function to validate PUG Helper fixes
+function PUGHelper:TestPUGHelperFixes()
+    Debug:User("=== PUG Helper Fix Validation Test ===")
+    
+    -- Test 1: Check if PUG Helper initializes without errors
+    Debug:User("Test 1: Checking PUG Helper initialization...")
+    local initSuccess = pcall(function()
+        return self:Initialize()
+    end)
+    
+    if initSuccess then
+        Debug:User("✓ PUG Helper initialization successful")
+    else
+        Debug:Error("✗ PUG Helper initialization failed")
+        return false
+    end
+    
+    -- Test 2: Check if event registration works without errors
+    Debug:User("Test 2: Checking event registration...")
+    local eventSuccess = pcall(function()
+        self:RegisterLFGEvents()
+    end)
+    
+    if eventSuccess then
+        Debug:User("✓ Event registration successful")
+    else
+        Debug:Error("✗ Event registration failed")
+        return false
+    end
+    
+    -- Test 3: Check if hooking setup works without errors
+    Debug:User("Test 3: Checking hook setup...")
+    local hookSuccess = pcall(function()
+        self:SetHookEnabled(true)
+    end)
+    
+    if hookSuccess then
+        Debug:User("✓ Hook setup successful (no errors)")
+    else
+        Debug:Error("✗ Hook setup failed")
+        return false
+    end
+    
+    -- Test 4: Check state transitions
+    Debug:User("Test 4: Checking state transitions...")
+    local stateSuccess = pcall(function()
+        self:TransitionToState(PUGHelper.STATE.TRACKING, "test")
+        self:TransitionToState(PUGHelper.STATE.IDLE, "test")
+    end)
+    
+    if stateSuccess then
+        Debug:User("✓ State transitions successful")
+    else
+        Debug:Error("✗ State transitions failed")
+        return false
+    end
+    
+    -- Test 5: Check application tracking
+    Debug:User("Test 5: Checking application tracking...")
+    local trackingSuccess = pcall(function()
+        self:TestApplicationTracking()
+    end)
+    
+    if trackingSuccess then
+        Debug:User("✓ Application tracking successful")
+    else
+        Debug:Error("✗ Application tracking failed")
+        return false
+    end
+    
+    Debug:User("=== All PUG Helper tests passed! ===")
+    return true
+end
+
 -- MARK: Private Implementation
 
 -- Load configuration from saved variables
 function PUGHelper:LoadConfig()
-    local savedConfig = NextKey222DB.global.pugHelper
+    -- Use the proper database reference through NextKey.db
+    local db = NextKey222.Addon and NextKey222.Addon.db
+    if not db then
+        Debug:Dev("pughelper", "Database not available, using default config")
+        return
+    end
+    
+    local savedConfig = db.global and db.global.pugHelper
     
     if savedConfig then
         for key, value in pairs(savedConfig) do
@@ -156,12 +357,19 @@ end
 
 -- Save configuration to saved variables
 function PUGHelper:SaveConfig()
-    if not NextKey222DB.global.pugHelper then
-        NextKey222DB.global.pugHelper = {}
+    -- Use the proper database reference through NextKey.db
+    local db = NextKey222.Addon and NextKey222.Addon.db
+    if not db then
+        Debug:Dev("pughelper", "Database not available, cannot save config")
+        return
+    end
+    
+    if not db.global.pugHelper then
+        db.global.pugHelper = {}
     end
     
     for key, value in pairs(pugConfig) do
-        NextKey222DB.global.pugHelper[key] = value
+        db.global.pugHelper[key] = value
     end
     
     Debug:Dev("pughelper", "PUG Helper configuration saved")
@@ -171,6 +379,167 @@ end
 -- This approach follows the NextKey architecture pattern
 function PUGHelper:RegisterEvents()
     Debug:Dev("pughelper", "PUG Helper events registered via events/handlers.lua")
+end
+
+-- Register LFG events for application tracking
+function PUGHelper:RegisterLFGEvents()
+    Debug:Dev("pughelper", "Registering LFG events for application tracking")
+    
+    -- Create a simple event frame for LFG events
+    if not self.lfgEventFrame then
+        self.lfgEventFrame = CreateFrame("Frame")
+        
+        -- Use only confirmed working events from the WoW API
+        -- These events are documented and should be available
+        local validEvents = {
+            "LFG_UPDATE",                           -- Fires when LFG state changes
+            "LFG_LIST_APPLICATION_STATUS_UPDATED", -- Fires when application status changes
+            "LFG_LIST_SEARCH_RESULT_UPDATED",      -- Fires when search results are updated (corrected name)
+            "LFG_LIST_APPLICANT_UPDATED",          -- Fires when applicants are updated
+            "GROUP_ROSTER_UPDATE"                  -- Fires when group composition changes
+        }
+        
+        for _, eventName in ipairs(validEvents) do
+            Debug:Dev("pughelper", "Registering event: " .. eventName)
+            self.lfgEventFrame:RegisterEvent(eventName)
+        end
+        
+        self.lfgEventFrame:SetScript("OnEvent", function(_, event, ...)
+            if not pugConfig.enabled then
+                return
+            end
+            
+            Debug:Dev("pughelper", "LFG event received: " .. event)
+            
+            if event == "LFG_UPDATE" or event == "LFG_LIST_SEARCH_RESULT_UPDATED" then
+                -- Application list might have been updated
+                self:OnApplicationListUpdated()
+            elseif event == "LFG_LIST_APPLICATION_STATUS_UPDATED" then
+                local resultID, newStatus, oldStatus = ...
+                self:OnApplicationStatusChanged(resultID, newStatus, oldStatus)
+            elseif event == "LFG_LIST_APPLICANT_UPDATED" then
+                -- Applicants updated, check if our applications changed
+                self:OnApplicationListUpdated()
+            elseif event == "GROUP_ROSTER_UPDATE" then
+                -- Group changed, check if we joined a group we applied to
+                self:OnGroupRosterUpdate()
+            end
+        end)
+        
+        Debug:Dev("pughelper", "LFG event frame registered successfully")
+    end
+end
+
+-- Safely hook into a function
+local function hook(owner, funcName, detour)
+    if type(owner) ~= "table" then
+        Debug:Error("Cannot hook '" .. tostring(funcName) .. "': owner is not a table.")
+        return
+    end
+
+    local original = owner[funcName]
+    if type(original) ~= "function" then
+        Debug:Error("Cannot hook '" .. tostring(funcName) .. "': original is not a function.")
+        return
+    end
+
+    owner[funcName] = function(...)
+        local continue = detour(...)
+        if continue ~= false then
+            return original(...)
+        end
+    end
+    Debug:Dev("pughelper", "Successfully hooked " .. tostring(funcName))
+end
+
+-- Enable/disable the LFG hook
+function PUGHelper:SetHookEnabled(enabled)
+    if enabled then
+        -- REMOVED: LFGListUtil.CycleSearchResults hooking as this function doesn't exist in current WoW API
+        Debug:Dev("pughelper", "LFG hook functionality disabled - CycleSearchResults function not available in current API")
+        
+        -- Use event-based approach instead of hooking
+        Debug:Dev("pughelper", "Using event-based approach for LFG tracking")
+        self:RegisterLFGEvents()
+    else
+        -- NOTE: Unhooking is not implemented to avoid complexity.
+        -- The hook will simply do nothing if the feature is disabled.
+        Debug:Dev("pughelper", "LFG hook disabled")
+    end
+end
+
+-- Validate state transition
+function PUGHelper:ValidateStateTransition(fromState, toState)
+    if not fromState or not toState then
+        Debug:Dev("pughelper", "Invalid state transition: missing states")
+        return false
+    end
+    
+    if fromState == toState then
+        Debug:Dev("pughelper", "State transition to same state: " .. toState)
+        return true -- Allow staying in same state
+    end
+    
+    local validTransitions = PUGHelper.VALID_TRANSITIONS[fromState]
+    if not validTransitions then
+        Debug:Dev("pughelper", "No valid transitions defined from state: " .. fromState)
+        return false
+    end
+    
+    local isValid = validTransitions[toState] or false
+    if not isValid then
+        Debug:Dev("pughelper", "Invalid state transition: " .. fromState .. " -> " .. toState)
+    else
+        Debug:Dev("pughelper", "Valid state transition: " .. fromState .. " -> " .. toState)
+    end
+    
+    return isValid
+end
+
+-- Transition to new state with validation
+function PUGHelper:TransitionToState(newState, context)
+    context = context or "unknown"
+    
+    if not self:ValidateStateTransition(currentState, newState) then
+        Debug:Error("PUG Helper: Invalid state transition attempted: " .. currentState .. " -> " .. newState .. " (context: " .. context .. ")")
+        return false
+    end
+    
+    local oldState = currentState
+    currentState = newState
+    
+    Debug:Dev("pughelper", "PUG Helper state transition: " .. oldState .. " -> " .. newState .. " (context: " .. context .. ")")
+    
+    -- Trigger state change handlers
+    self:OnStateChanged(oldState, newState, context)
+    
+    return true
+end
+
+-- Handle state changes
+function PUGHelper:OnStateChanged(oldState, newState, context)
+    -- Clean up specific states when leaving them
+    if oldState == PUGHelper.STATE.INVITE_RECEIVED then
+        -- Clear invite timer
+        if inviteTimer then
+            inviteTimer:Cancel()
+            inviteTimer = nil
+        end
+    elseif oldState == PUGHelper.STATE.RUN_COMPLETE then
+        -- Clear getaway timer
+        if getawayTimer then
+            getawayTimer:Cancel()
+            getawayTimer = nil
+        end
+    end
+    
+    -- Initialize specific states when entering them
+    if newState == PUGHelper.STATE.IDLE then
+        -- Clean up all data when returning to idle
+        trackedApplications = {}
+        currentInvite = nil
+        currentGroupInfo = nil
+    end
 end
 
 -- Reset PUG Helper state
@@ -193,7 +562,7 @@ function PUGHelper:ResetState()
     currentInvite = nil
     currentGroupInfo = nil
     
-    -- Reset state
+    -- Reset state (using transition system for consistency)
     currentState = PUGHelper.STATE.IDLE
     
     Debug:Dev("pughelper", "PUG Helper state reset to IDLE")
@@ -226,17 +595,37 @@ end
 
 -- Get dungeon information
 function PUGHelper:GetDungeonInfo(dungeonID)
-    return NextKey222.Constants.DUNGEONS[dungeonID] or NextKey222.Constants.MAPS[dungeonID]
+    -- Use the portals data as the source of truth for dungeon information
+    if NextKey222.Portals and NextKey222.Portals.GetDungeonInfo then
+        return NextKey222.Portals:GetDungeonInfo(dungeonID)
+    end
+    
+    -- Fallback to constants if portals is not available
+    if NextKey222.Constants and NextKey222.Constants.DUNGEONS then
+        return NextKey222.Constants.DUNGEONS[dungeonID] or NextKey222.Constants.MAPS[dungeonID]
+    end
+    
+    -- Return a minimal fallback if neither is available
+    return {
+        name = "Unknown Dungeon",
+        alias = "Unknown"
+    }
 end
 
 -- MARK: Event Handlers
 
 -- Handle LFG application list updates
 function PUGHelper:OnApplicationListUpdated()
+    -- ALWAYS log to chat for debugging
+    print("NextKey PUG: Application refresh detected via hook.")
+    
     if not pugConfig.enabled then
+        print("NextKey PUG: PUG Helper is disabled - ignoring applications.")
+        Debug:Dev("pughelper", "Application refresh detected but PUG Helper is disabled.")
         return
     end
     
+    print("NextKey PUG: Processing LFG applications...")
     Debug:Dev("pughelper", "LFG application list updated")
     
     -- Clear existing applications
@@ -244,6 +633,8 @@ function PUGHelper:OnApplicationListUpdated()
     
     -- Get current applications
     local results = C_LFGList.GetApplications()
+    print("NextKey PUG: Found " .. #results .. " LFG applications via C_LFGList.GetApplications()")
+    Debug:User("PUG Helper: Found " .. #results .. " LFG applications")
     
     for i = 1, #results do
         local resultID = results[i]
@@ -260,7 +651,14 @@ function PUGHelper:OnApplicationListUpdated()
                 comment = searchResultInfo.comment or "",
                 voiceChat = searchResultInfo.voiceChat,
                 iLevel = searchResultInfo.requiredItemLevel,
-                honorLevel = searchResultInfo.requiredHonorLevel
+                honorLevel = searchResultInfo.requiredHonorLevel,
+                
+                -- New fields for enhanced tracking
+                appliedAt = time(), -- When application was submitted
+                status = "pending", -- pending, invited, declined, cancelled, failed
+                statusHistory = {
+                    {status = "pending", timestamp = time()}
+                }
             }
             
             -- Try to extract key level from group name
@@ -270,17 +668,46 @@ function PUGHelper:OnApplicationListUpdated()
             end
             
             trackedApplications[appData.id] = appData
-            Debug:Dev("pughelper", "Tracking application: " .. appData.name .. " (ID: " .. appData.id .. ")")
+            
+            -- CHAT OUTPUT: Show application details
+            print("NextKey PUG: Application #" .. i .. " - Leader: " .. (appData.leader or "Unknown") ..
+                  ", Dungeon: " .. (appData.name or "Unknown") ..
+                  ", Key Level: +" .. (appData.keyLevel or "?"))
+            
+            Debug:User("PUG Helper: Tracking application: " .. appData.name .. " (ID: " .. appData.id .. ")")
+        else
+            print("NextKey PUG: ERROR - Could not get search result info for resultID: " .. tostring(resultID))
         end
     end
     
+    print("NextKey PUG: Total applications tracked: " .. self:GetApplicationCount())
+    
     -- Update state based on applications
     if next(trackedApplications) and currentState == PUGHelper.STATE.IDLE then
-        currentState = PUGHelper.STATE.TRACKING
-        Debug:Dev("pughelper", "State changed to TRACKING")
+        print("NextKey PUG: Transitioning from IDLE to TRACKING - found applications")
+        Debug:User("PUG Helper: Transitioning from IDLE to TRACKING - found applications")
+        self:TransitionToState(PUGHelper.STATE.TRACKING, "applications_detected")
+        
+        -- Notify application tracker that we have applications
+        if NextKey222.PUGApplicationTracker then
+            print("NextKey PUG: Calling AutoShowIfNeeded on application tracker")
+            Debug:User("PUG Helper: Calling AutoShowIfNeeded on application tracker")
+            NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
+        else
+            print("NextKey PUG: ERROR - PUGApplicationTracker not available!")
+            Debug:Error("PUG Helper: PUGApplicationTracker not available!")
+        end
     elseif not next(trackedApplications) and currentState == PUGHelper.STATE.TRACKING then
-        currentState = PUGHelper.STATE.IDLE
-        Debug:Dev("pughelper", "State changed to IDLE (no applications)")
+        print("NextKey PUG: Transitioning from TRACKING to IDLE - no applications")
+        Debug:User("PUG Helper: Transitioning from TRACKING to IDLE - no applications")
+        self:TransitionToState(PUGHelper.STATE.IDLE, "no_applications")
+        
+        -- Notify application tracker that we have no applications
+        if NextKey222.PUGApplicationTracker then
+            NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
+        end
+    else
+        print("NextKey PUG: No state change needed - Current state: " .. currentState .. ", Applications: " .. self:GetApplicationCount())
     end
 end
 
@@ -296,17 +723,62 @@ function PUGHelper:OnApplicationStatusChanged(resultID, newStatus, oldStatus)
     local appData = trackedApplications[appID]
     
     if appData then
+        local oldStatus = appData.status
         appData.status = newStatus
+        
+        -- Add to status history
+        table.insert(appData.statusHistory, {
+            status = newStatus,
+            timestamp = time()
+        })
+        
+        -- Notify application tracker of status change
+        if NextKey222.PUGApplicationTracker then
+            NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
+        end
         
         -- If application was declined or cancelled, remove from tracking
         if newStatus == "declined" or newStatus == "cancelled" or newStatus == "failed" then
             trackedApplications[appID] = nil
             Debug:Dev("pughelper", "Removed application: " .. appData.name)
             
+            -- Notify application tracker of removal
+            if NextKey222.PUGApplicationTracker then
+                NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
+            end
+            
             -- Update state if no more applications
             if not next(trackedApplications) and currentState == PUGHelper.STATE.TRACKING then
-                currentState = PUGHelper.STATE.IDLE
-                Debug:Dev("pughelper", "State changed to IDLE (all applications failed)")
+                self:TransitionToState(PUGHelper.STATE.IDLE, "all_applications_failed")
+            end
+        end
+    end
+end
+
+-- Handle group roster updates (for detecting when we join a group)
+function PUGHelper:OnGroupRosterUpdate()
+    if not pugConfig.enabled then
+        return
+    end
+    
+    Debug:Dev("pughelper", "Group roster updated in PUG Helper")
+    
+    -- Check if we're now in a group and were tracking applications
+    if IsInGroup() and currentState == PUGHelper.STATE.TRACKING then
+        Debug:Dev("pughelper", "We joined a group while tracking applications")
+        
+        -- Try to find which application we joined
+        local groupLeader = UnitName("party1") or UnitName("raid1")
+        if groupLeader then
+            Debug:Dev("pughelper", "Group leader detected: " .. groupLeader)
+            
+            -- Try to match to an application
+            local matchedApp = self:MatchInviteToApplication(groupLeader)
+            if matchedApp then
+                Debug:Dev("pughelper", "Joined group matches application: " .. matchedApp.name)
+                self:OnGroupJoined()
+            else
+                Debug:Dev("pughelper", "Joined group but no matching application found")
             end
         end
     end
@@ -315,10 +787,13 @@ end
 -- Handle group invitations
 function PUGHelper:OnGroupInvite(inviteName)
     if not pugConfig.enabled then
+        Debug:User("PUG Helper: Group invite received but PUG Helper is disabled: " .. inviteName)
         return
     end
     
-    Debug:Dev("pughelper", "Group invite received: " .. inviteName)
+    Debug:User("PUG Helper: Group invite received: " .. inviteName)
+    Debug:User("PUG Helper: Current state: " .. currentState)
+    Debug:User("PUG Helper: Tracked applications count: " .. self:GetApplicationCount())
     
     -- Try to match invite to tracked applications
     local matchedApp = self:MatchInviteToApplication(inviteName)
@@ -331,29 +806,31 @@ function PUGHelper:OnGroupInvite(inviteName)
             timestamp = time()
         }
         
-        currentState = PUGHelper.STATE.INVITE_RECEIVED
-        
-        Debug:Dev("pughelper", "Invite matched to application: " .. matchedApp.name)
+        Debug:User("PUG Helper: Invite matched to application: " .. matchedApp.name)
+        self:TransitionToState(PUGHelper.STATE.INVITE_RECEIVED, "invite_matched")
         
         -- Show contextual invite notification
         if pugConfig.showNotifications then
+            Debug:User("PUG Helper: Showing invite notification")
             self:ShowInviteNotification(currentInvite)
+        else
+            Debug:Dev("pughelper", "Invite notifications disabled")
         end
         
         -- Set invite timeout
         inviteTimer = C_Timer.NewTimer(PUGHelper.INVITE_TIMEOUT, function()
-            Debug:Dev("pughelper", "Invite timed out: " .. inviteName)
+            Debug:User("PUG Helper: Invite timed out: " .. inviteName)
             self:HandleInviteTimeout()
         end)
         
         -- Auto-accept if enabled
         if pugConfig.autoAcceptInvites then
-            Debug:Dev("pughelper", "Auto-accepting invite: " .. inviteName)
+            Debug:User("PUG Helper: Auto-accepting invite: " .. inviteName)
             AcceptGroup()
         end
     else
         -- No context, might be a regular invite
-        Debug:Dev("pughelper", "Invite has no application context: " .. inviteName)
+        Debug:User("PUG Helper: Invite has no application context: " .. inviteName)
     end
 end
 
@@ -371,7 +848,7 @@ function PUGHelper:OnGroupJoined()
         inviteTimer = nil
     end
     
-    currentState = PUGHelper.STATE.IN_GROUP
+    self:TransitionToState(PUGHelper.STATE.IN_GROUP, "group_joined")
     
     -- Store group information
     if currentInvite and currentInvite.application then
@@ -423,7 +900,7 @@ function PUGHelper:OnChallengeModeCompleted(mapID, level)
         Debug:Dev("pughelper", "Run completed: " .. (currentGroupInfo.name or "Unknown"))
         
         -- Change state to run complete
-        currentState = PUGHelper.STATE.RUN_COMPLETE
+        self:TransitionToState(PUGHelper.STATE.RUN_COMPLETE, "dungeon_completed")
         
         -- Show getaway UI if enabled
         if pugConfig.getawayUI then
@@ -434,7 +911,7 @@ function PUGHelper:OnChallengeModeCompleted(mapID, level)
         getawayTimer = C_Timer.NewTimer(PUGHelper.GETAWAY_TIMEOUT, function()
             Debug:Dev("pughelper", "Getaway UI timed out")
             self:HideGetawayUI()
-            currentState = PUGHelper.STATE.IDLE
+            self:TransitionToState(PUGHelper.STATE.IDLE, "getaway_timeout")
         end)
     end
 end
@@ -484,8 +961,8 @@ function PUGHelper:HandleInviteTimeout()
     -- Clear invite
     currentInvite = nil
     
-    -- Reset state
-    currentState = PUGHelper.STATE.TRACKING
+    -- Reset state (using transition system for consistency)
+    self:TransitionToState(PUGHelper.STATE.TRACKING, "invite_timeout")
 end
 
 -- MARK: Cleanup

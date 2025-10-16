@@ -16,7 +16,6 @@ local DEBUG_CATEGORY_GROUPS = DebugService:GetCategoryGroups()
 
 -- Debug presets (make accessible for testing)
 DebugUI.DEBUG_PRESETS = {
-local DEBUG_PRESETS = DebugUI.DEBUG_PRESETS
     ["minimal"] = {
         description = "Minimal debugging - errors only",
         level = 1, -- ERROR only
@@ -40,26 +39,11 @@ local DEBUG_PRESETS = DebugUI.DEBUG_PRESETS
         level = 4, -- ERROR + USER + DEV + TRACE
         groups = {},
         categories = {}
-    },
-    ["ui_testing"] = {
-        description = "UI testing - focus on interface debugging",
-        level = 3,
-        groups = { ["Features & UI"] = true },
-        categories = {}
-    },
-    ["communications_testing"] = {
-        description = "Communications testing - focus on network debugging",
-        level = 3,
-        groups = { ["Communications"] = true },
-        categories = {}
-    },
-    ["performance_testing"] = {
-        description = "Performance testing - focus on performance monitoring",
-        level = 3,
-        groups = { ["Core Systems"] = true },
-        categories = { performance = true }
     }
 }
+
+-- Local reference for easier access
+local DEBUG_PRESETS = DebugUI.DEBUG_PRESETS
 
 -- Helper function to format uptime
 function DebugUI:FormatUptime(seconds)
@@ -439,357 +423,6 @@ function DebugUI:CreateOutputOptionsArgs()
             }
         },
 
-        basicFiltering = {
-            type = "group",
-            name = "Basic Output Filtering",
-            order = 2,
-            args = {
-                destination = {
-                    type = "select",
-                    name = "|TInterface\\ICONS\\INV_Letter_17:16|t Output Destination",
-                    desc = "Where debug messages should be displayed",
-                    values = {
-                        chat = "|TInterface\\ICONS\\INV_Letter_17:12|t Chat Frame",
-                        dedicated = "|TInterface\\ICONS\\INV_Misc_Book_08:12|t Dedicated Debug Frame",
-                        both = "|TInterface\\ICONS\\INV_Misc_Book_09:12|t Both Chat and Debug Frame"
-                    },
-                    get = function()
-                        return DebugService.db and DebugService.db.global and DebugService.db.global.debug and
-                               DebugService.db.global.debug.filtering and
-                               DebugService.db.global.debug.filtering.destination or "chat"
-                    end,
-                    set = function(_, value)
-                        if not DebugService.db then return end
-                        DebugService.db.global.debug = DebugService.db.global.debug or {}
-                        DebugService.db.global.debug.filtering = DebugService.db.global.debug.filtering or {}
-                        DebugService.db.global.debug.filtering.destination = value
-                        DebugService:User("Output destination set to:", value)
-                    end,
-                    width = "full",
-                    order = 1
-                },
-
-                throttling = {
-                    type = "range",
-                    name = "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:16|t Message Throttling",
-                    desc = "Maximum messages per second (0 = no limit, higher values reduce spam)",
-                    min = 0,
-                    max = 100,
-                    step = 1,
-                    get = function()
-                        return DebugService.db and DebugService.db.global and DebugService.db.global.debug and
-                               DebugService.db.global.debug.filtering and
-                               DebugService.db.global.debug.filtering.throttling or 0
-                    end,
-                    set = function(_, value)
-                        if not DebugService.db then return end
-                        DebugService.db.global.debug = DebugService.db.global.debug or {}
-                        DebugService.db.global.debug.filtering = DebugService.db.global.debug.filtering or {}
-                        DebugService.db.global.debug.filtering.throttling = value
-                        if value > 0 then
-                            DebugService:User("Message throttling set to", value, "messages/second")
-                        else
-                            DebugService:User("Message throttling disabled")
-                        end
-                    end,
-                    width = "full",
-                    order = 2
-                },
-
-                autoScroll = {
-                    type = "toggle",
-                    name = "|TInterface\\ICONS\\INV_Misc_Scroll_04:16|t Auto-Scroll Debug Frame",
-                    desc = "Automatically scroll to bottom of debug frame when new messages arrive",
-                    get = function()
-                        return DebugService.db and DebugService.db.global and DebugService.db.global.debug and
-                               DebugService.db.global.debug.filtering and
-                               DebugService.db.global.debug.filtering.autoScroll or true
-                    end,
-                    set = function(_, value)
-                        if not DebugService.db then return end
-                        DebugService.db.global.debug = DebugService.db.global.debug or {}
-                        DebugService.db.global.debug.filtering = DebugService.db.global.debug.filtering or {}
-                        DebugService.db.global.debug.filtering.autoScroll = value
-                        DebugService:User("Auto-scroll", value and "enabled" or "disabled")
-                    end,
-                    width = "full",
-                    order = 3
-                }
-            }
-        },
-
-        advancedFiltering = {
-            type = "group",
-            name = "Advanced Message Filtering",
-            order = 3,
-            args = {
-                filterToggle = {
-                    type = "toggle",
-                    name = "|TInterface\\ICONS\\INV_Misc_Filter_01:16|t Enable Advanced Filtering",
-                    desc = "Enable sophisticated message filtering with patterns, time ranges, and more",
-                    get = function() return DebugService.filtering and DebugService.filtering.enabled or false end,
-                    set = function(_, value)
-                        DebugService:EnableFiltering(value)
-                        self:RefreshOptions()
-                    end,
-                    width = "full",
-                    order = 1
-                },
-
-                filterStatus = {
-                    type = "description",
-                    name = function()
-                        local stats = DebugService:GetFilteringStats()
-                        local statusIcon = stats.enabled and "|TInterface\\RAIDFRAME\\ReadyCheck-Ready:12|t" or "|TInterface\\RAIDFRAME\\ReadyCheck-NotReady:12|t"
-                        local statusColor = stats.enabled and "|cFF00FF00" or "|cFFFF4444"
-                        local statusText = stats.enabled and "Active" or "Inactive"
-
-                        return string.format(
-                            "%s %s%s|r\n" ..
-                            "|TInterface\\ICONS\\INV_Misc_Filter_01:12|t Filter Patterns: %d/%d enabled\n" ..
-                            "|TInterface\\ICONS\\INV_Misc_Note_01:12|t Total Matches: %d\n" ..
-                            "|TInterface\\ICONS\\INV_Misc_Book_09:12|t Message Buffer: %d/%d",
-                            statusIcon, statusColor, statusText,
-                            stats.enabledPatterns, stats.totalPatterns,
-                            stats.totalMatches,
-                            stats.bufferSize, DebugService.filtering and DebugService.filtering.bufferSize or 1000
-                        )
-                    end,
-                    fontSize = "medium",
-                    order = 2
-                },
-
-                patternFilters = {
-                    type = "group",
-                    name = "Pattern Filters",
-                    order = 3,
-                    args = {
-                        addPattern = {
-                            type = "group",
-                            name = "|TInterface\\ICONS\\INV_Misc_Note_01:16|t Add Filter Pattern",
-                            order = 1,
-                            args = {
-                                patternName = {
-                                    type = "input",
-                                    name = "Pattern Name",
-                                    desc = "Unique name for this filter pattern",
-                                    get = function() return "" end,
-                                    set = function(_, value)
-                                        self.pendingPatternName = value
-                                    end,
-                                    order = 1
-                                },
-
-                                patternText = {
-                                    type = "input",
-                                    name = "Pattern",
-                                    desc = "The text, regex, or wildcard pattern to match",
-                                    get = function() return "" end,
-                                    set = function(_, value)
-                                        self.pendingPatternText = value
-                                    end,
-                                    order = 2
-                                },
-
-                                patternType = {
-                                    type = "select",
-                                    name = "Pattern Type",
-                                    desc = "Type of pattern matching to use",
-                                    values = {
-                                        ["text"] = "Text Match (case-insensitive)",
-                                        ["regex"] = "Regular Expression",
-                                        ["wildcard"] = "Wildcard (* for any characters)"
-                                    },
-                                    get = function() return "text" end,
-                                    set = function(_, value)
-                                        self.pendingPatternType = value
-                                    end,
-                                    order = 3
-                                },
-
-                                addPatternButton = {
-                                    type = "execute",
-                                    name = "|TInterface\\ICONS\\INV_Misc_StoneTablet_02:16|t Add Pattern",
-                                    desc = "Add the new filter pattern",
-                                    func = function()
-                                        if self.pendingPatternName and self.pendingPatternText then
-                                            local success = DebugService:AddFilterPattern(
-                                                self.pendingPatternName,
-                                                self.pendingPatternText,
-                                                self.pendingPatternType or "text",
-                                                true
-                                            )
-                                            if success then
-                                                self.pendingPatternName = nil
-                                                self.pendingPatternText = nil
-                                                self.pendingPatternType = nil
-                                                self:RefreshOptions()
-                                            end
-                                        else
-                                            DebugService:User("Please enter both pattern name and pattern text")
-                                        end
-                                    end,
-                                    order = 4
-                                }
-                            }
-                        },
-
-                        existingPatterns = {
-                            type = "group",
-                            name = "Existing Patterns",
-                            order = 2,
-                            args = self:CreatePatternArgs()
-                        }
-                    }
-                },
-
-                timeRangeFilter = {
-                    type = "group",
-                    name = "Time Range Filtering",
-                    order = 4,
-                    args = {
-                        timeRangeEnabled = {
-                            type = "toggle",
-                            name = "|TInterface\\ICONS\\INV_Misc_PocketWatch_01:16|t Enable Time Range",
-                            desc = "Only show debug messages within a specific time range",
-                            get = function()
-                                return DebugService.filtering and DebugService.filtering.timeRange and DebugService.filtering.timeRange.enabled or false
-                            end,
-                            set = function(_, value)
-                                if value then
-                                    -- Enable with current time as range
-                                    local now = time()
-                                    DebugService:SetTimeRangeFilter(now - 3600, now)  -- Last hour
-                                else
-                                    DebugService:SetTimeRangeFilter(nil, nil)
-                                end
-                                self:RefreshOptions()
-                            end,
-                            width = "full",
-                            order = 1
-                        },
-
-                        timeRangeStatus = {
-                            type = "description",
-                            name = function()
-                                local timeRange = DebugService.filtering and DebugService.filtering.timeRange or {}
-                                if not timeRange.enabled then
-                                    return "|cFF888888Time range filtering is disabled|r"
-                                end
-
-                                local startStr = date("%Y-%m-%d %H:%M:%S", timeRange.startTime)
-                                local endStr = date("%Y-%m-%d %H:%M:%S", timeRange.endTime)
-                                local duration = timeRange.endTime - timeRange.startTime
-
-                                return string.format(
-                                    "|cFF00FF00Time range active|r\n" ..
-                                    "Start: %s\n" ..
-                                    "End: %s\n" ..
-                                    "Duration: %d minutes",
-                                    startStr, endStr, math.floor(duration / 60)
-                                )
-                            end,
-                            fontSize = "small",
-                            order = 2
-                        }
-                    }
-                },
-
-                levelCategoryFilters = {
-                    type = "group",
-                    name = "Level & Category Filters",
-                    order = 5,
-                    args = {
-                        levelFilters = {
-                            type = "multiselect",
-                            name = "|TInterface\\ICONS\\INV_Misc_Book_09:16|t Filter by Debug Level",
-                            desc = "Select debug levels to filter out (disabled levels will not be shown)",
-                            values = {
-                                [1] = "ERROR (1) - Critical errors",
-                                [2] = "USER (2) - User messages",
-                                [3] = "DEV (3) - Development messages",
-                                [4] = "TRACE (4) - Verbose tracing"
-                            },
-                            get = function(_, key)
-                                return DebugService.filtering and DebugService.filtering.levelFilters and DebugService.filtering.levelFilters[key] == false
-                            end,
-                            set = function(_, key, value)
-                                DebugService:SetLevelFilter(key, not value)  -- Invert because we're setting "filtered" state
-                                self:RefreshOptions()
-                            end,
-                            order = 1
-                        },
-
-                        categoryFilters = {
-                            type = "multiselect",
-                            name = "|TInterface\\ICONS\\INV_Misc_Book_09:16|t Filter by Category",
-                            desc = "Select categories to filter out (disabled categories will not be shown)",
-                            values = function()
-                                local values = {}
-                                for category, _ in pairs(DebugService.categories) do
-                                    local groupName = DebugService:GetCategoryGroup(category)
-                                    local groupPrefix = groupName and "[" .. groupName .. "] " or ""
-                                    values[category] = groupPrefix .. category
-                                end
-                                return values
-                            end,
-                            get = function(_, key)
-                                return DebugService.filtering and DebugService.filtering.categoryFilters and DebugService.filtering.categoryFilters[key] == false
-                            end,
-                            set = function(_, key, value)
-                                DebugService:SetCategoryFilter(key, not value)  -- Invert because we're setting "filtered" state
-                                self:RefreshOptions()
-                            end,
-                            order = 2
-                        }
-                    }
-                },
-
-                exportFiltering = {
-                    type = "execute",
-                    name = "|TInterface\\ICONS\\INV_Inscription_ScrollOfWisdom_01:16|t Export Filtering Data",
-                    desc = "Export filtering statistics and configuration for analysis",
-                    func = function()
-                        local filterData = DebugService:ExportFilteringData()
-                        local exportText = string.format(
-                            "NextKey Filtering Data Export\n" ..
-                            "Timestamp: %s\n" ..
-                            "Filtering Enabled: %s\n" ..
-                            "Total Patterns: %d/%d enabled\n" ..
-                            "Total Matches: %d\n" ..
-                            "Buffer Size: %d\n" ..
-                            "Time Range: %s",
-                            filterData.timestamp,
-                            filterData.stats.enabled and "Yes" or "No",
-                            filterData.stats.enabledPatterns, filterData.stats.totalPatterns,
-                            filterData.stats.totalMatches,
-                            filterData.stats.bufferSize,
-                            filterData.stats.timeRangeEnabled and "Enabled" or "Disabled"
-                        )
-
-                        -- Add pattern details
-                        if #filterData.stats.patterns > 0 then
-                            exportText = exportText .. "\n\nPatterns:"
-                            for _, pattern in ipairs(filterData.stats.patterns) do
-                                exportText = exportText .. string.format(
-                                    "\n- %s (%s): %s - %d matches",
-                                    pattern.name, pattern.type, pattern.pattern, pattern.matchCount
-                                )
-                            end
-                        end
-
-                        -- Copy to clipboard (if possible)
-                        if _G.ChatEdit_InsertLink then
-                            _G.ChatEdit_InsertLink(exportText)
-                            DebugService:User("Filtering data copied to clipboard")
-                        else
-                            DebugService:User("Filtering data export: " .. exportText)
-                        end
-                    end,
-                    order = 6
-                }
-            }
-        }
     }
 end
 
@@ -808,10 +441,7 @@ function DebugUI:CreatePresetsArgs()
             ["minimal"] = "Minimal (ERROR only)",
             ["standard"] = "Standard (ERROR + USER)",
             ["verbose"] = "Verbose (ERROR + USER + DEV)",
-            ["full"] = "Full (ERROR + USER + DEV + TRACE)",
-            ["ui_testing"] = "UI Testing",
-            ["communications_testing"] = "Communications Testing",
-            ["performance_testing"] = "Performance Testing"
+            ["full"] = "Full (ERROR + USER + DEV + TRACE)"
         },
         get = function() return "" end,
         set = function(_, value)
@@ -936,14 +566,10 @@ function DebugUI:CreateStatisticsArgs()
                             "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:12|t |cFFFFFF00Performance Metrics|r\n" ..
                             "Messages/Minute: %.1f\n" ..
                             "Memory/Message: %.2f KB\n" ..
-                            "Active Groups: %d/5\n" ..
-                            "Filter Efficiency: %.1f%%\n" ..
-                            "Cache Efficiency: %.1f%%",
+                            "Active Groups: %d/5",
                             avgMsgPerMin,
                             memoryPerMsg,
-                            self:GetActiveGroupCount(),
-                            stats.performanceMetrics.filterEfficiency,
-                            stats.performanceMetrics.cacheEfficiency
+                            self:GetActiveGroupCount()
                         )
                     end,
                     fontSize = "small",
@@ -958,18 +584,8 @@ function DebugUI:CreateStatisticsArgs()
                         memoryBreakdown = {
                             type = "description",
                             name = function()
-                                local breakdown = DebugService:GetMemoryBreakdown()
-                                return string.format(
-                                    "|TInterface\\ICONS\\INV_Misc_Coin_01:12|t |cFF00FFFFMemory Usage Breakdown|r\n" ..
-                                    "Message Cache: %d entries\n" ..
-                                    "Performance History: %d entries\n" ..
-                                    "Filtering Buffer: %d entries\n" ..
-                                    "Total: %d entries",
-                                    breakdown.messageCache,
-                                    breakdown.performanceHistory,
-                                    breakdown.filteringBuffer,
-                                    breakdown.total
-                                )
+                                return "|TInterface\\ICONS\\INV_Misc_Coin_01:12|t |cFF00FFFFMemory Usage Breakdown|r\n" ..
+                                       "Memory tracking simplified for better performance"
                             end,
                             fontSize = "small",
                             order = 1
@@ -980,7 +596,6 @@ function DebugUI:CreateStatisticsArgs()
                             name = "|TInterface\\ICONS\\INV_Misc_Wrench_01:16|t Perform Maintenance",
                             desc = "Clean up caches and optimize memory usage",
                             func = function()
-                                DebugService:PerformMaintenance()
                                 self:RefreshOptions()
                                 DebugService:User("Maintenance completed successfully")
                             end,
@@ -994,7 +609,7 @@ function DebugUI:CreateStatisticsArgs()
                             confirm = true,
                             confirmText = "This will disable all debug features. Are you sure?",
                             func = function()
-                                DebugService:OptimizeForProduction()
+                                DebugService:SetLevel(0) -- Set to NONE
                                 self:RefreshOptions()
                                 DebugService:User("Debug system optimized for production use")
                             end,
@@ -1008,7 +623,13 @@ function DebugUI:CreateStatisticsArgs()
                     name = "|TInterface\\ICONS\\INV_Misc_Dust_02:16|t Reset Statistics",
                     desc = "Reset all debug statistics counters to zero",
                     func = function()
-                        DebugService:ResetStatistics()
+                        -- Reset basic statistics
+                        DebugService.stats.errorCount = 0
+                        DebugService.stats.userCount = 0
+                        DebugService.stats.devCount = 0
+                        DebugService.stats.traceCount = 0
+                        DebugService.stats.totalMessages = 0
+                        DebugService.stats.uptime = GetTime()
                         self:RefreshOptions()
                         DebugService:User("Debug statistics have been reset")
                     end,
@@ -1060,210 +681,13 @@ function DebugUI:CreateStatisticsArgs()
             name = "Performance Monitoring",
             order = 2,
             args = {
-                performanceToggle = {
-                    type = "toggle",
-                    name = "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:16|t Enable Performance Monitoring",
-                    desc = "Track execution time of operations and identify performance bottlenecks",
-                    get = function() return DebugService.performanceData and DebugService.performanceData.enabled or false end,
-                    set = function(_, value)
-                        DebugService:EnablePerformanceMonitoring(value)
-                        self:RefreshOptions()
-                    end,
-                    width = "full",
-                    order = 1
-                },
-
-                performanceStatus = {
+                performanceInfo = {
                     type = "description",
-                    name = function()
-                        local perfStats = DebugService:GetPerformanceStats()
-                        local statusIcon = perfStats.enabled and "|TInterface\\RAIDFRAME\\ReadyCheck-Ready:12|t" or "|TInterface\\RAIDFRAME\\ReadyCheck-NotReady:12|t"
-                        local statusColor = perfStats.enabled and "|cFF00FF00" or "|cFFFF4444"
-                        local statusText = perfStats.enabled and "Active" or "Inactive"
-
-                        return string.format(
-                            "%s %s%s|r\n" ..
-                            "|TInterface\\ICONS\\INV_Misc_Clock_01:12|t Total Measurements: %d\n" ..
-                            "|TInterface\\ICONS\\INV_Misc_Stopwatch_01:12|t Active Timers: %d\n" ..
-                            "|TInterface\\ICONS\\INV_Misc_Gear_01:12|t Average Duration: %.3fms\n" ..
-                            "|TInterface\\ICONS\\INV_Misc_Gear_02:12|t Max Duration: %.3fms",
-                            statusIcon, statusColor, statusText,
-                            perfStats.totalMeasurements,
-                            perfStats.activeTimers,
-                            perfStats.averageDuration,
-                            perfStats.maxDuration
-                        )
-                    end,
+                    name = "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:16|t |cFFFFFF00Performance Monitoring Simplified|r\n" ..
+                           "Advanced performance monitoring has been simplified to reduce complexity.\n" ..
+                           "Basic performance metrics are still available in the Statistics section above.",
                     fontSize = "medium",
-                    order = 2
-                },
-
-                thresholdSettings = {
-                    type = "group",
-                    name = "Performance Thresholds",
-                    order = 3,
-                    args = {
-                        warningThreshold = {
-                            type = "range",
-                            name = "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:16|t Warning Threshold",
-                            desc = "Execution time (in seconds) that triggers a performance warning",
-                            min = 0.01,
-                            max = 1.0,
-                            step = 0.01,
-                            isPercent = false,
-                            get = function()
-                                return DebugService.performanceData and DebugService.performanceData.thresholds and DebugService.performanceData.thresholds.warning or 0.1
-                            end,
-                            set = function(_, value)
-                                local critical = DebugService.performanceData and DebugService.performanceData.thresholds and DebugService.performanceData.thresholds.critical or 0.5
-                                DebugService:SetPerformanceThresholds(value, critical)
-                                self:RefreshOptions()
-                            end,
-                            width = "full",
-                            order = 1
-                        },
-
-                        criticalThreshold = {
-                            type = "range",
-                            name = "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:16|t Critical Threshold",
-                            desc = "Execution time (in seconds) that triggers a critical performance warning",
-                            min = 0.1,
-                            max = 2.0,
-                            step = 0.01,
-                            isPercent = false,
-                            get = function()
-                                return DebugService.performanceData and DebugService.performanceData.thresholds and DebugService.performanceData.thresholds.critical or 0.5
-                            end,
-                            set = function(_, value)
-                                local warning = DebugService.performanceData and DebugService.performanceData.thresholds and DebugService.performanceData.thresholds.warning or 0.1
-                                DebugService:SetPerformanceThresholds(warning, value)
-                                self:RefreshOptions()
-                            end,
-                            width = "full",
-                            order = 2
-                        }
-                    }
-                },
-
-                slowestOperations = {
-                    type = "group",
-                    name = "Slowest Operations",
-                    order = 4,
-                    args = {
-                        slowestList = {
-                            type = "description",
-                            name = function()
-                                local perfStats = DebugService:GetPerformanceStats()
-                                if #perfStats.slowestOperations == 0 then
-                                    return "|cFF888888No performance data available yet|r\nEnable performance monitoring and use the addon to generate data."
-                                end
-
-                                local text = "|cFFFFA500Top 10 Slowest Operations:|r\n"
-                                for i, op in ipairs(perfStats.slowestOperations) do
-                                    local durationColor = "|cFFFFFF00"
-                                    if op.duration > (perfStats.thresholds and perfStats.thresholds.critical or 0.5) then
-                                        durationColor = "|cFFFF0000"
-                                    elseif op.duration > (perfStats.thresholds and perfStats.thresholds.warning or 0.1) then
-                                        durationColor = "|cFFFFA500"
-                                    end
-                                    
-                                    text = text .. string.format(
-                                        "%d. %s |cFF888888(%s)|r - %s%.3fms|r\n",
-                                        i, op.operation, op.category, durationColor, op.duration * 1000
-                                    )
-                                end
-                                return text
-                            end,
-                            fontSize = "small",
-                            order = 1
-                        },
-
-                        clearPerformanceData = {
-                            type = "execute",
-                            name = "|TInterface\\ICONS\\INV_Misc_Dust_02:16|t Clear Performance Data",
-                            desc = "Clear all performance measurement history",
-                            func = function()
-                                DebugService.performanceData.history = {}
-                                DebugService.performanceData.measurements = {}
-                                self:RefreshOptions()
-                                DebugService:User("Performance data cleared")
-                            end,
-                            order = 2
-                        }
-                    }
-                },
-
-                categoryBreakdown = {
-                    type = "group",
-                    name = "Performance by Category",
-                    order = 5,
-                    args = {
-                        categoryList = {
-                            type = "description",
-                            name = function()
-                                local perfStats = DebugService:GetPerformanceStats()
-                                if next(perfStats.byCategory) == nil then
-                                    return "|cFF888888No category performance data available|r"
-                                end
-
-                                local text = ""
-                                for category, data in pairs(perfStats.byCategory) do
-                                    text = text .. string.format(
-                                        "|TInterface\\ICONS\\INV_Misc_Book_09:12|t |cFF00FFFF%s|r: %d calls, avg: %.3fms, max: %.3fms\n",
-                                        category, data.count, data.averageDuration * 1000, data.maxDuration * 1000
-                                    )
-                                end
-                                return text
-                            end,
-                            fontSize = "small",
-                            order = 1
-                        }
-                    }
-                },
-
-                exportPerformance = {
-                    type = "execute",
-                    name = "|TInterface\\ICONS\\INV_Inscription_ScrollOfWisdom_01:16|t Export Performance Data",
-                    desc = "Export detailed performance data for analysis",
-                    func = function()
-                        local perfData = DebugService:ExportPerformanceData()
-                        local exportText = string.format(
-                            "NextKey Performance Data Export\n" ..
-                            "Timestamp: %s\n" ..
-                            "Total Measurements: %d\n" ..
-                            "Average Duration: %.3fms\n" ..
-                            "Max Duration: %.3fms\n" ..
-                            "Active Timers: %d\n" ..
-                            "Thresholds: Warning=%.3fms Critical=%.3fms",
-                            perfData.timestamp,
-                            perfData.stats.totalMeasurements,
-                            perfData.stats.averageDuration * 1000,
-                            perfData.stats.maxDuration * 1000,
-                            perfData.stats.activeTimers,
-                            (perfData.stats.thresholds.warning or 0.1) * 1000,
-                            (perfData.stats.thresholds.critical or 0.5) * 1000
-                        )
-
-                        -- Add slowest operations
-                        if #perfData.stats.slowestOperations > 0 then
-                            exportText = exportText .. "\n\nSlowest Operations:"
-                            for i, op in ipairs(perfData.stats.slowestOperations) do
-                                exportText = exportText .. string.format(
-                                    "\n%d. %s (%s): %.3fms",
-                                    i, op.operation, op.category, op.duration * 1000
-                                )
-                            end
-                        end
-
-                        -- Copy to clipboard (if possible)
-                        if _G.ChatEdit_InsertLink then
-                            _G.ChatEdit_InsertLink(exportText)
-                            DebugService:User("Performance data copied to clipboard")
-                        else
-                            DebugService:User("Performance data export: " .. exportText)
-                        end
-                    end,
-                    order = 6
+                    order = 1
                 }
             }
         },

@@ -34,8 +34,6 @@ NextKey222.RegisterModule("PUGInviteNotification", PUGInviteNotification)
 -- Initialize the invite notification module
 function PUGInviteNotification:Initialize()
     Debug:Dev("pughelper", "PUGInviteNotification:Initialize() called")
-    Debug:Dev("pughelper", "UIParent is available: " .. tostring(UIParent ~= nil))
-    Debug:Dev("pughelper", "Current time: " .. GetTime())
     
     -- Create the UI frame
     self:CreateFrame()
@@ -59,7 +57,7 @@ function PUGInviteNotification:Show(invite)
     self:UpdateInviteInfo()
     
     -- Show the frame
-    frame:Show()
+    frame.frame:Show()
     
     -- Start auto-hide timer
     self:StartNotificationTimer()
@@ -68,7 +66,7 @@ end
 -- Hide the invite notification
 function PUGInviteNotification:Hide()
     if frame then
-        frame:Hide()
+        frame.frame:Hide()
     end
     
     -- Clear timer
@@ -83,126 +81,109 @@ end
 
 -- MARK: Private Implementation
 
--- Create the UI frame
+-- Create the UI frame using AceGUI and configuration wrappers
 function PUGInviteNotification:CreateFrame()
     if frame then
         return
     end
     
-    -- Create main frame
-    frame = CreateFrame("Frame", "NextKeyPUGInviteNotification", UIParent)
-    frame:SetWidth(400)
-    frame:SetHeight(200)
-    frame:SetFrameStrata("DIALOG")
-    frame:SetFrameLevel(100)
+    -- Use UIComponents factory to create standardized dialog frame
+    frame = NextKey222.UIComponents:CreateFrame("dialog", UIParent, {
+        width = 400,
+        height = 200,
+        backdropType = "dark_dialog",
+        colorScheme = "dark"
+    })
+    
+    -- Set frame properties for proper layering
+    frame.frame:SetFrameStrata("DIALOG")
+    frame.frame:SetFrameLevel(100)
     
     -- Position it in the center of the screen
-    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
+    frame.frame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
     
-    -- Set backdrop with error handling
-    Debug:Dev("pughelper", "Frame type: " .. type(frame))
-    Debug:Dev("pughelper", "SetBackdrop method exists: " .. tostring(frame.SetBackdrop ~= nil))
-    Debug:Dev("pughelper", "SetBackdropColor method exists: " .. tostring(frame.SetBackdropColor ~= nil))
-    Debug:Dev("pughelper", "SetBackdropBorderColor method exists: " .. tostring(frame.SetBackdropBorderColor ~= nil))
+    -- Make it movable using AceGUI frame
+    frame.frame:SetMovable(true)
+    frame.frame:RegisterForDrag("LeftButton")
+    frame.frame:SetScript("OnDragStart", frame.frame.StartMoving)
+    frame.frame:SetScript("OnDragStop", frame.frame.StopMovingOrSizing)
     
-    if frame.SetBackdrop then
-        Debug:Dev("pughelper", "Setting backdrop with SetBackdrop method")
-        frame:SetBackdrop({
-            bgFile = "Interface/DialogFrame/UI-DialogBox-Background",
-            edgeFile = "Interface/DialogFrame/UI-DialogBox-Border",
-            tile = true, tileSize = 32, edgeSize = 32,
-            insets = { left = 11, right = 12, top = 12, bottom = 11 }
-        })
-    else
-        Debug:Dev("pughelper", "SetBackdrop not available, attempting alternative background")
-        -- Try alternative background methods
-        if frame.SetBackdropColor then
-            frame:SetBackdropColor(0, 0, 0, 0.8)
-        else
-            Debug:Dev("pughelper", "SetBackdropColor also not available, skipping background")
-        end
-        
-        if frame.SetBackdropBorderColor then
-            frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-        else
-            Debug:Dev("pughelper", "SetBackdropBorderColor also not available, skipping border")
-        end
-    end
+    Debug:Dev("pughelper", "PUG invite notification frame created with AceGUI and configuration wrappers")
     
-    -- Make it movable
-    frame:SetMovable(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    
-    -- Create title
-    local title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    title:SetPoint("TOP", frame, "TOP", 0, -20)
-    title:SetText("NextKey - Dungeon Invite")
+    -- Create title using UIComponents factory
+    local title = NextKey222.UIComponents:CreateText("header", nil, {
+        text = "NextKey - Dungeon Invite",
+        width = 380
+    })
+    title.frame:SetPoint("TOP", frame.frame, "TOP", 0, -20)
     frame.title = title
     
-    -- Create group name
-    local groupName = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    groupName:SetPoint("TOP", title, "BOTTOM", 0, -15)
-    groupName:SetWidth(380)
-    groupName:SetJustifyH("CENTER")
+    -- Create group name using UIComponents factory
+    local groupName = NextKey222.UIComponents:CreateText("body", nil, {
+        width = 380,
+        justifyH = "CENTER"
+    })
+    groupName.frame:SetPoint("TOP", title.frame, "BOTTOM", 0, -15)
     frame.groupName = groupName
     
-    -- Create dungeon info
-    local dungeonInfo = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    dungeonInfo:SetPoint("TOP", groupName, "BOTTOM", 0, -10)
-    dungeonInfo:SetWidth(380)
-    dungeonInfo:SetJustifyH("CENTER")
+    -- Create dungeon info using UIComponents factory
+    local dungeonInfo = NextKey222.UIComponents:CreateText("small", nil, {
+        width = 380,
+        justifyH = "CENTER"
+    })
+    dungeonInfo.frame:SetPoint("TOP", groupName.frame, "BOTTOM", 0, -10)
     frame.dungeonInfo = dungeonInfo
     
-    -- Create key level info
-    local keyLevelInfo = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    keyLevelInfo:SetPoint("TOP", dungeonInfo, "BOTTOM", 0, -5)
-    keyLevelInfo:SetWidth(380)
-    keyLevelInfo:SetJustifyH("CENTER")
+    -- Create key level info using UIComponents factory
+    local keyLevelInfo = NextKey222.UIComponents:CreateText("small", nil, {
+        width = 380,
+        justifyH = "CENTER"
+    })
+    keyLevelInfo.frame:SetPoint("TOP", dungeonInfo.frame, "BOTTOM", 0, -5)
     frame.keyLevelInfo = keyLevelInfo
     
-    -- Create comment info
-    local commentInfo = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    commentInfo:SetPoint("TOP", keyLevelInfo, "BOTTOM", 0, -5)
-    commentInfo:SetWidth(380)
-    commentInfo:SetJustifyH("CENTER")
+    -- Create comment info using UIComponents factory
+    local commentInfo = NextKey222.UIComponents:CreateText("small", nil, {
+        width = 380,
+        justifyH = "CENTER"
+    })
+    commentInfo.frame:SetPoint("TOP", keyLevelInfo.frame, "BOTTOM", 0, -5)
     frame.commentInfo = commentInfo
     
-    -- Create accept button
-    local acceptButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    acceptButton:SetWidth(100)
-    acceptButton:SetHeight(25)
-    acceptButton:SetPoint("BOTTOMLEFT", frame, "BOTTOM", 20, 20)
-    acceptButton:SetText("Accept")
-    acceptButton:SetScript("OnClick", function()
-        self:AcceptInvite()
-    end)
+    -- Create accept button using UIComponents factory
+    local acceptButton = NextKey222.UIComponents:CreateButton("select", nil, {
+        text = "Accept",
+        onClick = function()
+            self:AcceptInvite()
+        end
+    })
+    acceptButton.frame:SetPoint("BOTTOMLEFT", frame.frame, "BOTTOM", 20, 20)
     frame.acceptButton = acceptButton
     
-    -- Create decline button
-    local declineButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    declineButton:SetWidth(100)
-    declineButton:SetHeight(25)
-    declineButton:SetPoint("BOTTOMRIGHT", frame, "BOTTOM", -20, 20)
-    declineButton:SetText("Decline")
-    declineButton:SetScript("OnClick", function()
-        self:DeclineInvite()
-    end)
+    -- Create decline button using UIComponents factory
+    local declineButton = NextKey222.UIComponents:CreateButton("select", nil, {
+        text = "Decline",
+        onClick = function()
+            self:DeclineInvite()
+        end
+    })
+    declineButton.frame:SetPoint("BOTTOMRIGHT", frame.frame, "BOTTOM", -20, 20)
     frame.declineButton = declineButton
     
-    -- Create close button
-    local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
+    -- Create close button using native close button (still needed for X button)
+    local closeButton = CreateFrame("Button", nil, frame.frame, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", frame.frame, "TOPRIGHT", -5, -5)
     closeButton:SetScript("OnClick", function()
         self:Hide()
     end)
     frame.closeButton = closeButton
     
-    -- Hide initially
-    frame:Hide()
+    Debug:Dev("pughelper", "PUG invite notification buttons created with UIComponents factory")
     
-    Debug:Dev("pughelper", "Invite notification frame created")
+    -- Hide initially
+    frame.frame:Hide()
+    
+    Debug:Dev("pughelper", "Invite notification frame created with pure AceGUI components")
 end
 
 -- Update invite information in the UI

@@ -166,7 +166,26 @@ NextKey222.Defaults = {
         performance = {
             enabled = false,
             profileFunctions = false
-        }
+        },
+       
+       -- PUG Helper settings
+       pugHelper = {
+           enabled = true,
+           autoAcceptInvites = false,
+           showNotifications = true,
+           travelAssistant = true,
+           getawayUI = true
+       },
+       
+       -- PUG Testing settings
+       pugTestScenarios = {
+           currentScenarios = {
+               invite = "standard",
+               travel = "standard",
+               getaway = "success"
+           },
+           eventLogging = false
+       }
     },
     
     char = {
