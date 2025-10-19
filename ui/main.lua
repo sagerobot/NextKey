@@ -533,7 +533,16 @@ function UI:CreateMainFrame()
     Debug:Dev("ui", "Creating AceGUI Frame...")
     local frame = AceGUI:Create("Frame")
     frame:SetTitle("NextKey")
-    frame:SetStatusText("UI skeleton - M0.6")
+    
+    -- Random footer message selection using time-based variation
+    local footerMessages = {
+        "UI skeleton - M0.6",
+        "Pick your hearthstone in /nk opt"
+    }
+    -- Use GetTime() to get varied but deterministic selection
+    local messageIndex = (math.floor(GetTime()) % #footerMessages) + 1
+    frame:SetStatusText(footerMessages[messageIndex])
+    
     frame:SetLayout("Flow")
     frame:SetWidth(NextKey222.UIConfig.WINDOW.WIDTH)
     local initialHeight = NextKey222.UIConfig:GetWindowHeight("keystones", {
@@ -730,10 +739,15 @@ function UI:CreateMainFrame()
             label = "Fake Player Tier",
             width = 200,
             list = {
-                random = "Random (Expert/Skilled/Competent)",
-                expert = "Expert",
-                skilled = "Skilled",
-                competent = "Competent"
+                random = "Random (All Skill Levels)",
+                title = "Title (3600-3800 IO, 20s+)",
+                elite = "Elite (3300-3600 IO, 18-19s)",
+                expert = "Expert (3100-3400 IO, 15-17s)",
+                skilled = "Skilled (2900-3100 IO, 13-14s)",
+                competent = "Competent (2500-2900 IO, 11-12s)",
+                average = "Average (2000-2600 IO, 7-10s)",
+                casual = "Casual (1500-2000 IO, 4-6s)",
+                beginner = "Beginner (1000-1500 IO, 2-3s)"
             },
             value = self.debugFakeTierSelection or "random",
             onValueChanged = function(widget, event, value)
@@ -1036,12 +1050,12 @@ function UI:HandleAddDebugFakePlayer()
     end
 
     local tierSelection = self.debugFakeTierSelection or "random"
-    local highSkillTiers = { "expert", "skilled", "competent" }
+    local allTiers = { "title", "elite", "expert", "skilled", "competent", "average", "casual", "beginner" }
 
     local chosenTier = tierSelection
     if tierSelection == "random" then
-        local index = math.random(#highSkillTiers)
-        chosenTier = highSkillTiers[index]
+        local index = math.random(#allTiers)
+        chosenTier = allTiers[index]
     end
 
     local createdName = NextKey222.FakePlayerService:CreatePlayer({ tier = chosenTier })
@@ -1251,14 +1265,20 @@ function UI:ShowIOGainTooltip(button, keyInfo, entry, ioRange)
         end
 
         table.sort(playerEntries, function(a, b)
-            if a.hasNextKey ~= b.hasNextKey then
-                return a.hasNextKey and not b.hasNextKey
+            -- Sort by potential IO gain (highest first)
+            local aPotential = (a.minGain or 0) + (a.maxGain or 0)
+            local bPotential = (b.minGain or 0) + (b.maxGain or 0)
+            
+            if aPotential ~= bPotential then
+                return aPotential > bPotential
             end
-
+            
+            -- Then by current IO score (lowest first - helps those who need it most)
             if a.currentIO ~= b.currentIO then
                 return a.currentIO < b.currentIO
             end
-
+            
+            -- Finally by best level (lowest first)
             return (a.bestLevel or 0) < (b.bestLevel or 0)
         end)
 
@@ -1285,6 +1305,147 @@ function UI:ShowIOGainTooltip(button, keyInfo, entry, ioRange)
     end
 
     GameTooltip:Show()
+end
+
+--- Shows IO gain tooltip using the centralized tooltip system (Phase 7 fix)
+-- @param button Frame Button or region triggering the tooltip
+-- @param keyInfo table Keystone data for the row
+-- @param entry table Row entry containing cached ioRange (optional)
+-- @param ioRange table Range data (min/max/expected + playerBreakdown)
+function UI:ShowIOGainTooltipCentralized(button, keyInfo, entry, ioRange)
+    if not button or not keyInfo or not ioRange then
+        Debug:Dev("tooltip", "ShowIOGainTooltipCentralized: Missing parameters - button:", button ~= nil, "keyInfo:", keyInfo ~= nil, "ioRange:", ioRange ~= nil)
+        return
+    end
+    
+    -- Use centralized tooltip system if available
+    if NextKey222.Tooltip and NextKey222.Tooltip.Create then
+        Debug:Dev("tooltip", "Using centralized tooltip system for IO gain")
+        
+        -- Build tooltip data in the format expected by the centralized system
+        local tooltipData = {
+            frame = button,
+            title = self:BuildIOTooltipTitle(keyInfo, ioRange),
+            subtitle = "Group IO Gain Potential",
+            breakdown = self:BuildIOTooltipBreakdown(keyInfo, ioRange),
+            totals = self:BuildIOTooltipTotals(keyInfo, ioRange)
+        }
+        
+        Debug:Dev("tooltip", "Calling NextKey222.Tooltip:Create with TYPE_IO_GAIN")
+        NextKey222.Tooltip:Create(NextKey222.Tooltip.TYPE_IO_GAIN, tooltipData)
+        return
+    end
+    
+    Debug:Dev("tooltip", "Centralized tooltip system not available, using fallback")
+    -- Fallback to original implementation if centralized system not available
+    self:ShowIOGainTooltip(button, keyInfo, entry, ioRange)
+end
+
+--- Builds the title for IO gain tooltip
+-- @param keyInfo table Keystone data
+-- @param ioRange table IO range data
+-- @return string Formatted title
+function UI:BuildIOTooltipTitle(keyInfo, ioRange)
+    local dungeonName = "Unknown Dungeon"
+    if keyInfo.dungeonID and keyInfo.dungeonID > 0 then
+        dungeonName = NextKey222.Addon:GetDungeonName(keyInfo.dungeonID) or ("Dungeon " .. keyInfo.dungeonID)
+    end
+    
+    local ownerName = keyInfo.ownerName or "Unknown"
+    local keystoneLevel = keyInfo.level or 0
+    return string.format("%s (+%d) - %s's Key", dungeonName, keystoneLevel, ownerName:match("^([^%-]+)") or ownerName)
+end
+
+--- Builds the player breakdown for IO gain tooltip
+-- @param keyInfo table Keystone data
+-- @param ioRange table IO range data
+-- @return table Formatted breakdown data
+function UI:BuildIOTooltipBreakdown(keyInfo, ioRange)
+    if not ioRange.playerBreakdown then
+        return {}
+    end
+    
+    local playerEntries = {}
+    local dungeonID = keyInfo.dungeonID
+    
+    for playerName, breakdown in pairs(ioRange.playerBreakdown) do
+        -- Get player profile to extract class information
+        local profile = self:GetPlayerProfileCached(playerName)
+        
+        local entryData = {
+            name = playerName,
+            shortName = playerName:match("^([^%-]+)") or playerName,
+            breakdown = breakdown,
+            minGain = breakdown.min or 0,
+            maxGain = breakdown.max or 0,
+            currentIO = 0,
+            bestLevel = 0,
+            hasNextKey = false,
+            fakeProfile = self:GetFakePlayerData(playerName),
+            classToken = profile and profile.class,
+            class = profile and profile.class
+        }
+        
+        if dungeonID and NextKey222.IOCalculator then
+            entryData.currentIO = NextKey222.IOCalculator:GetPlayerDungeonScore(playerName, dungeonID) or 0
+        end
+        
+        if entryData.fakeProfile and entryData.fakeProfile.addonStatus then
+            entryData.hasNextKey = entryData.fakeProfile.addonStatus.nextkey or false
+        else
+            entryData.hasNextKey = (entryData.minGain > 0 or entryData.maxGain > 0 or entryData.currentIO > 0)
+        end
+        
+        local currentPlayerFull = UnitName("player") .. "-" .. GetRealmName()
+        local isCurrentPlayer = (playerName == currentPlayerFull) or (playerName:match("^([^%-]+)") == UnitName("player"))
+        if entryData.hasNextKey and dungeonID then
+            if isCurrentPlayer then
+                entryData.bestLevel = self:GetBestLevel(dungeonID) or 0
+            elseif entryData.fakeProfile and entryData.fakeProfile.dungeonScores then
+                local scoreEntry = entryData.fakeProfile.dungeonScores[dungeonID]
+                if scoreEntry then
+                    entryData.bestLevel = scoreEntry.bestLevel or scoreEntry.level or 0
+                end
+            end
+        end
+        
+        table.insert(playerEntries, entryData)
+    end
+    
+    -- Sort players by potential IO gain (highest first), then current IO (lowest first)
+    table.sort(playerEntries, function(a, b)
+        -- Sort by potential IO gain (highest first)
+        local aPotential = (a.minGain or 0) + (a.maxGain or 0)
+        local bPotential = (b.minGain or 0) + (b.maxGain or 0)
+        
+        if aPotential ~= bPotential then
+            return aPotential > bPotential
+        end
+        
+        -- Then by current IO score (lowest first - helps those who need it most)
+        if a.currentIO ~= b.currentIO then
+            return a.currentIO < b.currentIO
+        end
+        
+        -- Finally by best level (lowest first)
+        return (a.bestLevel or 0) < (b.bestLevel or 0)
+    end)
+    
+    return playerEntries
+end
+
+--- Builds the totals section for IO gain tooltip
+-- @param keyInfo table Keystone data
+-- @param ioRange table IO range data
+-- @return table Formatted totals data
+function UI:BuildIOTooltipTotals(keyInfo, ioRange)
+    local keystoneLevel = keyInfo.level or 0
+    
+    if keystoneLevel > 0 and NextKey222.IOCalculator and ioRange.playerBreakdown then
+        return self:CalculateBreakpointRanges(keyInfo, ioRange.playerBreakdown)
+    end
+    
+    return nil
 end
 
 -- MARK: Individual Player Analysis
@@ -1652,8 +1813,9 @@ function UI:AddKeyRow(entry)
     self.resultsFrame:AddChild(container)
     
     -- Create backdrop using component factory
-    local frame = NextKey222.UIComponents:CreateBackdrop(container.frame, "keystone")
-    trackAuxFrame(self, frame)
+    local cardFrame = container.cardFrame or container.frame
+    local frame = NextKey222.UIComponents:CreateBackdrop(cardFrame, "keystone")
+    trackAuxFrame(self, cardFrame)
     
     -- Create class icon using component factory with player data for tooltip
     local playerData = {
@@ -1666,7 +1828,8 @@ function UI:AddKeyRow(entry)
         hasBattleRes = entry.hasBattleRes
     }
     local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, NextKey222.UIConfig.ICON.SIZE, playerData)
-    icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
+    -- Position class icon with simple vertical centering (using positive offset for downward positioning)
+    icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -20)  -- 20px from top for visual centering
     
     -- Create role icon using component factory
     local roleIcon = NextKey222.UIComponents:CreateRoleIcon(frame, entry.role, NextKey222.UIConfig.ICON.ROLE_SIZE)
@@ -1681,6 +1844,7 @@ function UI:AddKeyRow(entry)
 
     -- Add prominent IO gain display for IOGainPotential sort mode
     local ioGainText = nil
+    local regularViewIORange = nil  -- Store ioRange in outer scope for button creation later
     local currentSortMode = self:GetCurrentSortMode()
     if currentSortMode == "IOGainPotential" then
         -- Use pre-calculated range data if available, otherwise calculate
@@ -1688,32 +1852,20 @@ function UI:AddKeyRow(entry)
         if ioRange and not entry.ioGainRange then
             entry.ioGainRange = ioRange
         end
-        if ioRange.expected > 0 then
-            ioGainText = NextKey222.UIComponents:CreateText("large", frame, {
-                text = string.format("|cff00ff00+%d IO|r", math.floor(ioRange.expected)),
-                fontObject = GameFontNormalLarge,
-                justifyH = "RIGHT",
-                color = {0, 1, 0}
-            })
-            ioGainText.frame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
-            
-            -- Make it clickable for tooltip using component system
-            local ioGainButton = NextKey222.UIComponents:CreateButton("icon", nil, {
-                size = { ioGainText:GetStringWidth() + 4, ioGainText:GetStringHeight() + 4 },
-                onClick = function()
-                    -- No click action, just tooltip
-                end,
-                onEnter = function(btn)
-                    self:ShowIOGainTooltip(btn.frame, keyInfo, entry, ioRange)
-                end,
-                onLeave = function(btn)
-                    GameTooltip_Hide()
-                end
-            })
-            ioGainButton.frame:SetAllPoints(ioGainText.frame)
-            ioGainButton.frame:SetFrameLevel(frame:GetFrameLevel() + 1)
-            trackAuxFrame(self, ioGainButton.frame)
-        end
+        -- Always show IO gain text, but color based on potential gain
+        regularViewIORange = ioRange  -- Store for later use in button creation
+        local expectedGain = ioRange.expected or 0
+        local hasPotentialGain = expectedGain > 0
+        
+        ioGainText = NextKey222.UIComponents:CreateText("large", frame, {
+            text = string.format("|cff%s+%d IO|r",
+                hasPotentialGain and "00ff00" or "999999",
+                math.floor(expectedGain)),
+            fontObject = GameFontNormalLarge,
+            justifyH = "RIGHT",
+            color = hasPotentialGain and {0, 1, 0} or {0.6, 0.6, 0.6}
+        })
+        -- Don't position yet - will position relative to Select button after it's created
     end
 
     local levelText = NextKey222.UIComponents:CreateText("small", frame, {
@@ -1734,23 +1886,58 @@ function UI:AddKeyRow(entry)
 
     -- Create select button using component factory
     local selectBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select")
-    selectBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
+    -- Position button with simple vertical centering
+    selectBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -20)  -- 20px from top for visual centering
+    
+    -- Now position IO gain text to the LEFT of Select button (if it exists)
+    if ioGainText then
+        ioGainText.frame:SetPoint("RIGHT", selectBtn, "LEFT", -8, 0)
+        
+        Debug:Dev("ui", "[IO Tooltip] Creating tooltip button for IO gain text")
+        Debug:Dev("ui", "[IO Tooltip] ioGainText width:", ioGainText:GetStringWidth(), "height:", ioGainText:GetStringHeight())
+        
+        -- Create native button frame for reliable mouse event handling
+        local ioGainButton = CreateFrame("Button", nil, frame)
+        ioGainButton:SetAllPoints(ioGainText.frame)
+        ioGainButton:SetFrameLevel(frame:GetFrameLevel() + 2) -- Higher frame level to be above everything
+        ioGainButton:EnableMouse(true) -- CRITICAL: Enable mouse events
+        ioGainButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        
+        ioGainButton:SetScript("OnEnter", function(btn)
+            Debug:Dev("ui", "[IO Tooltip] Mouse entered button - showing tooltip")
+            Debug:Dev("ui", "[IO Tooltip] regularViewIORange exists:", regularViewIORange ~= nil)
+            self:ShowIOGainTooltipCentralized(btn, keyInfo, entry, regularViewIORange)
+        end)
+        
+        ioGainButton:SetScript("OnLeave", function(btn)
+            Debug:Dev("ui", "[IO Tooltip] Mouse left button - hiding tooltip")
+            GameTooltip_Hide()
+        end)
+        
+        ioGainButton:Show()
+        trackAuxFrame(self, ioGainButton)
+        
+        Debug:Dev("ui", "[IO Tooltip] Native button created - frame level:", ioGainButton:GetFrameLevel())
+        Debug:Dev("ui", "[IO Tooltip] Button visible:", ioGainButton:IsVisible() and "YES" or "NO")
+        Debug:Dev("ui", "[IO Tooltip] Button mouse enabled:", ioGainButton:IsMouseEnabled() and "YES" or "NO")
+    end
     selectBtn:SetWidth(110)
     selectBtn:SetHeight(24)
     trackAuxFrame(self, selectBtn)
 
+    -- Position all text elements with simple vertical alignment
     nameText.frame:ClearAllPoints()
-    nameText.frame:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 8, -2)
+    nameText.frame:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 8, 0)
     nameText.frame:SetPoint("TOPRIGHT", selectBtn, "TOPLEFT", -12, 0)
 
     levelText.frame:ClearAllPoints()
-    levelText.frame:SetPoint("TOPLEFT", nameText.frame, "BOTTOMLEFT", 0, -6)
-    levelText.frame:SetPoint("TOPRIGHT", nameText.frame, "BOTTOMRIGHT", 0, -6)
+    levelText.frame:SetPoint("TOPLEFT", nameText.frame, "BOTTOMLEFT", 0, -4)
+    levelText.frame:SetPoint("TOPRIGHT", nameText.frame, "BOTTOMRIGHT", 0, -4)
 
     if bestText then
         bestText.frame:ClearAllPoints()
-        bestText.frame:SetPoint("TOPLEFT", levelText.frame, "BOTTOMLEFT", 0, -6)
-        bestText.frame:SetPoint("TOPRIGHT", levelText.frame, "BOTTOMRIGHT", 0, -6)
+        bestText.frame:SetPoint("TOPLEFT", levelText.frame, "BOTTOMLEFT", 0, -4)
+        bestText.frame:SetPoint("TOPRIGHT", levelText.frame, "BOTTOMRIGHT", 0, -4)
     end
 
     -- Configure button state and behavior
@@ -1768,6 +1955,7 @@ function UI:AddKeyRow(entry)
         end)
     elseif isLeader then
         selectBtn:Enable()
+        selectBtn:SetAlpha(1)
         selectBtn:SetScript("OnClick", function()
             NextKey222.Addon:SetTeleportTargetKey(keyInfo, { broadcast = true })
         end)
@@ -1792,8 +1980,9 @@ function UI:AddKeyRow(entry)
     if self:IsDebugMode() and NextKey222.FakePlayerService and ownerName and NextKey222.FakePlayerService:IsFakePlayer(ownerName) then
         local deleteBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select")
         deleteBtn:SetText("Delete")
-        deleteBtn:SetWidth(70)
-        deleteBtn:SetPoint("TOPRIGHT", selectBtn, "BOTTOMRIGHT", 0, -4)
+        deleteBtn:SetSize(selectBtn:GetWidth(), selectBtn:GetHeight())
+        -- Position Delete button directly below Select with minimal spacing for vertical centering
+        deleteBtn:SetPoint("TOP", selectBtn, "BOTTOM", 0, -4)
         deleteBtn:SetScript("OnClick", function()
             self:HandleDeleteFakePlayer(ownerName)
         end)
@@ -1837,8 +2026,9 @@ function UI:AddKeyRowCompact(entry)
     self.resultsFrame:AddChild(container)
     
     -- Create compact backdrop
-    local frame = NextKey222.UIComponents:CreateBackdrop(container.frame, "keystone_compact")
-    trackAuxFrame(self, frame)
+    local cardFrame = container.cardFrame or container.frame
+    local frame = NextKey222.UIComponents:CreateBackdrop(cardFrame, "keystone_compact")
+    trackAuxFrame(self, cardFrame)
     
     -- Create smaller class icon with player data for tooltip
     local playerData = {
@@ -1867,11 +2057,10 @@ function UI:AddKeyRowCompact(entry)
     local showCompactIO = false
     if currentSortMode == "IOGainPotential" then
         compactIORange = entry.ioGainRange or self:CalculateIOGainRange(keyInfo)
-        if compactIORange and (compactIORange.expected or 0) > 0 then
-            showCompactIO = true
-            if not entry.ioGainRange then
-                entry.ioGainRange = compactIORange
-            end
+        -- Always show IO gain text in compact view, but color based on potential gain
+        showCompactIO = true
+        if not entry.ioGainRange then
+            entry.ioGainRange = compactIORange
         end
     end
 
@@ -1892,21 +2081,38 @@ function UI:AddKeyRowCompact(entry)
     })
     mainText.frame:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 4, 0)
 
+    local isFakePlayer = self:IsDebugMode()
+        and NextKey222.FakePlayerService
+        and ownerName
+        and NextKey222.FakePlayerService:IsFakePlayer(ownerName)
+
     -- Create compact select button
     local selectBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select_compact")
-    selectBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -4)
+    selectBtn:ClearAllPoints()
+    selectBtn:SetPoint("RIGHT", frame, "RIGHT", -6, 0)
+    if isFakePlayer then
+        selectBtn:SetText("Sel")
+        selectBtn:SetSize(56, 18)
+    else
+        selectBtn:SetText("Select")
+        selectBtn:SetSize(82, 22)
+    end
     trackAuxFrame(self, selectBtn)
-
-    mainText.frame:ClearAllPoints()
-    mainText.frame:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 4, 0)
-    mainText.frame:SetPoint("RIGHT", selectBtn, "LEFT", -6, 0)
 
     -- Configure compact button state
     local isLeader = NextKey222.Addon:IsLeaderOrSolo()
     local isSelected = NextKey222.Addon.IsKeySelected and NextKey222.Addon:IsKeySelected(keyInfo)
     
     if isSelected then
-        selectBtn:SetText("✓")
+        if isFakePlayer then
+            selectBtn:SetText("Sel")
+            selectBtn:SetWidth(56)
+            selectBtn:SetHeight(18)
+        else
+            selectBtn:SetText("Selected")
+            selectBtn:SetWidth(82)
+            selectBtn:SetHeight(22)
+        end
         selectBtn:Disable()
         selectBtn:SetAlpha(0.85)
         selectBtn:SetScript("OnEnter", function(btn)
@@ -1937,11 +2143,12 @@ function UI:AddKeyRowCompact(entry)
     selectBtn:SetScript("OnLeave", GameTooltip_Hide)
 
     local deleteBtn = nil
-    if self:IsDebugMode() and NextKey222.FakePlayerService and ownerName and NextKey222.FakePlayerService:IsFakePlayer(ownerName) then
+    if isFakePlayer then
         deleteBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select_compact")
         deleteBtn:SetText("Del")
-        deleteBtn:SetWidth(40)
-        deleteBtn:SetPoint("TOPRIGHT", selectBtn, "BOTTOMRIGHT", 0, -2)
+        deleteBtn:SetSize(52, 18)
+        deleteBtn:ClearAllPoints()
+        deleteBtn:SetPoint("RIGHT", selectBtn, "LEFT", -4, 0)
         deleteBtn:SetScript("OnClick", function()
             self:HandleDeleteFakePlayer(ownerName)
         end)
@@ -1954,32 +2161,85 @@ function UI:AddKeyRowCompact(entry)
         trackAuxFrame(self, deleteBtn)
     end
 
+    local textRightAnchor = deleteBtn or selectBtn
+    mainText.frame:ClearAllPoints()
+    mainText.frame:SetPoint("TOPLEFT", roleIcon, "TOPRIGHT", 4, 0)
+    mainText.frame:SetPoint("RIGHT", textRightAnchor, "LEFT", -8, 0)
+    local leftEdge = roleIcon and roleIcon:GetRight() or 0
+    local rightEdge = textRightAnchor and textRightAnchor:GetLeft() or 0
+    local calculatedWidth = rightEdge > leftEdge and (rightEdge - leftEdge - 8) or nil
+    if calculatedWidth and calculatedWidth > 0 then
+        if mainText.SetWidth then
+            mainText:SetWidth(calculatedWidth)
+        end
+        if mainText.frame.SetWidth then
+            mainText.frame:SetWidth(calculatedWidth)
+        end
+        if mainText.label and mainText.label.SetWidth then
+            mainText.label:SetWidth(calculatedWidth)
+        end
+    else
+        local fallbackWidth = frame:GetWidth() - selectBtn:GetWidth() - 16
+        if deleteBtn then
+            fallbackWidth = fallbackWidth - deleteBtn:GetWidth() - 4
+        end
+        fallbackWidth = math.max(fallbackWidth, 0)
+        if mainText.SetWidth then
+            mainText:SetWidth(fallbackWidth)
+        end
+        if mainText.frame.SetWidth then
+            mainText.frame:SetWidth(fallbackWidth)
+        end
+        if mainText.label and mainText.label.SetWidth then
+            mainText.label:SetWidth(fallbackWidth)
+        end
+    end
+    if mainText.label and mainText.label.SetWordWrap then
+        mainText.label:SetWordWrap(false)
+    end
+
     if showCompactIO and compactIORange then
         local anchorButton = deleteBtn or selectBtn
+        local expectedGain = compactIORange.expected or 0
+        local hasPotentialGain = expectedGain > 0
+        
         local ioGainText = NextKey222.UIComponents:CreateText("small", frame, {
-            text = string.format("|cff00ff00+%d IO|r", math.floor(compactIORange.expected or 0)),
+            text = string.format("|cff%s+%d IO|r",
+                hasPotentialGain and "00ff00" or "999999",
+                math.floor(expectedGain)),
             fontObject = GameFontNormalSmall,
             justifyH = "RIGHT",
-            color = {0, 1, 0}
+            color = hasPotentialGain and {0, 1, 0} or {0.6, 0.6, 0.6}
         })
         ioGainText.frame:SetPoint("RIGHT", anchorButton, "LEFT", -6, 0)
 
-        local ioGainButton = NextKey222.UIComponents:CreateButton("icon", nil, {
-            size = { ioGainText:GetStringWidth() + 4, ioGainText:GetStringHeight() + 4 },
-            onClick = function()
-                -- No click action, just tooltip
-            end,
-            onEnter = function(btn)
-                self:ShowIOGainTooltip(btn.frame, keyInfo, entry, compactIORange)
-            end,
-            onLeave = function(btn)
-                GameTooltip_Hide()
-            end
-        })
-        ioGainButton.frame:SetPoint("TOPLEFT", ioGainText.frame, "TOPLEFT", -2, 2)
-        ioGainButton.frame:SetPoint("BOTTOMRIGHT", ioGainText.frame, "BOTTOMRIGHT", 2, -2)
-        ioGainButton.frame:SetFrameLevel(frame:GetFrameLevel() + 1)
-        trackAuxFrame(self, ioGainButton.frame)
+        Debug:Dev("ui", "[Compact IO Tooltip] Creating tooltip button for compact IO gain text")
+        Debug:Dev("ui", "[Compact IO Tooltip] compactIORange exists:", compactIORange ~= nil)
+        
+        -- Create native button frame for reliable mouse event handling (same as regular view)
+        local ioGainButton = CreateFrame("Button", nil, frame)
+        ioGainButton:SetPoint("TOPLEFT", ioGainText.frame, "TOPLEFT", -2, 2)
+        ioGainButton:SetPoint("BOTTOMRIGHT", ioGainText.frame, "BOTTOMRIGHT", 2, -2)
+        ioGainButton:SetFrameLevel(frame:GetFrameLevel() + 2) -- Higher frame level to be above everything
+        ioGainButton:EnableMouse(true) -- CRITICAL: Enable mouse events
+        ioGainButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        
+        ioGainButton:SetScript("OnEnter", function(btn)
+            Debug:Dev("ui", "[Compact IO Tooltip] Mouse entered compact button - showing tooltip")
+            self:ShowIOGainTooltipCentralized(btn, keyInfo, entry, compactIORange)
+        end)
+        
+        ioGainButton:SetScript("OnLeave", function(btn)
+            Debug:Dev("ui", "[Compact IO Tooltip] Mouse left compact button - hiding tooltip")
+            GameTooltip_Hide()
+        end)
+        
+        ioGainButton:Show()
+        trackAuxFrame(self, ioGainButton)
+        
+        Debug:Dev("ui", "[Compact IO Tooltip] Native compact button created - frame level:", ioGainButton:GetFrameLevel())
+        Debug:Dev("ui", "[Compact IO Tooltip] Compact button visible:", ioGainButton:IsVisible() and "YES" or "NO")
+        Debug:Dev("ui", "[Compact IO Tooltip] Compact button mouse enabled:", ioGainButton:IsMouseEnabled() and "YES" or "NO")
     end
 end
 
@@ -2178,8 +2438,8 @@ function UI:RenderDungeonCards()
     
     -- Create enhanced dungeon cards with preferences
     local useCompact = true -- Always use compact for better layout
-    -- Use centralized height calculation variables
-    local expectedHeight = #sortedDungeons * NextKey222.UIConfig.CARD.HEIGHT + NextKey222.UIConfig.CARD.HEADER_PADDING
+    -- Use centralized height calculation variables (use dungeon-specific height)
+    local expectedHeight = #sortedDungeons * NextKey222.UIConfig.CARD.HEIGHT_DUNGEON + NextKey222.UIConfig.CARD.HEADER_PADDING
     
     Debug:Dev("ui", " Rendering", #sortedDungeons, "enhanced dungeons with preferences")
     Debug:Dev("ui", " Expected total height:", expectedHeight, "px (window height: 640px)")
@@ -2187,84 +2447,107 @@ function UI:RenderDungeonCards()
     Debug:Dev("ui", " Total IO Score:", totalIOScore or 0)
     
     for i, dungeon in ipairs(sortedDungeons) do
-        if useCompact then
-            self:AddDungeonRowCompact(dungeon.id, dungeon.data)
-        else
-            self:AddDungeonRow(dungeon.id, dungeon.data)
+        Debug:Dev("ui", string.format("Rendering dungeon %d/%d: %s (ID: %d)", i, #sortedDungeons, dungeon.data.name, dungeon.id))
+        
+        local success = NextKey222.SafeRun(function()
+            if useCompact then
+                self:AddDungeonRowCompact(dungeon.id, dungeon.data)
+            else
+                self:AddDungeonRow(dungeon.id, dungeon.data)
+            end
+        end, "Render dungeon card: " .. dungeon.data.name)
+        
+        if not success then
+            Debug:Error("Failed to render dungeon card:", dungeon.data.name)
         end
     end
+    
+    Debug:Dev("ui", "Finished rendering all dungeon cards")
 end
 
--- Enhanced dungeon card with icons and IO scores
+-- Enhanced dungeon card with icons and IO scores - matching keystone card pattern
 function UI:AddDungeonRowCompact(dungeonID, dungeonData)
-    -- Use configurable container type for different spacing options
-    local containerType = NextKey222.UIConfig.LAYOUT.USE_TIGHT_LAYOUT and "SimpleGroup" or "InlineGroup"
-    local container = AceGUI:Create(containerType)
+    -- Use CreateCardContainer like keystones do - creates proper backdrop support
+    -- Use shorter height for dungeon cards (64px vs 88px for keystones)
+    local container = NextKey222.UIComponents:CreateCardContainer(NextKey222.UIConfig.CARD.HEIGHT_DUNGEON, false)
+    self.resultsFrame:AddChild(container)
     
-    if not NextKey222.UIConfig.LAYOUT.USE_TIGHT_LAYOUT then
-        container:SetTitle("") -- Only needed for InlineGroup
-    end
+    -- Get the dedicated cardFrame and apply backdrop for visible borders (like keystone cards)
+    local cardFrame = container.cardFrame or container.frame
+    NextKey222.UIComponents:CreateBackdrop(cardFrame, "keystone")
+    cardFrame:Show()  -- Explicitly show the cardFrame
+    trackAuxFrame(self, cardFrame)
     
-    container:SetFullWidth(true)
-    -- Use centralized dungeon card height
-    container:SetHeight(NextKey222.UIConfig.CARD.HEIGHT)
-    container:SetLayout("Flow")
-    
-    -- Apply component backdrop styling to dungeon card container
-    NextKey222.UIComponents:ConfigureBackdrop(container, "tooltip", { colorScheme = "standard" })
-    
-    -- Apply ultra-tight spacing by modifying frame properties
-    if NextKey222.UIConfig.LAYOUT.USE_TIGHT_LAYOUT and NextKey222.UIConfig.LAYOUT.USE_ULTRA_TIGHT and container.content then
-        -- Remove extra padding from the container's content frame
-        local content = container.content
-        if content then
-            content:ClearAllPoints()
-            content:SetAllPoints(container.frame)
-        end
-    end
+    Debug:Dev("ui", "Rendering dungeon card for", dungeonData.name, "ID:", dungeonID)
     
     -- Get player's best data and IO score
     local playerScore = self:GetDungeonScore(dungeonID)
     local bestLevel = self:GetBestLevel(dungeonID)
-    local ioScore = self:GetDungeonIOScore(dungeonID) -- New function for IO score per dungeon
+    local ioScore = self:GetDungeonIOScore(dungeonID)
     
-    -- Dungeon icon using component system
-    local iconTexture = "Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider" -- Default dungeon icon
-    if dungeonData.mapArtID then
-        -- Convert NextKey dungeon ID to proper Challenge Mode map ID for icon lookup
-        local challengeModeMapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
-        -- Try to get dungeon icon from challenge mode using converted map ID
-        iconTexture = select(4, C_ChallengeMode.GetMapUIInfo(challengeModeMapID)) or iconTexture
+    -- Create dungeon icon using native frame (like keystone class icons)
+    local dungeonIcon = CreateFrame("Frame", nil, cardFrame)
+    dungeonIcon:SetSize(NextKey222.UIConfig.ICON.SIZE, NextKey222.UIConfig.ICON.SIZE)
+    -- Position dungeon icon with simple vertical centering for 75px card height
+    dungeonIcon:SetPoint("TOPLEFT", cardFrame, "TOPLEFT", 12, -15)  -- 15px from top for 75px card centering
+    dungeonIcon:Show()  -- Explicitly show the icon frame
+    
+    local texture = dungeonIcon:CreateTexture(nil, "ARTWORK")
+    texture:SetAllPoints()
+    texture:Show()  -- Explicitly show the texture
+    
+    -- Try to get icon texture from spell ID or map art ID
+    local iconSet = false
+    
+    -- Try spell texture first
+    if dungeonData.spellID and dungeonData.spellID > 0 then
+        local spellTexture = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(dungeonData.spellID)
+        if spellTexture and spellTexture ~= "" then
+            texture:SetTexture(spellTexture)
+            iconSet = true
+        end
     end
     
-    local iconWidget = NextKey222.UIComponents:CreateIcon("dungeon", nil, {
-        image = iconTexture,
-        imageWidth = NextKey222.UIConfig.ICON.SIZE,
-        imageHeight = NextKey222.UIConfig.ICON.SIZE,
-        width = NextKey222.UIConfig.ICON.WIDTH
-    })
-    container:AddChild(iconWidget)
+    -- Try ChallengeMode API if spell didn't work
+    if not iconSet and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+        local challengeModeMapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
+        if challengeModeMapID then
+            local _, _, _, iconFileID = C_ChallengeMode.GetMapUIInfo(challengeModeMapID)
+            if iconFileID and iconFileID > 0 then
+                texture:SetTexture(iconFileID)
+                iconSet = true
+            end
+        end
+    end
     
-    -- Dungeon name (use full name with more space) using component system
-    local nameLabel = NextKey222.UIComponents:CreateText("body", nil, {
-        text = dungeonData.name, -- Use full name now that we have more width
-        width = NextKey222.UIConfig.TEXT.NAME_LABEL_WIDTH,
+    -- Try mapArtID as last resort
+    if not iconSet and dungeonData.mapArtID and type(dungeonData.mapArtID) == "number" and dungeonData.mapArtID > 0 then
+        texture:SetTexture(dungeonData.mapArtID)
+        iconSet = true
+    end
+    
+    -- Fallback to default dungeon icon
+    if not iconSet then
+        texture:SetTexture("Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider")
+    end
+    
+    -- Dungeon name positioned relative to icon (simple vertical alignment)
+    local nameLabel = NextKey222.UIComponents:CreateText("body", cardFrame, {
+        text = dungeonData.name,
         fontObject = GameFontNormal,
-        color = {1, 1, 1}
+        justifyH = "LEFT"
     })
-    container:AddChild(nameLabel)
+    nameLabel.frame:SetPoint("TOPLEFT", dungeonIcon, "TOPRIGHT", 8, 0)
+    nameLabel.frame:SetPoint("RIGHT", cardFrame, "RIGHT", -260, 0)
+    nameLabel.frame:Show()  -- Explicitly show text
     
-    -- IO Score and level display (more compact)
+    -- IO Score and level display
+    local scoreToDisplay = ioScore or playerScore or 0
     local infoText = ""
     local infoColor = {0.7, 0.7, 0.7}
     
-    local scoreToDisplay = ioScore or playerScore or 0
-    
     if scoreToDisplay > 0 then
-        -- Get level and chests info for enhanced display
         local level, chests = self:GetDungeonLevelAndChests(dungeonID)
-        
-        -- Format with chest indicators: + for 1 chest, ++ for 2 chests, +++ for 3+ chests
         local chestIndicator = ""
         if level > 0 then
             if chests >= 3 then
@@ -2274,111 +2557,87 @@ function UI:AddDungeonRowCompact(dungeonID, dungeonData)
             elseif chests >= 1 then
                 chestIndicator = " | +" .. level
             else
-                chestIndicator = " | " .. level -- No chests (barely timed or untimed)
+                chestIndicator = " | " .. level
             end
         end
-        
-        -- Display IO score with level and chest information
         infoText = string.format("%.0f IO%s", scoreToDisplay, chestIndicator)
-        
-        -- Use specialized individual dungeon coloring (proportional system)
         infoColor = self:GetDungeonScoreColor(scoreToDisplay)
     else
-        -- Show "0 IO" to clearly indicate no IO earned for this dungeon
         infoText = "0 IO"
-        infoColor = {0.5, 0.5, 0.5} -- Gray for zero score
+        infoColor = {0.5, 0.5, 0.5}
     end
     
-    local scoreLabel = NextKey222.UIComponents:CreateText("small", nil, {
+    local scoreLabel = NextKey222.UIComponents:CreateText("small", cardFrame, {
         text = infoText,
-        width = NextKey222.UIConfig.TEXT.SCORE_LABEL_WIDTH,
         fontObject = GameFontNormalSmall,
-        color = infoColor
+        justifyH = "LEFT"
     })
-    container:AddChild(scoreLabel)
+    scoreLabel.frame:SetPoint("TOPLEFT", nameLabel.frame, "BOTTOMLEFT", 0, -4)
+    scoreLabel.frame:SetPoint("RIGHT", nameLabel.frame, "RIGHT", 0, 0)
+    scoreLabel:SetColor(infoColor[1], infoColor[2], infoColor[3])
+    scoreLabel.frame:Show()  -- Explicitly show score label
     
-    -- Use centralized button size variables for all buttons
+    -- Buttons positioned on the right with simple vertical centering
+    local lootBtn = NextKey222.UIComponents:CreateButtonLegacy(cardFrame, "select")
+    lootBtn:SetText("Loot")
+    lootBtn:SetSize(75, 24)
+    -- Simple vertical centering for 75px card height
+    lootBtn:SetPoint("TOPRIGHT", cardFrame, "TOPRIGHT", -12, -15)  -- 15px from top for 75px card centering
+    lootBtn:SetScript("OnClick", function()
+        NextKey222.Addon:HandleLootClick(dungeonID, dungeonData)
+    end)
+    lootBtn:Show()  -- Explicitly show button
+    trackAuxFrame(self, lootBtn)
     
-    -- Action buttons (teleport and loot)
-    local teleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
-        text = "Teleport",
-        size = { NextKey222.UIConfig.BUTTON.TELEPORT_WIDTH, NextKey222.UIConfig.BUTTON.HEIGHT },
-        onClick = function()
-            -- Debug: verify button creation
-            Debug:Dev("teleport", "Teleport button clicked for dungeonID:", dungeonID)
-            
-            -- Create a fake keystone that mimics a real keystone for teleport selection
-            -- This uses the exact same logic path as working keystone selection
-            local fakeKeyInfo = {
-                dungeonID = dungeonID,
-                level = 0,  -- No level for dungeon portals
-                ownerName = "Dungeon Portal",  -- Clear indication this is not a player keystone
-                ownerShort = "Portal",
-                source = "dungeon_portal",
-                class = "MAGE",  -- Neutral class for portals
-                io = 0  -- Default IO
-            }
-            
-            -- Debug: check what GetDungeonName returns for this dungeonID
-            local dungeonName = NextKey222.Addon:GetDungeonName(dungeonID)
-            Debug:Dev("teleport", "Fake keystone created - dungeonID:", dungeonID, "dungeonName:", dungeonName or "nil")
-            
-            Debug:Dev("teleport", "Setting fake keystone as teleport target:", fakeKeyInfo.dungeonID, fakeKeyInfo.ownerName)
-            
-            -- Use the exact same method that works for keystone selection
-            -- The "dungeon_portal" source prevents automatic UI refresh in SetTeleportTargetKey
-            NextKey222.Addon:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
-            
-            -- Open teleport window which should now show the correct spell
-            NextKey222.Addon:ToggleTeleportWindow()
-        end
-    })
-    container:AddChild(teleBtn)
-
-    local lootBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
-        text = "Loot",
-        size = { NextKey222.UIConfig.BUTTON.LOOT_WIDTH, NextKey222.UIConfig.BUTTON.HEIGHT },
-        onClick = function()
-            NextKey222.Addon:HandleLootClick(dungeonID, dungeonData)
-        end
-    })
-    container:AddChild(lootBtn)
+    local teleBtn = NextKey222.UIComponents:CreateButtonLegacy(cardFrame, "select")
+    teleBtn:SetText("Teleport")
+    teleBtn:SetSize(100, 24)
+    teleBtn:SetPoint("RIGHT", lootBtn, "LEFT", -4, 0)
+    teleBtn:SetScript("OnClick", function()
+        local fakeKeyInfo = {
+            dungeonID = dungeonID,
+            level = 0,
+            ownerName = "Dungeon Portal",
+            ownerShort = "Portal",
+            source = "dungeon_portal",
+            class = "MAGE",
+            io = 0,
+            dungeonName = dungeonData.name -- Pass the correct dungeon name
+        }
+        NextKey222.Addon:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
+        NextKey222.Addon:ToggleTeleportWindow()
+    end)
+    teleBtn:Show()  -- Explicitly show button
+    trackAuxFrame(self, teleBtn)
     
-    -- Preference buttons after action buttons
+    -- Preference buttons (smaller, positioned to the left of Teleport, vertically centered)
     local preference = NextKey222.ProfilesService:GetDungeonPreference(dungeonID)
     
-    local likeBtn = NextKey222.UIComponents:CreateButton("small", nil, {
-        text = preference and preference.liked and "|cFF00FF00+|r" or "+",
-        size = { NextKey222.UIConfig.BUTTON.PREFERENCE_WIDTH, NextKey222.UIConfig.BUTTON.HEIGHT },
-        onClick = function()
-            NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, true)
-            self:RenderDungeonCards() -- Refresh to show updated preference
-        end
-    })
-    container:AddChild(likeBtn)
+    local dislikeBtn = NextKey222.UIComponents:CreateButtonLegacy(cardFrame, "small")
+    dislikeBtn:SetText(preference and preference.disliked and "|cFFFF0000-|r" or "-")
+    dislikeBtn:SetSize(30, 24)
+    -- Align with teleport button for consistent vertical centering
+    dislikeBtn:SetPoint("RIGHT", teleBtn, "LEFT", -4, 0)
+    dislikeBtn:SetScript("OnClick", function()
+        NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, false)
+        self:RenderDungeonCards()
+    end)
+    dislikeBtn:Show()  -- Explicitly show button
+    trackAuxFrame(self, dislikeBtn)
     
-    local dislikeBtn = NextKey222.UIComponents:CreateButton("small", nil, {
-        text = preference and preference.disliked and "|cFFFF0000-|r" or "-",
-        size = { NextKey222.UIConfig.BUTTON.PREFERENCE_WIDTH, NextKey222.UIConfig.BUTTON.HEIGHT },
-        onClick = function()
-            NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, false)
-            self:RenderDungeonCards() -- Refresh to show updated preference
-        end
-    })
-    container:AddChild(dislikeBtn)
+    local likeBtn = NextKey222.UIComponents:CreateButtonLegacy(cardFrame, "small")
+    likeBtn:SetText(preference and preference.liked and "|cFF00FF00+|r" or "+")
+    likeBtn:SetSize(30, 24)
+    -- Keep like button aligned with dislike button
+    likeBtn:SetPoint("RIGHT", dislikeBtn, "LEFT", -4, 0)
+    likeBtn:SetScript("OnClick", function()
+        NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, true)
+        self:RenderDungeonCards()
+    end)
+    likeBtn:Show()  -- Explicitly show button
+    trackAuxFrame(self, likeBtn)
     
-    -- Add the container to the results frame
-    self.resultsFrame:AddChild(container)
-    
-    -- Add configurable vertical spacing between cards
-    if NextKey222.UIConfig.CARD.VERTICAL_SPACING > 0 then
-        local spacer = NextKey222.UIComponents:CreateText("body", nil, {
-            text = " ",
-            width = nil, -- Full width
-            height = NextKey222.UIConfig.CARD.VERTICAL_SPACING
-        })
-        self.resultsFrame:AddChild(spacer)
-    end
+    Debug:Dev("ui", "Completed rendering dungeon card for", dungeonData.name)
 end
 
 function UI:AddDungeonRow(dungeonID, dungeonData)
@@ -2547,6 +2806,7 @@ function UI:GetDungeonLevelAndChests(dungeonID)
 end
 
 --- Formats total IO score with appropriate coloring (no scaling for total scores)
+-- Uses the same color logic as player keystone cards for consistency
 -- @param totalScore number The total IO score
 -- @return string Colored total score text
 function UI:FormatColoredTotalScore(totalScore)
@@ -2554,41 +2814,39 @@ function UI:FormatColoredTotalScore(totalScore)
         return "|cFF808080Total IO: 0|r" -- Gray for zero
     end
     
-    -- Get color for total score (no scaling needed for total scores)
-    local color
-    
-    -- Try RaiderIO's color system first (designed for total scores)
-    if NextKey222.RaiderIO and NextKey222.RaiderIO.GetScoreColor then
-        local r, g, b = NextKey222.RaiderIO:GetScoreColor(totalScore)
-        color = {r, g, b}
-    else
-        -- Try WoW's built-in system
-        local colorObj = C_ChallengeMode.GetDungeonScoreRarityColor(totalScore)
-        if colorObj then
-            color = {colorObj.r, colorObj.g, colorObj.b}
-        else
-            -- Fallback to custom ranges for total scores
-            if totalScore >= 3000 then
-                color = {1.0, 0.5, 0.0} -- Legendary Orange
-            elseif totalScore >= 2500 then
-                color = {0.64, 0.21, 0.93} -- Epic Purple
-            elseif totalScore >= 2000 then
-                color = {0.0, 0.44, 0.87} -- Rare Blue
-            elseif totalScore >= 1500 then
-                color = {0.12, 1.0, 0.0} -- Uncommon Green
-            elseif totalScore >= 1000 then
-                color = {1.0, 1.0, 1.0} -- Common White
-            else
-                color = {0.62, 0.62, 0.62} -- Poor Gray
-            end
+    -- Use the same color logic as FormatPlayerNameWithScore for consistency
+    local r, g, b = 1, 1, 1
+    local colorHex
+
+    -- Prefer Blizzard's official score color if available (same as player cards)
+    if C_ChallengeMode and C_ChallengeMode.GetSpecificDungeonOverallScoreRarityColor then
+        local color = C_ChallengeMode.GetSpecificDungeonOverallScoreRarityColor(totalScore)
+        if color then
+            r, g, b = color.r or r, color.g or g, color.b or b
         end
     end
-    
-    -- Convert to hex color string
-    local r, g, b = color[1] * 255, color[2] * 255, color[3] * 255
-    local hexColor = string.format("%02x%02x%02x", r, g, b)
-    
-    return string.format("|cFF%sTotal IO: %.0f|r", hexColor, totalScore)
+
+    -- Fallback to RaiderIO gradient if Blizzard color unavailable (same as player cards)
+    if (r == 1 and g == 1 and b == 1) and NextKey222.RaiderIO and NextKey222.RaiderIO.GetScoreColor then
+        local rioR, rioG, rioB = NextKey222.RaiderIO:GetScoreColor(totalScore)
+        if rioR and rioG and rioB then
+            r, g, b = rioR, rioG, rioB
+        end
+    end
+
+    local function clampColorComponent(value, fallback)
+        if type(value) ~= "number" then return fallback end
+        if value < 0 then return 0 end
+        if value > 1 then return 1 end
+        return value
+    end
+
+    r = clampColorComponent(r, 1)
+    g = clampColorComponent(g, 1)
+    b = clampColorComponent(b, 1)
+
+    colorHex = string.format("%02X%02X%02X", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+    return string.format("|cFF%sTotal IO: %.0f|r", colorHex, totalScore)
 end
 
 --- Retrieves the player's best score for a specific dungeon
@@ -2975,7 +3233,11 @@ function UI:RefreshResults()
     -- Only re-render the UI if it's currently visible
     if self:IsMainFrameVisible() then
         Debug:Dev("ui", "UI is visible, re-rendering results")
-        NextKey.SafeRun(self.RenderResults, "Refresh render results", self)
+        if self.viewMode == "dungeons" then
+            NextKey.SafeRun(self.RenderDungeonCards, "Refresh dungeon cards", self)
+        else
+            NextKey.SafeRun(self.RenderResults, "Refresh render results", self)
+        end
     else
         Debug:Dev("ui", "UI not visible, skipping render but data will be fresh when opened")
     end
@@ -3127,4 +3389,5 @@ SlashCmdList["NEXTKEYTESTSPEC"] = function(msg)
 end
 
 return UI
+
 

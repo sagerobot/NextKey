@@ -30,6 +30,7 @@ ui\components.lua
 
 # Data
 data\portals.lua
+data\hearthstones.lua
 
 # Core Modules
 core\constants.lua
@@ -69,12 +70,14 @@ events\handlers.lua
 # Debug
 debug\init.lua
 debug\tools.lua
+debug\test_io_tooltips.lua
 
 # UI Components
 ui\main.lua
 ui\teleport.lua
 ui\dungeonCards.lua
 ui\lootWindow.lua
+ui\hearthstoneSelector.lua
 
 # PUG Helper UI Components
 ui\pugInviteNotification.lua

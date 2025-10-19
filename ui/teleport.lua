@@ -2,9 +2,47 @@
 local _, NextKey222 = ...
 local addon = NextKey222.Addon
 if not addon then return end
+local UI = NextKey222.UIComponents
 
 -- MARK: Constants
-local HEARTH_ITEM_ID = 6948
+-- Hearthstone functionality - now uses dynamic selection from config
+local function getSelectedHearthstone()
+    if not addon or not addon.db or not addon.db.global or not addon.db.global.teleport then
+        return {id = 6948, type = "item"} -- Fallback to standard Hearthstone
+    end
+    
+    local selectedID = addon.db.global.teleport.selectedHearthstoneID or 6948
+    
+    -- Try to get hearthstone data from our database
+    if NextKey222 and NextKey222.HearthstoneData then
+        local hearthstone = NextKey222.HearthstoneData.GetHearthstoneByID(selectedID)
+        if hearthstone then
+            return hearthstone
+        end
+    end
+    
+    -- Fallback to standard Hearthstone
+    return {id = 6948, type = "item"}
+end
+
+local function isHearthstoneAvailable()
+    local hearthstone = getSelectedHearthstone()
+    if NextKey222 and NextKey222.HearthstoneData then
+        return NextKey222.HearthstoneData.HasHearthstone(hearthstone.id, hearthstone.type)
+    end
+    
+    -- Fallback check for standard Hearthstone
+    return GetItemCount(6948) > 0
+end
+-- Use centralized UI configuration
+local UIConfig = NextKey222.UIConfig
+local CARD_ICON_SIZE = UIConfig.TELEPORT_CARD.CARD_ICON_SIZE
+local CARD_HEIGHT = UIConfig.TELEPORT_CARD.CARD_HEIGHT
+local CARD_PADDING = UIConfig.TELEPORT_CARD.CARD_PADDING
+local WINDOW_WIDTH = UIConfig.TELEPORT_CARD.WINDOW_WIDTH
+local CARD_SPACING = UIConfig.TELEPORT_CARD.CARD_SPACING
+local FOOTER_INSTRUCTION_FULL = UIConfig.TELEPORT_CARD.FOOTER_INSTRUCTION_FULL
+local FOOTER_INSTRUCTION_COMPACT = UIConfig.TELEPORT_CARD.FOOTER_INSTRUCTION_COMPACT
 local SEASON_PORTALS = {
     -- The War Within Season 3 dungeon teleports.
     [503] = { mapID = 503, spellID = 445417, name = "Ara-Kara, City of Echoes", alias = "Ara", destination = "Ara-Kara, City of Echoes" }, -- Real ID for Ara-Kara
@@ -16,8 +54,8 @@ local SEASON_PORTALS = {
     [401] = { mapID = 401, spellID = 367416, name = "Tazavesh: Streets of Wonder", alias = "Streets", destination = "Tazavesh: Streets of Wonder" },
     [402] = { mapID = 402, spellID = 367416, name = "Tazavesh: So'leah's Gambit", alias = "Gambit", destination = "Tazavesh: So'leah's Gambit" },
 }
-local SPELL_BANK_PLAYER = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
-local SPELL_BANK_PET = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet or 1
+local SPELL_BANK_PLAYER = UIConfig.SPELL.BANK_PLAYER
+local SPELL_BANK_PET = UIConfig.SPELL.BANK_PET
 
 local function safeGetItemInfo(itemID)
     if C_Item and C_Item.GetItemInfo then
@@ -29,7 +67,7 @@ local function safeGetItemInfo(itemID)
 end
 
 local function getHearthName()
-    local name = select(1, safeGetItemInfo(HEARTH_ITEM_ID))
+    local name = select(1, safeGetItemInfo(UIConfig.ITEM.HEARTHSTONE_ID))
     return name or "Hearthstone"
 end
 
@@ -62,37 +100,49 @@ local function playerKnowsSpell(spellID)
     return false
 end
 
-local cachedPlayerFullName
-local cachedPlayerShortName
-
-local function getPlayerFullName()
-    if cachedPlayerFullName then
-        return cachedPlayerFullName
-    end
-    if UnitFullName then
-        local name, realm = UnitFullName("player")
-        if name and name ~= "" then
-            if realm and realm ~= "" then
-                cachedPlayerFullName = string.format("%s-%s", name, realm)
-            else
-                cachedPlayerFullName = name
-            end
-        end
-    end
-    if not cachedPlayerFullName then
-        local name = UnitName and UnitName("player")
-        cachedPlayerFullName = name or ""
-    end
-    cachedPlayerShortName = cachedPlayerFullName and cachedPlayerFullName:match("^[^%-]+") or cachedPlayerFullName
-    return cachedPlayerFullName
-end
-
 local function isHearthstoneEnabled()
     if addon and addon.IsHearthstoneEnabled then
         return addon:IsHearthstoneEnabled()
     end
     local tele = addon and addon.db and addon.db.global and addon.db.global.teleport
-    return tele and tele.showHearthstone == true
+    return tele and tele.showHearthstone == true and isHearthstoneAvailable()
+end
+
+local function isCompactModeEnabled()
+    local tele = addon and addon.db and addon.db.global and addon.db.global.teleport
+    return tele and tele.compactMode == true
+end
+
+local function configureSpellButton(button, spellID)
+    if not button then return end
+    -- PortaParty approach: Use spellID directly in the attribute
+    button:SetAttribute("type", "spell")
+    button:SetAttribute("spell", spellID)
+    button:Enable()
+end
+
+local function configureItemButton(button, itemID)
+    if not button then return end
+    button:SetAttribute("type", "item")
+    button:SetAttribute("*type*", "item")
+    button:SetAttribute("type1", "item")
+    button:SetAttribute("item", "item:" .. itemID)
+    button:SetAttribute("spell", nil)
+    button:SetAttribute("macrotext", nil)
+    button:SetAttribute("unit", "player")
+    button:Enable()
+end
+
+local function disableSecureButton(button)
+    if not button then return end
+    button:SetAttribute("type", nil)
+    button:SetAttribute("*type*", nil)
+    button:SetAttribute("type1", nil)
+    button:SetAttribute("spell", nil)
+    button:SetAttribute("item", nil)
+    button:SetAttribute("macrotext", nil)
+    button:SetAttribute("unit", nil)
+    button:Disable()
 end
 
 local function getKeystoneTeleportData()
@@ -121,8 +171,9 @@ local function getKeystoneTeleportData()
     if not keyInfo or not keyInfo.dungeonID then
         return nil
     end
-    local dungeonName = addon:GetDungeonName(keyInfo.dungeonID)
-    NextKey222.Debug:Dev("teleport", "getKeystoneTeleportData - dungeonID:", keyInfo.dungeonID, "dungeonName:", dungeonName or "nil")
+    -- Use passed dungeonName if available (from dungeon cards), otherwise look it up
+    local dungeonName = keyInfo.dungeonName or addon:GetDungeonName(keyInfo.dungeonID)
+    NextKey222.Debug:Dev("teleport", "getKeystoneTeleportData - dungeonID:", keyInfo.dungeonID, "dungeonName:", dungeonName or "nil", "source:", keyInfo.dungeonName and "passed" or "lookup")
     if not dungeonName then return nil end
     local portal
     -- First try to match by dungeonID directly (more reliable)
@@ -187,303 +238,24 @@ local function getKeystoneTeleportData()
         class = keyInfo.class,
         io = keyInfo.io,
         spellID = spellID,
-        spellName = spellName or dungeonName,
+        spellName = spellName or portal.name or dungeonName,
         icon = spellTexture,
-        dungeonName = dungeonName,
+        dungeonName = portal.name or dungeonName,  -- Use portal name first (more reliable)
         destination = portal.destination or portal.name or dungeonName,  -- Use portal destination first
         alias = portal.alias or (NextKey_DungeonAliases and NextKey_DungeonAliases[portal.mapID]),
     }
 end
 
-local function setButtonTexture(button, texture)
-    local tex = texture or "Interface/Icons/INV_Misc_QuestionMark"
-    button:SetNormalTexture(tex)
-    local normal = button:GetNormalTexture()
-    if normal then normal:SetAllPoints() end
-    button:SetPushedTexture(tex)
-    local pushed = button:GetPushedTexture()
-    if pushed then pushed:SetAllPoints()
-        pushed:SetVertexColor(0.9, 0.9, 0.9)
-    end
-    button:SetHighlightTexture("Interface/Buttons/ButtonHilight-Square")
-    local highlight = button:GetHighlightTexture()
-    if highlight then
-        highlight:SetAllPoints()
-        highlight:SetBlendMode("ADD")
-    end
-end
-
-local function createTeleportButton(parent, texture, tooltipFunc)
-    -- Hybrid approach: Keep native SecureActionButtonTemplate but style with Components
-    local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
-    button:SetSize(48, 48)
-    -- Allow actions to fire regardless of ActionButtonUseKeyDown
-    button:RegisterForClicks("LeftButtonDown", "LeftButtonUp")
-    setButtonTexture(button, texture)
-    
-    -- Apply Components styling to the native button
-    NextKey222.UIComponents:ConfigureBackdrop(button, "compact", {
-        colorScheme = "transparent"
-    })
-    
-    if tooltipFunc then
-        button:SetScript("OnEnter", tooltipFunc)
-        button:SetScript("OnLeave", function()
-            GameTooltip:Hide()
-        end)
-    end
-    return button
-end
-
-local function updateTeleportLayout(window)
-    if not window or not window.frame then
-        return
-    end
-    local frame = window.frame
-    local mainContainer = window.mainContainer
-    local closeButton = window.closeButton
-    local titleLabel = window.titleLabel
-    local hearthButton = window.hearthButton
-    local keystoneButton = window.keystoneButton
-    local aliasLabel = window.keystoneAliasLabel
-    local levelLabel = window.keystoneLevelLabel
-    local noteLabel = window.keystoneOwnerNoteLabel
-    local showHearth = isHearthstoneEnabled()
-    
-    -- Get teleport data to determine window sizing
-    local data = getKeystoneTeleportData()
-    local isDungeonPortal = data and data.source == "dungeon_portal"
-    
-    -- Use configuration values for dynamic sizing
-    local config = isDungeonPortal and NextKey222.UIConfig.TELEPORT_WINDOW.COMPACT or NextKey222.UIConfig.TELEPORT_WINDOW.STANDARD
-    local leftPadding = config.LEFT_PADDING
-    local rightPadding = config.RIGHT_PADDING
-    local betweenPadding = config.BETWEEN_PADDING
-    local topPadding = 12
-    local titleHeight = (titleLabel and titleLabel:GetStringHeight()) or 14
-    local contentTop = topPadding + titleHeight + 6
-
-    if hearthButton then
-        hearthButton:ClearAllPoints()
-        if showHearth then
-            hearthButton:SetPoint("TOPLEFT", frame, "TOPLEFT", leftPadding, -contentTop)
-            hearthButton:Show()
-            local hearthTexture = select(10, safeGetItemInfo(HEARTH_ITEM_ID)) or "Interface/Icons/INV_Misc_Rune_01"
-            setButtonTexture(hearthButton, hearthTexture)
-            hearthButton:SetAttribute("type", "item")
-            hearthButton:SetAttribute("item", getHearthName())
-            contentTop = contentTop + 48 + 6
-        else
-            hearthButton:Hide()
-            hearthButton:SetAttribute("type", nil)
-            hearthButton:SetAttribute("item", nil)
-        end
-    end
-
-    if keystoneButton then
-        keystoneButton:ClearAllPoints()
-        keystoneButton:SetPoint("TOPLEFT", frame, "TOPLEFT", leftPadding, -contentTop)
-    end
-
-    local aliasWidth = aliasLabel and aliasLabel.frame and aliasLabel.frame:GetWidth() or 0
-    local aliasHeight = 0
-    if aliasLabel then
-        local aliasFrame = aliasLabel.frame
-        aliasFrame:ClearAllPoints()
-        aliasFrame:SetPoint("TOP", keystoneButton, "BOTTOM", 0, -4)
-        if aliasFrame:IsShown() and aliasLabel:GetText() ~= "" then
-            aliasHeight = aliasFrame:GetHeight() or 0
-        else
-            aliasHeight = 0
-            aliasWidth = 0
-            aliasFrame:Hide()
-        end
-    end
-
-    local levelWidth = levelLabel and levelLabel.frame and levelLabel.frame:GetWidth() or 0
-    local noteHeight = 0
-    local noteColumnWidth = levelWidth
-    if noteLabel and levelLabel then
-        local noteFrame = noteLabel.frame
-        local levelFrame = levelLabel.frame
-        noteFrame:ClearAllPoints()
-        noteFrame:SetPoint("TOP", levelFrame, "BOTTOM", 0, -4)
-        if noteFrame:IsShown() and noteLabel:GetText() ~= "" then
-            local preferredWidth = 72
-            noteLabel:SetWidth(preferredWidth)
-            noteColumnWidth = math.max(levelWidth, preferredWidth)
-            noteHeight = noteFrame:GetHeight() or 0
-        else
-            noteFrame:Hide()
-            noteColumnWidth = levelWidth
-            noteHeight = 0
-        end
-    elseif noteLabel then
-        noteLabel.frame:Hide()
-    end
-
-    local iconColumnWidth = math.max(48, aliasWidth)
-    if aliasLabel then
-        aliasLabel:SetWidth(iconColumnWidth)
-        if aliasHeight <= 0 then
-            aliasLabel.frame:Hide()
-        else
-            aliasLabel.frame:Show()
-        end
-    end
-
-    local levelColumnWidth = math.max(levelWidth, noteColumnWidth)
-    if noteLabel then
-        noteLabel:SetWidth(levelColumnWidth)
-        if noteHeight <= 0 then
-            noteLabel.frame:Hide()
-        end
-    end
-
-    -- Dynamic sizing using configuration values
-    local contentWidth = leftPadding + iconColumnWidth + betweenPadding + levelColumnWidth + rightPadding
-    local frameWidth = math.max(config.MIN_WIDTH, math.ceil(contentWidth))
-    
-    local aliasExtra = aliasHeight > 0 and (aliasHeight + config.ELEMENT_SPACING) or 0
-    local noteExtra = noteHeight > 0 and (noteHeight + config.ELEMENT_SPACING) or 0
-    local extraHeight = math.max(aliasExtra, noteExtra)
-    
-    local baseHeight = contentTop + 48 + extraHeight + config.BOTTOM_PADDING
-    
-    -- Update both the native frame and the AceGUI container
-    frame:SetSize(frameWidth, math.ceil(baseHeight))
-    if mainContainer then
-        mainContainer:SetWidth(frameWidth)
-        mainContainer:SetHeight(math.ceil(baseHeight))
-    end
-
-    if closeButton then
-        closeButton:ClearAllPoints()
-        closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -2)
-        closeButton:SetFrameLevel(frame:GetFrameLevel() + 10)
-        closeButton:SetFrameStrata(frame:GetFrameStrata())
-        closeButton:EnableMouse(true)
-        closeButton:SetHitRectInsets(0, 0, 0, 0)
-        closeButton:Raise()
-    end
-end
-
-local function updateKeystoneButton(window)
-    if not window or not window.keystoneButton then
-        return
-    end
-    local button = window.keystoneButton
-    local aliasLabel = window.keystoneAliasLabel
-    local levelLabel = window.keystoneLevelLabel
-    local noteLabel = window.keystoneOwnerNoteLabel
-    local data = getKeystoneTeleportData()
-    button.keystoneData = data
-    setButtonTexture(button, data and data.icon)
-
-    local isPlayersKey = false
-    -- Don't treat dungeon portals as player keys, even if they have the player's name
-    if data and data.source ~= "dungeon_portal" and data.ownerName and data.ownerName ~= "" then
-        local ownerName = data.ownerName
-        if strtrim then
-            ownerName = strtrim(ownerName)
-        end
-        if ownerName and ownerName ~= "" then
-            local ownerLower = string.lower(ownerName)
-            local full = getPlayerFullName()
-            if full and full ~= "" then
-                local playerLower = string.lower(full)
-                if ownerLower == playerLower then
-                    isPlayersKey = true
-                else
-                    local short = cachedPlayerShortName or full:match("^[^%-]+") or full
-                    if short and short ~= "" and ownerLower == string.lower(short) then
-                        isPlayersKey = true
-                    end
-                end
-            end
-        end
-    end
-
-    if aliasLabel then
-        if data and (data.alias or data.dungeonName or data.destination) then
-            aliasLabel:SetText(data.alias or data.dungeonName or data.destination)
-            aliasLabel.frame:Show()
-        elseif data and data.source == "dungeon_portal" then
-            aliasLabel:SetText("Dungeon Portal")
-            aliasLabel.frame:Show()
-        else
-            aliasLabel:SetText("No keystone selected.")
-            aliasLabel.frame:Show()
-        end
-    end
-
-    if noteLabel then
-        local lines = {}
-        if isPlayersKey then
-            lines[#lines + 1] = "*YOUR KEY*"
-            noteLabel:SetColor(0.1, 1, 0.4)
-        elseif data and data.source == "dungeon_portal" then
-            lines[#lines + 1] = "Direct Portal Access"
-            noteLabel:SetColor(0.85, 0.85, 0.85)
-        else
-            noteLabel:SetColor(0.85, 0.85, 0.85)
-        end
-        
-        if #lines > 0 then
-            noteLabel:SetText(table.concat(lines, "\n"))
-            noteLabel.frame:Show()
-        else
-            noteLabel:SetText("")
-            noteLabel.frame:Hide()
-        end
-    end
-
-    if data and data.spellID and playerKnowsSpell(data.spellID) then
-        button:SetAttribute("type", "spell")
-        button:SetAttribute("spell", data.spellID)
-        button:Enable()
-        local tex = button:GetNormalTexture()
-        if tex then tex:SetDesaturated(false) end
-        if levelLabel then
-            if data and data.source == "dungeon_portal" then
-                levelLabel:SetText("Portal")
-                levelLabel:SetColor(0.4, 1, 0.9)  -- Cyan color for portals
-            elseif data.level and data.level > 0 then
-                levelLabel:SetText(string.format("+%d", data.level))
-                levelLabel:SetColor(1, 0.82, 0)
-            else
-                levelLabel:SetText("")
-            end
-        end
-    else
-        button:SetAttribute("type", nil)
-        button:SetAttribute("spell", nil)
-        button:Disable()
-        local tex = button:GetNormalTexture()
-        if tex then tex:SetDesaturated(true) end
-        if levelLabel then
-            if data and data.source == "dungeon_portal" then
-                levelLabel:SetText("Portal")
-                levelLabel:SetColor(0.3, 0.7, 0.6)  -- Dimmed cyan for disabled portals
-            elseif data and data.level and data.level > 0 then
-                levelLabel:SetText(string.format("+%d", data.level))
-                levelLabel:SetColor(0.7, 0.7, 0.7)
-            else
-                levelLabel:SetText("")
-            end
-        end
-    end
-end
 
 local function showKeystoneTooltip(button)
-    print("NextKey TELEPORT DEBUG: showKeystoneTooltip called")
+    NextKey222.Debug:Dev("teleport", "showKeystoneTooltip called")
     if not button then
-        print("NextKey TELEPORT DEBUG: No button provided")
+        NextKey222.Debug:Dev("teleport", "No button provided")
         return
     end
     GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
     local data = button.keystoneData or getKeystoneTeleportData()
-    print("NextKey TELEPORT DEBUG: Got tooltip data:", data and "yes" or "nil")
+    NextKey222.Debug:Dev("teleport", "Got tooltip data:", data and "yes" or "nil")
     local ioScore = data and tonumber(data.io)
     if data and data.spellID then
         GameTooltip:SetSpellByID(data.spellID)
@@ -536,17 +308,365 @@ local function showKeystoneTooltip(button)
     GameTooltip:Show()
 end
 
+-- MARK: Card Builder Functions
+-- =====================================================
+-- Card-based layout functions for teleport window
+
+--- Builds a teleport card for keystone or hearthstone
+-- @param entryData table Data for the card (dungeon, level, owner, etc.)
+-- @param isHearthstone boolean Whether this is a hearthstone card
+-- @return AceGUI-Container The configured card container
+--- Builds a compact icon-only teleport button (no text, just icon)
+-- @param entryData table Data for the button
+-- @return table The configured button
+local function BuildCompactTeleportButton(entryData)
+    local COMPACT_ICON_SIZE = UIConfig.TELEPORT_CARD.COMPACT_ICON_SIZE
+    
+    -- Create a simple button with icon only
+    local button = CreateFrame("Button", nil, UIParent, "SecureActionButtonTemplate")
+    button:SetSize(COMPACT_ICON_SIZE, COMPACT_ICON_SIZE)
+    button:RegisterForClicks("AnyDown", "AnyUp")
+    
+    -- Set the icon texture
+    button:SetNormalTexture(entryData.icon or "Interface/Icons/INV_Misc_QuestionMark")
+    button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    button:SetPushedTexture("Interface\\Buttons\\UI-Quickslot-Depress")
+    
+    -- Store icon texture reference
+    local iconTexture = button:GetNormalTexture()
+    button.iconTexture = iconTexture
+    
+    -- Wrap in a table for compatibility
+    local card = {
+        frame = button,
+        iconButton = button,  -- The button IS both frame and button
+        entryData = entryData,
+        type = "CompactTeleportButton"
+    }
+    
+    return card
+end
+
+--- Builds a full-size teleport card with text and icon
+-- @param entryData table Data for the card
+-- @return table The configured card
+local function BuildTeleportCard(entryData)
+    -- Make the ENTIRE card a SecureActionButtonTemplate so clicking anywhere works
+    local cardFrame = CreateFrame("Button", nil, UIParent, "SecureActionButtonTemplate,BackdropTemplate")
+    cardFrame:SetSize(WINDOW_WIDTH - 20, CARD_HEIGHT)
+    cardFrame:RegisterForClicks("AnyDown", "AnyUp")
+    
+    -- Apply more visible backdrop with minimal insets for tight padding
+    cardFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true,
+        tileSize = 32,
+        edgeSize = 32,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }  -- Reduced from 11-12 to 4
+    })
+    cardFrame:SetBackdropColor(0, 0, 0, 0.85)
+    cardFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+
+    -- Create icon texture directly on the card frame with minimal padding
+    local iconTexture = cardFrame:CreateTexture(nil, "ARTWORK")
+    iconTexture:SetSize(CARD_ICON_SIZE, CARD_ICON_SIZE)
+    iconTexture:SetPoint("LEFT", cardFrame, "LEFT", 8, 0)  -- Reduced from 16 to 8
+    iconTexture:SetTexture(entryData.icon or "Interface/Icons/INV_Misc_QuestionMark")
+    
+    -- Add highlight texture for the icon area
+    local iconHighlight = cardFrame:CreateTexture(nil, "HIGHLIGHT")
+    iconHighlight:SetSize(CARD_ICON_SIZE, CARD_ICON_SIZE)
+    iconHighlight:SetPoint("CENTER", iconTexture, "CENTER", 0, 0)
+    iconHighlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+    iconHighlight:SetBlendMode("ADD")
+
+    -- Create text labels directly on the card frame with minimal spacing
+    local nameLabel = cardFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    nameLabel:SetPoint("LEFT", iconTexture, "RIGHT", 8, 8)  -- Reduced spacing from 12,10 to 8,8
+    nameLabel:SetText(entryData.displayName or entryData.titleText or "Unknown")
+    nameLabel:SetJustifyH("LEFT")
+    nameLabel:SetTextColor(1, 0.82, 0)  -- Gold color for titles
+    
+    local detailLabel = cardFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    detailLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -4)
+    detailLabel:SetText(entryData.detailText or "")
+    detailLabel:SetTextColor(0.82, 0.82, 0.82)
+    detailLabel:SetJustifyH("LEFT")
+    
+    if entryData.subText and entryData.subText ~= "" then
+        local subLabel = cardFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        subLabel:SetPoint("TOPLEFT", detailLabel, "BOTTOMLEFT", 0, -2)
+        subLabel:SetText(entryData.subText)
+        subLabel:SetTextColor(0.7, 0.7, 0.7)
+        subLabel:SetJustifyH("LEFT")
+    end
+    
+    -- Store texture reference for alpha changes if needed
+    cardFrame.iconTexture = iconTexture
+
+    local function highlightOn()
+        cardFrame:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
+        cardFrame:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    end
+
+    local function highlightOff()
+        cardFrame:SetBackdropColor(0, 0, 0, 0.85)
+        cardFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+    end
+
+    cardFrame:SetScript("OnEnter", highlightOn)
+    cardFrame:SetScript("OnLeave", highlightOff)
+    cardFrame:SetScript("OnHide", highlightOff)
+
+    -- Wrap in a table for compatibility (cardFrame IS the button now)
+    local card = {
+        frame = cardFrame,
+        iconButton = cardFrame,  -- The card frame IS the button
+        entryData = entryData,
+        highlightOn = highlightOn,
+        highlightOff = highlightOff,
+        type = "TeleportCard"
+    }
+
+    return card
+end
+
+--- Updates the teleport window with current data
+-- @param window table The teleport window structure
+local function UpdateTeleportWindowContent(window)
+    if not window or not window.mainContainer then
+        return
+    end
+
+    local widget = window.widget or window.mainContainer
+    local titleText = window.titleText or "NextKey"
+    if widget and widget.SetTitle then
+        widget:SetTitle(titleText)
+    end
+    window.mainContainer:SetLayout("List")
+    window.mainContainer:SetAutoAdjustHeight(true)
+    window.mainContainer:ReleaseChildren()
+
+    local cardsGroup = UI:CreateFrame("container", nil, {
+        fullWidth = true,
+        layout = "List"
+    })
+    cardsGroup:SetAutoAdjustHeight(true)
+
+    local entries = {}
+    local keystoneData = getKeystoneTeleportData()
+
+    if keystoneData then
+        local iconTexture = keystoneData.icon
+        if not iconTexture and keystoneData.spellID then
+            local _, _, spellTexture = safeGetSpellInfo(keystoneData.spellID)
+            iconTexture = spellTexture
+        end
+
+        local ownerName = keystoneData.ownerName or ""
+        local detailLine
+        if ownerName ~= "" then
+            detailLine = string.format("+%d - %s", keystoneData.level or 0, ownerName)
+        else
+            detailLine = string.format("+%d", keystoneData.level or 0)
+        end
+
+        local subLine
+        if keystoneData.destination and keystoneData.destination ~= keystoneData.dungeonName then
+            subLine = keystoneData.destination
+        end
+
+        table.insert(entries, {
+            kind = "keystone",
+            icon = iconTexture,
+            displayName = keystoneData.dungeonName or "Unknown Dungeon",
+            detailText = detailLine,
+            subText = subLine,
+            data = keystoneData
+        })
+    end
+
+    if isHearthstoneEnabled() then
+        local hearthstone = getSelectedHearthstone()
+        local hearthTexture
+        local hearthName
+        
+        -- Get texture and name based on hearthstone type
+        if NextKey222 and NextKey222.HearthstoneData then
+            hearthTexture = NextKey222.HearthstoneData.GetHearthstoneTexture(hearthstone.id, hearthstone.type)
+            hearthName = NextKey222.HearthstoneData.GetHearthstoneName(hearthstone.id, hearthstone.type)
+        end
+        
+        -- Fallback for standard Hearthstone
+        if not hearthTexture or not hearthName then
+            hearthTexture = select(10, safeGetItemInfo(hearthstone.id)) or "Interface/Icons/INV_Misc_Rune_01"
+            hearthName = safeGetItemInfo(hearthstone.id) or "Hearthstone"
+        end
+        
+        table.insert(entries, {
+            kind = "hearth",
+            icon = hearthTexture,
+            displayName = hearthName,
+            detailText = "Return to your home inn",
+            subText = "",
+            itemID = hearthstone.id,
+            itemType = hearthstone.type
+        })
+    end
+
+    -- Clear any existing cards
+    if window.cards then
+        for _, card in ipairs(window.cards) do
+            if card.frame then
+                card.frame:Hide()
+                card.frame:SetParent(nil)
+            end
+        end
+    end
+    window.cards = {}
+    
+    if #entries == 0 then
+        local emptyLabel = window.mainContainer.frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        emptyLabel:SetPoint("CENTER", window.mainContainer.frame, "CENTER", 0, 0)
+        emptyLabel:SetText("No teleports are available right now.")
+        emptyLabel:SetTextColor(0.75, 0.75, 0.75)
+        table.insert(window.cards, { frame = emptyLabel, type = "label" })
+    else
+        -- Use compact or full cards based on setting
+        local isCompact = isCompactModeEnabled()
+        local yOffset = 0  -- Start much closer to top (reduced from -60)
+        local xOffset = 10   -- For compact mode horizontal layout
+        
+        if isCompact then
+            -- Compact mode: horizontal layout with just icons and minimal spacing
+            local COMPACT_ICON_SIZE = UIConfig.TELEPORT_CARD.COMPACT_ICON_SIZE
+            local COMPACT_SPACING = UIConfig.TELEPORT_CARD.COMPACT_SPACING
+            -- Calculate starting X position to center the icons
+            local totalIconWidth = #entries * COMPACT_ICON_SIZE + (#entries - 1) * COMPACT_SPACING
+            xOffset = -totalIconWidth / 2 + COMPACT_ICON_SIZE / 2
+            yOffset = -8  -- Minimal padding from top
+        end
+        
+        for i, entry in ipairs(entries) do
+            local card
+            if isCompact then
+                card = BuildCompactTeleportButton(entry)
+                -- Parent to the content area of the AceGUI container (not the frame)
+                local parentFrame = window.mainContainer.content or window.mainContainer.frame
+                card.frame:SetParent(parentFrame)
+                card.frame:ClearAllPoints()
+                card.frame:SetPoint("TOP", parentFrame, "TOP", xOffset, yOffset)
+                xOffset = xOffset + 48 + 8  -- Move to next icon position
+            else
+                card = BuildTeleportCard(entry)
+                -- Parent to the content area of the AceGUI container
+                local parentFrame = window.mainContainer.content or window.mainContainer.frame
+                card.frame:SetParent(parentFrame)
+                card.frame:ClearAllPoints()
+                card.frame:SetPoint("TOP", parentFrame, "TOP", 0, yOffset)
+                yOffset = yOffset - (CARD_HEIGHT + CARD_SPACING)
+            end
+            
+            card.frame:Show()
+            table.insert(window.cards, card)
+            
+            -- Configure the entire card as a clickable button
+            if card.frame then
+                if entry.kind == "hearth" then
+                    -- Configure based on hearthstone type
+                    if entry.itemType == "toy" then
+                        card.frame:SetAttribute("type", "toy")
+                        card.frame:SetAttribute("toy", entry.itemID)
+                    elseif entry.itemType == "spell" then
+                        configureSpellButton(card.frame, entry.itemID)
+                    else -- item
+                        configureItemButton(card.frame, entry.itemID)
+                    end
+                    
+                    card.frame:SetScript("OnEnter", function()
+                        if card.highlightOn then card.highlightOn() end
+                        GameTooltip:SetOwner(card.frame, "ANCHOR_RIGHT")
+                        
+                        -- Show appropriate tooltip based on type
+                        if entry.itemType == "toy" then
+                            GameTooltip:SetToyByItemID(entry.itemID)
+                        elseif entry.itemType == "spell" then
+                            GameTooltip:SetSpellByID(entry.itemID)
+                        else -- item
+                            GameTooltip:SetItemByID(entry.itemID)
+                        end
+                        GameTooltip:Show()
+                    end)
+                    card.frame:SetScript("OnLeave", function()
+                        GameTooltip:Hide()
+                        if card.highlightOff then card.highlightOff() end
+                    end)
+                else
+                    card.frame.keystoneData = entry.data
+                    if entry.data.spellID and playerKnowsSpell(entry.data.spellID) then
+                        configureSpellButton(card.frame, entry.data.spellID)
+                    else
+                        disableSecureButton(card.frame)
+                        -- Fade out the icon for locked spells
+                        if card.frame.iconTexture then
+                            card.frame.iconTexture:SetAlpha(0.4)
+                        elseif card.frame.GetNormalTexture then
+                            local tex = card.frame:GetNormalTexture()
+                            if tex then tex:SetAlpha(0.4) end
+                        end
+                    end
+                    card.frame:SetScript("OnEnter", function()
+                        if card.highlightOn then card.highlightOn() end
+                        showKeystoneTooltip(card.frame)
+                    end)
+                    card.frame:SetScript("OnLeave", function()
+                        GameTooltip:Hide()
+                        if card.highlightOff then card.highlightOff() end
+                    end)
+                end
+            end
+            
+        end
+        
+        -- Adjust window height/width based on mode with minimal padding
+        if isCompact then
+            -- Compact mode: ultra-compact with minimal chrome
+            local COMPACT_ICON_SIZE = UIConfig.TELEPORT_CARD.COMPACT_ICON_SIZE
+            local COMPACT_SPACING = UIConfig.TELEPORT_CARD.COMPACT_SPACING
+            local totalIconWidth = #entries * COMPACT_ICON_SIZE + (#entries - 1) * COMPACT_SPACING
+            local totalWidth = math.max(200, totalIconWidth + 30)  -- Minimal padding (reduced from 60)
+            window.mainContainer.frame:SetWidth(totalWidth)
+            window.mainContainer.frame:SetHeight(120)  -- Minimal height (reduced from 160)
+        else
+            -- Full mode: calculate height with minimal spacing
+            local totalHeight = 70 + (#entries * (CARD_HEIGHT + CARD_SPACING))  -- Minimal base height
+            window.mainContainer.frame:SetHeight(totalHeight)
+            window.mainContainer.frame:SetWidth(WINDOW_WIDTH)
+        end
+    end
+
+    if widget and widget.SetStatusText then
+        local instruction = isCompactModeEnabled() and FOOTER_INSTRUCTION_COMPACT or FOOTER_INSTRUCTION_FULL
+        widget:SetStatusText(instruction)
+    end
+end
+
 function addon:EnsureTeleportWindow()
     if self.teleportWindow and self.teleportWindow.frame then
         return self.teleportWindow
     end
     
     -- Create main window using AceGUI Frame with Components styling
-    local mainContainer = NextKey222.UIComponents:CreateFrame("window", nil, {
-        width = 200,
-        height = 140,
+    local mainContainer = UI:CreateFrame("window", nil, {
+        width = WINDOW_WIDTH,
+        height = 220,
         colorScheme = "dark"
     })
+    mainContainer:SetLayout("List")
+    if mainContainer.SetAutoAdjustHeight then
+        mainContainer:SetAutoAdjustHeight(true)
+    end
     
     local frame = mainContainer.frame
     _G["NextKeyTeleportWindow"] = frame
@@ -560,127 +680,41 @@ function addon:EnsureTeleportWindow()
     frame:SetFrameStrata("FULLSCREEN_DIALOG")
     frame:SetFrameLevel(600)
     frame:SetToplevel(true)
+    if mainContainer.SetTitle then
+        mainContainer:SetTitle("NextKey")
+    end
+    if mainContainer.SetStatusText then
+        local instruction = isCompactModeEnabled() and FOOTER_INSTRUCTION_COMPACT or FOOTER_INSTRUCTION_FULL
+        mainContainer:SetStatusText(instruction)
+    elseif frame.SetStatusText then
+        local instruction = isCompactModeEnabled() and FOOTER_INSTRUCTION_COMPACT or FOOTER_INSTRUCTION_FULL
+        frame:SetStatusText(instruction)
+    end
+    frame:SetWidth(WINDOW_WIDTH)
     frame:Hide()
-    -- Create close button using AceGUI with Components styling
-    local close = NextKey222.UIComponents:CreateButton("small", frame, {
-        text = "×",
-        onClick = function()
-            frame:Hide()
-            addon:ClearTeleportWindowContext()
-        end
-    })
-    
-    -- Position the close button
-    local closeFrame = close.frame
-    closeFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -2)
-    closeFrame:SetFrameLevel(frame:GetFrameLevel() + 10)
-    closeFrame:SetFrameStrata(frame:GetFrameStrata())
-    closeFrame:EnableMouse(true)
-    closeFrame:SetHitRectInsets(0, 0, 0, 0)
-    closeFrame:Raise()
-    
-    -- Add the close button to the main container for proper cleanup
-    mainContainer:AddChild(close)
     
     -- Add cleanup function for proper AceGUI container management
     function addon:CleanupTeleportWindow()
         if self.teleportWindow then
-            if self.teleportWindow.mainContainer then
-                self.teleportWindow.mainContainer:ReleaseChildren()
-                self.teleportWindow.mainContainer:Release()
-                self.teleportWindow.mainContainer = nil
+            local container = self.teleportWindow.mainContainer
+            if container then
+                container:ReleaseChildren()
+                container:Release()
             end
+            self.teleportWindow.widget = nil
+            self.teleportWindow.mainContainer = nil
             self.teleportWindow = nil
         end
     end
-    -- Create title using AceGUI Label with Components styling
-    local title = NextKey222.UIComponents:CreateText("header", frame, {
-        text = "NextKey",
-        width = 100,
-        justifyH = "LEFT"
-    })
-    
-    -- Position the title label
-    local titleFrame = title.frame
-    titleFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -12)
-
-   -- Summon button (for PUG mode)
-   local summonButton = createTeleportButton(frame, "Interface/Icons/Spell_Nature_SummonTreant", function(btn)
-       GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-       GameTooltip:SetText("Request Summon")
-       GameTooltip:AddLine("Asks your party for a summon.", 0.8, 0.8, 0.8, true)
-       GameTooltip:Show()
-   end)
-   summonButton:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -100)
-   summonButton:SetAttribute("type", "macro")
-   summonButton:SetAttribute("macrotext", "/p Summon please!")
-   summonButton:Hide() -- Initially hidden
-
-    local hearthTexture = select(10, safeGetItemInfo(HEARTH_ITEM_ID)) or "Interface/Icons/INV_Misc_Rune_01"
-    local hearthButton = createTeleportButton(frame, hearthTexture, function(btn)
-        GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-        GameTooltip:SetItemByID(HEARTH_ITEM_ID)
-        GameTooltip:Show()
-    end)
-    hearthButton:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -36)
-    hearthButton:SetScript("PostClick", function(_, mouseButton)
-        addon:Print("Debug: Hearth button PostClick (" .. tostring(mouseButton) .. ")")
-    end)
-    local keystoneData = getKeystoneTeleportData()
-    local keystoneTexture = (keystoneData and keystoneData.icon) or "Interface/Icons/INV_Misc_QuestionMark"
-    local keystoneButton = createTeleportButton(frame, keystoneTexture, showKeystoneTooltip)
-    keystoneButton:SetPoint("TOPLEFT", hearthButton, "BOTTOMLEFT", 0, -18)
-    keystoneButton:SetScript("PostClick", function(_, mouseButton)
-        addon:Print("Debug: Keystone button PostClick (" .. tostring(mouseButton) .. ")")
-    end)
-    -- Create keystone alias label using AceGUI Label with Components styling
-    local keystoneAlias = NextKey222.UIComponents:CreateText("label", frame, {
-        text = "",
-        justifyH = "CENTER",
-        color = {0.85, 0.85, 0.85}
-    })
-    
-    -- Create keystone level label using AceGUI Label with Components styling
-    local keystoneLevel = NextKey222.UIComponents:CreateText("large", frame, {
-        text = "",
-        justifyH = "LEFT",
-        color = {1, 0.82, 0}
-    })
-    
-    -- Position the level label relative to keystone button
-    local keystoneLevelFrame = keystoneLevel.frame
-    keystoneLevelFrame:SetPoint("LEFT", keystoneButton, "RIGHT", 12, 0)
-    
-    -- Create keystone note label using AceGUI Label with Components styling
-    local keystoneNote = NextKey222.UIComponents:CreateText("label", frame, {
-        text = "",
-        justifyH = "CENTER",
-        color = {0.1, 1, 0.4}
-    })
-    
-    -- Initially hide the note label
-    keystoneNote.frame:Hide()
-    -- Add all AceGUI widgets to main container for proper cleanup
-    mainContainer:AddChild(title)
-    mainContainer:AddChild(keystoneAlias)
-    mainContainer:AddChild(keystoneLevel)
-    mainContainer:AddChild(keystoneNote)
     
     self.teleportWindow = {
+        widget = mainContainer,
         frame = frame,
-        mainContainer = mainContainer,  -- Store AceGUI container for proper cleanup
-        closeButton = close,
-        titleLabel = title,
-        hearthButton = hearthButton,
-        keystoneButton = keystoneButton,
-        keystoneAliasLabel = keystoneAlias,
-        keystoneLevelLabel = keystoneLevel,
-        keystoneOwnerNoteLabel = keystoneNote,
-        summonButton = summonButton,
+        mainContainer = mainContainer,
+        titleText = "NextKey"
     }
-
-    updateKeystoneButton(self.teleportWindow)
-    updateTeleportLayout(self.teleportWindow)
+    
+    UpdateTeleportWindowContent(self.teleportWindow)
     return self.teleportWindow
 end
 
@@ -691,27 +725,66 @@ function addon:ToggleTeleportWindow()
     NextKey222.Debug:User("Teleport Window: Toggle called")
     
     if window.frame:IsShown() then
-        NextKey222.Debug:User("Teleport Window: Hiding window")
-        window.frame:Hide()
-        addon:ClearTeleportWindowContext()
-        return
+        -- Check if we're switching to a different dungeon
+        local currentKeyData = getKeystoneTeleportData()
+        local previousTarget = self:GetTeleportTargetKey()
+        
+        -- Compare current target with previous target to detect dungeon changes
+        local isDifferentDungeon = false
+        if currentKeyData and previousTarget then
+            isDifferentDungeon = (currentKeyData.dungeonID ~= previousTarget.dungeonID)
+        elseif currentKeyData and not previousTarget then
+            isDifferentDungeon = true -- New target when none was set
+        end
+        
+        if isDifferentDungeon then
+            NextKey222.Debug:User("Teleport Window: Updating content for different dungeon")
+            
+            local context = addon:GetTeleportWindowContext()
+            NextKey222.Debug:User("Teleport Window: Context: " .. (context and ("mode=" .. (context.mode or "nil")) or "nil"))
+            
+            if context and context.mode == "PUG" then
+               NextKey222.Debug:User("Teleport Window: Setting PUG mode")
+               window.titleText = "NextKey - PUG Travel"
+            else
+               NextKey222.Debug:User("Teleport Window: Setting normal mode")
+               window.titleText = "NextKey"
+            end
+
+            -- Update window content with current data
+            UpdateTeleportWindowContent(window)
+            
+            -- Ensure window stays on top
+            window.frame:SetFrameStrata("FULLSCREEN_DIALOG")
+            window.frame:SetFrameLevel(600)
+            window.frame:SetToplevel(true)
+            window.frame:Raise()
+            
+            NextKey222.Debug:User("Teleport Window: Content updated for new dungeon")
+            return
+        else
+            -- Same dungeon or no change detected, hide the window
+            NextKey222.Debug:User("Teleport Window: Hiding window (same dungeon or no change)")
+            window.frame:Hide()
+            addon:ClearTeleportWindowContext()
+            return
+        end
     end
 
+    -- Window is not shown, show it with current content
     local context = addon:GetTeleportWindowContext()
     NextKey222.Debug:User("Teleport Window: Context: " .. (context and ("mode=" .. (context.mode or "nil")) or "nil"))
     
     if context and context.mode == "PUG" then
-       NextKey222.Debug:User("Teleport Window: Setting PUG mode - showing summon button")
-       window.titleLabel:SetText("NextKey - PUG Travel")
-       window.summonButton:Show()
+       NextKey222.Debug:User("Teleport Window: Setting PUG mode")
+       window.titleText = "NextKey - PUG Travel"
     else
-       NextKey222.Debug:User("Teleport Window: Setting normal mode - hiding summon button")
-       window.titleLabel:SetText("NextKey")
-       window.summonButton:Hide()
+       NextKey222.Debug:User("Teleport Window: Setting normal mode")
+       window.titleText = "NextKey"
     end
 
-    updateKeystoneButton(window)
-    updateTeleportLayout(window)
+    -- Update window content with current data
+    UpdateTeleportWindowContent(window)
 
     window.frame:SetFrameStrata("FULLSCREEN_DIALOG")
     window.frame:SetFrameLevel(600)
@@ -726,23 +799,54 @@ function addon:RefreshTeleportWindow()
     if not self.teleportWindow then
         return
     end
-    updateKeystoneButton(self.teleportWindow)
-    updateTeleportLayout(self.teleportWindow)
+    UpdateTeleportWindowContent(self.teleportWindow)
 end
 
+-- MARK: Testing Functions
+-- =====================================================
+-- Test functions for verifying the teleport window polish
 
+-- Test command to verify the teleport window works correctly
+-- Usage: /script NextKey222.Addon:TestTeleportWindow()
+function addon:TestTeleportWindow()
+    NextKey222.Debug:User("=== Testing Teleport Window Polish ===")
 
+    NextKey222.Debug:User("1. Testing window creation...")
+    local window = self:EnsureTeleportWindow()
+    if not window then
+        NextKey222.Debug:Error("Failed to create teleport window")
+        return
+    end
+    NextKey222.Debug:User("[OK] Window created successfully")
 
+    NextKey222.Debug:User("2. Testing keystone data retrieval...")
+    local keystoneData = getKeystoneTeleportData()
+    if keystoneData then
+        NextKey222.Debug:User(string.format("[OK] Keystone data: %s +%d", keystoneData.dungeonName or "?", keystoneData.level or 0))
+    else
+        NextKey222.Debug:User("[WARN] No keystone data available (expected if no keystone)")
+    end
 
+    NextKey222.Debug:User("3. Testing content update...")
+    UpdateTeleportWindowContent(window)
+    NextKey222.Debug:User("[OK] Content updated successfully")
 
+    if window.mainContainer and window.mainContainer.children then
+        NextKey222.Debug:User(string.format("4. Content widget count: %d", #window.mainContainer.children))
+    end
 
+    NextKey222.Debug:User("5. Testing window toggle...")
+    self:ToggleTeleportWindow()
+    if window.frame:IsShown() then
+        NextKey222.Debug:User("[OK] Window shown successfully")
+        window.frame:Hide()
+    else
+        NextKey222.Debug:Error("Failed to show window")
+    end
 
+    NextKey222.Debug:User("6. Testing hearthstone setting...")
+    NextKey222.Debug:User(string.format("[INFO] Hearthstone enabled: %s", tostring(isHearthstoneEnabled())))
 
-
-
-
-
-
-
-
-
+    NextKey222.Debug:User("=== Teleport Window Test Complete ===")
+    NextKey222.Debug:User("Open the teleport window with /nk teleport to visually verify the changes")
+end

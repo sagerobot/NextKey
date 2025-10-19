@@ -121,6 +121,8 @@ NextKey222.Defaults = {
         -- Teleport/travel settings
         teleport = {
             showHearthstone = false,
+            compactMode = false,
+            selectedHearthstoneID = 6948,  -- Default to standard Hearthstone
         },
         
         -- UI preferences

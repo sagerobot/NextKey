@@ -91,6 +91,13 @@ local Commands = {
         handler = "PUGCommands"
     },
     
+    -- Dungeon cards commands
+    {
+        cmd = {"dungeon", "dungeons", "cards"},
+        desc = "Show the dungeon overview UI",
+        handler = "ShowDungeonCards"
+    },
+    
 }
 
 -- Debug subcommands
@@ -1194,6 +1201,25 @@ function SlashCommands:TestScrollBar()
     
     NextKey222.Debug:User("Scroll bar visibility test completed")
     NextKey222.Debug:User("If any scroll frames are visible when they shouldn't be, the fix may need adjustment")
+end
+
+-- MARK: - Dungeon Cards Test Command Handler
+
+function SlashCommands:TestDungeonCards()
+    NextKey222.Debug:User("Testing dungeon cards layout...")
+    
+    if not NextKey222.Addon.DungeonCardsUI then
+        NextKey222.Debug:Error("DungeonCardsUI not available")
+        return
+    end
+    
+    if NextKey222.Addon.DungeonCardsUI.TestDungeonCards then
+        NextKey222.Addon.DungeonCardsUI:TestDungeonCards()
+        NextKey222.Debug:User("Dungeon cards test completed - check visual layout")
+        NextKey222.Debug:User("Use '/nk dungeon' again to refresh the test")
+    else
+        NextKey222.Debug:Error("DungeonCardsUI.TestDungeonCards method not available")
+    end
 end
 
 -- MARK: - Main Slash Command Handler

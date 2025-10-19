@@ -4,9 +4,10 @@ local Utils = NextKey222.Utils
 local DungeonCards = NextKey.DungeonCards
 
 -- MARK: Constants
-local WINDOW_WIDTH = 300
-local WINDOW_HEIGHT = 400
-local LIST_ITEM_HEIGHT = 40
+local UIConfig = NextKey222.UIConfig
+local WINDOW_WIDTH = UIConfig.LOOT_WINDOW.WINDOW_WIDTH
+local WINDOW_HEIGHT = UIConfig.LOOT_WINDOW.WINDOW_HEIGHT
+local LIST_ITEM_HEIGHT = UIConfig.LOOT_WINDOW.LIST_ITEM_HEIGHT
 
 local LootWindow = {
     frame = nil,

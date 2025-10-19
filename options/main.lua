@@ -1176,16 +1176,68 @@ function addon:SetupOptions()
                 name = "Teleport Window",
                 order = 50,
                 args = {
+                    compactMode = {
+                        type = "toggle",
+                        name = "Compact Mode",
+                        desc = "Show only icons instead of full cards. Makes the window much smaller and shows just the teleport icons.",
+                        width = "full",
+                        get = function() return addon.db.global.teleport.compactMode end,
+                        set = function(_, value)
+                            addon.db.global.teleport.compactMode = value
+                            -- Refresh teleport window if it's open
+                            if addon.RefreshTeleportWindow then
+                                addon:RefreshTeleportWindow()
+                            end
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        order = 1,
+                    },
+                    selectHearthstone = {
+                        type = "execute",
+                        name = "Select Hearthstone",
+                        desc = "Choose which hearthstone toy, item, or spell to use in the teleport window from your collection.",
+                        func = function()
+                            if addon.ShowHearthstoneSelector then
+                                addon:ShowHearthstoneSelector()
+                            else
+                                addon:Print("Hearthstone selector not available")
+                            end
+                        end,
+                        order = 1.5,
+                    },
+                    currentHearthstone = {
+                        type = "description",
+                        name = function()
+                            local selectedID = addon.db.global.teleport.selectedHearthstoneID or 6948
+                            local hearthstone = NextKey222 and NextKey222.HearthstoneData and NextKey222.HearthstoneData.GetHearthstoneByID(selectedID)
+                            if hearthstone then
+                                local isAvailable = NextKey222.HearthstoneData.HasHearthstone(hearthstone.id, hearthstone.type)
+                                local status = isAvailable and "|cff00ff00(Available)|r" or "|cffff0000(Not Available)|r"
+                                return "Current: " .. hearthstone.name .. " " .. status
+                            else
+                                return "Current: Standard Hearthstone"
+                            end
+                        end,
+                        fontSize = "small",
+                        order = 1.6,
+                    },
                     showHearthstone = {
                         type = "toggle",
                         name = "Show Hearthstone",
                         desc = "Show hearthstone locations in the teleport window.",
+                        width = "full",
                         get = function() return addon.db.global.teleport.showHearthstone end,
                         set = function(_, value)
                             addon.db.global.teleport.showHearthstone = value
+                            -- Refresh teleport window if it's open
+                            if addon.RefreshTeleportWindow then
+                                addon:RefreshTeleportWindow()
+                            end
                             local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
                             if reg then reg:NotifyChange("NextKey") end
                         end,
+                        order = 2,
                     },
                 },
             },

@@ -4,8 +4,14 @@
 
 local _, NextKey222 = ...
 
+-- Get Debug globally
+local Debug = NextKey222.Debug or {}
+
 local Tooltip = {}
 NextKey222.Tooltip = Tooltip
+
+-- Get reference to debug system
+local Debug = NextKey222.Debug
 
 -- Register with module system
 NextKey222.RegisterModule("Tooltip", Tooltip)
@@ -328,23 +334,44 @@ Tooltip.contentBuilders = {
             })
             
             for _, player in ipairs(data.breakdown) do
-                local playerColor = {0.8, 0.8, 0.8}
-                if player.hasNextKey then
-                    playerColor = {0, 1, 0}
+                -- Debug: Check what class data we have
+                Debug:Dev("tooltip", "[Class Color Debug] Player:", player.shortName,
+                         "classToken:", player.classToken or "nil",
+                         "class:", player.class or "nil")
+                
+                -- Get class color for player name (RaiderIO style)
+                local nameColorHex = "|cffffffff" -- Default white
+                if player.classToken and _G.RAID_CLASS_COLORS[player.classToken] then
+                    local classColor = _G.RAID_CLASS_COLORS[player.classToken]
+                    -- Convert to hex format like RaiderIO uses
+                    local r = math.floor(classColor.r * 255)
+                    local g = math.floor(classColor.g * 255)
+                    local b = math.floor(classColor.b * 255)
+                    nameColorHex = string.format("|cff%02x%02x%02x", r, g, b)
+                    Debug:Dev("tooltip", "[Class Color Debug] Found class color for", player.classToken,
+                             "hex:", nameColorHex)
                 else
-                    playerColor = {0.6, 0.6, 0.6}
+                    Debug:Dev("tooltip", "[Class Color Debug] No class color found for", player.classToken or "nil")
                 end
                 
-                local playerText = string.format("%s: %s(+%d-%d Potential IO)",
+                -- Color based on potential IO gain, not NextKey installation
+                local hasPotentialGain = (player.minGain and player.minGain > 0) or (player.maxGain and player.maxGain > 0)
+                
+                -- IO gain color hex (green for gain, grey for zero)
+                local ioColorHex = hasPotentialGain and "|cff00ff00" or "|cff999999"
+                
+                -- Create inline colored text (RaiderIO style)
+                local playerText = string.format("%s%s:|r %s(+%d-%d Potential IO)",
+                    nameColorHex,
                     player.shortName,
-                    player.hasNextKey and "" or "|cff999999",
-                    math.floor(player.minGain),
-                    math.floor(player.maxGain)
+                    ioColorHex,
+                    math.floor(player.minGain or 0),
+                    math.floor(player.maxGain or 0)
                 )
                 
                 table.insert(lines, {
                     text = playerText,
-                    color = playerColor,
+                    color = {1, 1, 1}, -- Base color white since we're using inline colors
                     font = GameFontNormalSmall
                 })
             end
@@ -360,9 +387,8 @@ Tooltip.contentBuilders = {
             
             if data.totals.untimed then
                 table.insert(lines, {
-                    text = string.format("Untimed: +%d Group IO (+%d Avg)",
-                        math.floor(data.totals.untimed.total or 0),
-                        math.floor(data.totals.untimed.average or 0)),
+                    text = string.format("Untimed: +%d Group IO",
+                        math.floor(data.totals.untimed.total or 0)),
                     color = {0.8, 0.4, 0.4},
                     font = GameFontNormalSmall
                 })
@@ -370,9 +396,8 @@ Tooltip.contentBuilders = {
             
             if data.totals.timed then
                 table.insert(lines, {
-                    text = string.format("Timed: +%d Group IO (+%d Avg)",
-                        math.floor(data.totals.timed.total or 0),
-                        math.floor(data.totals.timed.average or 0)),
+                    text = string.format("Timed: +%d Group IO",
+                        math.floor(data.totals.timed.total or 0)),
                     color = {1, 1, 0.4},
                     font = GameFontNormalSmall
                 })
@@ -380,9 +405,8 @@ Tooltip.contentBuilders = {
             
             if data.totals.plus2 then
                 table.insert(lines, {
-                    text = string.format("+2: +%d Group IO (+%d Avg)",
-                        math.floor(data.totals.plus2.total or 0),
-                        math.floor(data.totals.plus2.average or 0)),
+                    text = string.format("+2: +%d Group IO",
+                        math.floor(data.totals.plus2.total or 0)),
                     color = {0.4, 1, 0.4},
                     font = GameFontNormalSmall
                 })
@@ -390,9 +414,8 @@ Tooltip.contentBuilders = {
             
             if data.totals.plus3 then
                 table.insert(lines, {
-                    text = string.format("+3: +%d Group IO (+%d Avg)",
-                        math.floor(data.totals.plus3.total or 0),
-                        math.floor(data.totals.plus3.average or 0)),
+                    text = string.format("+3: +%d Group IO",
+                        math.floor(data.totals.plus3.total or 0)),
                     color = {0.2, 1, 0.2},
                     font = GameFontNormalSmall
                 })
@@ -544,6 +567,8 @@ function Tooltip:Create(tooltipType, data, config)
         return nil
     end
     
+    Debug:Dev("tooltip", "Tooltip:Create called with type:", tooltipType)
+    
     -- Get configuration for this tooltip type
     local tooltipConfig = self.configs[tooltipType]
     if not tooltipConfig then
@@ -566,6 +591,8 @@ function Tooltip:Create(tooltipType, data, config)
     local frame = data.frame or data.owner or UIParent
     local anchor = tooltipConfig.anchor or "ANCHOR_RIGHT"
     
+    Debug:Dev("tooltip", "Setting tooltip owner to frame:", frame:GetName() or "unnamed", "with anchor:", anchor)
+    
     -- Use smart positioning if enabled
     if tooltipConfig.smartPositioning then
         anchor = self.positioning.GetOptimalAnchor(frame)
@@ -576,34 +603,41 @@ function Tooltip:Create(tooltipType, data, config)
     -- Build content
     local contentBuilder = self.contentBuilders[tooltipType]
     if contentBuilder then
+        Debug:Dev("tooltip", "Using content builder for type:", tooltipType)
         local lines = contentBuilder(data, tooltipConfig)
+        
+        Debug:Dev("tooltip", "Content builder returned", #lines, "lines")
         
         -- Add lines to tooltip
         for i, line in ipairs(lines) do
             if i == 1 and tooltipConfig.showTitle then
                 -- Title line
                 tooltip:AddLine(line.text, line.color[1], line.color[2], line.color[3], true)
+                Debug:Dev("tooltip", "Added title line:", line.text)
             else
                 -- Regular line
                 tooltip:AddLine(line.text, line.color[1], line.color[2], line.color[3])
+                Debug:Dev("tooltip", "Added line:", line.text)
             end
         end
+        Debug:Dev("tooltip", "Finished adding all lines, moving to styling")
     else
         -- Fallback to simple text
+        Debug:Dev("tooltip", "No content builder found, using fallback")
         tooltip:SetText(data.title or "Tooltip", 1, 1, 1)
     end
     
-    -- Apply styling
-    if tooltipConfig.backgroundColor then
-        tooltip:SetBackdropColor(unpack(tooltipConfig.backgroundColor))
-    end
+    Debug:Dev("tooltip", "About to apply styling")
     
-    if tooltipConfig.borderColor then
-        tooltip:SetBackdropBorderColor(unpack(tooltipConfig.borderColor))
-    end
+    -- GameTooltip doesn't support backdrop styling like regular frames
+    -- Skip backdrop styling as it causes errors with GameTooltip
+    Debug:Dev("tooltip", "Skipping backdrop styling for GameTooltip")
+    
+    Debug:Dev("tooltip", "About to call tooltip:Show()")
     
     -- Show tooltip
     tooltip:Show()
+    Debug:Dev("tooltip", "Tooltip shown - tooltip:IsShown():", tooltip:IsShown() and "YES" or "NO")
     
     -- Adjust position if needed
     if tooltipConfig.smartPositioning then

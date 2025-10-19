@@ -630,19 +630,25 @@ function Components:ConfigureText(widget, textType, config)
     local textValue = config.text or textConfig.text
 
     -- Phase 7: Apply theme styling if available
+    local fontObject = config.fontObject or textConfig.fontObject
+    local color = config.color or textConfig.color
+
     if NextKey222.Theme then
-        local themeFont = NextKey222.Theme:GetFont("text", textType, textConfig.fontObject)
-        local themeColor = NextKey222.Theme:GetColor("text", textType, textConfig.color)
-        
-        widget:SetFontObject(themeFont)
-        widget:SetColor(themeColor[1], themeColor[2], themeColor[3])
-    else
-        -- Fallback to original styling
-        widget:SetFontObject(config.fontObject or textConfig.fontObject)
-        
-        local color = config.color or textConfig.color
-        widget:SetColor(color[1], color[2], color[3])
+        local themeFont = NextKey222.Theme:GetFont("text", textType, fontObject)
+        local themeColor = NextKey222.Theme:GetColor("text", textType, color)
+
+        fontObject = config.fontObject or themeFont
+        if not config.color and themeColor then
+            color = { themeColor[1], themeColor[2], themeColor[3] }
+        end
     end
+
+    -- Apply final styling (theme-aware with explicit overrides)
+    widget:SetFontObject(fontObject)
+    local r = color and color[1] or 1
+    local g = color and color[2] or 1
+    local b = color and color[3] or 1
+    widget:SetColor(r, g, b)
     
     widget:SetJustifyH(config.justifyH or textConfig.justifyH)
     
@@ -947,6 +953,25 @@ function Components:CreateCardContainer(height, compact)
     content.height = height
     content:SetClipsChildren(false)
 
+    -- AceGUI reuses container frames, so ensure any previous card shell is removed
+    if frame._nkCardFrame and frame._nkCardFrame ~= frame then
+        local oldCardFrame = frame._nkCardFrame
+        oldCardFrame:Hide()
+        oldCardFrame:SetParent(nil)
+        frame._nkCardFrame = nil
+    end
+
+    -- Create a dedicated card frame so we always start from a clean slate
+    local cardFrame = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    cardFrame:SetAllPoints(frame)
+    cardFrame:SetFrameStrata(frame:GetFrameStrata())
+    cardFrame:SetFrameLevel(frame:GetFrameLevel() + 1)
+    cardFrame.height = height
+    cardFrame:SetClipsChildren(false)
+
+    frame._nkCardFrame = cardFrame
+    container.cardFrame = cardFrame
+
     return container
 end
 
@@ -996,24 +1021,41 @@ end
 function Components:CreateRoleIcon(parent, role, size)
     local icon = CreateFrame("Frame", nil, parent)
     icon:SetSize(size, size)
-    
-    -- Set role icon texture
-    local roleIcon = "Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES"
-    local texture = icon:CreateTexture()
-    texture:SetAllPoints()
-    texture:SetTexture(roleIcon)
-    
-    -- Set texture coordinates based on role
-    if role == "TANK" then
-        texture:SetTexCoord(0, 0.25, 0, 0.25)
-    elseif role == "HEALER" then
-        texture:SetTexCoord(0.25, 0.5, 0, 0.25)
-    elseif role == "DAMAGER" then
-        texture:SetTexCoord(0.5, 0.75, 0, 0.25)
+
+    local texture = icon:CreateTexture(nil, "ARTWORK")
+    texture:SetPoint("CENTER")
+    texture:SetSize(size, size)
+
+    -- Normalize role and choose atlas that guarantees the full icon is visible
+    local normalizedRole = type(role) == "string" and role:upper() or "DAMAGER"
+    local atlasByRole = {
+        TANK = "roleicon-tiny-tank",
+        HEALER = "roleicon-tiny-healer",
+        DAMAGER = "roleicon-tiny-dps",
+    }
+
+    local atlas = atlasByRole[normalizedRole] or atlasByRole.DAMAGER
+    local usedAtlas = texture.SetAtlas and texture:SetAtlas(atlas, true)
+
+    if not usedAtlas then
+        -- Fallback for older clients: use portrait role sheet with accurate texcoords
+        texture:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
+
+        local coords = ROLE_ICON_TCOORDS and ROLE_ICON_TCOORDS[normalizedRole]
+        if coords then
+            texture:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+        elseif normalizedRole == "TANK" then
+            texture:SetTexCoord(0, 19/64, 22/64, 41/64)
+        elseif normalizedRole == "HEALER" then
+            texture:SetTexCoord(20/64, 39/64, 1/64, 20/64)
+        else
+            texture:SetTexCoord(20/64, 39/64, 22/64, 41/64)
+        end
     else
-        texture:SetTexCoord(0.75, 1, 0, 0.25)
+        texture:SetTexCoord(0, 1, 0, 1)
     end
-    
+
+    icon.texture = texture
     return icon
 end
 
@@ -1024,26 +1066,32 @@ end
 -- @param onClick function Button click handler
 -- @return Frame The button frame
 function Components:CreateButtonLegacy(parent, buttonType, text, onClick)
-    local button = CreateFrame("Button", nil, parent)
-    
+    local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
+
     local config = BUTTON_CONFIGS[buttonType] or BUTTON_CONFIGS[Components.BUTTON_SELECT]
-    button:SetSize(config.size[1], config.size[2])
-    
-    -- Apply backdrop
+    local size = config.size or { 100, 24 }
+    button:SetSize(size[1], size[2])
+
+    -- Ensure the button has readable fonts when no template is used
+    button:SetNormalFontObject(GameFontNormal)
+    button:SetHighlightFontObject(GameFontHighlight)
+    button:SetDisabledFontObject(GameFontDisable)
+
+    -- Apply standardized backdrop styling so the button matches modern components
     self:ConfigureBackdrop(button, "compact", { colorScheme = config.colorScheme or "standard" })
-    
-    -- Set text
+
+    -- Allow callers to override text while providing sensible defaults
     if text and type(text) == "string" then
         button:SetText(text)
     elseif config.text then
         button:SetText(config.text)
     end
-    
-    -- Set click handler
+
+    -- Configure click handler when provided
     if onClick and type(onClick) == "function" then
         button:SetScript("OnClick", onClick)
     end
-    
+
     return button
 end
 
@@ -1066,12 +1114,43 @@ function Components:FormatPlayerNameWithScore(playerName, classToken, score)
             color.r * 255, color.g * 255, color.b * 255, displayName)
     end
     
-    -- Add score if available
+    -- Add score if available with IO color gradient
     if score and score > 0 then
-        return string.format("%s (%.0f)", displayName, score)
-    else
-        return displayName
+        local r, g, b = 1, 1, 1
+        local colorHex
+
+        -- Prefer Blizzard's official score color if available
+        if C_ChallengeMode and C_ChallengeMode.GetSpecificDungeonOverallScoreRarityColor then
+            local color = C_ChallengeMode.GetSpecificDungeonOverallScoreRarityColor(score)
+            if color then
+                r, g, b = color.r or r, color.g or g, color.b or b
+            end
+        end
+
+        -- Fallback to RaiderIO gradient if Blizzard color unavailable
+        if (r == 1 and g == 1 and b == 1) and NextKey222.RaiderIO and NextKey222.RaiderIO.GetScoreColor then
+            local rioR, rioG, rioB = NextKey222.RaiderIO:GetScoreColor(score)
+            if rioR and rioG and rioB then
+                r, g, b = rioR, rioG, rioB
+            end
+        end
+
+        local function clampColorComponent(value, fallback)
+            if type(value) ~= "number" then return fallback end
+            if value < 0 then return 0 end
+            if value > 1 then return 1 end
+            return value
+        end
+
+        r = clampColorComponent(r, 1)
+        g = clampColorComponent(g, 1)
+        b = clampColorComponent(b, 1)
+
+        colorHex = string.format("%02X%02X%02X", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+        return string.format("%s |cff%s(%.0f)|r", displayName, colorHex, score)
     end
+
+    return displayName
 end
 
 --- Formats keystone display text

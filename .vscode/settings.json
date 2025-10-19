@@ -90,7 +90,19 @@
         "HideUIPanel",
         "Item",
         "GameFontNormalLarge",
-        "AuraUtil"
+        "AuraUtil",
+        "UISpecialFrames",
+        "RegisterUnitWatch",
+        "LE_PARTY_CATEGORY_HOME",
+        "ToggleWorldMap",
+        "RegisterStateDriver",
+        "UIDropDownMenu_SetText",
+        "UIDropDownMenu_SetSelectedID",
+        "UIDropDownMenu_SetWidth",
+        "UIDropDownMenu_SetButtonWidth",
+        "UIDropDownMenu_JustifyText",
+        "StaticPopupDialogs",
+        "StaticPopup_Show"
     ],
     "Lua.type.weakUnionCheck": true,
     "Lua.diagnostics.disable": [
