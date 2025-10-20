@@ -518,27 +518,35 @@ end
 
 -- Handle state changes
 function PUGHelper:OnStateChanged(oldState, newState, context)
-    -- Clean up specific states when leaving them
-    if oldState == PUGHelper.STATE.INVITE_RECEIVED then
-        -- Clear invite timer
-        if inviteTimer then
-            inviteTimer:Cancel()
-            inviteTimer = nil
-        end
-    elseif oldState == PUGHelper.STATE.RUN_COMPLETE then
-        -- Clear getaway timer
-        if getawayTimer then
-            getawayTimer:Cancel()
-            getawayTimer = nil
-        end
+    local leaveActions = {
+        [self.STATE.INVITE_RECEIVED] = function()
+            if inviteTimer then
+                inviteTimer:Cancel()
+                inviteTimer = nil
+            end
+        end,
+        [self.STATE.RUN_COMPLETE] = function()
+            if getawayTimer then
+                getawayTimer:Cancel()
+                getawayTimer = nil
+            end
+        end,
+    }
+
+    local enterActions = {
+        [self.STATE.IDLE] = function()
+            trackedApplications = {}
+            currentInvite = nil
+            currentGroupInfo = nil
+        end,
+    }
+
+    if leaveActions[oldState] then
+        leaveActions[oldState]()
     end
-    
-    -- Initialize specific states when entering them
-    if newState == PUGHelper.STATE.IDLE then
-        -- Clean up all data when returning to idle
-        trackedApplications = {}
-        currentInvite = nil
-        currentGroupInfo = nil
+
+    if enterActions[newState] then
+        enterActions[newState]()
     end
 end
 
@@ -683,31 +691,17 @@ function PUGHelper:OnApplicationListUpdated()
     print("NextKey PUG: Total applications tracked: " .. self:GetApplicationCount())
     
     -- Update state based on applications
-    if next(trackedApplications) and currentState == PUGHelper.STATE.IDLE then
-        print("NextKey PUG: Transitioning from IDLE to TRACKING - found applications")
-        Debug:User("PUG Helper: Transitioning from IDLE to TRACKING - found applications")
+    local hasApplications = next(trackedApplications)
+    if hasApplications and currentState == PUGHelper.STATE.IDLE then
         self:TransitionToState(PUGHelper.STATE.TRACKING, "applications_detected")
-        
-        -- Notify application tracker that we have applications
         if NextKey222.PUGApplicationTracker then
-            print("NextKey PUG: Calling AutoShowIfNeeded on application tracker")
-            Debug:User("PUG Helper: Calling AutoShowIfNeeded on application tracker")
             NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
-        else
-            print("NextKey PUG: ERROR - PUGApplicationTracker not available!")
-            Debug:Error("PUG Helper: PUGApplicationTracker not available!")
         end
-    elseif not next(trackedApplications) and currentState == PUGHelper.STATE.TRACKING then
-        print("NextKey PUG: Transitioning from TRACKING to IDLE - no applications")
-        Debug:User("PUG Helper: Transitioning from TRACKING to IDLE - no applications")
+    elseif not hasApplications and currentState == PUGHelper.STATE.TRACKING then
         self:TransitionToState(PUGHelper.STATE.IDLE, "no_applications")
-        
-        -- Notify application tracker that we have no applications
         if NextKey222.PUGApplicationTracker then
             NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
         end
-    else
-        print("NextKey PUG: No state change needed - Current state: " .. currentState .. ", Applications: " .. self:GetApplicationCount())
     end
 end
 
@@ -738,16 +732,14 @@ function PUGHelper:OnApplicationStatusChanged(resultID, newStatus, oldStatus)
         end
         
         -- If application was declined or cancelled, remove from tracking
-        if newStatus == "declined" or newStatus == "cancelled" or newStatus == "failed" then
+        local isFinished = newStatus == "declined" or newStatus == "cancelled" or newStatus == "failed"
+        if isFinished then
             trackedApplications[appID] = nil
-            Debug:Dev("pughelper", "Removed application: " .. appData.name)
             
-            -- Notify application tracker of removal
             if NextKey222.PUGApplicationTracker then
                 NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
             end
             
-            -- Update state if no more applications
             if not next(trackedApplications) and currentState == PUGHelper.STATE.TRACKING then
                 self:TransitionToState(PUGHelper.STATE.IDLE, "all_applications_failed")
             end

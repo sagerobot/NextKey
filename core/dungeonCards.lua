@@ -304,16 +304,14 @@ function DungeonCards:GetSortedCards()
     -- Get current party size for preference weighting
     local partySize = IsInRaid() and GetNumGroupMembers() or (IsInGroup() and GetNumGroupMembers() or 1)
     
-    if self.sortMethod == "highest" then
-        table.sort(cards, function(a, b)
+    local sortFunctions = {
+        highest = function(a, b)
             return a.totalScore > b.totalScore
-        end)
-    elseif self.sortMethod == "lowest" then
-        table.sort(cards, function(a, b)
+        end,
+        lowest = function(a, b)
             return a.totalScore < b.totalScore
-        end)
-    elseif self.sortMethod == "smart" then
-        table.sort(cards, function(a, b)
+        end,
+        smart = function(a, b)
             -- Get weighted preference scores
             local aScore, aLikes, aDislikes = self:GetPreferenceScore(a, partySize)
             local bScore, bLikes, bDislikes = self:GetPreferenceScore(b, partySize)
@@ -336,12 +334,14 @@ function DungeonCards:GetSortedCards()
             
             -- Finally sort alphabetically
             return a.name < b.name
-        end)
-    else -- alphabetical (default)
-        table.sort(cards, function(a, b)
+        end,
+        alphabetical = function(a, b)
             return a.name < b.name
-        end)
-    end
+        end
+    }
+
+    local sortFunc = sortFunctions[self.sortMethod] or sortFunctions.alphabetical
+    table.sort(cards, sortFunc)
     
     return cards
 end

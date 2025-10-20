@@ -1236,93 +1236,28 @@ local function HandleSlashCommand(input)
         table.insert(subArgs, args[i])
     end
     
-    -- Handle debug commands
-    if mainCmd == "debug" then
-        for _, cmdDef in ipairs(DebugCommands) do
+    local commandGroups = {
+        debug = { commands = DebugCommands, help = "ShowDebugHelp" },
+        test = { commands = TestCommands, help = "ShowTestHelp" },
+        pug = { commands = PUGCommands, help = "ShowPUGHelp" },
+        components = { commands = ComponentCommands, help = "ShowComponentHelp" },
+        validate = { commands = ValidationCommands, help = "ShowValidationHelp" },
+    }
+
+    if commandGroups[mainCmd] then
+        local group = commandGroups[mainCmd]
+        for _, cmdDef in ipairs(group.commands) do
             for _, cmdName in ipairs(cmdDef.cmd) do
                 if subCmd == cmdName then
                     local handler = SlashCommands[cmdDef.handler]
                     if handler then
                         handler(SlashCommands, subArgs[1], subArgs)
+                        return
                     end
-                    return
                 end
             end
         end
-        -- Unknown debug subcommand - show help
-        SlashCommands:ShowDebugHelp()
-        return
-    end
-    
-    -- Handle test commands
-    if mainCmd == "test" then
-        for _, cmdDef in ipairs(TestCommands) do
-            for _, cmdName in ipairs(cmdDef.cmd) do
-                if subCmd == cmdName then
-                    local handler = SlashCommands[cmdDef.handler]
-                    if handler then
-                        handler(SlashCommands, subArgs[1], subArgs)
-                    end
-                    return
-                end
-            end
-        end
-        -- Unknown test subcommand - show help
-        SlashCommands:ShowTestHelp()
-        return
-    end
-    
-    -- Handle PUG commands
-    if mainCmd == "pug" then
-        for _, cmdDef in ipairs(PUGCommands) do
-            for _, cmdName in ipairs(cmdDef.cmd) do
-                if subCmd == cmdName then
-                    local handler = SlashCommands[cmdDef.handler]
-                    if handler then
-                        handler(SlashCommands, subArgs[1], subArgs)
-                    end
-                    return
-                end
-            end
-        end
-        -- Unknown PUG subcommand - show help
-        SlashCommands:ShowPUGHelp()
-        return
-    end
-    
-    -- Handle component commands
-    if mainCmd == "components" then
-        for _, cmdDef in ipairs(ComponentCommands) do
-            for _, cmdName in ipairs(cmdDef.cmd) do
-                if subCmd == cmdName then
-                    local handler = SlashCommands[cmdDef.handler]
-                    if handler then
-                        handler(SlashCommands, subArgs[1], subArgs)
-                    end
-                    return
-                end
-            end
-        end
-        -- Unknown component subcommand - show help
-        SlashCommands:ShowComponentHelp()
-        return
-    end
-    
-    -- Handle validation commands
-    if mainCmd == "validate" then
-        for _, cmdDef in ipairs(ValidationCommands) do
-            for _, cmdName in ipairs(cmdDef.cmd) do
-                if subCmd == cmdName then
-                    local handler = SlashCommands[cmdDef.handler]
-                    if handler then
-                        handler(SlashCommands, subArgs[1], subArgs)
-                    end
-                    return
-                end
-            end
-        end
-        -- Unknown validation subcommand - show help
-        SlashCommands:ShowValidationHelp()
+        SlashCommands[group.help](SlashCommands)
         return
     end
     
