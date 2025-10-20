@@ -12,12 +12,9 @@ local Constants = {
     COMM_OPCODES = {
         SELECT = "SELECT",           -- Leader selects a keystone for the group
         SYNC = "SYNC",              -- Request/send party member data sync
-        KEYSTONE_UPDATE = "KEYSTONE_UPDATE", -- Deprecated - LibOpenRaid handles keystones
         SUGGEST = "SUGGEST",        -- Auto-suggest keystone from leader
         PREFERENCE = "PREFERENCE",  -- Player dungeon preference updates
         LOOT_TARGET = "LOOT_TARGET", -- Player loot target updates
-        PREFERENCE_UPDATE = "PREFERENCE_UPDATE", -- Legacy preference update opcode
-        DUNGEON_SCORES = "DUNGEON_SCORES", -- Dungeon score synchronization (legacy)
         PLAYER_IO_UPDATE = "PLAYER_IO_UPDATE", -- New standardized IO data sharing
         REQUEST_PLAYER_IO = "REQUEST_PLAYER_IO" -- Request IO data from party members
     },
