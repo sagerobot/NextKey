@@ -64,6 +64,8 @@ core\dungeonCards.lua
 
 # PUG Helper
 core\pugHelper.lua
+core\pugHelper_state.lua
+core\pugHelper_applications.lua
 
 # Events
 events\handlers.lua
@@ -75,6 +77,7 @@ debug\test_io_tooltips.lua
 debug\test_loot_system.lua
 debug\test_loot_window_fixes.lua
 debug\button_debug_test.lua
+debug\pugHelper_tests.lua
 
 # UI Components
 ui\main.lua
