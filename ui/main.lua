@@ -3388,6 +3388,19 @@ SlashCmdList["NEXTKEYTESTSPEC"] = function(msg)
     end
 end
 
+-- MARK: Loot Window Integration
+-- Handle loot button clicks from dungeon cards
+
+function NextKey:HandleLootClick(dungeonID, dungeonData)
+    if not self.LootWindow then
+        NextKey222.Debug:Error("LootWindow module not available")
+        return
+    end
+    
+    NextKey222.Debug:Dev("ui", "Opening loot window for dungeon:", dungeonID, dungeonData.name)
+    self.LootWindow:Show(dungeonID)
+end
+
 return UI
 
 

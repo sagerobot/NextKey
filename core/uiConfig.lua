@@ -81,9 +81,9 @@ local UIConfig = {
     
     -- MARK: Loot Window Configuration (from ui/lootWindow.lua)
     LOOT_WINDOW = {
-        WINDOW_WIDTH = 300,             -- Width of loot window
-        WINDOW_HEIGHT = 400,            -- Height of loot window
-        LIST_ITEM_HEIGHT = 40           -- Height of list items in loot window
+        WINDOW_WIDTH = 400,             -- Width of loot window (wider for long titles)
+        WINDOW_HEIGHT = 305,            -- Height of loot window
+        LIST_ITEM_HEIGHT = 65           -- Height of list items in loot window
     },
     
     -- MARK: Dungeon Cards Configuration (from ui/dungeonCards.lua)

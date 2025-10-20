@@ -200,8 +200,14 @@ NextKey222.Defaults = {
         dungeonPreferences = {},
         
         -- Loot tracking
-        targetedItems = {},
-        dungeonRunCounts = {},
+        targetedItems = {},      -- Keep for backward compatibility
+        dungeonRunCounts = {},   -- Keep for existing
+        lootTracking = {         -- NEW: Structured per-dungeon tracking
+            -- [dungeonID] = {
+            --     defaultItems = {[itemID] = true/false},
+            --     customItems = {[itemID] = true}
+            -- }
+        },
         
         -- Season and score data
         mythicPlus = {

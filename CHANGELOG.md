@@ -1,5 +1,25 @@
 # NextKey Changelog
 
+## [0.2.1] - 2025-10-20
+### Added
+- **Loot Targeting System** - Complete implementation of item tracking functionality
+  - New `data/loot.lua` with seasonal dungeon item data following portals.lua pattern
+  - Enhanced `ui/lootWindow.lua` with full-featured item management interface
+  - Item texture preloading system to prevent question mark icons
+  - Support for default protected items and custom removable items
+  - Persistent storage across sessions with database integration
+  - Integration with dungeon cards via Loot button
+  - Test suite for validation (`/nktestloot`)
+  - Proper tooltips with item information and quality colors
+  - Input system for adding custom items by ID
+
+### Technical
+- Updated `core/config.lua` with new lootTracking database structure
+- Enhanced `core/dungeonCards.lua` with SaveLootTracking/LoadLootTracking methods
+- Added `NextKey:HandleLootClick()` integration function
+- Added comprehensive test suite in `debug/test_loot_system.lua`
+- Updated NextKey.toc to include new data file and test suite
+
 ## [0.1.0] - 2024-02-04
 ### Added
 - New DungeonCards visual interface system

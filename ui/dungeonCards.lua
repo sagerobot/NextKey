@@ -396,7 +396,22 @@ end
 
 function UI:UpdateCard(dungeonID)
     if self.cards[dungeonID] then
-        local cardData = DungeonCards:GetCard(dungeonID)
+        -- Get dungeon name for GetCard call
+        local dungeonName = nil
+        if NextKey.PortalData and NextKey.PortalData.dungeons and NextKey.PortalData.dungeons[dungeonID] then
+            dungeonName = NextKey.PortalData.dungeons[dungeonID].name
+        end
+        if not dungeonName then
+            dungeonName = "Dungeon " .. dungeonID
+        end
+        
+        -- Ensure dungeonName is never nil before calling GetCard
+        if not dungeonName then
+            dungeonName = "Unknown Dungeon"
+            NextKey222.Debug:Error("ui/dungeonCards", "dungeonName is still nil after fallback for dungeonID:", dungeonID)
+        end
+        
+        local cardData = DungeonCards:GetCard(dungeonID, dungeonName)
         local oldCard = self.cards[dungeonID]
         local useCompactMode = NextKey222.ConfigurationContext:ShouldUseCompactMode()
 

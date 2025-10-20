@@ -255,6 +255,45 @@ end
 function Events:OnChallengeModeCompleted(mapID, level)
     NextKey222.Performance:StartProfile("OnChallengeModeCompleted")
     
+    -- Increment run counters for tracked items in this dungeon
+    if NextKey.DungeonCards then
+        NextKey.SafeRun(function()
+            -- Get dungeon name for GetCard call
+            local dungeonName = nil
+            if NextKey.PortalData and NextKey.PortalData.dungeons and NextKey.PortalData.dungeons[mapID] then
+                dungeonName = NextKey.PortalData.dungeons[mapID].name
+            end
+            if not dungeonName then
+                dungeonName = "Dungeon " .. mapID
+            end
+            
+            -- Ensure dungeonName is never nil before calling GetCard
+            if not dungeonName then
+                dungeonName = "Unknown Dungeon"
+                NextKey222.Debug:Error("events/handlers", "dungeonName is still nil after fallback for mapID:", mapID)
+            end
+            
+            local card = NextKey.DungeonCards:GetCard(mapID, dungeonName)
+            if card then
+                -- Increment counters for featured items
+                local featuredItems = NextKey:GetFeaturedItems(mapID)
+                for _, itemID in ipairs(featuredItems) do
+                    NextKey.DungeonCards:IncrementRunCounter(mapID, itemID)
+                end
+                
+                -- Increment counters for custom tracked items
+                for itemID in pairs(card.customTrackedItems) do
+                    NextKey.DungeonCards:IncrementRunCounter(mapID, itemID)
+                end
+                
+                -- Save updated run counters
+                NextKey.DungeonCards:SaveLootTracking()
+                
+                NextKey222.Debug:Dev("events", "Incremented run counters for dungeon", mapID, "level", level)
+            end
+        end, "Increment run counters on dungeon completion")
+    end
+    
     -- Forward to PUG Helper if available
     if NextKey222.PUGHelper and NextKey222.PUGHelper.OnChallengeModeCompleted then
         NextKey.SafeRun(NextKey222.PUGHelper.OnChallengeModeCompleted, "PUG Helper challenge mode completed", NextKey222.PUGHelper, mapID, level)

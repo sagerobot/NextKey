@@ -1,199 +1,150 @@
 # NextKey Development Plan - Post-UI Refactor Bugfixing Phase
 
-**Date**: October 19, 2025
-**Current Version**: 0.2.0.1
-**Project Status**: Post-UI Refactor Bugfixing Phase
+**Date**: October 20, 2025
+**Current Version**: 0.2.1
+**Project Status**: Post-UI Refactor Bugfixing Phase - Loot System Implementation
 
 ---
 
 ## 🎯 Executive Summary
 
-The NextKey addon has completed a major UI refactoring (Phases 1-6) and is now in the bugfixing and stabilization phase. This plan prioritizes core functionality restoration, visual consistency improvements, and major feature implementation based on user requirements documented in `CURRENT_STATUS_REQUIREMENTS.md`.
+NextKey has completed major UI refactoring (Phases 1-6) and critical core functionality restoration (Phases 1-2). Currently in Phase 3: implementing the loot targeting system with a focus on fixing rendering issues and completing feature integration.
 
 ---
 
-## 🚀 Phase 1: Critical Core Functionality (Immediate Priority)
+## ✅ Completed Phases
 
-### 1. Fix IO Tooltips - HIGHEST PRIORITY ⭐⭐⭐
+### Phase 1: Critical Core Functionality (COMPLETED) ✅
+- ✅ Fixed IO tooltips in both regular and compact views
+- ✅ Fixed dungeon view IO color consistency with keystone cards
+- ✅ Fixed hearthstone selector icon loading (no more question marks on first open)
 
-**Problem**: Core decision-making functionality broken - players can't see per-player key impact
-**Impact**: Most critical missing feature for key selection workflow
-**Location**: `ui/main.lua` lines 1154-1297 (function exists but not triggering properly)
+### Phase 2: Quick UI Wins (COMPLETED) ✅
+- ✅ Enhanced card button layouts with proper vertical centering
+- ✅ Expanded fake player varieties from 4 to 9 skill tiers (title → beginner)
+
+---
+
+## 🔄 Phase 3: Loot Targeting System (IN PROGRESS - 25% Complete)
+
+### Current Status
+The loot window architecture is complete with component factory integration, but rendering is broken. Focus is on fixing display issues and validating item data.
+
+### 3.1 Fix Loot Window Rendering Issues (HIGHEST PRIORITY) ⭐⭐⭐
+
+**Problem**: Items not displaying in loot window despite architecture being in place
+**Location**: `ui/lootWindow.lua` (lines 252-401)
 **Files Involved**:
-- `ui/main.lua` - Main tooltip function and attachment logic
-- `ui/components.lua` - Component tooltip attachment system (lines 1170-1374)
-- `core/tooltip.lua` - Centralized tooltip management system
+- `ui/lootWindow.lua` - Main loot window logic
+- `data/loot.lua` - Seasonal item data
+- `core/dungeonCards.lua` - Tracking methods
+- `core/config.lua` - Database persistence
 
-**Diagnostic Approach**:
-1. Enable debug mode: `/nk config` → Debug System → Set level to DEV
-2. Test hovering over IO gain areas in both regular and compact views
-3. Check debug output for tooltip trigger events under "tooltip" category
-4. Verify event handlers are attached in component system
-5. Test with different sort modes (especially IOGainPotential)
+**Known Issues**:
+1. Item icons not displaying (blank, not question marks)
+2. Item list appears empty in scroll frame
+3. Custom item input field overhangs window boundary
+4. Items not appearing after adding via input
 
-**Expected Issues**:
-- Event handlers not properly attached after UI refactor
-- Component factory tooltip integration broken
-- Tooltip data not passed correctly to centralized system
-
-**Expected Time**: 1-2 hours (likely quick fix)
-**Success Criteria**: Players can hover over IO calculations and see detailed per-player impact breakdowns
-
----
-
-### 2. Fix Dungeon View IO Color Consistency ⭐⭐
-
-**Problem**: Visual inconsistency between player keystone cards and dungeon view total IO display
-**Impact**: Professional appearance and user experience
-**Location**: `ui/main.lua` lines 2520-2563 (color function exists but uses different logic)
-**Current Issue**: Dungeon view uses different color calculation than player keystone cards
-
-**Approach**: 
-- Analyze color logic in `FormatColoredTotalScore()` (lines 2614-2654)
-- Compare with player keystone card color logic in `FormatPlayerNameWithScore()` (lines 1105-1154)
-- Unify color gradient calculation between both views
-- Ensure same color scaling and ranges are used
-
-**Expected Time**: 30-60 minutes
-**Success Criteria**: Dungeon view IO colors match player keystone card gradients exactly
-
----
-
-### 3. Fix Hearthstone Selector Icon Loading ⭐⭐
-
-**Problem**: Question marks appear instead of proper icons on first open
-**Impact**: First impression quality and user confidence
-**Location**: `ui/hearthstoneSelector.lua` (icon loading sequence)
-**Current Workaround**: Close/reopen window or press select button in options
-
-**Root Cause Analysis**:
-- Icon textures not preloaded or cached properly
-- Loading sequence race condition with UI initialization
-- Missing error handling for failed icon loads
+**Root Causes (Suspected)**:
+- Scroll frame not properly rendering child components
+- Component factory integration issue with scroll frame children
+- Icon preloading not completing before render
+- Incorrect positioning or parenting of item frames
 
 **Approach**:
-1. Implement icon preloading system
-2. Add proper error handling and fallback mechanisms
-3. Ensure icon loading completes before window display
-4. Add loading indicators if necessary
+1. Enable debug output for loot window rendering
+2. Verify scroll frame is properly initialized and visible
+3. Check component factory CreateFrame returns valid objects
+4. Validate item data is being retrieved correctly
+5. Test icon preloading sequence
+6. Fix input field positioning and width constraints
 
-**Expected Time**: 1-2 hours
-**Success Criteria**: No question marks on first open, all icons display correctly immediately
+**Expected Time**: 2-3 hours
+**Success Criteria**: 
+- All items display with proper icons (no blanks/question marks)
+- Custom items can be added via input field
+- Input field fits properly within window boundaries
+- Items persist after `/reload`
 
 ---
 
-## 🎨 Phase 2: Quick UI Wins (After Phase 1)
+### 3.2 Validate and Fix Item IDs (BLOCKER) ⭐⭐⭐
 
-### 4. Improve Card Button Layout ⭐
-
-**Problem**: Button arrangement could be more integrated and visually appealing
-**Current State**: Looking decent but could be improved
-**Options Identified**:
-- Center line of buttons for better visual balance
-- Stack +/- on top of Teleport/Loot buttons to save space
-- Improve spacing and alignment
-
-**Files Involved**:
-- `ui/main.lua` - Keystone card button layout (lines 1745-1819)
-- `ui/main.lua` - Dungeon card button layout (lines 2386-2441)
+**Problem**: Item IDs in `data/loot.lua` are placeholders and may be incorrect for TWW S3
+**Location**: `data/loot.lua` (lines 18-80)
+**Impact**: Users will track wrong items or get empty item names
 
 **Approach**:
-- Analyze current button positioning logic
-- Test different layout options
-- Ensure responsive behavior in different view modes
-- Maintain functionality while improving aesthetics
+1. Receive Wowhead link from user for each dungeon
+2. Extract correct item IDs for each dungeon
+3. Update `data/loot.lua` with accurate data
+4. Cross-reference with Blizzard API to ensure IDs are valid
+5. Test item name loading and quality colors
 
-**Expected Time**: 1-2 hours
-**Success Criteria**: More integrated button appearance with better visual flow
+**Dependencies**: Waiting for user to provide Wowhead links with item data
 
----
-
-### 5. Add More Fake Player Varieties ⭐
-
-**Problem**: Limited testing variety with only high-skill fake players
-**Current Tiers**: Expert/Skilled/Competent
-**Missing**: Below average, novice, beginner tiers for comprehensive testing
-
-**Location**: `core/fakePlayerService.lua`
-**Current Distribution**: Only high-skill presets available
-
-**Approach**:
-1. Design lower-skill fake player profiles
-2. Add new tiers to dropdown selection
-3. Include new varieties in random generation
-4. Ensure realistic IO score distributions for each tier
-
-**New Tiers to Add**:
-- Below Average (200-400 IO)
-- Novice (100-200 IO)
-- Beginner (50-100 IO)
-
-**Expected Time**: 1 hour
-**Success Criteria**: Full spectrum of skill levels available for testing
+**Expected Time**: 30-60 minutes once item data provided
 
 ---
 
-## 🏗️ Phase 3: Major Feature Implementation
+### 3.3 Implement Run Counter Integration (FUTURE ENHANCEMENT)
 
-### 6. Implement Proper Loot Window ⭐⭐⭐
+**Features to Add** (Part of loot window, not separate):
+- Track number of dungeon completions while item is targeted
+- Per-item run counter (multiple items track independently)
+- Display total dungeon runs for context
+- "Fun drop rate message" when targeted item finally drops
+- Optional integration with RaiderIO/WoW API for historical run counts
+- Show calculations with/without RaiderIO data
 
-**Problem**: Currently shows "coming soon" with a basic button
-**Requirements**: Full-featured loot tracking window similar to hearthstone selector
+**Database Structure**: Already prepared in `core/config.lua` (lootTracking table)
+**Visual**: Indicator on dungeon card showing tracked items with tooltip
 
-**Detailed Requirements**:
-- Hearthstone-selector-like UI using same component patterns
-- Display list of available items from current dungeon
-- Custom item input by item ID (users look up on Wowhead)
-- Support multiple custom items per player
-- Default items: unremovable (protected flag)
-- Custom items: removable with red X button
-- Generic data structure (no hardcoded item lists)
-
-**Location**: `ui/lootWindow.lua`
-**Reference Implementation**: `ui/hearthstoneSelector.lua` (component patterns)
-
-**Development Approach**:
-1. Analyze hearthstone selector component structure
-2. Design generic item data structure
-3. Implement item list with default/custom separation
-4. Add custom item input dialog
-5. Integrate with existing component factory system
-
-**Expected Time**: 4-6 hours
-**Success Criteria**: Fully functional loot window with custom item support
+**Expected Implementation**: After rendering issues fixed
+**Complexity**: Medium - requires run tracking and messaging system
 
 ---
 
-## 💡 Recommended Starting Point
+## 📋 Phase 4: PUG Mode Fixes (Next After Loot)
 
-### Start with IO Tooltips - Here's Why:
-
-1. **System Already Implemented**: The tooltip system exists in `core/tooltip.lua` and functions work in `ui/main.lua`
-2. **Critical User Impact**: This is the most important missing feature for decision-making
-3. **Likely Quick Fix**: Probably just event handler attachment issues from UI refactor
-4. **Immediate Value**: Success here dramatically improves core addon functionality
-5. **Foundation for Other Fixes**: Understanding tooltip attachment helps with other UI issues
-
-### Quick First Steps:
-
-1. **Enable Debug Mode**: `/nk config` → Debug System → Enable "tooltip" category at DEV level
-2. **Test Current Behavior**: Hover over IO gain areas and note what happens (or doesn't happen)
-3. **Check Debug Output**: Look for tooltip-related debug messages
-4. **Investigate Event Handlers**: Check if `OnEnter` events are properly attached to IO display elements
+### Priority Issues:
+1. Fix PUG invite notifications (never worked)
+2. Implement application tracker
+3. Enhance getaway UI
+4. Audit and streamline options panel
 
 ---
 
-## 🔧 Development Environment Setup
+## 🚀 Immediate Next Steps
 
-### Debug Commands for This Phase:
+1. **Debug Loot Window Rendering**
+   - Enable debug: `/nk config` → Debug System → Set to DEV
+   - Enable "lootwindow" and "components" categories
+   - Open loot window and check debug output
+   - Look for rendering, positioning, or component factory errors
 
+2. **Verify Component Factory Integration**
+   - Test individual component creation (CreateFrame, CreateIcon, CreateText)
+   - Use `/nk components test` to validate component system
+   - Check if scroll frame children are rendering
+
+3. **Prepare for Item ID Update**
+   - Ready to accept Wowhead links from user
+   - Have data/loot.lua structure prepared for updates
+   - Test item validation when IDs are updated
+
+---
+
+## 🔧 Development Environment
+
+### Debug Commands:
 ```bash
 # Enable comprehensive debugging
-/nk config
-# → Debug System → Set level to DEV
-# → Enable all relevant categories (tooltip, ui, components, ioc)
+/nk config → Debug System → Set level to DEV
+# Enable categories: lootwindow, components, ui
 
-# Test component system
+# Test component rendering
 /nk components test
 
 # Generate test data
@@ -204,70 +155,97 @@ The NextKey addon has completed a major UI refactoring (Phases 1-6) and is now i
 ```
 
 ### Key Files to Monitor:
-
-- `ui/main.lua` - Main UI logic and tooltip attachment
-- `ui/components.lua` - Component factory and tooltip integration
-- `core/tooltip.lua` - Centralized tooltip system
-- `core/debugService.lua` - Debug output (check for tooltip category)
-
----
-
-## 📊 Success Metrics for Phase 1
-
-### Quantitative Metrics:
-- **IO Tooltips**: 100% functionality restoration - tooltips appear on hover with correct data
-- **Color Consistency**: 0 color mismatch between dungeon and keystone views
-- **Icon Loading**: 0 question marks on first window open
-
-### Qualitative Metrics:
-- **User Decision Making**: Players can make informed key selection choices
-- **Visual Professionalism**: Consistent color schemes throughout UI
-- **First Impression Quality**: Polished appearance from initial interaction
-
-### Performance Metrics:
-- **Response Time**: <100ms tooltip appearance on hover
-- **Memory Usage**: No increase in baseline memory usage
-- **Error Rate**: Zero Lua errors in debug output
+- `ui/lootWindow.lua` - Main rendering logic
+- `core/components.lua` - Component factory (via UIComponents)
+- `data/loot.lua` - Item data
+- `core/debugService.lua` - Debug output categories
 
 ---
 
-## 🔄 Iterative Development Process
+## 📊 Success Metrics for Phase 3
 
-### Phase 1 Workflow:
-1. **Fix IO Tooltips** → Test → Validate
-2. **Fix Dungeon Colors** → Test → Validate  
-3. **Fix Icon Loading** → Test → Validate
-4. **Integration Testing** → Cross-feature validation
-5. **Performance Testing** → Ensure no regressions
+### Rendering Fixes:
+- ✅ All default items display with proper icons
+- ✅ Custom items appear in list after adding
+- ✅ Input field fits within window
+- ✅ No blank or question mark icons
+- ✅ Proper persistence across sessions
 
-### Testing Strategy:
-- **Unit Testing**: Individual component functionality
-- **Integration Testing**: Component interaction validation
-- **User Testing**: Real-world usage scenarios
-- **Performance Testing**: Memory and response time validation
+### Item Validation:
+- ✅ All item IDs valid for Season 3 dungeons
+- ✅ Item names load correctly
+- ✅ Quality colors display properly
+- ✅ No "Loading..." messages remain visible
+
+### Integration:
+- ✅ Loot button on dungeon cards opens window correctly
+- ✅ Window title shows dungeon name
+- ✅ Data flows between window and cards properly
+
+---
+
+## 🔄 Testing Strategy
+
+### Basic Rendering Tests:
+1. Open `/nk` → select dungeon → click "Loot" button
+2. Verify window opens with title showing dungeon name
+3. Check that default items display with icons
+4. Verify protected indicator shows on default items
+5. Test input field - add custom item ID (e.g., 207167)
+6. Check custom item appears in list
+7. Test remove button on custom items
+
+### Persistence Tests:
+1. Add custom items to multiple dungeons
+2. Type `/reload` to save and reload
+3. Verify all tracked items still there
+4. Check per-dungeon tracking is separate
+
+### Integration Tests:
+1. Open main window with fake players
+2. Find dungeon with keystones
+3. Click "Loot" button on that dungeon card
+4. Verify correct items display
 
 ---
 
 ## 📝 Documentation Updates
 
-As each phase is completed:
-1. Update `CURRENT_STATUS_REQUIREMENTS.md` with completed items
-2. Update memory bank status files
-3. Document any architectural changes
-4. Update success metrics and lessons learned
+### Files Updated:
+- ✅ `boot.lua` - Version 0.2.1
+- ✅ `NextKey.toc` - Version 0.2.1
+- ✅ `.kilocode/rules/memory-bank/context.md` - Current work status
+- ✅ `.kilocode/rules/memory-bank/status.md` - Detailed implementation status
+
+### Cleanup Completed:
+- ❌ Removed outdated phase documentation
+- ❌ Removed completed fix plan documents
+- ❌ Consolidated all current work into this single plan
 
 ---
 
-## 🚀 Next Steps After Phase 1
+## 🎯 Timeline & Priority
 
-Once Phase 1 is complete and validated:
-1. **Begin Phase 2**: UI polish and improvements
-2. **Start Phase 3 Planning**: Detailed loot window implementation
-3. **Long-term Roadmap**: Complex group suggestion system design
-4. **Performance Optimization**: Ensure all fixes maintain performance standards
+| Phase | Task | Status | Time | Next |
+|-------|------|--------|------|------|
+| 3.1 | Fix loot rendering | 🔄 IN PROGRESS | 2-3h | Debug session |
+| 3.2 | Validate item IDs | ⏳ BLOCKED | 30-60m | User provides Wowhead |
+| 3.3 | Run counter integration | 📋 PLANNED | 2-3h | After 3.1 complete |
+| 4.0 | PUG mode fixes | 📋 PLANNED | 3-4h | After Phase 3 |
+
+---
+
+## 💡 Key Architectural Decisions
+
+1. **Modular Item Data**: Seasonal structure allows easy updates without code changes
+2. **Component Factory**: All UI uses established factory patterns for consistency
+3. **Per-Dungeon Tracking**: Database structure allows independent tracking per dungeon/character
+4. **Persistence First**: Loot tracking integrated into character database from start
+5. **Enhancement-Ready**: Run counter architecture planned but not blocking core loot window
 
 ---
 
 **Prepared by**: NextKey Development Team
-**Last Updated**: October 19, 2025
-**Next Review**: After Phase 1 completion
+**Last Updated**: October 20, 2025
+**Current Focus**: Fixing loot window rendering issues
+**Next Review**: After Phase 3.1 debugging session

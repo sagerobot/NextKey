@@ -1,58 +1,31 @@
 # NextKey Current Context
 
 ## Current Work Status
-**Date**: October 19, 2025
-**Version**: 0.2.0.1
-**Project Status**: Post-UI Refactor Bugfixing Phase
+**Date**: October 20, 2025
+**Version**: 0.2.1
+**Project Status**: Post-UI Refactor Bugfixing Phase - Loot System Implementation
 
-## Recent Work Completed
+## Current Focus: GetCard() Lua Error RESOLVED
 
-### Phase 1: Critical Core Functionality (COMPLETED) ✅
-The first phase of the post-refactor bugfixing plan is complete, restoring critical UI functionality.
+The persistent Lua error that was blocking the Loot Window has been resolved.
 
-**1. IO Tooltip Fix (COMPLETED ✅)**
-- Successfully restored detailed IO gain tooltips in both regular and compact keystone views.
-- Fixed positioning issues: IO gain text no longer overlaps Select button
-- Implemented proper color logic: Player names in class colors, IO gains in green/grey based on potential
-- Fixed display issues: Shows `+0 IO` in grey for zero potential gain scenarios
-- Added comprehensive debug output and error handling
-- Removed unnecessary average calculations for cleaner display
-- **Files Modified**: `ui/main.lua`, `core/tooltip.lua`
+**Original Error**: `NextKey/core/dungeonCards.lua:58: Name required when creating new dungeon card`
 
-**2. Dungeon View IO Color Consistency (COMPLETED)**
-- Unified the IO score color gradient logic between the dungeon view and keystone cards.
-- **Files Modified**: `ui/main.lua`
+### Debugging Summary (October 20, 2025)
 
-**3. Hearthstone Selector Icon Loading (COMPLETED)**
-- Resolved the issue causing question mark icons to appear on the first open of the hearthstone selector.
-- **Files Modified**: `ui/hearthstoneSelector.lua`, `data/hearthstones.lua`
+1.  **Initial Diagnosis**: The `GetCard(dungeonID)` function in `core/dungeonCards.lua` requires a `name` parameter when creating a new card. The error was traced to several call sites where a `nil` name could be passed.
+2.  **Investigation**: The stack trace pointed to `ui/lootWindow.lua`, but further investigation revealed multiple other locations, including test files, that were calling `GetCard` without proper fallback logic for the dungeon name.
+3.  **Resolution**: A comprehensive fix was applied across all identified call sites (`ui/lootWindow.lua`, `ui/dungeonCards.lua`, `data/loot.lua`, `events/handlers.lua`, and several test files) to ensure a valid name is always passed to `GetCard`. This included adding fallback logic to prevent `nil` names from being used.
+4.  **Verification**: The fix was validated by running a test script and by manually triggering the original error condition, both of which confirmed that the error is no longer present.
 
-## Recent Work Completed (Phase 2)
+### Current Assessment
 
-### Phase 2: Quick UI Wins (COMPLETED) ✅
-Successfully implemented both Phase 2 tasks with enhanced vertical centering and expanded testing capabilities.
+- The `GetCard` error is resolved.
+- The Loot Window is no longer blocked and can be tested.
+- The secondary issue with the tooltip's Hero track item level display can now be addressed.
 
-**1. Card Button Layout Enhancement (COMPLETED ✅)**
-- Vertically centered ALL card elements (class icon, role icon, player name, keystone info, buttons, IO scores) with equal top/bottom padding
-- Fixed positioning issue that initially caused elements to disappear
-- Applied consistent vertical centering across both regular keystone cards (88px) and dungeon cards (75px)
-- **Files Modified**: `ui/main.lua`, `core/uiConfig.lua`
-- **Technical Achievement**: Solved visual centering by using simple, reliable TOPLEFT/TOPRIGHT positioning with consistent vertical offsets
+## Next Steps
 
-**2. Expanded Fake Player Varieties (COMPLETED ✅)**
-- Expanded fake player dropdown from 4 to 9 skill tiers
-- Added missing tiers: title (3600-3800 IO), elite (3300-3600 IO), average (2000-2600 IO), casual (1500-2000 IO), beginner (1000-1500 IO)
-- Updated random selection to include full skill spectrum instead of just high-skill tiers
-- Added descriptive labels with IO ranges and key levels for better UX
-- **Files Modified**: `ui/main.lua`
-
-## Next Steps (Phase 3)
-
-With Phase 2 complete, the development focus now shifts to Phase 3: UI Polish and Improvements. According to the development plan, the next priority items are:
-
-1. **Implement Proper Loot Window**: Create full-featured loot tracking window similar to hearthstone selector
-2. **Fix PUG Invite Notifications**: Restore basic PUG functionality
-3. **Audit Options Panel**: Clean up unnecessary settings and improve category structure
-
-## Current Focus
-The development team is now ready to begin Phase 3 of the bugfixing plan, focusing on major feature implementation and system improvements.
+1.  **Resume testing of the Loot Window functionality** to ensure all features are working as expected.
+2.  **Investigate and fix the tooltip issue** where the Hero track item level is not displaying correctly.
+3.  Continue with the implementation of the Loot System as outlined in `status.md`.

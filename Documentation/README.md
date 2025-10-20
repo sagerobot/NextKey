@@ -1,73 +1,67 @@
 # NextKey Documentation
 
-## Overview
+Welcome to the NextKey addon documentation. This guide will help you navigate the project structure and find the information you need.
 
-NextKey is an intelligent Mythic+ keystone ranking addon for World of Warcraft that helps groups optimize their key selection for maximum IO score gains.
+## 📚 Core Documentation
 
-## Documentation Structure
+### Getting Started
+- **[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)** - Current development roadmap and phase planning
+- **[CURRENT_STATUS_REQUIREMENTS.md](./CURRENT_STATUS_REQUIREMENTS.md)** - Detailed status of all features and requirements
 
-### Core Documentation
-- **[User Guide](../README/USER_GUIDE.md)** - Complete user documentation and getting started guide
-- **[Debug System User Guide](../README/DEBUG_SYSTEM_USER_GUIDE.md)** - Debug system configuration and usage
-- **[PUG Mode Documentation](PUG_MODE.md)** - Complete PUG Helper system documentation
-- **[PUG Mode Fix Summary](PUG_MODE_FIX_SUMMARY.md)** - Technical details of initialization fix
+### Design & Architecture
+- **[DESIGN.md](./FEATURES%20%26%20PLANS/DESIGN.md)** - Core design principles and product philosophy
+- **[INTELLIGENT_GROUPING_SYSTEM.md](./FEATURES%20%26%20PLANS/INTELLIGENT_GROUPING_SYSTEM.md)** - Vision for advanced group suggestion features
+- **[RELEASE_PREPARATION.md](./FEATURES%20%26%20PLANS/RELEASE_PREPARATION.md)** - Pre-release checklist and procedures
 
-### Development Documentation
-- **[Development Guide](AI DOCS/DEVELOPMENT.md)** - Development setup and guidelines
-- **[Debug System Documentation](AI DOCS/DEBUG_SYSTEM.md)** - Debug system architecture and implementation
-- **[Architecture Standards](../.kilocode/rules/architecture.md)** - Code architecture and standards
-- **[Debug Standards](../.kilocode/rules/debug_standards.md)** - Debug system standards and best practices
+### Active Implementation
+- **[LOOT_TARGETING_SYSTEM_PLAN.md](./LOOT_TARGETING_SYSTEM_PLAN.md)** - Detailed plan for loot window implementation
 
-### Feature Documentation
-- **[Design Document](LEGACY/NextKey - Addon Design Document.md)** - Original design document (legacy)
-- **[Design Intent](LEGACY/NextKey - Design Intent.md)** - Original design intent (legacy)
-- **[Intelligent Grouping System](FEATURES & PLANS/INTELLIGENT_GROUPING_SYSTEM.md)** - Group suggestion algorithm documentation
+## 🔧 Developer Resources
 
-### Planning & Technical Debt
-- **[Design](FEATURES & PLANS/DESIGN.md)** - Current design and future plans
-- **[Release Preparation](FEATURES & PLANS/RELEASE_PREPARATION.md)** - Release checklist and preparation
-- **[Technical Debt](FEATURES & PLANS/TECH_DEBT.md)** - Technical debt tracking and resolution
-- **[Refactor Suggestions](FEATURES & PLANS/REFACTOR_SUGGESTIONS.md)** - Refactoring recommendations
+### AI Documentation
+- **[DEVELOPMENT.md](./AI%20DOCS/DEVELOPMENT.md)** - Technical implementation guide
+- **[DEBUG_SYSTEM.md](./AI%20DOCS/DEBUG_SYSTEM.md)** - Debug system usage and reference
 
 ### Library Documentation
-- **[Ace3 Documentation](Library Docs/Ace3 Docs/)** - Complete Ace3 framework documentation
-- **[RaiderIO API](Library Docs/RaiderIO Dev API.md)** - RaiderIO developer API documentation
-- **[LibStub](Library Docs/LibStub.md)** - LibStub library documentation
-- **[CallbackHandler](Library Docs/CallbackHandler-1.0.md)** - CallbackHandler library documentation
+- **[Ace3 Framework Docs](./Library%20Docs/Ace3%20Docs/)** - Complete Ace3 library reference
+- **[RaiderIO API](./Library%20Docs/RaiderIO%20Dev%20API.md)** - RaiderIO integration API
+- **[LibStub](./Library%20Docs/LibStub.md)** - Library loading system
 
-### Specialized Documentation
-- **[Fake Players](DEV DOCS/FAKE_PLAYERS.md)** - Fake player system for testing
-- **[Documentation Maintenance](DEV DOCS/DOCUMENTATION_MAINTENANCE.md)** - Documentation maintenance guidelines
+## 📋 Organization
 
-## Quick Links
+### Memory Bank (`.kilocode/rules/memory-bank/`)
+The memory bank is the foundation of project knowledge for future AI assistance:
+- **brief.md** - Project identity and core purpose
+- **product.md** - Product description and user experience
+- **context.md** - Current development focus and recent changes
+- **architecture.md** - System architecture and design patterns
+- **tech.md** - Technologies, dependencies, and technical stack
+- **status.md** - Current implementation status and requirements
 
-### For Users
-- [Getting Started](../README/USER_GUIDE.md#getting-started)
-- [PUG Mode Guide](PUG_MODE.md#overview)
-- [Debug System Guide](../README/DEBUG_SYSTEM_USER_GUIDE.md#quick-start)
+## 🎯 Finding Information
 
-### For Developers
-- [Development Setup](AI DOCS/DEVELOPMENT.md#setup)
-- [Architecture Overview](../.kilocode/rules/architecture.md#system-architecture)
-- [Debug System Architecture](AI DOCS/DEBUG_SYSTEM.md#system-architecture)
-- [Code Standards](../.kilocode/rules/architecture.md#critical-implementation-patterns)
+### For Feature Planning
+1. Check [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for current phases
+2. Review [CURRENT_STATUS_REQUIREMENTS.md](./CURRENT_STATUS_REQUIREMENTS.md) for detailed requirements
+3. Consult [INTELLIGENT_GROUPING_SYSTEM.md](./FEATURES%20%26%20PLANS/INTELLIGENT_GROUPING_SYSTEM.md) for future features
 
-### For Testers
-- [Testing Commands](../README/USER_GUIDE.md#testing-commands)
-- [PUG Mode Testing](PUG_MODE.md#testing)
-- [Debug Testing](../README/DEBUG_SYSTEM_USER_GUIDE.md#testing-the-debug-system)
+### For Implementation
+1. Start with [DEVELOPMENT.md](./AI%20DOCS/DEVELOPMENT.md) for architecture patterns
+2. Reference [DEBUG_SYSTEM.md](./AI%20DOCS/DEBUG_SYSTEM.md) for debugging techniques
+3. Check [Ace3 Framework Docs](./Library%20Docs/Ace3%20Docs/) for UI component details
 
-## Documentation Maintenance
+### For Loot System Work
+1. Read [LOOT_TARGETING_SYSTEM_PLAN.md](./LOOT_TARGETING_SYSTEM_PLAN.md) for implementation details
+2. Reference [CURRENT_STATUS_REQUIREMENTS.md](./CURRENT_STATUS_REQUIREMENTS.md) for current bugs
 
-This documentation is actively maintained as part of the NextKey development process. For guidelines on contributing to documentation, see [Documentation Maintenance](DEV DOCS/DOCUMENTATION_MAINTENANCE.md).
+## 🚀 Project Status
 
-## Version Information
+**Current Version**: 0.2.1  
+**Current Phase**: Post-UI Refactor Bugfixing - Loot System Implementation (25% complete)  
+**Main Focus**: Fixing loot window rendering issues, then PUG mode functionality
 
-- **Current Version**: 0.2.0.1
-- **Last Updated**: 2025-10-14
-- **Game Version**: The War Within (11.0.2)
-- **Compatibility**: Retail only
+See [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for detailed roadmap.
 
-## Support
+---
 
-For support, bug reports, or feature requests, please refer to the [User Guide](../README/USER_GUIDE.md#support-and-feedback).
+**Last Updated**: October 20, 2025

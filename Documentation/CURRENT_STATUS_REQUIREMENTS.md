@@ -6,16 +6,20 @@
 
 ## 🎯 Current Implementation Status
 
-### 1. Loot Window (`ui/lootWindow.lua`)
-**Current State**: Shows "coming soon" with a button
-**Requirements**:
-- Create UI window similar to hearthstone selector using same component patterns
-- Display list of available items from current dungeon
-- Add button to input custom items by item ID (users look up on Wowhead)
-- Don't hardcode item lists - pass generic data structure
-- Support multiple custom items per player
-- Default items: unremovable (protected flag)
-- Custom items: removable with red X button
+### 1. Loot Window (`ui/lootWindow.lua`) ✅ COMPLETED
+**Current State**: Fully functional loot targeting system
+**Implemented Features**:
+- ✅ Created UI window using component factory patterns (similar to hearthstone selector)
+- ✅ Display list of default items from current dungeon with proper icons
+- ✅ Add button to input custom items by item ID (users look up on Wowhead)
+- ✅ Dynamic data structure via `data/loot.lua` (not hardcoded)
+- ✅ Support multiple custom items per player
+- ✅ Default items: unremovable with protected icon indicator
+- ✅ Custom items: removable with red X button
+- ✅ Item texture preloading to prevent question marks
+- ✅ Persistent storage across sessions
+- ✅ Integration with dungeon cards via Loot button
+- ✅ Test suite for validation (`/nktestloot`)
 
 ### 2. PUG Mode Components Status
 

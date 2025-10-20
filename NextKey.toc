@@ -2,7 +2,7 @@
 ## Title: NextKey
 ## Notes: Intelligently ranks Mythic+ keys for your group.
 ## Author: Gemini & User
-## Version: 0.2.0.1
+## Version: 0.2.1
 ## X-Category: Dungeons
 ## SavedVariables: NextKeyDB
 ## OptionalDeps: RaiderIO
@@ -30,6 +30,7 @@ ui\components.lua
 
 # Data
 data\portals.lua
+data\loot.lua
 data\hearthstones.lua
 
 # Core Modules
@@ -71,6 +72,9 @@ events\handlers.lua
 debug\init.lua
 debug\tools.lua
 debug\test_io_tooltips.lua
+debug\test_loot_system.lua
+debug\test_loot_window_fixes.lua
+debug\button_debug_test.lua
 
 # UI Components
 ui\main.lua
