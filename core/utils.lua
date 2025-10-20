@@ -91,17 +91,6 @@ function Utils.getShortName(fullName)
     return fullName:match("^([^%-]+)") or fullName
 end
 
-function Utils.tableCount(tbl)
-    if not tbl or type(tbl) ~= "table" then
-        return 0
-    end
-    local count = 0
-    for _ in pairs(tbl) do
-        count = count + 1
-    end
-    return count
-end
-
 -- MARK: Dungeon ID Conversion Functions
 -- Helper function to get season dungeon index for RaiderIO array access
 function Utils:GetSeasonDungeonIndex(dungeonID)

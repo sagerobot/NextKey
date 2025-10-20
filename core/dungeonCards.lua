@@ -101,23 +101,8 @@ end
 ---@param playerName string
 ---@return boolean liked Current like status
 function DungeonCards:ToggleLike(dungeonID, playerName)
-    local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
-    if card.likes[playerName] then
-        card.likes[playerName] = nil
-        self:SavePreferences()
-        if playerName == NextKey.playerFullName then
-            NextKey:BroadcastPreferences()
-        end
-        return false
-    else
-        card.likes[playerName] = true
-        card.dislikes[playerName] = nil -- Remove dislike if present
-        self:SavePreferences()
-        if playerName == NextKey.playerFullName then
-            NextKey:BroadcastPreferences()
-        end
-        return true
-    end
+    -- Functionality disabled
+    return false
 end
 
 ---Toggle dislike status for a dungeon
@@ -125,23 +110,8 @@ end
 ---@param playerName string
 ---@return boolean disliked Current dislike status
 function DungeonCards:ToggleDislike(dungeonID, playerName)
-    local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
-    if card.dislikes[playerName] then
-        card.dislikes[playerName] = nil
-        self:SavePreferences()
-        if playerName == NextKey.playerFullName then
-            NextKey:BroadcastPreferences()
-        end
-        return false
-    else
-        card.dislikes[playerName] = true
-        card.likes[playerName] = nil -- Remove like if present
-        self:SavePreferences()
-        if playerName == NextKey.playerFullName then
-            NextKey:BroadcastPreferences()
-        end
-        return true
-    end
+    -- Functionality disabled
+    return false
 end
 
 ---Get formatted list of players who like/dislike a dungeon
@@ -264,33 +234,8 @@ end
 ---@param partySize number Current party size
 ---@return number score, number likes, number dislikes
 function DungeonCards:GetPreferenceScore(card, partySize)
-    local likes = GetUtils().tableCount(card.likes)
-    local dislikes = GetUtils().tableCount(card.dislikes)
-    
-    -- Weight factors
-    local LIKE_WEIGHT = 2.0
-    local DISLIKE_WEIGHT = -1.5
-    local UNANIMOUS_BONUS = 1.5
-    local MAJORITY_BONUS = 1.2
-    
-    -- Calculate base score
-    local score = (likes * LIKE_WEIGHT) + (dislikes * DISLIKE_WEIGHT)
-    
-    -- Apply unanimous/majority bonuses
-    if likes > 0 and dislikes == 0 then
-        if likes == partySize then
-            score = score * UNANIMOUS_BONUS -- Everyone likes it
-        elseif likes >= math.ceil(partySize / 2) then
-            score = score * MAJORITY_BONUS -- Majority likes it
-        end
-    end
-    
-    -- Heavily penalize unanimous dislikes
-    if dislikes == partySize and likes == 0 then
-        score = score * 2 -- Double the negative score
-    end
-    
-    return score, likes, dislikes
+    -- Functionality disabled, returning neutral score
+    return 0, 0, 0
 end
 
 ---Get all dungeon cards sorted by the current method
@@ -300,9 +245,6 @@ function DungeonCards:GetSortedCards()
     for _, card in pairs(self.dungeons) do
         table.insert(cards, card)
     end
-    
-    -- Get current party size for preference weighting
-    local partySize = IsInRaid() and GetNumGroupMembers() or (IsInGroup() and GetNumGroupMembers() or 1)
     
     if self.sortMethod == "highest" then
         table.sort(cards, function(a, b)
@@ -314,22 +256,7 @@ function DungeonCards:GetSortedCards()
         end)
     elseif self.sortMethod == "smart" then
         table.sort(cards, function(a, b)
-            -- Get weighted preference scores
-            local aScore, aLikes, aDislikes = self:GetPreferenceScore(a, partySize)
-            local bScore, bLikes, bDislikes = self:GetPreferenceScore(b, partySize)
-            
-            -- First compare strong preferences
-            if aLikes == partySize and bLikes < partySize then return true end
-            if bLikes == partySize and aLikes < partySize then return false end
-            if aDislikes == partySize and bDislikes < partySize then return false end
-            if bDislikes == partySize and aDislikes < partySize then return true end
-            
-            -- Then compare weighted scores
-            if aScore ~= bScore then
-                return aScore > bScore
-            end
-            
-            -- Fall back to dungeon score for equal preferences
+            -- Fall back to dungeon score
             if a.totalScore ~= b.totalScore then
                 return a.totalScore > b.totalScore
             end
@@ -360,36 +287,12 @@ end
 
 ---Save dungeon preferences to character DB
 function DungeonCards:SavePreferences()
-    local prefs = {}
-    for dungeonID, card in pairs(self.dungeons) do
-        if next(card.likes) or next(card.dislikes) then
-            prefs[dungeonID] = {
-                likes = card.likes,
-                dislikes = card.dislikes
-            }
-        end
-    end
-    NextKey.db.char.dungeonPrefs = prefs
+    -- Functionality disabled
 end
 
 ---Load dungeon preferences from character DB
 function DungeonCards:LoadPreferences()
-    local prefs = NextKey.db.char.dungeonPrefs
-    if prefs then
-        for dungeonID, data in pairs(prefs) do
-            local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
-            if data.likes then
-                for player in pairs(data.likes) do
-                    card.likes[player] = true
-                end
-            end
-            if data.dislikes then
-                for player in pairs(data.dislikes) do
-                    card.dislikes[player] = true
-                end
-            end
-        end
-    end
+    -- Functionality disabled
 end
 
 -- MARK: Loot Tracking Persistence
