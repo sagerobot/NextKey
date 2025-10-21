@@ -246,13 +246,35 @@ function DungeonCards:GetSortedCards()
         table.insert(cards, card)
     end
     
+    -- Get current party size for preference weighting
+    local partySize = IsInRaid() and GetNumGroupMembers() or (IsInGroup() and GetNumGroupMembers() or 1)
+    
+    local sortFunctions = {
+        highest = function(a, b)
     if self.sortMethod == "highest" then
         table.sort(cards, function(a, b)
             return a.totalScore > b.totalScore
-        end)
-    elseif self.sortMethod == "lowest" then
-        table.sort(cards, function(a, b)
+        end,
+        lowest = function(a, b)
             return a.totalScore < b.totalScore
+        end,
+        smart = function(a, b)
+            -- Get weighted preference scores
+            local aScore, aLikes, aDislikes = self:GetPreferenceScore(a, partySize)
+            local bScore, bLikes, bDislikes = self:GetPreferenceScore(b, partySize)
+            
+            -- First compare strong preferences
+            if aLikes == partySize and bLikes < partySize then return true end
+            if bLikes == partySize and aLikes < partySize then return false end
+            if aDislikes == partySize and bDislikes < partySize then return false end
+            if bDislikes == partySize and aDislikes < partySize then return true end
+            
+            -- Then compare weighted scores
+            if aScore ~= bScore then
+                return aScore > bScore
+            end
+            
+            -- Fall back to dungeon score for equal preferences
         end)
     elseif self.sortMethod == "smart" then
         table.sort(cards, function(a, b)
@@ -263,12 +285,14 @@ function DungeonCards:GetSortedCards()
             
             -- Finally sort alphabetically
             return a.name < b.name
-        end)
-    else -- alphabetical (default)
-        table.sort(cards, function(a, b)
+        end,
+        alphabetical = function(a, b)
             return a.name < b.name
-        end)
-    end
+        end
+    }
+
+    local sortFunc = sortFunctions[self.sortMethod] or sortFunctions.alphabetical
+    table.sort(cards, sortFunc)
     
     return cards
 end

@@ -90,37 +90,29 @@ end
 --- @param chests number The number of chests earned (0-3).
 --- @return number The calculated score.
 function NextKey:CalculateMythicPlusScore(level, chests)
-    if not level or level <= 0 then
+    if not level or level < 2 then
         return 0
     end
-    
-    -- Base score calculation (approximate WoW M+ scoring)
-    -- Each level has a base score, with timing bonuses
+
     local baseScore = 0
-    
-    if level >= 2 then
-        -- Rough approximation of WoW's M+ scoring system
-        -- Base scores increase significantly with level
-        if level <= 10 then
-            baseScore = level * 15  -- Levels 2-10: 30-150 base
-        elseif level <= 15 then
-            baseScore = 150 + (level - 10) * 20  -- Levels 11-15: 170-250 base
-        elseif level <= 20 then
-            baseScore = 250 + (level - 15) * 25  -- Levels 16-20: 275-375 base
-        else
-            baseScore = 375 + (level - 20) * 30  -- Levels 21+: 405+ base
-        end
-        
-        -- Apply timing multiplier based on chests (medals)
-        -- 0 chests = not timed (40% penalty), 1+ chests = timed (full score or bonus)
-        if chests == 0 then
-            baseScore = baseScore * 0.6  -- Untimed penalty
-        elseif chests >= 2 then
-            baseScore = baseScore * 1.2  -- 2+ chest bonus
-        elseif chests >= 1 then
-            baseScore = baseScore * 1.0  -- 1 chest = full score
-        end
+    if level <= 10 then
+        baseScore = level * 15
+    elseif level <= 15 then
+        baseScore = 150 + (level - 10) * 20
+    elseif level <= 20 then
+        baseScore = 250 + (level - 15) * 25
+    else
+        baseScore = 375 + (level - 20) * 30
     end
+
+    local chestMultiplier = {
+        [0] = 0.6, -- Untimed penalty
+        [1] = 1.0, -- Full score
+        [2] = 1.2, -- 2+ chest bonus
+        [3] = 1.2  -- 3 chest bonus (same as 2)
+    }
+
+    local multiplier = chestMultiplier[chests] or 1.0
     
-    return math.floor(baseScore)
+    return math.floor(baseScore * multiplier)
 end
