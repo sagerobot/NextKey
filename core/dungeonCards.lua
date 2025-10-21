@@ -251,8 +251,6 @@ function DungeonCards:GetSortedCards()
     
     local sortFunctions = {
         highest = function(a, b)
-    if self.sortMethod == "highest" then
-        table.sort(cards, function(a, b)
             return a.totalScore > b.totalScore
         end,
         lowest = function(a, b)
@@ -274,10 +272,6 @@ function DungeonCards:GetSortedCards()
                 return aScore > bScore
             end
             
-            -- Fall back to dungeon score for equal preferences
-        end)
-    elseif self.sortMethod == "smart" then
-        table.sort(cards, function(a, b)
             -- Fall back to dungeon score
             if a.totalScore ~= b.totalScore then
                 return a.totalScore > b.totalScore
