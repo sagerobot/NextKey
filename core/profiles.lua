@@ -102,25 +102,31 @@ function ProfilesService:InvalidateCache(playerName)
     local invalidatedCount = 0
     
     if playerName then
-        -- Invalidate specific player
+        -- Selective invalidation: Only invalidate specific player
         for cacheKey in pairs(self.cache) do
             if cacheKey:match("^" .. playerName .. ":") then
                 self.cache[cacheKey] = nil
                 invalidatedCount = invalidatedCount + 1
             end
         end
+        
+        if NextKey222.Debug and invalidatedCount > 0 then
+            NextKey222.Debug:Dev("profiles", string.format("Selectively invalidated %d profile(s) for %s",
+                invalidatedCount, playerName))
+        end
     else
-        -- Invalidate entire cache
+        -- Full invalidation only when absolutely necessary
+        -- This should be rare - only on major events like season changes
         invalidatedCount = self:CountTable(self.cache)
         self.cache = {}
+        
+        if NextKey222.Debug and invalidatedCount > 0 then
+            NextKey222.Debug:Dev("profiles", string.format("Full cache invalidation: %d profiles cleared",
+                invalidatedCount))
+        end
     end
     
     self.cacheStats.invalidations = self.cacheStats.invalidations + 1
-    
-    if NextKey222.Debug and invalidatedCount > 0 then
-        NextKey222.Debug:Dev("profiles", string.format("Invalidated %d profile%s from cache", 
-            invalidatedCount, invalidatedCount == 1 and "" or "s"))
-    end
 end
 
 function ProfilesService:InvalidateOnEvents()
@@ -128,15 +134,53 @@ function ProfilesService:InvalidateOnEvents()
     if NextKey222.Addon then
         -- Create event handler function if it doesn't exist
         if not NextKey222.Addon.OnProfilesInvalidation then
-            NextKey222.Addon.OnProfilesInvalidation = function(event, ...)
+            NextKey222.Addon.OnProfilesInvalidation = function(event, unit, ...)
                 if NextKey222.Debug then
                     NextKey222.Debug:Dev("profiles", "EVENT FIRED: " .. (event or "unknown"))
                 end
 
                 if NextKey222.ProfilesService then
-                    NextKey222.ProfilesService:InvalidateCache()
-                    if NextKey222.Debug then
-                        NextKey222.Debug:Dev("profiles", "Cache invalidated due to event: " .. (event or "unknown"))
+                    -- Selective cache invalidation based on event type
+                    local shouldInvalidate = false
+                    local targetPlayer = nil
+                    
+                    if event == "PLAYER_SPECIALIZATION_CHANGED" then
+                        -- Only invalidate current player
+                        local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
+                        targetPlayer = currentPlayer
+                        shouldInvalidate = true
+                    elseif event == "UNIT_SPECIALIZATION" and unit then
+                        -- Invalidate specific unit that changed spec
+                        local name, realm = UnitName(unit)
+                        if name then
+                            targetPlayer = realm and (name .. "-" .. realm) or (name .. "-" .. GetRealmName())
+                            shouldInvalidate = true
+                        end
+                    elseif event == "GROUP_ROSTER_UPDATE" then
+                        -- Only invalidate cache if someone actually joined/left
+                        -- Don't invalidate on minor roster changes
+                        local currentSize = GetNumGroupMembers() or 0
+                        self.lastRosterSize = self.lastRosterSize or 0
+                        
+                        if currentSize ~= self.lastRosterSize then
+                            shouldInvalidate = true
+                            self.lastRosterSize = currentSize
+                            NextKey222.Debug:Dev("profiles", string.format("Roster size changed: %d -> %d",
+                                self.lastRosterSize, currentSize))
+                        else
+                            NextKey222.Debug:Dev("profiles", "Roster update but no size change - skipping invalidation")
+                        end
+                    else
+                        -- Other events: invalidate entire cache (rare)
+                        shouldInvalidate = true
+                    end
+                    
+                    if shouldInvalidate then
+                        NextKey222.ProfilesService:InvalidateCache(targetPlayer)
+                        if NextKey222.Debug then
+                            NextKey222.Debug:Dev("profiles", string.format("Cache invalidated due to %s%s",
+                                event or "unknown", targetPlayer and (" for " .. targetPlayer) or ""))
+                        end
                     end
 
                     -- Trigger UI refresh for spec changes and roster updates
@@ -251,49 +295,6 @@ function ProfilesService:InvalidateOnEvents()
             end
         end
         
-        -- Also register events directly on a frame as backup
-        local eventFrame = CreateFrame("Frame")
-        eventFrame:SetScript("OnEvent", function(self, event, ...)
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", "FRAME EVENT FIRED: " .. (event or "unknown"))
-            end
-
-            -- Call the same handler
-            if NextKey222.ProfilesService then
-                NextKey222.ProfilesService:InvalidateCache()
-                if NextKey222.Debug then
-                    NextKey222.Debug:Dev("profiles", "Cache invalidated due to frame event: " .. (event or "unknown"))
-                end
-
-                -- Trigger UI refresh for spec changes and roster updates
-                if event == "PLAYER_SPECIALIZATION_CHANGED" or
-                   event == "UNIT_SPECIALIZATION" or
-                   event == "GROUP_ROSTER_UPDATE" then
-                    if NextKey222.UI and NextKey222.UI.RefreshResults then
-                        if NextKey222.Debug then
-                            NextKey222.Debug:Dev("profiles", "Triggering UI refresh due to frame event " .. event)
-                        end
-                        C_Timer.After(0.1, function()
-                            if NextKey222.UI and NextKey222.UI.RefreshResults then
-                                NextKey222.UI:RefreshResults()
-                                if NextKey222.Debug then
-                                    NextKey222.Debug:Dev("profiles", "UI refresh completed for frame event " .. event)
-                                end
-                            end
-                        end)
-                    end
-                end
-            end
-        end)
-
-        -- Register the key events on the backup frame
-        for _, eventName in ipairs({"PLAYER_SPECIALIZATION_CHANGED", "GROUP_ROSTER_UPDATE"}) do
-            eventFrame:RegisterEvent(eventName)
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", "Backup frame registered for event: " .. eventName)
-            end
-        end
-
         if NextKey222.Debug then
             NextKey222.Debug:Dev("profiles", "Event-driven cache invalidation registered for " .. #events .. " events + backup frame")
         end

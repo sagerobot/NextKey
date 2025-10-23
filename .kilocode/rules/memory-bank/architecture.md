@@ -24,53 +24,69 @@ NextKey follows the **Details! Damage Meter architectural patterns** for enterpr
 6. core/slashCommands.lua         # Slash command handlers
 7. ui/components.lua              # UI component system
 8. data/portals.lua               # Season dungeon data
-9. [Core Modules]                 # Keystones, profiles, comms, etc.
-10. [UI Modules]                  # Main UI, teleport, dungeon cards, PUG UI components
-11. [Options]                     # AceConfig options panels
-12. [Debug Modules]               # Test suites and validation tools
+9. data/loot.lua                  # Season loot definitions
+10. [Core Modules]                # Keystones, profiles, comms, etc.
+11. [UI Modules]                  # Main UI, teleport, dungeon cards, PUG UI components
+12. [Options]                     # AceConfig options panels
+13. [Debug Modules]               # Test suites and validation tools
 ```
 
 ### Module Organization
 
 ```
 NextKey/
-├── boot.lua                    # Consolidated initialization (SINGLE FILE)
-├── core/                       # Core business logic
-│   ├── config.lua             # Settings management
-│   ├── constants.lua          # Shared constants
-│   ├── debugService.lua       # Professional debug system
-│   ├── debugUI.lua            # Debug UI controls
-│   ├── keystones.lua          # Keystone detection/management
-│   ├── comms.lua              # Inter-player messaging
-│   ├── profiles.lua           # Centralized profile service
-│   ├── ioCalculator.lua       # IO score calculations
-│   ├── groupSuggestions.lua   # Intelligent grouping
-│   ├── raiderio.lua           # RaiderIO integration
-│   ├── utils.lua              # Utility functions
-│   ├── season.lua             # Season data handling
-│   └── adapters/              # Data source adapters
-│       ├── blizzard.lua       # Blizzard API adapter
-│       ├── raiderio.lua       # RaiderIO adapter
-│       ├── libopenraid.lua    # LibOpenRaid adapter
-│       └── debug.lua          # Fake player adapter
-├── ui/                        # User interface
-│   ├── main.lua              # Main window & controls (Migrated to Ace3)
-│   ├── dungeonCards.lua      # Card-based dungeon display (Migrated to Ace3)
-│   ├── teleport.lua          # Travel assistance UI (Migrated to Ace3)
-│   ├── lootWindow.lua        # Loot tracking interface (Migrated to Ace3)
-│   ├── pugInviteNotification.lua  # PUG Mode invite notifications (Migrated to Ace3)
-│   ├── pugTravelAssistant.lua      # PUG Mode travel assistance (Migrated to Ace3)
-│   ├── pugGetawayUI.lua          # PUG Mode post-run getaway UI (Migrated to Ace3)
-│   └── pugApplicationTracker.lua  # PUG Mode application tracking (Migrated to Ace3)
-├── data/                      # Static data
-│   └── portals.lua           # Dungeon teleport data per season
-├── events/                    # Event handlers
-│   └── handlers.lua          # WoW event processing
-├── options/                   # Configuration UI
-│   └── main.lua              # AceConfig options
-└── debug/                     # Debug utilities only
-    ├── init.lua              # Debug initialization
-    └── tools.lua             # Debug utilities
+  boot.lua                     # Consolidated initialization (single entry point)
+  core/                        # Core business logic
+    config.lua                 # Settings management (AceDB schema)
+    constants.lua              # Shared constants
+    debugService.lua           # Debug routing
+    debugUI.lua                # Debug configuration UI
+    keystones.lua              # Keystone detection/management
+    comms.lua                  # Inter-player messaging
+    profiles.lua               # Profile aggregation service
+    ioCalculator.lua           # IO score calculations
+    groupSuggestions.lua       # Intelligent grouping logic
+    raiderio.lua               # RaiderIO integration
+    utils.lua                  # Utility helpers
+    season.lua                 # Season data handling
+    dungeonCards.lua           # Shared card model + loot tracking persistence
+    performance.lua            # Performance instrumentation
+    pugHelper.lua              # PUG system orchestrator
+    pugHelper_state.lua        # PUG state management
+    pugHelper_applications.lua # Throttled LFG application handling
+    adapters/                  # Data source adapters
+      blizzard.lua             # Blizzard API adapter
+      raiderio.lua             # RaiderIO adapter
+      libopenraid.lua          # LibOpenRaid adapter
+      debug.lua                # Fake player adapter
+  ui/                          # User interface (Ace3 + component factory)
+    components.lua             # Component factory
+    main.lua                   # Main window & controls
+    dungeonCards.lua           # Dungeon card presentation
+    teleport.lua               # Travel assistance UI
+    lootWindow.lua             # Loot tracking interface
+    hearthstoneSelector.lua    # Hearthstone selection UI
+    performanceOptimizer.lua   # UI performance tuning helpers
+    pugInviteNotification.lua  # PUG Mode invite notifications
+    pugTravelAssistant.lua     # PUG Mode travel assistance
+    pugApplicationTracker.lua  # PUG Mode application tracking
+    pugGetawayUI.lua           # PUG Mode post-run getaway UI
+  data/                        # Static seasonal data
+    portals.lua                # Dungeon teleport data per season
+    loot.lua                   # Seasonal loot definitions (0.2.1)
+  events/                      # Event handlers
+    handlers.lua               # WoW event processing
+    performanceHandlers.lua    # Throttled performance-sensitive events
+  options/                     # Configuration UI
+    main.lua                   # AceConfig options
+  debug/                       # Debug utilities and regression suites
+    init.lua                   # Debug initialization
+    tools.lua                  # Debug helpers
+    loot_tracking_test.lua     # Loot persistence regression script
+    performanceMonitor.lua     # Runtime performance monitor
+    performanceTest.lua        # Performance regression suite
+    pugPerformanceTest.lua     # PUG mode performance suite
+    pugHelper_tests.lua        # PUG helper behavioural tests
 ```
 
 ## Key Components
@@ -286,6 +302,28 @@ PlayerProfile = {
 - Debug controls (when enabled)
 - **CURRENT ISSUE**: Elements missing or not displaying correctly after refactor
 
+### 9. Loot Targeting System ([`ui/lootWindow.lua`](../../../ui/lootWindow.lua) + [`data/loot.lua`](../../../data/loot.lua))
+
+**Purpose**: Provide a season-aware loot tracking workflow with persistence and run counters.
+
+**Key Components**:
+- Featured rows: Always-visible items defined per dungeon with protected state (non-removable).
+- Dropdown rows: Secondary targets surfaced via dropdown with "already tracked" markers.
+- Manual input: Accepts arbitrary item IDs, validates against dungeon data, and routes through `TrackItem`.
+- Run counter display: Pulls from `NextKey.DungeonCards:GetRunCount()` (increments on +7 completions).
+- Hero-track tooltip: Displays item info; current bug hides item level until refactored fix lands.
+
+**Data Flow**:
+1. `data/loot.lua` selects `NextKey.LootData` for active season (`activeSeasonKey`).
+2. `ui/lootWindow.lua` requests featured/dropdown items via `NextKey:GetFeaturedItems()` / `GetDropdownItems()`.
+3. User actions (`TrackItem`, `UntrackItem`, `IncrementRunCounter`) proxy through `core/dungeonCards.lua`.
+4. Persistence stored in `db.char.lootTracking` with `SaveLootTracking()` / `LoadLootTracking()`.
+
+**Testing Hooks**:
+- `/script TestLootTrackingFixes()` exercises persistence, run counters, and +7 filtering.
+- Fake dungeon selection call: `/run NextKey222.Addon:HandleLootClick(503, {name=\"Ara-Kara\"})`.
+- Debug categories: enable `lootwindow`, `components`, `lootdata` for verbose tracing.
+
 ## Critical Implementation Patterns
 
 ### 1. Module Registration (MANDATORY)
@@ -460,7 +498,8 @@ Calculate IO ranges → Sort by mode → Render cards → Display
 ## Season Management
 
 ### Season Data Location
-**Primary**: [`data/portals.lua`](../../../data/portals.lua)
+- [`data/portals.lua`](../../../data/portals.lua) — travel/teleport metadata
+- [`data/loot.lua`](../../../data/loot.lua) — featured/dropdown loot definitions (season keyed)
 
 ### Season Structure
 ```lua
@@ -473,12 +512,27 @@ Calculate IO ranges → Sort by mode → Render cards → Display
 }
 ```
 
+**Loot Data Structure** (`data/loot.lua`)
+```lua
+["TWW_S3"] = {
+    name = "The War Within Season 3",
+    dungeons = {
+        [503] = {
+            items = {
+                [178825] = { featured = true, inDropdown = false, slot = "TRINKET", name = "Pulsating Stoneheart" },
+                -- featured/dropdown/manual flags per item
+            }
+        }
+    }
+}
+```
+
 ### Season Updates (Critical Process)
-1. Add new season block to `portals.lua`
-2. Update `activeSeasonKey` variable
+1. Add new season blocks to `portals.lua` **and** `loot.lua`
+2. Update `activeSeasonKey` in both files
 3. Update ID mappings in [`core/utils.lua`](../../../core/utils.lua)
-4. Test dungeon detection thoroughly
-5. Update documentation
+4. Test dungeon detection and loot lookup thoroughly
+5. Update documentation and loot validation scripts
 
 ## Testing Infrastructure
 

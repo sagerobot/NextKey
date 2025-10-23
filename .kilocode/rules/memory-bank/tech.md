@@ -52,6 +52,10 @@
 3. Use `/nk config` → Debug System for troubleshooting
 4. Run `/script NextKeyRunTests()` for validation
 5. Test with fake players: `/nk test`
+6. Run targeted regressions:
+   - Loot tracking: `/script TestLootTrackingFixes()`
+   - PUG performance: `/nk pug performance test`
+   - Component system: `/nk components test`
 
 ## Project Structure Standards
 
@@ -65,13 +69,17 @@
 
 ### Load Order Management
 Critical files loaded via [`NextKey.toc`](../../../NextKey.toc):
-1. Libraries first (embeds.xml)
-2. Configuration (config.lua)
-3. Debug system (debugService.lua, debugUI.lua)
-4. Boot system (boot.lua)
-5. Core modules
-6. UI components
-7. Options panels
+1. Libraries first (`embeds.xml`)
+2. Configuration (`core/config.lua`)
+3. Debug system (`core/debugService.lua`, `core/debugUI.lua`)
+4. Boot system (`boot.lua`)
+5. Slash commands (`core/slashCommands.lua`)
+6. Component factory (`ui/components.lua`)
+7. Seasonal data (`data/portals.lua`, `data/loot.lua`)
+8. Core modules
+9. UI modules
+10. Options panels
+11. Debug/test modules
 
 ## Technical Constraints
 
@@ -119,6 +127,10 @@ Critical files loaded via [`NextKey.toc`](../../../NextKey.toc):
    - Testing data generation
    - Realistic IO score distributions
    - Development workflow support
+5. **Seasonal Loot Dataset** (`data/loot.lua`)
+   - Featured and dropdown loot for the active season
+   - Slot metadata for tooltip and filtering logic
+   - Run counter defaults for persistence validation
 
 ### Data Flow Priority
 ```
@@ -138,7 +150,7 @@ Blizzard API (Base) → LibOpenRaid (Real-time) → RaiderIO (Comprehensive) →
 ```lua
 {
     opcode = "SYNC|PLAYER_IO_UPDATE|REQUEST_PLAYER_IO|...",
-    version = "0.2.0.1",
+    version = "0.2.1",
     timestamp = GetTime(),
     sender = "PlayerName-Realm",
     data = { ... }
@@ -164,6 +176,12 @@ Blizzard API (Base) → LibOpenRaid (Real-time) → RaiderIO (Comprehensive) →
 - Profiles built on-demand
 - Scores fetched when needed
 - Tooltips generated dynamically
+### Performance Tooling (0.2.1)
+- `ui/performanceOptimizer.lua` centralizes UI throttling helpers; pair with `events/performanceHandlers.lua` for roster/LFG batching.
+- `/nk pug performance test` exercises `debug/pugPerformanceTest.lua` load scenarios and validates throttles.
+- `/nkperf metrics` and `/nkperf test` use `debug/performanceMonitor.lua` + `debug/performanceTest.lua` to surface runtime metrics.
+- `/script TestLootTrackingFixes()` validates loot persistence, run counters, and +7 gating before shipping.
+
 
 ## Debugging Infrastructure
 

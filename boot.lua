@@ -436,6 +436,14 @@ NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
         end, "Initialize PUG Application Tracker")
     end
     
+    -- Initialize DungeonCards (loads loot tracking data)
+    if NextKey.DungeonCards and NextKey.DungeonCards.Init then
+        NextKey222.Debug:Dev("startup", "Initializing DungeonCards")
+        NextKey.SafeRun(function()
+            NextKey.DungeonCards:Init()
+        end, "Initialize DungeonCards")
+    end
+    
     NextKey222.Debug:Dev("startup", "PostInit phase completed")
 end)
 

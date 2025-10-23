@@ -49,13 +49,18 @@ local STATUS_COLORS = {
 local frame = nil
 local applicationEntries = {}
 local lastUpdate = 0
-local autoHideTimer = nil
 local isVisible = false
 local trackerConfig = {
     enabled = false,
     autoShow = true,
     position = "center"
 }
+
+-- PERFORMANCE FIX: Proper timer tracking to prevent memory leaks
+local activeTimers = {}
+local entryPool = {}
+local poolSize = 0
+local maxPoolSize = 20
 
 -- MARK: Module Registration
 NextKey222.RegisterModule("PUGApplicationTracker", PUGApplicationTracker)
@@ -117,10 +122,10 @@ function PUGApplicationTracker:Hide()
     -- Stop refresh timer
     self:StopRefreshTimer()
     
-    -- Clear auto-hide timer
-    if autoHideTimer then
-        autoHideTimer:Cancel()
-        autoHideTimer = nil
+    -- PERFORMANCE FIX: Clear all active timers
+    if activeTimers.autoHide then
+        activeTimers.autoHide:Cancel()
+        activeTimers.autoHide = nil
     end
     
     Debug:Dev("pughelper", "Application tracker hidden")
@@ -356,6 +361,33 @@ function PUGApplicationTracker:PositionFrame()
     frame.frame:SetPoint(pos.point, UIParent, pos.relativePoint, pos.x, pos.y)
 end
 
+-- PERFORMANCE FIX: Object pooling for application entries
+
+-- Get pooled entry or create new one
+function PUGApplicationTracker:GetPooledEntry()
+    if poolSize > 0 then
+        local entry = entryPool[poolSize]
+        entryPool[poolSize] = nil
+        poolSize = poolSize - 1
+        Debug:Dev("pughelper", "Retrieved entry from pool, pool size: " .. poolSize)
+        return entry
+    end
+    
+    -- Create new entry if pool empty
+    Debug:Dev("pughelper", "Creating new application entry")
+    return self:CreateApplicationEntry(frame.content, 1)
+end
+
+-- Return entry to pool
+function PUGApplicationTracker:ReturnToPool(entry)
+    if poolSize < maxPoolSize then
+        entry.frame:Hide()
+        poolSize = poolSize + 1
+        entryPool[poolSize] = entry
+        Debug:Dev("pughelper", "Returned entry to pool, pool size: " .. poolSize)
+    end
+end
+
 -- Create an application entry row using AceGUI widgets
 function PUGApplicationTracker:CreateApplicationEntry(parent, index)
     -- Create container for the entry
@@ -436,6 +468,8 @@ function PUGApplicationTracker:GetActiveApplications()
     return NextKey222.PUGHelper:GetApplicationsAsArray() or {}
 end
 
+-- PERFORMANCE FIX: Optimized display update with object pooling
+
 -- Update the display with current applications
 function PUGApplicationTracker:UpdateDisplay()
     if not frame or not isVisible then
@@ -455,34 +489,34 @@ function PUGApplicationTracker:UpdateDisplay()
     local contentHeight = math.max(#applications * config.row_height, config.row_height)
     frame.content.frame:SetHeight(contentHeight)
     
-    -- Update application entries (create new ones as needed)
+    -- PERFORMANCE FIX: Return excess entries to pool
+    for i = #applications + 1, #applicationEntries do
+        self:ReturnToPool(applicationEntries[i])
+    end
+    
+    -- Trim applicationEntries array to match current applications
+    for i = #applications + 1, #applicationEntries do
+        applicationEntries[i] = nil
+    end
+    
+    -- Update or create entries using object pool
     for i = 1, #applications do
         local app = applications[i]
         local entry
         
-        -- Create new entry if needed
-        if i > #applicationEntries then
-            entry = self:CreateApplicationEntry(frame.content, i)
-            table.insert(applicationEntries, entry)
-            frame.content:AddChild(entry)
-        else
+        if i <= #applicationEntries then
             entry = applicationEntries[i]
+        else
+            entry = self:GetPooledEntry()
+            table.insert(applicationEntries, entry)
         end
         
-        -- Update entry with application data
         self:UpdateApplicationEntry(entry, app)
         entry.frame:Show()
+        frame.content:AddChild(entry)
     end
     
-    -- Hide excess entries
-    for i = #applications + 1, #applicationEntries do
-        applicationEntries[i].frame:Hide()
-    end
-    
-    -- Update scroll range (AceGUI handles this automatically)
-    -- frame.scrollFrame:UpdateScrollChildRect() -- Not needed with AceGUI
-    
-    Debug:Dev("pughelper", "Application tracker updated with " .. #applications .. " entries")
+    Debug:Dev("pughelper", "Application tracker updated with " .. #applications .. " entries (pool size: " .. poolSize .. ")")
 end
 
 -- Update a single application entry
@@ -554,39 +588,49 @@ function PUGApplicationTracker:FormatTimeApplied(appliedAt)
     end
 end
 
+-- PERFORMANCE FIX: Proper timer management with tracking
+
 -- Start the refresh timer
 function PUGApplicationTracker:StartRefreshTimer()
     self:StopRefreshTimer()
     
     local config = self.TRACKER_CONFIG
-    C_Timer.NewTimer(config.refresh_interval, function()
+    local timer = C_Timer.NewTimer(config.refresh_interval, function()
         if isVisible then
             self:UpdateDisplay()
             self:StartRefreshTimer() -- Restart timer
         end
+        activeTimers.refresh = nil
     end)
+    
+    activeTimers.refresh = timer
+    Debug:Dev("pughelper", "Refresh timer started")
 end
 
 -- Stop the refresh timer
 function PUGApplicationTracker:StopRefreshTimer()
-    -- Timer is handled by C_Timer.NewTimer, so we don't need to store it
-    -- The timer will automatically stop when isVisible is false
+    if activeTimers.refresh then
+        activeTimers.refresh:Cancel()
+        activeTimers.refresh = nil
+        Debug:Dev("pughelper", "Refresh timer stopped")
+    end
 end
 
 -- Start the auto-hide timer
 function PUGApplicationTracker:StartAutoHideTimer()
-    if autoHideTimer then
-        autoHideTimer:Cancel()
+    if activeTimers.autoHide then
+        activeTimers.autoHide:Cancel()
     end
     
-    autoHideTimer = C_Timer.NewTimer(self.TRACKER_CONFIG.auto_hide_delay, function()
+    activeTimers.autoHide = C_Timer.NewTimer(self.TRACKER_CONFIG.auto_hide_delay, function()
         local applications = self:GetActiveApplications()
         if #applications == 0 then
             Debug:Dev("pughelper", "Auto-hiding tracker (no active applications)")
             self:Hide()
         end
-        autoHideTimer = nil
+        activeTimers.autoHide = nil
     end)
+    Debug:Dev("pughelper", "Auto-hide timer started")
 end
 
 -- MARK: Cleanup
@@ -599,11 +643,19 @@ function PUGApplicationTracker:Cleanup()
     -- Hide the frame
     self:Hide()
     
-    -- Clear timers
-    if autoHideTimer then
-        autoHideTimer:Cancel()
-        autoHideTimer = nil
+    -- PERFORMANCE FIX: Cancel all active timers
+    for _, timer in pairs(activeTimers) do
+        if timer then
+            timer:Cancel()
+        end
     end
+    activeTimers = {}
+    
+    -- PERFORMANCE FIX: Clear object pools
+    entryPool = {}
+    poolSize = 0
+    
+    Debug:Dev("pughelper", "PUGApplicationTracker cleanup completed - all timers and pools cleared")
 end
 
 return PUGApplicationTracker

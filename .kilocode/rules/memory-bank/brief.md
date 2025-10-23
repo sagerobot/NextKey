@@ -3,10 +3,10 @@
 ## Project Identity
 **Name**: NextKey  
 **Type**: World of Warcraft Addon  
-**Version**: 0.2.0.1  
-**Game Version**: Retail (11.0.2+)
-**Primary Language**: Lua
-**Current Phase**: Post-UI Refactor Bugfixing Phase
+**Version**: 0.2.1  
+**Game Version**: Retail (11.0.2+)  
+**Primary Language**: Lua  
+**Current Phase**: Post-UI Refactor Bugfixing Phase - Loot System Stabilization
 
 ## Core Purpose
 NextKey is a Mythic+ keystone optimization addon that helps groups intelligently select the best dungeon run next by analyzing party keystones, player scores, and loot preferences in under 30 seconds.
@@ -39,8 +39,6 @@ Transforms group key selection from a time-consuming decision process into an in
 - **Component-Driven**: Established factory pattern for consistent UI creation
 
 ## Recent Completion: UI Refactor (Phases 1-6)
-**Status**: ✅ COMPLETED
-
 The UI refactor successfully transformed NextKey's UI system:
 - **Phase 1**: Comprehensive analysis of UI patterns and Ace3 migration opportunities
 - **Phase 2**: Created Ace3 configuration wrapper system for consistent styling
@@ -49,4 +47,9 @@ The UI refactor successfully transformed NextKey's UI system:
 - **Phase 5**: Migrated all PUG Mode UI components to Ace3
 - **Phase 6**: Created comprehensive Ace3 best practices documentation
 
-**Current Phase**: Bugfixing and stabilization to restore full functionality after the refactor.
+**Current Phase**: Bugfixing and stabilization to restore full functionality after the refactor, with emphasis on validating the loot targeting system added in 0.2.1 before resuming PUG mode work.
+
+## Current Focus
+- Exercise the Season 3 loot targeting workflow (rendering, persistence, item data audit, Hero-track tooltip fix)
+- Confirm run counter logic and cross-session storage introduced with the new loot system
+- Queue Phase 4 PUG mode repairs once loot targeting is stable in live play

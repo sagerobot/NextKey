@@ -9,7 +9,23 @@ local Communications = {
     messageQueue = {},
     isProcessing = false,
     -- Storage for received IO data from other players
-    playerIOCache = {}
+    playerIOCache = {},
+    
+    -- PHASE 3: Communication Batching System
+    batchQueue = {},
+    batchTimer = nil,
+    batchInterval = 2.0, -- Process batches every 2 seconds
+    maxBatchSize = 5, -- Maximum messages per batch
+    
+    -- PHASE 3: Expensive Operation Throttling
+    expensiveOpTimer = nil,
+    expensiveOpInterval = 3.0, -- Expensive ops every 3 seconds
+    lastExpensiveOp = 0,
+    
+    -- PHASE 3: Frame Pacing
+    lastFrameTime = 0,
+    frameBudget = 16, -- 16ms budget for 60 FPS
+    workQueue = {}
 }
 
 NextKey222.Communications = Communications
@@ -67,6 +83,12 @@ end
 
 -- MARK: Player IO Data Sharing
 function Communications:SharePlayerIOData()
+    -- PHASE 3: Check if this should be batched for performance
+    if self:ShouldBatchOperation("PLAYER_IO") then
+        self:QueueBatchOperation("PLAYER_IO", {})
+        return true -- Pretend success for batching
+    end
+    
     print("NextKey SHARE DEBUG: SharePlayerIOData called")
     
     local inGroup = IsInGroup()
@@ -319,10 +341,14 @@ function Communications:SendSync()
         return false
     end
     
-    -- Use LibOpenRaid for keystone sharing since that's the primary data
-    if NextKey222.LibOpenRaid then
-        NextKey.SafeRun(NextKey222.LibOpenRaid.RequestKeystoneDataFromParty, "Request keystone data from party")
+    -- PERFORMANCE FIX: Prevent nil self error
+    if not NextKey222.LibOpenRaid then
+        NextKey222.Debug:Dev("comms", "LibOpenRaid not available")
+        return false
     end
+    
+    -- Use LibOpenRaid for keystone sharing since that's the primary data
+    NextKey.SafeRun(NextKey222.LibOpenRaid.RequestKeystoneDataFromParty, "Request keystone data from party")
     
     -- Share our preferences and dungeon scores
     self:SharePreferences()
@@ -509,6 +535,21 @@ function Communications:Initialize()
     self.partyDungeonScores = {}
     self.playerIOCache = {}  -- New IO data cache
     
+    -- PHASE 3: Initialize batching system
+    self.batchQueue = {}
+    self.workQueue = {}
+    self.lastFrameTime = 0
+    
+    -- Start batch processing timer
+    self.batchTimer = C_Timer.NewTicker(self.batchInterval, function()
+        self:ProcessBatchQueue()
+    end)
+    
+    -- Start expensive operations timer
+    self.expensiveOpTimer = C_Timer.NewTicker(self.expensiveOpInterval, function()
+        self:ProcessExpensiveOperations()
+    end)
+    
     -- Auto-share IO data when joining groups or when scores change
     if NextKey222.IOCalculator then
         -- Share IO data when current player's scores are updated
@@ -520,23 +561,255 @@ function Communications:Initialize()
     -- Note: Current player IO data will be generated on-demand to avoid initialization recursion
     -- EnsureCurrentPlayerIOData() is called when actually needed by IOCalculator
     
-    NextKey222.Debug:Dev("startup", "Communications module initialized successfully with IO data sharing")
+    NextKey222.Debug:Dev("startup", "Communications module initialized successfully with IO data sharing and batching")
     return true
+end
+
+-- MARK: PHASE 3 - Communication Batching System
+function Communications:ShouldBatchOperation(operationType)
+    -- PHASE 3: Batch expensive operations in large groups (considering online players only)
+    local groupSize = GetNumGroupMembers() or 1
+    local effectiveSize = groupSize
+    
+    -- Check for significant offline presence and use online count
+    if NextKey222.Events and NextKey222.Events.HasSignificantOfflinePlayers then
+        if NextKey222.Events:HasSignificantOfflinePlayers() then
+            effectiveSize = NextKey222.Events:GetOnlineGroupMembers()
+            NextKey222.Debug:Dev("comms", string.format("Batching decision optimized: %d total, %d online, using %d effective size",
+                groupSize, NextKey222.Events:GetOnlineGroupMembers(), effectiveSize))
+        end
+    end
+    
+    return effectiveSize >= 10 and (operationType == "PLAYER_IO" or operationType == "SYNC")
+end
+
+function Communications:QueueBatchOperation(operationType, data)
+    table.insert(self.batchQueue, {
+        type = operationType,
+        data = data,
+        timestamp = GetTime()
+    })
+    
+    NextKey222.Debug:Dev("comms", "Queued batch operation:", operationType, "Queue size:", #self.batchQueue)
+end
+
+function Communications:ProcessBatchQueue()
+    if #self.batchQueue == 0 then
+        return
+    end
+    
+    NextKey222.Debug:Dev("comms", "Processing batch queue with", #self.batchQueue, "operations")
+    
+    -- Process up to maxBatchSize operations
+    local processed = 0
+    local operationsToRemove = {}
+    
+    for i = 1, math.min(#self.batchQueue, self.maxBatchSize) do
+        local operation = self.batchQueue[i]
+        
+        -- Execute the operation
+        if operation.type == "PLAYER_IO" then
+            self:_ExecuteSharePlayerIOData()
+        elseif operation.type == "SYNC" then
+            self:_ExecuteSync()
+        end
+        
+        table.insert(operationsToRemove, i)
+        processed = processed + 1
+    end
+    
+    -- Remove processed operations (in reverse order to maintain indices)
+    for i = #operationsToRemove, 1, -1 do
+        table.remove(self.batchQueue, operationsToRemove[i])
+    end
+    
+    NextKey222.Debug:Dev("comms", "Processed", processed, "batch operations")
+end
+
+function Communications:_ExecuteSharePlayerIOData()
+    -- Execute the actual sharing logic without batching checks
+    local inGroup = IsInGroup()
+    if not inGroup or not self:CanSendMessage("PLAYER_IO") then
+        return false
+    end
+    
+    -- Execute the original SharePlayerIOData logic (simplified)
+    local playerName = UnitName("player") .. "-" .. GetRealmName()
+    local ioPackage = NextKey222.PlayerIODataStructure:CreatePlayerIOPackage(playerName, false)
+    
+    if ioPackage then
+        self.playerIOCache[playerName] = ioPackage
+        local channel = IsInRaid() and "RAID" or "PARTY"
+        local payload = {
+            opcode = NextKey222.Constants.COMM_OPCODES.PLAYER_IO_UPDATE,
+            version = NextKey.version or "1.0.0",
+            timestamp = GetTime(),
+            sender = playerName,
+            ioData = ioPackage
+        }
+        
+        local serialized = AceSerializer:Serialize(payload)
+        NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel)
+        return true
+    end
+    
+    return false
+end
+
+function Communications:_ExecuteSync()
+    -- Execute the actual sync logic without batching checks
+    if not IsInGroup() or not self:CanSendMessage("SYNC") then
+        return false
+    end
+    
+    -- Use LibOpenRaid for keystone sharing
+    if NextKey222.LibOpenRaid then
+        NextKey.SafeRun(NextKey222.LibOpenRaid.RequestKeystoneDataFromParty, "Request keystone data from party")
+    end
+    
+    -- Share preferences and dungeon scores
+    self:SharePreferences()
+    self:_ExecuteSharePlayerIOData()
+    
+    return true
+end
+
+-- MARK: PHASE 3 - Expensive Operations Throttling
+function Communications:ProcessExpensiveOperations()
+    local now = GetTime()
+    if now - self.lastExpensiveOp < self.expensiveOpInterval then
+        return
+    end
+    
+    self.lastExpensiveOp = now
+    
+    -- Process expensive operations that don't need to run every frame
+    -- This includes cache cleanup, data validation, etc.
+    
+    -- Clean up old cache entries
+    self:CleanupOldCacheEntries()
+    
+    NextKey222.Debug:Dev("comms", "Processed expensive operations")
+end
+
+function Communications:CleanupOldCacheEntries()
+    local now = GetTime()
+    local maxAge = 600 -- 10 minutes
+    local cleaned = 0
+    
+    for playerName, ioData in pairs(self.playerIOCache) do
+        if ioData.timestamp and (now - ioData.timestamp) > maxAge then
+            self.playerIOCache[playerName] = nil
+            cleaned = cleaned + 1
+        end
+    end
+    
+    if cleaned > 0 then
+        NextKey222.Debug:Dev("comms", "Cleaned", cleaned, "old cache entries")
+    end
+end
+
+-- MARK: PHASE 3 - Frame Pacing System
+function Communications:UpdateFramePacing()
+    local now = GetTime()
+    local frameDelta = now - self.lastFrameTime
+    
+    -- Only process work if we have frame budget available
+    if frameDelta < (self.frameBudget / 1000) then
+        return false -- Not enough time in this frame
+    end
+    
+    self.lastFrameTime = now
+    
+    -- Process queued work within frame budget
+    local workStartTime = GetTime()
+    local processed = 0
+    
+    while #self.workQueue > 0 and (GetTime() - workStartTime) < (self.frameBudget / 1000) do
+        local work = table.remove(self.workQueue, 1)
+        self:ExecuteWorkItem(work)
+        processed = processed + 1
+    end
+    
+    if processed > 0 then
+        NextKey222.Debug:Dev("comms", "Processed", processed, "work items in frame")
+    end
+    
+    return processed > 0
+end
+
+function Communications:QueueWorkItem(workType, data)
+    table.insert(self.workQueue, {
+        type = workType,
+        data = data,
+        timestamp = GetTime()
+    })
+end
+
+function Communications:ExecuteWorkItem(workItem)
+    if workItem.type == "CACHE_CLEANUP" then
+        self:CleanupOldCacheEntries()
+    elseif workItem.type == "DATA_VALIDATION" then
+        self:ValidateCachedData()
+    end
+end
+
+function Communications:ValidateCachedData()
+    -- Validate cached data structure integrity
+    local validated = 0
+    local invalid = 0
+    
+    for playerName, ioData in pairs(self.playerIOCache) do
+        if NextKey222.PlayerIODataStructure:ValidatePackage(ioData) then
+            validated = validated + 1
+        else
+            self.playerIOCache[playerName] = nil
+            invalid = invalid + 1
+        end
+    end
+    
+    if invalid > 0 then
+        NextKey222.Debug:Dev("comms", "Removed", invalid, "invalid cache entries, validated", validated)
+    end
 end
 
 -- MARK: Throttling
 function Communications:CanSendMessage(messageType)
     local now = GetTime()
     local lastSent = self.throttleTimers[messageType] or 0
-    local throttleSettings = NextKey222.Constants.COMM_SETTINGS
-    local throttleInterval = throttleSettings and throttleSettings.THROTTLE_INTERVAL or 5
     
-    if now - lastSent < throttleInterval then
-        NextKey222.Debug:Dev("comms", "Message throttled:", messageType, "- wait", throttleInterval - (now - lastSent), "seconds")
+    -- PHASE 3: Optimize for offline players in communications
+    local groupSize = GetNumGroupMembers() or 1
+    local effectiveSize = groupSize
+    
+    -- Check for significant offline presence and use online count
+    if NextKey222.Events and NextKey222.Events.HasSignificantOfflinePlayers then
+        if NextKey222.Events:HasSignificantOfflinePlayers() then
+            effectiveSize = NextKey222.Events:GetOnlineGroupMembers()
+            NextKey222.Debug:Dev("comms", string.format("Communications optimized for mixed group: %d total, %d online, using %d effective size",
+                groupSize, NextKey222.Events:GetOnlineGroupMembers(), effectiveSize))
+        end
+    end
+    
+    local throttleSettings = NextKey222.Constants.COMM_SETTINGS
+    local baseInterval = throttleSettings and throttleSettings.THROTTLE_INTERVAL or 5
+    
+    -- Scale throttle interval: 5 players = 5s, 10 players = 10s, 20+ players = 20s
+    local scaledInterval = baseInterval
+    if effectiveSize > 5 then
+        scaledInterval = math.min(baseInterval + (effectiveSize - 5) * 1.0, 20)
+    end
+    
+    if now - lastSent < scaledInterval then
+        local remaining = scaledInterval - (now - lastSent)
+        NextKey222.Debug:Dev("comms", string.format("Message throttled: %s - wait %.1fs (total: %d, online: %d, interval: %.1fs)",
+            messageType, remaining, groupSize, effectiveSize, scaledInterval))
         return false
     end
     
     self.throttleTimers[messageType] = now
+    NextKey222.Debug:Dev("comms", string.format("Message allowed: %s (total: %d, online: %d, throttle: %.1fs)",
+        messageType, groupSize, effectiveSize, scaledInterval))
     return true
 end
 

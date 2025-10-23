@@ -1,52 +1,35 @@
 # NextKey Current Status & Requirements
 
-## Project Status: Post-UI Refactor Bugfixing Phase
-**Date**: October 20, 2025
-**Version**: 0.2.1
+## Project Status
+**Date**: October 20, 2025  
+**Version**: 0.2.1  
+**Phase**: Post-UI Refactor Bugfixing - Loot System Implementation
 
-## ✅ Blocker Resolved: GetCard() Lua Error
+## Phase 3: Loot Targeting System
+**State**: Implementation complete, validation in progress.
 
-The persistent Lua error in the `GetCard()` function has been fixed. The Loot Window is no longer blocked.
+### Delivered
+- `data/loot.lua` provides a full Season 3 dataset with featured and dropdown item groupings per dungeon.
+- `ui/lootWindow.lua` uses native frames plus the component factory for featured rows, dropdown toggles, and manual item input.
+- `core/dungeonCards.lua` now handles loot tracking persistence, run counters, and helper lookups used by both the UI and tests.
+- `debug/loot_tracking_test.lua` exposes `TestLootTrackingFixes()` to exercise persistence, run counters, and +7 level filtering.
 
-**Original Error**: `NextKey/core/dungeonCards.lua:58: Name required when creating new dungeon card`
+### Outstanding Validation
+1. Exercise loot window rendering to ensure texture preloading and layout hold under real data.
+2. Verify custom item workflow (add/remove) and confirm data survives `/reload`.
+3. Audit Season 3 item IDs/names against authoritative sources; adjust dataset if mismatches appear.
+4. Restore tooltip Hero-track item level display in regular and compact views.
 
-See `context.md` for a full debugging summary.
+## Phase 4: PUG Mode (Queued)
+- Core performance optimizations are in place (`events/performanceHandlers.lua`, `core/pugHelper_applications.lua`, `ui/pugApplicationTracker.lua`, `debug/pugPerformanceTest.lua`), but feature work remains blocked until loot validation finishes.
+- Highest-priority fixes once unblocked: invite notifications, application tracker accuracy, getaway UI composition, and overall workflow polish.
 
-## 🎯 Implementation Status
+## Implementation Priorities
+1. Finish Phase 3 validation checklist and document any data corrections.
+2. Ship tooltip Hero-track fix as part of the loot window polish.
+3. Resume PUG mode repairs (Phase 4) with invite/application flows first, then getaway UI and options cleanup.
 
-### 1. Loot Window (`ui/lootWindow.lua`)
-**Current State**: Unblocked. Ready for functional testing.
-**Status**: 🟠 READY FOR TESTING
-
-**Architectural Work Completed**:
-- ✅ Window architecture refactored to use native frames
-- ✅ Three-tier item system designed (Featured, Dropdown, Manual)
-- ✅ Run counter and drop chance system implemented
-- ✅ Database persistence for tracking is in place
-
-**To Be Tested**:
-- ❗ **FATAL**: `GetCard()` error is resolved. The window should now render items correctly.
-- ❗ Item icons, lists, and input fields can now be tested.
-- ❗ Tooltip Hero track ilvl display remains to be fixed.
-
-### 2. PUG Mode Components Status
-**Status**: Unchanged. Work is blocked until Phase 3 (Loot System) is complete.
-
-## 📋 Implementation Priority
-
-With the blocker removed, development can now proceed on the Loot System.
-
-### Phase 3 (Current - Loot System) 🟠 READY FOR TESTING (0% Functionally Complete)
-1. ✅ **Fix `GetCard()` Lua Error (HIGHEST PRIORITY)**
-2. 🟠 **Test loot window rendering**
-3. 🟡 Validate/correct item IDs for Season 3 dungeons
-4. 🟡 Fix custom item input functionality
-5. 🟡 Add run counter tracking features
-6. 🟡 Test persistence system
-
-### Phase 4 (Next - PUG Mode)
-- Blocked until Phase 3 is complete.
-
-## 🔧 Technical Notes
-- The immediate focus is to test the Loot Window thoroughly to ensure all features are working as expected now that the `GetCard` error is resolved.
-- After functional validation, the next step is to fix the Hero track ilvl display issue in the tooltip.
+## Technical Notes
+- Performance tooling is available through `/nk pug performance test`, `/nkperf metrics`, and `TestLootTrackingFixes()`; use these to guard against regressions.
+- Keep `data/loot.lua` season key (`activeSeasonKey`) accurate when transitioning content.
+- Maintain component factory usage in all new UI work to stay aligned with the refactored architecture.

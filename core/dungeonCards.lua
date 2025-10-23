@@ -83,7 +83,20 @@ end
 ---@param bestLevel number
 ---@param bestLevelAffix string
 function DungeonCards:UpdateScores(dungeonID, fortifiedScore, tyrannicalScore, bestLevel, bestLevelAffix)
-    local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
+    -- Get existing card or create with fallback name
+    local card = self.dungeons[dungeonID]
+    if not card then
+        -- Try to get name from portal data
+        local dungeonName = nil
+        if NextKey.PortalData and NextKey.PortalData.dungeons and NextKey.PortalData.dungeons[dungeonID] then
+            dungeonName = NextKey.PortalData.dungeons[dungeonID].name
+        end
+        if not dungeonName then
+            dungeonName = "Dungeon " .. dungeonID
+        end
+        card = self:GetCard(dungeonID, dungeonName, dungeonName)
+    end
+    
     card.fortifiedScore = fortifiedScore or 0
     card.tyrannicalScore = tyrannicalScore or 0
     card.totalScore = (fortifiedScore or 0) + (tyrannicalScore or 0)
@@ -118,7 +131,12 @@ end
 ---@param dungeonID number
 ---@return string likes, string dislikes
 function DungeonCards:GetPreferenceTooltip(dungeonID)
-    local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
+    -- Get existing card or create with fallback name
+    local card = self.dungeons[dungeonID]
+    if not card then
+        local dungeonName = "Dungeon " .. dungeonID
+        card = self:GetCard(dungeonID, dungeonName, dungeonName)
+    end
     
     local likes = {}
     for name in pairs(card.likes) do
@@ -167,7 +185,12 @@ end
 ---@param itemID number
 ---@param isCustom boolean
 function DungeonCards:UntrackItem(dungeonID, itemID, isCustom)
-    local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
+    -- Get existing card or create with fallback name
+    local card = self.dungeons[dungeonID]
+    if not card then
+        local dungeonName = "Dungeon " .. dungeonID
+        card = self:GetCard(dungeonID, dungeonName, dungeonName)
+    end
     
     if isCustom then
         card.customTrackedItems[itemID] = nil
@@ -188,7 +211,12 @@ end
 ---@param dungeonID number
 ---@param itemID number
 function DungeonCards:IncrementRunCounter(dungeonID, itemID)
-    local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
+    -- Get existing card or create with fallback name
+    local card = self.dungeons[dungeonID]
+    if not card then
+        local dungeonName = "Dungeon " .. dungeonID
+        card = self:GetCard(dungeonID, dungeonName, dungeonName)
+    end
     
     if not card.lootData then
         card.lootData = {}
@@ -210,7 +238,13 @@ end
 ---@param itemID number
 ---@return number runsSinceTracking
 function DungeonCards:GetRunCount(dungeonID, itemID)
-    local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
+    -- Get existing card or create with fallback name
+    local card = self.dungeons[dungeonID]
+    if not card then
+        local dungeonName = "Dungeon " .. dungeonID
+        card = self:GetCard(dungeonID, dungeonName, dungeonName)
+    end
+    
     if card.lootData and card.lootData[itemID] then
         return card.lootData[itemID].runsSinceTracking or 0
     end
@@ -316,24 +350,46 @@ end
 -- MARK: Loot Tracking Persistence
 
 function DungeonCards:SaveLootTracking()
-    if not NextKey.db or not NextKey.db.char then return end
+    if not NextKey.db or not NextKey.db.char then
+        NextKey222.Debug:Error("lootwindow", "Cannot save loot tracking - database not available")
+        return
+    end
     
     local lootData = {}
+    local totalDungeons = 0
+    local savedDungeons = 0
+    
     for dungeonID, card in pairs(self.dungeons) do
+        totalDungeons = totalDungeons + 1
+        
+        -- Debug: Check what's in this card
+        local hasTrackedItems = next(card.trackedItems) ~= nil
+        local hasCustomItems = next(card.customTrackedItems) ~= nil
+        local hasLootData = (card.lootData and next(card.lootData)) ~= nil
+        
+        NextKey222.Debug:Dev("lootwindow", "Checking dungeon", dungeonID, "tracked:", hasTrackedItems, "custom:", hasCustomItems, "lootData:", hasLootData)
+        
         -- Save tracking data and run counters
-        if next(card.trackedItems) or next(card.customTrackedItems) or (card.lootData and next(card.lootData)) then
+        if hasTrackedItems or hasCustomItems or hasLootData then
+            savedDungeons = savedDungeons + 1
             lootData[dungeonID] = {
+                name = card.name,           -- Store dungeon name for persistence
+                shortName = card.shortName, -- Store short name for persistence
                 defaultItems = {},
                 customItems = {},
                 lootData = {}
             }
             
+            -- Save tracked items
             for itemID, tracked in pairs(card.trackedItems) do
                 lootData[dungeonID].defaultItems[itemID] = tracked
+                NextKey222.Debug:Dev("lootwindow", "Saving tracked item", itemID, "for dungeon", dungeonID)
             end
             
+            -- Save custom tracked items
             for itemID in pairs(card.customTrackedItems) do
                 lootData[dungeonID].customItems[itemID] = true
+                NextKey222.Debug:Dev("lootwindow", "Saving custom item", itemID, "for dungeon", dungeonID)
             end
             
             -- Save run counter data
@@ -343,38 +399,94 @@ function DungeonCards:SaveLootTracking()
                         runsSinceTracking = data.runsSinceTracking,
                         historicalRuns = data.historicalRuns
                     }
+                    NextKey222.Debug:Dev("lootwindow", "Saving loot data for item", itemID, "runs:", data.runsSinceTracking)
                 end
             end
         end
     end
     
     NextKey.db.char.lootTracking = lootData
-    NextKey222.Debug:Dev("lootwindow", "Saved loot tracking data for", table.getn(lootData), "dungeons")
+    NextKey222.Debug:Dev("lootwindow", "Saved loot tracking data for", savedDungeons, "of", totalDungeons, "dungeons")
+    
+    -- Debug: Show the actual saved data structure
+    NextKey222.Debug:Dev("lootwindow", "Final saved data structure:")
+    for dungeonID, data in pairs(lootData) do
+        NextKey222.Debug:Dev("lootwindow", "  Dungeon", dungeonID, ":", data.name)
+        for itemID in pairs(data.defaultItems) do
+            NextKey222.Debug:Dev("lootwindow", "    Tracked item:", itemID)
+        end
+        for itemID in pairs(data.customItems) do
+            NextKey222.Debug:Dev("lootwindow", "    Custom item:", itemID)
+        end
+        for itemID, lootData in pairs(data.lootData) do
+            NextKey222.Debug:Dev("lootwindow", "    Loot data item:", itemID, "runs:", lootData.runsSinceTracking)
+        end
+    end
+    
+    -- Debug: Show what we actually saved
+    for dungeonID, data in pairs(lootData) do
+        local trackedCount = 0
+        local customCount = 0
+        local lootDataCount = 0
+        
+        for _ in pairs(data.defaultItems) do trackedCount = trackedCount + 1 end
+        for _ in pairs(data.customItems) do customCount = customCount + 1 end
+        for _ in pairs(data.lootData) do lootDataCount = lootDataCount + 1 end
+        
+        NextKey222.Debug:Dev("lootwindow", "Saved dungeon", dungeonID, "name:", data.name, "tracked items:", trackedCount, "custom items:", customCount, "loot data items:", lootDataCount)
+    end
 end
 
 function DungeonCards:LoadLootTracking()
-    if not NextKey.db or not NextKey.db.char then return end
+    if not NextKey.db or not NextKey.db.char then
+        NextKey222.Debug:Error("lootwindow", "Cannot load loot tracking - database not available")
+        return
+    end
     
     local lootData = NextKey.db.char.lootTracking
-    if not lootData then return end
+    if not lootData then
+        NextKey222.Debug:Dev("lootwindow", "No saved loot tracking data found")
+        return
+    end
+    
+    local foundDungeonCount = 0
+    for _ in pairs(lootData) do foundDungeonCount = foundDungeonCount + 1 end
+    NextKey222.Debug:Dev("lootwindow", "Found loot tracking data for", foundDungeonCount, "dungeons")
     
     for dungeonID, tracking in pairs(lootData) do
-        local card = self:GetCard(dungeonID, nil, nil) -- Internal calls don't need names
+        NextKey222.Debug:Dev("lootwindow", "Loading tracking for dungeon", dungeonID, "name:", tracking.name)
+        
+        -- Use stored name as fallback, or generate a fallback name
+        local dungeonName = tracking.name or ("Dungeon " .. dungeonID)
+        local dungeonShortName = tracking.shortName or dungeonName
+        
+        -- Ensure dungeonName is never nil before calling GetCard
+        if not dungeonName then
+            dungeonName = "Unknown Dungeon"
+            NextKey222.Debug:Error("dungeonCards", "dungeonName is still nil after fallback for dungeonID:", dungeonID)
+        end
+        
+        local card = self:GetCard(dungeonID, dungeonName, dungeonShortName)
         
         if tracking.defaultItems then
+            NextKey222.Debug:Dev("lootwindow", "Loading", table.getn(tracking.defaultItems), "default items for dungeon", dungeonID)
             for itemID, tracked in pairs(tracking.defaultItems) do
                 card.trackedItems[itemID] = tracked
+                NextKey222.Debug:Dev("lootwindow", "Loaded tracked item", itemID, "for dungeon", dungeonID)
             end
         end
         
         if tracking.customItems then
+            NextKey222.Debug:Dev("lootwindow", "Loading", table.getn(tracking.customItems), "custom items for dungeon", dungeonID)
             for itemID in pairs(tracking.customItems) do
                 card.customTrackedItems[itemID] = true
+                NextKey222.Debug:Dev("lootwindow", "Loaded custom item", itemID, "for dungeon", dungeonID)
             end
         end
         
         -- Load run counter data
         if tracking.lootData then
+            NextKey222.Debug:Dev("lootwindow", "Loading loot data for", table.getn(tracking.lootData), "items for dungeon", dungeonID)
             if not card.lootData then
                 card.lootData = {}
             end
@@ -383,6 +495,7 @@ function DungeonCards:LoadLootTracking()
                     runsSinceTracking = data.runsSinceTracking or 0,
                     historicalRuns = data.historicalRuns or 0
                 }
+                NextKey222.Debug:Dev("lootwindow", "Loaded loot data for item", itemID, "runs:", data.runsSinceTracking)
             end
         end
     end
@@ -394,7 +507,7 @@ function DungeonCards:Init()
     -- Load sort preference
     self.sortMethod = NextKey.db.char.dungeonSort or "alphabetical"
     
-    -- Initialize dungeon data from current season
+    -- Initialize dungeon data from current season FIRST
     local season = C_MythicPlus.GetCurrentSeason()
     if season then
         local seasonDungeons = C_MythicPlus.GetSeasonDungeonInfo(season)
@@ -405,7 +518,10 @@ function DungeonCards:Init()
         end
     end
     
-    -- Update scores from RaiderIO data
+    -- Load saved loot tracking data AFTER dungeon cards exist
+    self:LoadLootTracking()
+    
+    -- Update scores from RaiderIO data LAST
     if NextKey222.RaiderIO then
         local profile = NextKey222.RaiderIO:GetProfile(NextKey.playerFullName)
         if profile and profile.mythicKeystoneProfile then
@@ -425,9 +541,6 @@ function DungeonCards:Init()
             end
         end
     end
-    
-    -- Load saved loot tracking data
-    self:LoadLootTracking()
 end
 
 NextKey.DungeonCards = DungeonCards

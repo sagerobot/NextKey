@@ -37,12 +37,20 @@ NextKey is a World of Warcraft addon that solves the "which key should we run ne
 4. **Highest Key Level**: Pushes challenging content
 5. **Max Item Need**: Prioritizes dungeons with targeted loot
 
+### Loot Targeting System (0.2.1)
+1. **Season-Aware Dataset**: `data/loot.lua` maintains featured and dropdown loot per dungeon for the active season
+2. **Three-Tier Item Presentation**: Featured items show by default, dropdown items surface quick toggles, and manual entry supports any item ID
+3. **Run Tracking**: Loot tracking persists per character with run counters incremented for +7 and higher completions
+4. **Custom Item Support**: Players can add/remove personal targets; protected defaults cannot be removed
+5. **Preloading & Tooltips**: Item textures preload to avoid question marks and tooltips surface item quality (Hero-track ilvl fix currently in progress)
+
 ### User Experience
 1. **Main Window**: Clean card-based interface showing all available keys
 2. **Dungeon View**: Personal score tracking and preference management
-3. **Tooltips**: Detailed IO breakdowns and player-specific gains
-4. **Travel Assistant**: Integrated teleport system with one-click travel
-5. **Group Suggestions**: Intelligent multi-group formation with key rotation
+3. **Tooltips**: Detailed IO breakdowns and player-specific gains (Hero-track ilvl display slated for repair)
+4. **Loot Targeting Window**: Season-aware tracking UI with featured items, dropdown shortcuts, run counters, and custom item input
+5. **Travel Assistant**: Integrated teleport system with one-click travel
+6. **Group Suggestions**: Intelligent multi-group formation with key rotation
 
 ## Target User Experience
 
@@ -61,11 +69,11 @@ NextKey is a World of Warcraft addon that solves the "which key should we run ne
 5. Optimize for rating increases
 
 ### Loot Farming Flow
-1. Set loot targets in options
-2. Enable "Max Item Need" sorting
-3. View drop chances and run counts
-4. Get notifications on item acquisition
-5. Track farming progress
+1. Open a dungeon card and launch the loot window to review featured Season 3 items
+2. Track desired defaults or add custom item IDs (protected defaults cannot be removed)
+3. Run dungeons; the loot tracker increments run counters for keys completed at +7 or higher
+4. Use "Max Item Need" sorting to surface dungeons with active targets
+5. Clear tracked items when they drop and confirm persistence survives `/reload`
 
 ## Key Differentiators
 

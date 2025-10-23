@@ -43,6 +43,8 @@ core\theme.lua
 core\uiScale.lua
 core\responsive.lua
 core\performance.lua
+ui\performanceOptimizer.lua
+events\performanceHandlers.lua
 core\validation.lua
 core\fakePlayerService.lua
 core\profiles.lua
@@ -64,6 +66,10 @@ core\dungeonCards.lua
 
 # PUG Helper
 core\pugHelper.lua
+
+# Performance Monitor (debug tool)
+debug\performanceMonitor.lua
+debug\performanceTest.lua
 core\pugHelper_state.lua
 core\pugHelper_applications.lua
 
@@ -75,6 +81,8 @@ debug\init.lua
 debug\tools.lua
 debug\test_io_tooltips.lua
 debug\pugHelper_tests.lua
+debug\loot_tracking_test.lua
+debug\simple_test.lua
 
 # UI Components
 ui\main.lua

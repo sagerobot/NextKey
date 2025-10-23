@@ -71,44 +71,104 @@ function Events:OnPlayerEnteringWorld(isLogin, isReload)
     NextKey222.Performance:StopProfile("OnPlayerEnteringWorld")
 end
 
+-- MARK: Performance-Optimized Group Roster Update
+-- Prevents cascading updates that cause FPS drops
+
+-- Performance throttling variables
+local lastRosterUpdate = 0
+local ROSTER_UPDATE_THROTTLE = 1.0 -- 1 second minimum between updates
+local pendingRosterUpdate = false
+
 function Events:OnGroupRosterUpdate()
-    NextKey222.Performance:StartProfile("OnGroupRosterUpdate")
+    local now = GetTime()
     
-    NextKey222.Debug:Dev("events", "Group roster updated - refreshing party composition")
-    
-    -- Update group composition
-    if NextKey222.Communications and NextKey222.Communications.SendSync then
-        -- Throttled sync when group changes
-        C_Timer.After(2, function()
-            NextKey.SafeRun(NextKey222.Communications.SendSync, "Auto sync on group change")
-        end)
+    -- PERFORMANCE FIX: Immediate throttling to prevent cascading updates
+    if now - lastRosterUpdate < ROSTER_UPDATE_THROTTLE then
+        if not pendingRosterUpdate then
+            pendingRosterUpdate = true
+            NextKey222.Debug:Dev("events", "Group roster update throttled - scheduling delayed processing")
+            
+            C_Timer.NewTimer(ROSTER_UPDATE_THROTTLE, function()
+                self:ProcessRosterUpdate()
+                pendingRosterUpdate = false
+            end)
+        else
+            NextKey222.Debug:Dev("events", "Group roster update throttled - already pending")
+        end
+        return
     end
     
-    -- Update and share dungeon scores for IOCalculator
-    if NextKey222.IOCalculator then
-        C_Timer.After(1, function()
+    self:ProcessRosterUpdate()
+    lastRosterUpdate = now
+end
+
+function Events:ProcessRosterUpdate()
+    NextKey222.Performance:StartProfile("ProcessRosterUpdate")
+    
+    -- Event coalescing: Batch rapid-fire roster updates
+    if not self.rosterUpdateTimer then
+        self.rosterUpdateTimer = {}
+    end
+    
+    -- Cancel pending update if one exists
+    if self.rosterUpdateTimer.handle then
+        self.rosterUpdateTimer.handle:Cancel()
+    end
+    
+    -- PHASE 3: Optimize for offline players in mixed groups
+    local groupSize = GetNumGroupMembers() or 1
+    local onlineCount = self:GetOnlineGroupMembers()
+    
+    -- Use online player count for throttling if significant offline presence
+    local effectiveSize = onlineCount
+    if groupSize - onlineCount >= 3 then
+        -- 3+ offline players: use online count for performance
+        effectiveSize = onlineCount
+        NextKey222.Debug:Dev("events", string.format("Mixed group detected: %d total, %d online - using online count for throttling",
+            groupSize, onlineCount))
+    end
+    
+    local baseDelay = 0.5
+    local scaledDelay = baseDelay + (effectiveSize > 5 and (effectiveSize - 5) * 0.1 or 0)
+    local maxDelay = 2.0
+    local coalescingDelay = math.min(scaledDelay, maxDelay)
+    
+    NextKey222.Debug:Dev("events", string.format("Group roster update - coalescing for %.1fs (total: %d, online: %d, effective: %d)",
+        coalescingDelay, groupSize, onlineCount, effectiveSize))
+    
+    -- Schedule coalesced update
+    self.rosterUpdateTimer.handle = C_Timer.NewTimer(coalescingDelay, function()
+        NextKey222.Debug:Dev("events", "Executing coalesced roster update")
+        
+        -- Update group composition
+        if NextKey222.Communications and NextKey222.Communications.SendSync then
+            NextKey.SafeRun(NextKey222.Communications.SendSync, "Auto sync on group change")
+        end
+        
+        -- Update and share dungeon scores for IOCalculator
+        if NextKey222.IOCalculator then
             NextKey.SafeRun(function()
                 NextKey222.IOCalculator:UpdateCurrentPlayerScores()
             end, "Update dungeon scores on roster change")
-        end)
-    end
-    
-    -- Refresh UI if visible (party changes affect keystone display and IO calculations)
-    if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
-        -- Add extra notice for IO Gain Potential mode
-        if NextKey222.UI.IsPartySensitiveSortMode and NextKey222.UI:IsPartySensitiveSortMode() then
-            NextKey222.Debug:Dev("events", "Party change affects IO Gain Potential calculations - full refresh needed")
         end
         
-        NextKey222.Debug:Dev("events", "Refreshing UI due to party change")
-        C_Timer.After(1, function()
+        -- Refresh UI if visible (party changes affect keystone display and IO calculations)
+        if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
+            -- Add extra notice for IO Gain Potential mode
+            if NextKey222.UI.IsPartySensitiveSortMode and NextKey222.UI:IsPartySensitiveSortMode() then
+                NextKey222.Debug:Dev("events", "Party change affects IO Gain Potential calculations - full refresh needed")
+            end
+            
+            NextKey222.Debug:Dev("events", "Refreshing UI due to party change")
             NextKey.SafeRun(function()
                 NextKey222.UI:RefreshResults()
             end, "Auto refresh UI on group change")
-        end)
-    end
+        end
+        
+        self.rosterUpdateTimer.handle = nil
+    end)
     
-    NextKey222.Performance:StopProfile("OnGroupRosterUpdate")
+    NextKey222.Performance:StopProfile("ProcessRosterUpdate")
 end
 
 function Events:OnGroupJoined()
@@ -255,42 +315,38 @@ end
 function Events:OnChallengeModeCompleted(mapID, level)
     NextKey222.Performance:StartProfile("OnChallengeModeCompleted")
     
+    -- Only count runs at +7 or higher
+    if not level or level < 7 then
+        NextKey222.Debug:Dev("events", "Skipping run counter for level", level, "- only +7 and higher count")
+        NextKey222.Performance:StopProfile("OnChallengeModeCompleted")
+        return
+    end
+    
     -- Increment run counters for tracked items in this dungeon
     if NextKey.DungeonCards then
         NextKey.SafeRun(function()
-            -- Get dungeon name for GetCard call
-            local dungeonName = nil
-            if NextKey.PortalData and NextKey.PortalData.dungeons and NextKey.PortalData.dungeons[mapID] then
-                dungeonName = NextKey.PortalData.dungeons[mapID].name
-            end
-            if not dungeonName then
-                dungeonName = "Dungeon " .. mapID
+            local card = NextKey.DungeonCards.dungeons[mapID]
+            if not card then
+                NextKey222.Debug:Dev("events", "No dungeon card found for mapID", mapID)
+                NextKey222.Performance:StopProfile("OnChallengeModeCompleted")
+                return
             end
             
-            -- Ensure dungeonName is never nil before calling GetCard
-            if not dungeonName then
-                dungeonName = "Unknown Dungeon"
-                NextKey222.Debug:Error("events/handlers", "dungeonName is still nil after fallback for mapID:", mapID)
+            -- Increment counters for all tracked items (both default and custom)
+            for itemID in pairs(card.trackedItems) do
+                NextKey.DungeonCards:IncrementRunCounter(mapID, itemID)
+                NextKey222.Debug:Dev("events", "Incremented run counter for tracked item", itemID, "in dungeon", mapID)
             end
             
-            local card = NextKey.DungeonCards:GetCard(mapID, dungeonName)
-            if card then
-                -- Increment counters for featured items
-                local featuredItems = NextKey:GetFeaturedItems(mapID)
-                for _, itemID in ipairs(featuredItems) do
-                    NextKey.DungeonCards:IncrementRunCounter(mapID, itemID)
-                end
-                
-                -- Increment counters for custom tracked items
-                for itemID in pairs(card.customTrackedItems) do
-                    NextKey.DungeonCards:IncrementRunCounter(mapID, itemID)
-                end
-                
-                -- Save updated run counters
-                NextKey.DungeonCards:SaveLootTracking()
-                
-                NextKey222.Debug:Dev("events", "Incremented run counters for dungeon", mapID, "level", level)
+            for itemID in pairs(card.customTrackedItems) do
+                NextKey.DungeonCards:IncrementRunCounter(mapID, itemID)
+                NextKey222.Debug:Dev("events", "Incremented run counter for custom tracked item", itemID, "in dungeon", mapID)
             end
+            
+            -- Save updated run counters to persist them
+            NextKey.DungeonCards:SaveLootTracking()
+            
+            NextKey222.Debug:Dev("events", "Incremented run counters for dungeon", mapID, "level", level, "(+7 or higher)")
         end, "Increment run counters on dungeon completion")
     end
     
@@ -312,6 +368,47 @@ end
 function Events:Enable()
     NextKey222.Debug:Dev("events", "Events module enabled")
     return true
+end
+
+-- MARK: PHASE 3 - Offline Player Optimization
+--- Counts online group members to optimize performance for mixed groups
+-- @return number Number of online group members
+function Events:GetOnlineGroupMembers()
+    local totalMembers = GetNumGroupMembers() or 0
+    local onlineCount = 0
+    
+    for i = 1, totalMembers do
+        local name, rank, subgroup, level, class, fileName, zone, online, isDead, role, isML = GetRaidRosterInfo(i)
+        if online then
+            onlineCount = onlineCount + 1
+        end
+    end
+    
+    -- If not in raid, check party members
+    if totalMembers == 0 then
+        local partyMembers = GetPartyMembers()
+        if partyMembers then
+            for _, unit in ipairs(partyMembers) do
+                if UnitIsConnected(unit) then
+                    onlineCount = onlineCount + 1
+                end
+            end
+        end
+        -- Add current player if in party
+        if IsInGroup() then
+            onlineCount = onlineCount + 1
+        end
+    end
+    
+    return onlineCount
+end
+
+--- Checks if the group has significant offline player presence
+-- @return boolean true if 3+ players are offline
+function Events:HasSignificantOfflinePlayers()
+    local totalMembers = GetNumGroupMembers() or 0
+    local onlineCount = self:GetOnlineGroupMembers()
+    return (totalMembers - onlineCount) >= 3
 end
 
 return Events

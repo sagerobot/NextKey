@@ -51,7 +51,17 @@ local UI = {
     suggestionMode = "auto", -- "auto", "best_key", or "best_groups"
     
     -- Phase 7: Dynamic Configuration Context Reference
-    configContext = nil -- Will be set to NextKey222.ConfigurationContext
+    configContext = nil, -- Will be set to NextKey222.ConfigurationContext
+    
+    -- PHASE 3: Frame Pacing System
+    framePacing = {
+        lastFrameTime = 0,
+        frameBudget = 16, -- 16ms budget for 60 FPS
+        workQueue = {},
+        renderQueue = {},
+        isProcessing = false,
+        maxWorkPerFrame = 3 -- Max items to process per frame
+    }
 }
 NextKey222.UI = UI
 NextKey222.RegisterModule("UI", UI)
@@ -1681,9 +1691,9 @@ end
 -- Updates UI content and status messages
 function UI:RenderResults()
     -- RenderResults called
-    if not self.resultsFrame then 
+    if not self.resultsFrame then
         Debug:Dev("ui", " No results frame found")
-        return 
+        return
     end
 
     -- Clearing previous content
@@ -1698,7 +1708,7 @@ function UI:RenderResults()
     -- Debug: Print all collected keys for troubleshooting
     if keys then
         for i, key in ipairs(keys) do
-            Debug:Dev("ui", string.format("[KEY DEBUG] Key %d: %s (ID:%s, Level:%s, Source:%s)", 
+            Debug:Dev("ui", string.format("[KEY DEBUG] Key %d: %s (ID:%s, Level:%s, Source:%s)",
                 i, key.ownerName or "nil", tostring(key.dungeonID), tostring(key.level), key.source or "unknown"))
         end
     end
@@ -1743,12 +1753,12 @@ function UI:RenderResults()
     self.cachedSortMode = mode
 
     local items = self:SortKeys(keys, mode)
-    Debug:Dev("ui", string.format("[SORT DEBUG] SortKeys returned %d items for mode %s", 
+    Debug:Dev("ui", string.format("[SORT DEBUG] SortKeys returned %d items for mode %s",
         items and #items or 0, tostring(mode)))
     
     if items and #items > 0 then
         for i, item in ipairs(items) do
-            Debug:Dev("ui", string.format("[SORT DEBUG] Item %d: %s, ioGainPotential=%s", 
+            Debug:Dev("ui", string.format("[SORT DEBUG] Item %d: %s, ioGainPotential=%s",
                 i, item.key and item.key.ownerName or "nil", tostring(item.ioGainPotential)))
         end
     end
@@ -1757,18 +1767,40 @@ function UI:RenderResults()
     self.cachedUseCompactMode = useCompactMode
     self.cachedItemsCount = #items
     
-    for i, it in ipairs(items) do
-        Debug:Dev("ui", string.format("[RENDER DEBUG] Attempting to render card %d for %s", 
-            i, it.key and it.key.ownerName or "nil"))
-        self:EnrichEntryMetadata(it)
-        table.insert(self.cachedItems, it)
-        local renderFunc = useCompactMode and self.AddKeyRowCompact or self.AddKeyRow
-        local success = NextKey222.SafeRun(renderFunc, "Render keystone card", self, it)
-        if not success then
-            Debug:Error("Failed to render card for", it.key and it.key.ownerName or "nil")
-        else
-            Debug:Dev("ui", string.format("[RENDER DEBUG] Successfully rendered card for %s", 
-                it.key and it.key.ownerName or "nil"))
+    -- PHASE 3: Batch metadata enrichment for performance
+    local groupSize = GetNumGroupMembers() or 1
+    if groupSize >= 10 then
+        -- Pre-enrich all metadata in batch for large groups
+        for i, it in ipairs(items) do
+            self:EnrichEntryMetadata(it)
+            table.insert(self.cachedItems, it)
+        end
+        
+        -- Then render with pre-enriched data
+        for i, it in ipairs(self.cachedItems) do
+            Debug:Dev("ui", string.format("[RENDER DEBUG] Rendering pre-enriched card %d for %s",
+                i, it.key and it.key.ownerName or "nil"))
+            local renderFunc = useCompactMode and self.AddKeyRowCompact or self.AddKeyRow
+            local success = NextKey222.SafeRun(renderFunc, "Render keystone card", self, it)
+            if not success then
+                Debug:Error("Failed to render card for", it.key and it.key.ownerName or "nil")
+            end
+        end
+    else
+        -- Original approach for smaller groups
+        for i, it in ipairs(items) do
+            Debug:Dev("ui", string.format("[RENDER DEBUG] Attempting to render card %d for %s",
+                i, it.key and it.key.ownerName or "nil"))
+            self:EnrichEntryMetadata(it)
+            table.insert(self.cachedItems, it)
+            local renderFunc = useCompactMode and self.AddKeyRowCompact or self.AddKeyRow
+            local success = NextKey222.SafeRun(renderFunc, "Render keystone card", self, it)
+            if not success then
+                Debug:Error("Failed to render card for", it.key and it.key.ownerName or "nil")
+            else
+                Debug:Dev("ui", string.format("[RENDER DEBUG] Successfully rendered card for %s",
+                    it.key and it.key.ownerName or "nil"))
+            end
         end
     end
 
@@ -1903,9 +1935,18 @@ function UI:AddKeyRow(entry)
         ioGainButton:EnableMouse(true) -- CRITICAL: Enable mouse events
         ioGainButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         
+        -- PERFORMANCE FIX: Throttle tooltip updates to prevent FPS drops
+        local lastTooltipUpdate = 0
+        local TOOLTIP_THROTTLE = 0.1 -- 100ms minimum between updates
+        
         ioGainButton:SetScript("OnEnter", function(btn)
+            local now = GetTime()
+            if now - lastTooltipUpdate < TOOLTIP_THROTTLE then
+                return -- Throttle tooltip updates
+            end
+            lastTooltipUpdate = now
+            
             Debug:Dev("ui", "[IO Tooltip] Mouse entered button - showing tooltip")
-            Debug:Dev("ui", "[IO Tooltip] regularViewIORange exists:", regularViewIORange ~= nil)
             self:ShowIOGainTooltipCentralized(btn, keyInfo, entry, regularViewIORange)
         end)
         
@@ -2224,7 +2265,17 @@ function UI:AddKeyRowCompact(entry)
         ioGainButton:EnableMouse(true) -- CRITICAL: Enable mouse events
         ioGainButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         
+        -- PERFORMANCE FIX: Throttle compact tooltip updates to prevent FPS drops
+        local lastCompactTooltipUpdate = 0
+        local COMPACT_TOOLTIP_THROTTLE = 0.1 -- 100ms minimum between updates
+        
         ioGainButton:SetScript("OnEnter", function(btn)
+            local now = GetTime()
+            if now - lastCompactTooltipUpdate < COMPACT_TOOLTIP_THROTTLE then
+                return -- Throttle tooltip updates
+            end
+            lastCompactTooltipUpdate = now
+            
             Debug:Dev("ui", "[Compact IO Tooltip] Mouse entered compact button - showing tooltip")
             self:ShowIOGainTooltipCentralized(btn, keyInfo, entry, compactIORange)
         end)
@@ -3197,10 +3248,31 @@ function UI:RefreshResults()
         return
     end
 
-    -- Throttle refreshes to prevent performance issues
+    -- Progressive throttling based on effective group size (online players)
+    local groupSize = GetNumGroupMembers() or 1
     local now = GetTime()
-    if self.lastRefreshTime and (now - self.lastRefreshTime) < 1.0 then
-        Debug:Dev("ui", "Throttling refresh - too soon since last refresh")
+    
+    -- PHASE 3: Optimize for offline players
+    local effectiveSize = groupSize
+    if NextKey222.Events and NextKey222.Events.HasSignificantOfflinePlayers then
+        if NextKey222.Events:HasSignificantOfflinePlayers() then
+            effectiveSize = NextKey222.Events:GetOnlineGroupMembers()
+            NextKey222.Debug:Dev("ui", string.format("UI refresh optimized for mixed group: %d total, %d online, using %d effective size",
+                groupSize, NextKey222.Events:GetOnlineGroupMembers(), effectiveSize))
+        end
+    end
+    
+    -- Calculate adaptive throttle interval
+    -- 5 players: 1.0s, 10 players: 3.0s, 15 players: 6.0s, 20+ players: 10.0s
+    local baseThrottle = 1.0
+    local scalingFactor = 0.5
+    local maxThrottle = 10.0
+    local throttleInterval = math.min(baseThrottle + (effectiveSize - 5) * scalingFactor, maxThrottle)
+    
+    if self.lastRefreshTime and (now - self.lastRefreshTime) < throttleInterval then
+        local remaining = throttleInterval - (now - self.lastRefreshTime)
+        Debug:Dev("ui", string.format("Throttling refresh - wait %.1fs (group size: %d, interval: %.1fs)",
+            remaining, groupSize, throttleInterval))
         return
     end
     self.lastRefreshTime = now
@@ -3230,20 +3302,180 @@ function UI:RefreshResults()
         NextKey.SafeRun(NextKey.Keystones.ScanAllKeystones, "Refresh keystone scan")
     end
 
-    -- Only re-render the UI if it's currently visible
-    if self:IsMainFrameVisible() then
-        Debug:Dev("ui", "UI is visible, re-rendering results")
-        if self.viewMode == "dungeons" then
-            NextKey.SafeRun(self.RenderDungeonCards, "Refresh dungeon cards", self)
-        else
-            NextKey.SafeRun(self.RenderResults, "Refresh render results", self)
-        end
+    -- PHASE 3: Use frame-paced rendering for large groups
+    if groupSize >= 15 then
+        self:QueueFramePacedRender()
     else
-        Debug:Dev("ui", "UI not visible, skipping render but data will be fresh when opened")
+        -- Only re-render the UI if it's currently visible
+        if self:IsMainFrameVisible() then
+            Debug:Dev("ui", "UI is visible, re-rendering results")
+            if self.viewMode == "dungeons" then
+                NextKey.SafeRun(self.RenderDungeonCards, "Refresh dungeon cards", self)
+            else
+                NextKey.SafeRun(self.RenderResults, "Refresh render results", self)
+            end
+        else
+            Debug:Dev("ui", "UI not visible, skipping render but data will be fresh when opened")
+        end
     end
 
     self.refreshing = false
     Debug:Dev("ui", "UI refresh completed")
+end
+
+-- MARK: PHASE 3 - Frame Pacing System
+--- Queues rendering work to be processed across multiple frames
+function UI:QueueFramePacedRender()
+    local groupSize = GetNumGroupMembers() or 1
+    
+    -- PHASE 3: Use effective size for frame pacing decisions
+    local effectiveSize = groupSize
+    if NextKey222.Events and NextKey222.Events.HasSignificantOfflinePlayers then
+        if NextKey222.Events:HasSignificantOfflinePlayers() then
+            effectiveSize = NextKey222.Events:GetOnlineGroupMembers()
+            NextKey222.Debug:Dev("ui", string.format("Frame pacing optimized for mixed group: %d total, %d online, using %d effective size",
+                groupSize, NextKey222.Events:GetOnlineGroupMembers(), effectiveSize))
+        end
+    end
+    
+    -- Clear existing queues
+    self.framePacing.workQueue = {}
+    self.framePacing.renderQueue = {}
+    
+    -- Queue data preparation work
+    table.insert(self.framePacing.workQueue, {
+        type = "prepare_data",
+        priority = 1
+    })
+    
+    -- Queue rendering work
+    if self.viewMode == "dungeons" then
+        table.insert(self.framePacing.renderQueue, {
+            type = "render_dungeons",
+            priority = 1
+        })
+    else
+        table.insert(self.framePacing.renderQueue, {
+            type = "render_keystones",
+            priority = 1
+        })
+    end
+    
+    -- Start frame pacing if not already running
+    if not self.framePacing.isProcessing then
+        self:StartFramePacing()
+    end
+    
+    Debug:Dev("ui", "Queued frame-paced render for group size:", groupSize, "(effective:", effectiveSize, ")")
+end
+
+--- Starts the frame pacing update loop
+function UI:StartFramePacing()
+    if self.framePacing.isProcessing then
+        return
+    end
+    
+    self.framePacing.isProcessing = true
+    self.framePacing.lastFrameTime = GetTime()
+    
+    -- Create update frame
+    local updateFrame = CreateFrame("Frame", nil, UIParent)
+    updateFrame:SetScript("OnUpdate", function()
+        self:ProcessFramePacing()
+    end)
+    
+    self.framePacing.updateFrame = updateFrame
+    Debug:Dev("ui", "Started frame pacing system")
+end
+
+--- Processes frame-paced work within budget
+function UI:ProcessFramePacing()
+    local now = GetTime()
+    local frameDelta = now - self.framePacing.lastFrameTime
+    
+    -- Only process if we have frame budget available
+    if frameDelta < (self.framePacing.frameBudget / 1000) then
+        return
+    end
+    
+    self.framePacing.lastFrameTime = now
+    local workStartTime = GetTime()
+    local processed = 0
+    
+    -- Process work queue first
+    while #self.framePacing.workQueue > 0 and
+          processed < self.framePacing.maxWorkPerFrame and
+          (GetTime() - workStartTime) < (self.framePacing.frameBudget / 1000) do
+        
+        local work = table.remove(self.framePacing.workQueue, 1)
+        self:ExecuteWorkItem(work)
+        processed = processed + 1
+    end
+    
+    -- Process render queue if work queue is empty
+    if #self.framePacing.workQueue == 0 and #self.framePacing.renderQueue > 0 then
+        while #self.framePacing.renderQueue > 0 and
+              processed < self.framePacing.maxWorkPerFrame and
+              (GetTime() - workStartTime) < (self.framePacing.frameBudget / 1000) do
+            
+            local render = table.remove(self.framePacing.renderQueue, 1)
+            self:ExecuteRenderItem(render)
+            processed = processed + 1
+        end
+    end
+    
+    -- Stop processing if all work is done
+    if #self.framePacing.workQueue == 0 and #self.framePacing.renderQueue == 0 then
+        self:StopFramePacing()
+    end
+    
+    if processed > 0 then
+        Debug:Dev("ui", string.format("Processed %d frame-paced items in %.2fms",
+            processed, (GetTime() - workStartTime) * 1000))
+    end
+end
+
+--- Executes a work item from the queue
+function UI:ExecuteWorkItem(work)
+    if work.type == "prepare_data" then
+        -- Prepare data without rendering
+        self:PrepareRenderData()
+    end
+end
+
+--- Executes a render item from the queue
+function UI:ExecuteRenderItem(render)
+    if render.type == "render_dungeons" then
+        NextKey.SafeRun(self.RenderDungeonCards, "Frame-paced dungeon cards", self)
+    elseif render.type == "render_keystones" then
+        NextKey.SafeRun(self.RenderResults, "Frame-paced keystone results", self)
+    end
+end
+
+--- Prepares data for rendering without expensive UI operations
+function UI:PrepareRenderData()
+    -- Clear profile cache
+    if NextKey222.UI then
+        NextKey222.UI.profileCache = {}
+    end
+    
+    -- Pre-scan keystones
+    if NextKey.Keystones and NextKey.Keystones.ScanAllKeystones then
+        NextKey.SafeRun(NextKey.Keystones.ScanAllKeystones, "Prepare keystone scan")
+    end
+    
+    Debug:Dev("ui", "Prepared render data")
+end
+
+--- Stops the frame pacing system
+function UI:StopFramePacing()
+    if self.framePacing.updateFrame then
+        self.framePacing.updateFrame:SetScript("OnUpdate", nil)
+        self.framePacing.updateFrame = nil
+    end
+    
+    self.framePacing.isProcessing = false
+    Debug:Dev("ui", "Stopped frame pacing system")
 end
 
 --- Checks if the current sort mode is affected by party composition changes
