@@ -428,7 +428,7 @@ function addon:InjectDebugOptions(options)
         fakeMap = {
             type = "select",
             name = "Dungeon",
-            desc = "Select a dungeon for the fake player's key.",
+            desc = "Select a dungeon for fake player's key.",
             values = getDungeonValues,
             get = function()
                 local form = ensureForm()
@@ -579,7 +579,6 @@ function addon:InjectDebugOptions(options)
                 local player = players[idx]
                 if player and player.key then
                     player.key.dungeonID = tonumber(v)
-                    refreshUI()
                 end
             end,
             order = 20.11,
@@ -602,7 +601,6 @@ function addon:InjectDebugOptions(options)
                 local player = players[idx]
                 if player and player.key then
                     player.key.level = v
-                    refreshUI()
                 end
             end,
             order = 20.12,
@@ -693,6 +691,88 @@ function addon:InjectDebugOptions(options)
         args = debugArgs,
     }
 
+    -- Add Character Roles section for Group Organizer
+    options.args.characterRoles = {
+        type = "group",
+        name = "Character Roles",
+        desc = "Configure which roles each character can perform for the Group Organizer feature",
+        order = 80,
+        args = (function()
+            local args = {
+                info = {
+                    type = "description",
+                    name = "Set the roles you can perform on each character. This information is used by the Group Organizer feature when forming groups.",
+                    order = 1
+                },
+                characterHeader = {
+                    type = "header",
+                    name = "Character Role Configuration",
+                    order = 2
+                }
+            }
+            
+            -- Build character role options dynamically
+            if NextKey222.CharacterStorage then
+                local chars = NextKey222.CharacterStorage:GetAllCharacters()
+                
+                if next(chars) then
+                    for charID, charData in pairs(chars) do
+                        args[charID] = {
+                            type = "multiselect",
+                            name = charData.name .. " - " .. (charData.class or "Unknown"),
+                            desc = "Select the roles this character can perform",
+                            values = {
+                                Tank = "Tank",
+                                Healer = "Healer",
+                                DPS = "DPS"
+                            },
+                            get = function(info, key)
+                                local roles = NextKey222.CharacterStorage:GetAvailableRoles(charID)
+                                return roles[key] or false
+                            end,
+                            set = function(info, key, value)
+                                if NextKey222.CharacterStorage.SetRole then
+                                    NextKey222.CharacterStorage:SetRole(charID, key, value)
+                                end
+                            end,
+                            order = 10 + #args
+                        }
+                    end
+                else
+                    args.noCharacters = {
+                        type = "description",
+                        name = "No characters found. Character data will be populated as you play.",
+                        fontSize = "medium",
+                        order = 10
+                    }
+                end
+            else
+                args.moduleUnavailable = {
+                    type = "description",
+                    name = "Character Storage module not available. Please restart the addon.",
+                    fontSize = "medium",
+                    order = 10
+                }
+            end
+            
+            return args
+        end)()
+    }
+
+    -- Inject enhanced debug options using new DebugUI module
+    if NextKey222.DebugUI and NextKey222.DebugUI.CreateDebugOptions then
+        options.args.debugSystem = NextKey222.DebugUI:CreateDebugOptions()
+        Debug:Dev("options", "Enhanced debug system loaded successfully")
+    elseif self.InjectDebugOptions then
+        -- Fallback to old debug options if new system not available
+        self:InjectDebugOptions(options)
+        Debug:Dev("options", "Using legacy debug options as fallback")
+    else
+        Debug:Error("No debug options system available")
+    end
+
+    local AceConfig = LibStub("AceConfig-3.0")
+    AceConfig:RegisterOptionsTable("NextKey", options)
 
 end
 
@@ -720,7 +800,7 @@ function addon:SetupOptions()
                     sortMode = {
                         type = "select",
                         name = "Sort Mode",
-                        desc = "Default sorting method for the keystone list. Highest Key Level shows the most challenging keys first, Lowest Key Level shows easier keys first.",
+                        desc = "Default sorting method for the keystone list. Highest Key Level shows the most challenging keys first, Lowest Key Level shows the easier keys first.",
                         values = {
                             HighestKeyLevel = "Highest Key Level",
                             LowestKeyLevel = "Lowest Key Level",
@@ -785,7 +865,7 @@ function addon:SetupOptions()
                     currentTheme = {
                         type = "select",
                         name = "UI Theme",
-                        desc = "Choose the visual theme for NextKey interface",
+                        desc = "Choose a visual theme for the NextKey interface",
                         values = {
                             ["default"] = "Default (Balanced)",
                             ["dark"] = "Dark (Enhanced Contrast)",
@@ -1007,7 +1087,6 @@ function addon:SetupOptions()
                         min = 0.5,
                         max = 1.5,
                         step = 0.1,
-                        isPercent = true,
                         get = function() return addon.db.char.tooltipScale or 1.0 end,
                         set = function(_, value)
                             addon.db.char.tooltipScale = value
@@ -1469,6 +1548,7 @@ function addon:SetupOptions()
                     },
                 },
             },
+            },
             mythicPlus = {
                 type = "group",
                 name = "M+ Data",
@@ -1628,7 +1708,7 @@ function addon:SetupOptions()
         },
     }
 
-    -- Inject enhanced debug options using the new DebugUI module
+    -- Inject enhanced debug options using new DebugUI module
     if NextKey222.DebugUI and NextKey222.DebugUI.CreateDebugOptions then
         options.args.debugSystem = NextKey222.DebugUI:CreateDebugOptions()
         Debug:Dev("options", "Enhanced debug system loaded successfully")

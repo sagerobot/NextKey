@@ -1075,4 +1075,91 @@ function Communications:TestVisualCommunication()
     NextKey222.Debug:Dev("comms", "Visual communication test frame created")
 end
 
+--- Sends organizer data to party members
+-- @param organizerData table The organizer data to send
+-- @return boolean True if sent successfully
+function Communications:ShareOrganizerData(organizerData)
+    if not IsInGroup() then
+        NextKey222.Debug:Dev("comms", "Not in group, cannot share organizer data")
+        return false
+    end
+    
+    -- Check if message should be throttled
+    if not self:CanSendMessage("ORGANIZER_DATA") then
+        NextKey222.Debug:Dev("comms", "Organizer data message throttled")
+        return false
+    end
+    
+    local channel = IsInRaid() and "RAID" or "PARTY"
+    local payload = {
+        opcode = NextKey222.Constants.COMM_OPCODES.ORGANIZER_DATA,
+        version = NextKey.version or "1.0.0",
+        timestamp = GetTime(),
+        sender = NextKey.playerFullName,
+        organizerData = organizerData
+    }
+    
+    local serialized = AceSerializer:Serialize(payload)
+    NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel)
+    NextKey222.Debug:Dev("comms", "Shared organizer data to", channel)
+    return true
+end
+
+--- Requests organizer data from party members
+-- @return boolean True if sent successfully
+function Communications:RequestOrganizerData()
+    if not IsInGroup() then
+        NextKey222.Debug:Dev("comms", "Not in group, cannot request organizer data")
+        return false
+    end
+    
+    -- Check if message should be throttled
+    if not self:CanSendMessage("ORGANIZER_DATA") then
+        NextKey222.Debug:Dev("comms", "Organizer data request throttled")
+        return false
+    end
+    
+    local channel = IsInRaid() and "RAID" or "PARTY"
+    local payload = {
+        opcode = NextKey222.Constants.COMM_OPCODES.REQUEST_ORGANIZER_DATA,
+        version = NextKey.version or "1.0.0",
+        timestamp = GetTime(),
+        sender = NextKey.playerFullName
+    }
+    
+    local serialized = AceSerializer:Serialize(payload)
+    NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel)
+    NextKey222.Debug:Dev("comms", "Requested organizer data from", channel)
+    return true
+end
+
+--- Processes organizer data messages
+-- @param payload table The message payload
+-- @param sender string The message sender
+function Communications:ProcessOrganizerData(payload, sender)
+    NextKey222.Debug:Dev("comms", "Received organizer data from", sender)
+    
+    if payload.opcode == NextKey222.Constants.COMM_OPCODES.ORGANIZER_DATA then
+        if payload.organizerData then
+            -- Store organizer data for this player
+            if NextKey222.OrganizerData then
+                NextKey222.OrganizerData:StoreData(payload.organizerData)
+            end
+            
+            -- Notify UI that organizer data has been updated
+            if NextKey222.UI and NextKey222.UI.OnOrganizerDataUpdated then
+                NextKey222.UI:OnOrganizerDataUpdated(sender, payload.organizerData)
+            end
+        end
+    elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.REQUEST_ORGANIZER_DATA then
+        -- Respond by sharing our organizer data
+        if NextKey222.OrganizerData then
+            local ourData = NextKey222.OrganizerData:GetData()
+            if ourData then
+                self:ShareOrganizerData(ourData)
+            end
+        end
+    end
+end
+
 return Communications

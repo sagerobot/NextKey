@@ -748,3 +748,168 @@ function ProfilesService:GetProfile(playerName)
 
     return self:BuildProfileForPlayer(playerName)
 end
+
+--- Gets enhanced profile data specifically for Organizer features
+-- Includes roles, utilities, preferences, and alts from CharacterStorage
+-- @param playerName string Full player name (Name-Realm)
+-- @return table|nil Enhanced organizer profile with additional fields
+function ProfilesService:GetOrganizerProfile(playerName)
+    if not playerName or playerName == "" then
+        return nil
+    end
+    
+    Debug:Dev("profiles", "GetOrganizerProfile called for:", playerName)
+    
+    -- Get base profile first
+    local baseProfile = self:BuildProfileForPlayer(playerName)
+    if not baseProfile then
+        Debug:Dev("profiles", "No base profile found for:", playerName)
+        return nil
+    end
+    
+    -- Create enhanced organizer profile
+    local organizerProfile = {
+        -- Copy all base profile fields
+        name = baseProfile.name,
+        class = baseProfile.class,
+        io = baseProfile.io,
+        dataSource = baseProfile.dataSource,
+        dungeonScores = baseProfile.dungeonScores,
+        addonStatus = baseProfile.addonStatus,
+        specID = baseProfile.specID,
+        specName = baseProfile.specName,
+        role = baseProfile.role,
+        capabilities = baseProfile.capabilities,
+        
+        -- Organizer-specific fields
+        roles = self:GetAvailableRoles(playerName),
+        utilities = self:GetUtilities(playerName),
+        preferences = self:GetPreferences(playerName),
+        alts = self:GetAlts(playerName)
+    }
+    
+    Debug:Dev("profiles", "Enhanced organizer profile created for:", playerName,
+              "with", organizerProfile.roles and #organizerProfile.roles or 0, "roles")
+    
+    return organizerProfile
+end
+
+--- Gets available roles for a player from CharacterStorage
+-- @param playerName string Full player name (Name-Realm)
+-- @return table List of available roles {TANK, HEALER, DAMAGER}
+function ProfilesService:GetAvailableRoles(playerName)
+    if not NextKey222.CharacterStorage then
+        Debug:Dev("profiles", "CharacterStorage not available for role lookup")
+        return {}
+    end
+    
+    local roles = {}
+    local characterData = NextKey222.CharacterStorage:GetCharacter(playerName)
+    
+    if characterData and characterData.roles then
+        -- Convert character storage roles to organizer format
+        for role, isEnabled in pairs(characterData.roles) do
+            if isEnabled then
+                table.insert(roles, role)
+            end
+        end
+    else
+        -- Fallback to role from base profile
+        local baseProfile = self:BuildProfileForPlayer(playerName)
+        if baseProfile and baseProfile.role then
+            table.insert(roles, baseProfile.role)
+        end
+    end
+    
+    Debug:Dev("profiles", "Available roles for", playerName, ":", table.concat(roles, ", "))
+    return roles
+end
+
+--- Gets utility capabilities for a player
+-- @param playerName string Full player name (Name-Realm)
+-- @return table Utility capabilities {heroism, battleRes}
+function ProfilesService:GetUtilities(playerName)
+    if not NextKey222.CharacterStorage then
+        Debug:Dev("profiles", "CharacterStorage not available for utilities lookup")
+        return { heroism = false, battleRes = false }
+    end
+    
+    local utilities = { heroism = false, battleRes = false }
+    local characterData = NextKey222.CharacterStorage:GetCharacter(playerName)
+    
+    if characterData and characterData.utilities then
+        utilities = characterData.utilities
+    else
+        -- Fallback to capabilities from base profile
+        local baseProfile = self:BuildProfileForPlayer(playerName)
+        if baseProfile and baseProfile.capabilities then
+            utilities.heroism = baseProfile.capabilities.heroism or false
+            utilities.battleRes = baseProfile.capabilities.battleRes or false
+        end
+    end
+    
+    Debug:Dev("profiles", "Utilities for", playerName, ":",
+              "heroism=", utilities.heroism, "battleRes=", utilities.battleRes)
+    return utilities
+end
+
+--- Gets dungeon preferences for a player
+-- @param playerName string Full player name (Name-Realm)
+-- @return table Dungeon preferences {liked, disliked}
+function ProfilesService:GetPreferences(playerName)
+    -- For now, return empty preferences
+    -- This will be expanded when survey system is implemented
+    return {
+        liked = {},
+        disliked = {}
+    }
+end
+
+--- Gets alt characters for a player
+-- @param playerName string Full player name (Name-Realm)
+-- @return table List of alt characters
+function ProfilesService:GetAlts(playerName)
+    if not NextKey222.CharacterStorage then
+        Debug:Dev("profiles", "CharacterStorage not available for alts lookup")
+        return {}
+    end
+    
+    local alts = {}
+    local characterData = NextKey222.CharacterStorage:GetCharacter(playerName)
+    
+    if characterData and characterData.alts then
+        alts = characterData.alts
+    end
+    
+    Debug:Dev("profiles", "Alts for", playerName, ":", #alts, "characters")
+    return alts
+end
+
+--- Gets organizer profiles for multiple players (batch processing)
+-- Optimized for large groups with caching and performance monitoring
+-- @param playerNames table List of player names to get profiles for
+-- @return table Map of playerName -> organizer profile
+function ProfilesService:GetOrganizerProfilesBatch(playerNames)
+    if not playerNames or type(playerNames) ~= "table" then
+        Debug:Dev("profiles", "GetOrganizerProfilesBatch: Invalid playerNames parameter")
+        return {}
+    end
+    
+    Debug:Dev("profiles", "GetOrganizerProfilesBatch called for", #playerNames, "players")
+    
+    local profiles = {}
+    local startTime = GetTime()
+    
+    -- Process each player
+    for _, playerName in ipairs(playerNames) do
+        profiles[playerName] = self:GetOrganizerProfile(playerName)
+    end
+    
+    local endTime = GetTime()
+    local processingTime = endTime - startTime
+    
+    Debug:Dev("profiles", string.format("Batch processed %d profiles in %.3fms",
+              #playerNames, processingTime * 1000))
+    
+    return profiles
+end

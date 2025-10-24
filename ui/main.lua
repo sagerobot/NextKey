@@ -61,7 +61,11 @@ local UI = {
         renderQueue = {},
         isProcessing = false,
         maxWorkPerFrame = 3 -- Max items to process per frame
-    }
+    },
+    
+    -- Organizer: UI mode state
+    currentUIMode = nil, -- "KEYSTONE_OPTIMIZER" or "ROSTER_BOARD"
+    organizerState = nil -- Temporary state preservation for mode switches
 }
 NextKey222.UI = UI
 NextKey222.RegisterModule("UI", UI)
@@ -878,11 +882,82 @@ function UI:ShowMainFrame()
     end
     
     if self.mainFrame then
+        -- Detect UI mode on first show if not already set
+        if not self.currentUIMode then
+            self.currentUIMode = self:DetectUIMode()
+            Debug:Dev("ui", "Initial UI mode detected:", self.currentUIMode)
+        end
+        
         Debug:Dev("ui", "Showing main frame - current visibility:", self.mainFrame:IsShown() and "VISIBLE" or "HIDDEN")
         self.mainFrame:Show()
         Debug:Dev("ui", "Frame show command executed - new visibility:", self.mainFrame:IsShown() and "VISIBLE" or "HIDDEN")
     else
         Debug:Error("Failed to create main frame")
+    end
+end
+
+--- Determines which UI mode should be displayed based on current group size
+-- @return string "KEYSTONE_OPTIMIZER" for 5 players or "ROSTER_BOARD" for 6+ players
+function UI:DetectUIMode()
+    -- Get current group size (including player)
+    local groupSize = GetNumGroupMembers() or 1
+    
+    -- Determine UI mode based on group size
+    if groupSize >= 6 then
+        return "ROSTER_BOARD"
+    else
+        return "KEYSTONE_OPTIMIZER"
+    end
+end
+
+--- Switches to the specified UI mode with state preservation
+-- @param newMode string The UI mode to switch to ("KEYSTONE_OPTIMIZER" or "ROSTER_BOARD")
+function UI:SwitchToUIMode(newMode)
+    if self.currentUIMode == newMode then
+        Debug:Dev("ui", "Already in UI mode:", newMode)
+        return
+    end
+    
+    Debug:Dev("ui", "Switching UI mode from", self.currentUIMode or "NONE", "to", newMode)
+    
+    -- Preserve current state if switching away from current mode
+    if self.currentUIMode then
+        self.organizerState = self.organizerState or {}
+        -- Store current view mode and other relevant state
+        self.organizerState.previousMode = self.currentUIMode
+        self.organizerState.viewMode = self.viewMode
+        self.organizerState.sortMode = self:GetCurrentSortMode()
+        self.organizerState.showGuildKeys = self.showGuildKeys
+        Debug:Dev("ui", "Preserved state for mode:", self.currentUIMode)
+    end
+    
+    -- Update current mode
+    self.currentUIMode = newMode
+    
+    -- If switching to ROSTER_BOARD mode, we'll need to create the Organizer UI
+    if newMode == "ROSTER_BOARD" then
+        -- For now, just log that we're switching to Organizer mode
+        -- The actual Organizer UI will be implemented in Phase 1
+        Debug:Dev("ui", "Switching to ROSTER_BOARD mode - Organizer UI will be implemented in Phase 1")
+    else
+        -- Switching to KEYSTONE_OPTIMIZER mode
+        Debug:Dev("ui", "Switching to KEYSTONE_OPTIMIZER mode")
+    end
+end
+
+--- Handles GROUP_ROSTER_UPDATE events to check for UI mode changes
+-- Automatically switches UI mode when group size changes
+function UI:OnGroupRosterUpdate()
+    Debug:Dev("ui", "OnGroupRosterUpdate called")
+    
+    -- Detect new UI mode based on current group size
+    local newMode = self:DetectUIMode()
+    
+    -- Switch UI mode if it has changed
+    if newMode ~= self.currentUIMode then
+        Debug:Dev("ui", "Group size changed, switching UI mode from",
+                  self.currentUIMode or "NONE", "to", newMode)
+        self:SwitchToUIMode(newMode)
     end
 end
 

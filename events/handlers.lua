@@ -411,4 +411,116 @@ function Events:HasSignificantOfflinePlayers()
     return (totalMembers - onlineCount) >= 3
 end
 
+--- Handles organizer data updates from communications
+-- @param sender string The player who sent the data
+-- @param organizerData table The organizer data received
+function Events:OnOrganizerDataUpdated(sender, organizerData)
+    NextKey222.Performance:StartProfile("OnOrganizerDataUpdated")
+    NextKey222.Debug:Dev("events", "Received organizer data from", sender)
+    
+    -- Store organizer data if available
+    if NextKey222.OrganizerData then
+        NextKey222.OrganizerData:StoreData(sender, organizerData)
+    end
+    
+    -- Notify UI that organizer data has been updated
+    if NextKey222.UI and NextKey222.UI.OnOrganizerDataUpdated then
+        NextKey222.UI:OnOrganizerDataUpdated(sender, organizerData)
+    end
+    
+    NextKey222.Performance:StopProfile("OnOrganizerDataUpdated")
+end
+
+--- Handles organizer data requests from communications
+-- @param sender string The player who requested the data
+function Events:OnOrganizerDataRequested(sender)
+    NextKey222.Performance:StartProfile("OnOrganizerDataRequested")
+    NextKey222.Debug:Dev("events", "Received organizer data request from", sender)
+    
+    -- Respond by sharing our organizer data
+    if NextKey222.Communications and NextKey222.Communications.ShareOrganizerData then
+        NextKey222.Communications:ShareOrganizerData()
+    end
+    
+    NextKey222.Performance:StopProfile("OnOrganizerDataRequested")
+end
+
+--- Handles group optimization requests from communications
+-- @param sender string The player who requested optimization
+-- @param optimizationData table The optimization parameters
+function Events:OnGroupOptimizationRequested(sender, optimizationData)
+    NextKey222.Performance:StartProfile("OnGroupOptimizationRequested")
+    NextKey222.Debug:Dev("events", "Received group optimization request from", sender)
+    
+    -- Process optimization request if available
+    if NextKey222.Organizer then
+        NextKey222.Organizer:ProcessOptimizationRequest(sender, optimizationData)
+    end
+    
+    NextKey222.Performance:StopProfile("OnGroupOptimizationRequested")
+end
+
+--- Handles group optimization results from communications
+-- @param sender string The player who sent the results
+-- @param optimizationResults table The optimization results
+function Events:OnGroupOptimizationResults(sender, optimizationResults)
+    NextKey222.Performance:StartProfile("OnGroupOptimizationResults")
+    NextKey222.Debug:Dev("events", "Received group optimization results from", sender)
+    
+    -- Store optimization results if available
+    if NextKey222.Organizer then
+        NextKey222.Organizer:StoreOptimizationResults(sender, optimizationResults)
+    end
+    
+    -- Notify UI that optimization results are available
+    if NextKey222.UI and NextKey222.UI.OnGroupOptimizationResults then
+        NextKey222.UI:OnGroupOptimizationResults(sender, optimizationResults)
+    end
+    
+    NextKey222.Performance:StopProfile("OnGroupOptimizationResults")
+end
+
+--- Registers organizer-specific events
+function Events:RegisterOrganizerEvents()
+    -- Register for organizer data updates
+    if NextKey222.Communications then
+        NextKey222.Communications:RegisterMessage("ORGANIZER_DATA", function(sender, data)
+            Events:OnOrganizerDataUpdated(sender, data)
+        end)
+    end
+    
+    -- Register for organizer data requests
+    if NextKey222.Communications then
+        NextKey222.Communications:RegisterMessage("REQUEST_ORGANIZER_DATA", function(sender, data)
+            Events:OnOrganizerDataRequested(sender)
+        end)
+    end
+    
+    -- Register for group optimization requests
+    if NextKey222.Communications then
+        NextKey222.Communications:RegisterMessage("GROUP_OPTIMIZATION_REQUEST", function(sender, data)
+            Events:OnGroupOptimizationRequested(sender, data)
+        end)
+    end
+    
+    -- Register for group optimization results
+    if NextKey222.Communications then
+        NextKey222.Communications:RegisterMessage("GROUP_OPTIMIZATION_RESULTS", function(sender, data)
+            Events:OnGroupOptimizationResults(sender, data)
+        end)
+    end
+    
+    NextKey222.Debug:Dev("events", "Organizer events registered")
+end
+
+--- Extends core event registration to include organizer events
+function Events:RegisterCoreEvents()
+    self:RegisterCoreEvents()
+    
+    -- Register organizer-specific events
+    self:RegisterOrganizerEvents()
+    
+    NextKey222.Debug:Dev("events", "Core and organizer events registered")
+end
+
 return Events

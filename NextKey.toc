@@ -64,6 +64,15 @@ core\scoring.lua
 core\comms.lua
 core\dungeonCards.lua
 
+# Organizer Modules
+core\characterStorage.lua
+core\types\player.lua
+core\organizer\autoDetection.lua
+core\organizer\playerDataBuilder.lua
+core\organizer\validation.lua
+core\organizer\comms.lua
+core\organizer\data.lua
+
 # PUG Helper
 core\pugHelper.lua
 

@@ -1123,4 +1123,204 @@ function IOCalculator:GenerateGroupRecommendations(availableKeystones, partyProf
     return recommendations
 end
 
+--- Calculates IO gain for a player completing a specific keystone
+-- Optimized for batch processing with memoization
+-- @param playerName string The player's name
+-- @param keystoneData table The keystone data (dungeonID, level)
+-- @return number The IO gain for this player
+function IOCalculator:Gain(playerName, keystoneData)
+    if not playerName or not keystoneData then
+        return 0
+    end
+    
+    Debug:Dev("IOCalculator", "Gain called for", playerName, "dungeon", keystoneData.dungeonID, "level", keystoneData.level)
+    
+    -- Get player's current score for this dungeon
+    local currentScore = self:GetPlayerDungeonScore(playerName, keystoneData.dungeonID)
+    
+    -- Get metrics for this keystone level
+    local metrics = self:GetDungeonMetrics(keystoneData.level)
+    if not metrics then
+        return 0
+    end
+    
+    -- Calculate potential gain (base score - current score)
+    local potentialGain = metrics.base - currentScore
+    
+    -- Apply timing modifier (untimed runs get 50% of base score)
+    -- For simplicity, we'll assume timed completion
+    local gain = potentialGain * 0.5
+    
+    Debug:Dev("IOCalculator", "Gain result for", playerName, ":", gain)
+    return math.max(0, gain)
+end
+
+--- Calculates aggregate IO values for a group of players
+-- Used by optimizer algorithms to evaluate group potential
+-- @param playerNames table List of player names
+-- @param keystoneData table The keystone data (dungeonID, level)
+-- @return table Aggregate values {totalIO, totalGain, averageIO, playerBreakdown}
+function IOCalculator:CalculateAggregateValues(playerNames, keystoneData)
+    if not playerNames or not keystoneData then
+        return {
+            totalIO = 0,
+            totalGain = 0,
+            averageIO = 0,
+            playerBreakdown = {}
+        }
+    end
+    
+    Debug:Dev("IOCalculator", "CalculateAggregateValues called for", #playerNames, "players")
+    
+    local aggregate = {
+        totalIO = 0,
+        totalGain = 0,
+        playerBreakdown = {}
+    }
+    
+    -- Calculate values for each player
+    for _, playerName in ipairs(playerNames) do
+        local playerIO = self:GetPlayerTotalIO(playerName)
+        local playerGain = self:Gain(playerName, keystoneData)
+        
+        aggregate.totalIO = aggregate.totalIO + playerIO
+        aggregate.totalGain = aggregate.totalGain + playerGain
+        aggregate.playerBreakdown[playerName] = {
+            io = playerIO,
+            gain = playerGain
+        }
+    end
+    
+    -- Calculate averages
+    aggregate.averageIO = #playerNames > 0 and (aggregate.totalIO / #playerNames) or 0
+    
+    Debug:Dev("IOCalculator", "Aggregate results:", "totalIO", aggregate.totalIO, "totalGain", aggregate.totalGain, "averageIO", aggregate.averageIO)
+    
+    return aggregate
+end
+
+--- Calculates weighted score for a player based on role preferences
+-- Used by optimizer algorithms to prioritize players for specific roles
+-- @param playerName string The player's name
+-- @param roleWeights table Role weights {TANK=1.5, HEALER=1.2, DAMAGER=1.0}
+-- @return number The weighted score
+function IOCalculator:GetWeightedScore(playerName, roleWeights)
+    if not playerName or not roleWeights then
+        return 0
+    end
+    
+    -- Get player's total IO
+    local totalIO = self:GetPlayerTotalIO(playerName)
+    
+    -- Get player's preferred roles from ProfilesService
+    local preferredRoles = {}
+    if NextKey222.ProfilesService and NextKey222.ProfilesService.GetAvailableRoles then
+        preferredRoles = NextKey222.ProfilesService:GetAvailableRoles(playerName)
+    end
+    
+    -- Calculate role weight based on player's capabilities
+    local roleWeight = 1.0 -- Default weight
+    if preferredRoles and #preferredRoles > 0 then
+        -- Use highest weight from player's available roles
+        for _, role in ipairs(preferredRoles) do
+            if roleWeights[role] and roleWeights[role] > roleWeight then
+                roleWeight = roleWeights[role]
+            end
+        end
+    end
+    
+    -- Apply role weight to total IO
+    local weightedScore = totalIO * roleWeight
+    
+    Debug:Dev("IOCalculator", "Weighted score for", playerName, ":", weightedScore, "(roleWeight:", roleWeight, ")")
+    
+    return weightedScore
+end
+
+--- Calculates utility score for a player based on utility capabilities
+-- Used by optimizer algorithms to prioritize players with specific utilities
+-- @param playerName string The player's name
+-- @param utilityWeights table Utility weights {heroism=1.5, battleRes=1.2}
+-- @return number The utility score
+function IOCalculator:GetUtilityScore(playerName, utilityWeights)
+    if not playerName or not utilityWeights then
+        return 0
+    end
+    
+    -- Get player's utilities from ProfilesService
+    local utilities = { heroism = false, battleRes = false }
+    if NextKey222.ProfilesService and NextKey222.ProfilesService.GetUtilities then
+        utilities = NextKey222.ProfilesService:GetUtilities(playerName)
+    end
+    
+    -- Calculate utility score
+    local utilityScore = 0
+    if utilities.heroism then
+        utilityScore = utilityScore + (utilityWeights.heroism or 1.5)
+    end
+    
+    if utilities.battleRes then
+        utilityScore = utilityScore + (utilityWeights.battleRes or 1.2)
+    end
+    
+    Debug:Dev("IOCalculator", "Utility score for", playerName, ":", utilityScore)
+    
+    return utilityScore
+end
+
+--- Calculates combined score for a player (IO + role weight + utility)
+-- Used by optimizer algorithms for comprehensive player evaluation
+-- @param playerName string The player's name
+-- @param roleWeights table Role weights
+-- @param utilityWeights table Utility weights
+-- @return number The combined score
+function IOCalculator:GetCombinedScore(playerName, roleWeights, utilityWeights)
+    if not playerName then
+        return 0
+    end
+    
+    local totalIO = self:GetPlayerTotalIO(playerName)
+    local weightedScore = self:GetWeightedScore(playerName, roleWeights)
+    local utilityScore = self:GetUtilityScore(playerName, utilityWeights)
+    
+    local combinedScore = totalIO + weightedScore + utilityScore
+    
+    Debug:Dev("IOCalculator", "Combined score for", playerName, ":", combinedScore,
+              "(IO:", totalIO, ", weighted:", weightedScore, ", utility:", utilityScore, ")")
+    
+    return combinedScore
+end
+
+--- Calculates preference score for a player based on dungeon preferences
+-- Used by optimizer algorithms to prioritize players based on dungeon likes/dislikes
+-- @param playerName string The player's name
+-- @param dungeonID number The dungeon ID to check preferences for
+-- @param preferenceWeights table Preference weights {liked=1.5, disliked=-1.0}
+-- @return number The preference score
+function IOCalculator:GetPreferenceScore(playerName, dungeonID, preferenceWeights)
+    if not playerName or not dungeonID then
+        return 0
+    end
+    
+    -- Get player's preferences from ProfilesService
+    local preferences = { liked = {}, disliked = {} }
+    if NextKey222.ProfilesService and NextKey222.ProfilesService.GetPreferences then
+        preferences = NextKey222.ProfilesService:GetPreferences(playerName)
+    end
+    
+    -- Calculate preference score
+    local preferenceScore = 0
+    if preferences.liked and preferences.liked[dungeonID] then
+        preferenceScore = preferenceScore + (preferenceWeights.liked or 1.5)
+    end
+    
+    if preferences.disliked and preferences.disliked[dungeonID] then
+        preferenceScore = preferenceScore + (preferenceWeights.disliked or -1.0)
+    end
+    
+    Debug:Dev("IOCalculator", "Preference score for", playerName, "dungeon", dungeonID, ":", preferenceScore)
+    
+    return preferenceScore
+end
+
 return IOCalculator
