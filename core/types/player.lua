@@ -24,18 +24,18 @@ PlayerTypes.PlayerObject = {
     utils = {"Lust"}, -- list of provided utilities
     
     -- Keystone
-    keystone = PlayerTypes.KeystoneObject or nil,
+    keystone = nil, -- Will be populated with KeystoneObject structure
     
     -- Scoring Data
     scores = {
-        [dungeonID] = score, -- map of dungeon scores
+        -- [dungeonID] = score, -- map of dungeon scores
         -- Example: [503] = 285.5
     },
     overallScore = 2850,
     
     -- Preferences (per character)
     preferences = {
-        [dungeonID] = -1/0/1, -- -1=Dislike, 0=Neutral, 1=Like
+        -- [dungeonID] = -1/0/1, -- -1=Dislike, 0=Neutral, 1=Like
     },
     
     -- Organizer-Specific Fields

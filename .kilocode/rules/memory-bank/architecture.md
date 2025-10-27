@@ -71,6 +71,9 @@ NextKey/
     pugTravelAssistant.lua     # PUG Mode travel assistance
     pugApplicationTracker.lua  # PUG Mode application tracking
     pugGetawayUI.lua           # PUG Mode post-run getaway UI
+    organizer/                 # M+ Group Organizer UI
+      rosterBoard.lua          # Main board with bench and group slots
+      playerCard.lua           # Draggable player cards
   data/                        # Static seasonal data
     portals.lua                # Dungeon teleport data per season
     loot.lua                   # Seasonal loot definitions (0.2.1)
@@ -190,6 +193,8 @@ end
 - `PUGInviteNotification`: PUG Mode invite UI notifications
 - `PUGTravelAssistant`: PUG Mode travel assistance UI
 - `PUGGetawayUI`: PUG Mode post-run getaway UI
+- `RosterBoard`: M+ Group Organizer main UI
+- `PlayerCard`: M+ Group Organizer draggable player cards
 
 ### 4. Data Flow Architecture
 
@@ -223,7 +228,7 @@ end
            └────────────┬───────────────────┘
                         ▼
               ┌──────────────────┐
-              │ Group Suggestions│
+              │ Group Suggestions│ / M+ Group Organizer
               │ (Intelligence)   │
               └──────────────────┘
 ```

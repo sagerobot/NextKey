@@ -68,7 +68,8 @@ local DEBUG_CATEGORY_GROUPS = {
             teleport = { name = "Teleport System", description = "Teleport functionality and spell management" },
             lootwindow = { name = "Loot Tracking", description = "Loot window and item tracking interface" },
             profiles = { name = "Profile Management", description = "Player profile creation and management" },
-            pughelper = { name = "PUG Helper", description = "Pick Up Group workflow assistance and automation" }
+            pughelper = { name = "PUG Helper", description = "Pick Up Group workflow assistance and automation" },
+            organizer_ui = { name = "M+ Group Organizer", description = "M+ Group Organizer UI and roster management" }
         }
     },
 
@@ -135,9 +136,12 @@ local DebugService = {
         components = false,
         lootwindow = false,
         pughelper = false,  -- PUG Helper functionality
+        organizer_ui = false,  -- M+ Group Organizer UI
+        ui_contamination = true,  -- UI contamination tracking (always enabled for debugging)
 
         -- Testing & Development
         fakeplayerservice = false,
+        dungeonNameService = false,  -- Dungeon name lookup service
         IOCalculator = false,
         ioc = false,
         test = false,

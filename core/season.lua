@@ -141,47 +141,18 @@ function NextKey:GetCurrentSeasonData()
 end
 
 -- MARK: Dungeon Names
+-- MIGRATED: Now uses centralized DungeonNameService for consistent lookups
 function NextKey:GetDungeonName(dungeonID)
     if not dungeonID then return nil end
     
-    -- Hardcoded mappings for known problematic IDs
-    local knownMappings = {
-        [2441] = "Tazavesh: So'leah's Gambit",  -- mapID (based on user feedback)
-        [391] = "Tazavesh: So'leah's Gambit"    -- challengeMapID (based on Details addon test data)
-    }
-    
-    if knownMappings[dungeonID] then
-        NextKey222.Debug:Dev("season", "GetDungeonName: Using hardcoded mapping for " .. dungeonID .. " = " .. knownMappings[dungeonID])
-        return knownMappings[dungeonID]
+    -- Use centralized DungeonNameService for all lookups
+    if NextKey222.DungeonNameService then
+        return NextKey222.DungeonNameService:GetFullName(dungeonID)
     end
     
-    -- Try Challenge Mode API first
-    local info = C_ChallengeMode.GetMapUIInfo(dungeonID)
-    if info then
-        NextKey222.Debug:Dev("season", "GetDungeonName: C_ChallengeMode.GetMapUIInfo(" .. dungeonID .. ") = " .. info)
-        return info
-    end
-    
-    -- Try alternative APIs for dungeon names
-    if C_LFGInfo and C_LFGInfo.GetDungeonInfo then
-        local dungeonInfo = C_LFGInfo.GetDungeonInfo(dungeonID)
-        if dungeonInfo and dungeonInfo.name then
-            NextKey222.Debug:Dev("season", "GetDungeonName: C_LFGInfo.GetDungeonInfo(" .. dungeonID .. ") = " .. dungeonInfo.name)
-            return dungeonInfo.name
-        end
-    end
-    
-    -- Try map name API
-    if C_Map and C_Map.GetMapInfo then
-        local mapInfo = C_Map.GetMapInfo(dungeonID)
-        if mapInfo and mapInfo.name then
-            NextKey222.Debug:Dev("season", "GetDungeonName: C_Map.GetMapInfo(" .. dungeonID .. ") = " .. mapInfo.name)
-            return mapInfo.name
-        end
-    end
-    
-    NextKey222.Debug:Dev("season", "GetDungeonName: No name found for dungeonID " .. dungeonID)
-    return nil
+    -- Fallback if service not available (should never happen)
+    NextKey222.Debug:Error("GetDungeonName: DungeonNameService not available!")
+    return "Unknown Dungeon (ID:" .. tostring(dungeonID) .. ")"
 end
 
 -- MARK: Season Best Data

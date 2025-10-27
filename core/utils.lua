@@ -126,32 +126,12 @@ function Utils:ConvertToRaiderIOKeystoneID(dungeonID)
     return idMapping[dungeonID] or dungeonID
 end
 
--- Convert Challenge Mode Map ID back to keystone dungeon ID for IOCalculator compatibility
+-- DEPRECATED: Portal data now uses Blizzard challenge map IDs directly
+-- No conversion needed - kept for backward compatibility only
 function Utils:ConvertChallengeMapToKeystoneID(challengeMapID)
-    -- Use centralized ID mapper if available
-    if NextKey222.IDMapper then
-        return NextKey222.IDMapper:ConvertChallengeMapToKeystoneID(challengeMapID)
-    end
-    
-    -- Legacy fallback mapping
-    local challengeToKeystone = {
-        [503] = 503,   -- Ara-Kara (same)
-        [505] = 542,   -- The Dawnbreaker 
-        [542] = 542,   -- Eco-Dome Al'dani (same)
-        [378] = 378,   -- Halls of Atonement (same)  
-        [525] = 525,   -- Operation: Floodgate (same)
-        [499] = 499,   -- Priory of the Sacred Flame (same)
-        [391] = 391,   -- Tazavesh: Streets (same)
-        [392] = 392,   -- Tazavesh: So'leah's (same)
-        [402] = 2441,  -- So'leah's Gambit -> Keystone ID 2441
-        [401] = 391,   -- Streets of Wonder -> 391
-        [377] = 378,   -- Halls -> 378
-        [526] = 542,   -- Eco-Dome -> 542
-        [524] = 505,   -- Dawnbreaker -> 505  
-        [523] = 499,   -- Priory -> 499
-    }
-    
-    return challengeToKeystone[challengeMapID] or challengeMapID
+    -- Portal data updated to use correct Blizzard IDs (499, 542, 378, 525, 503, 392, 391, 505)
+    -- No conversion needed, return ID as-is
+    return challengeMapID
 end
 
 -- Reverse mapping: Find NextKey dungeon ID from RaiderIO dungeon data
@@ -185,6 +165,23 @@ function Utils:FindNextKeyDungeonID(rioData)
     }
     
     return reverseMapping[dungeon.keystone_instance] or reverseMapping[dungeon.id]
+end
+
+-- MARK: Dungeon Name Helpers
+function Utils:GetDungeonAbbreviation(dungeonID)
+    -- Access global alias data from portals.lua
+    if NextKey_DungeonAliases and NextKey_DungeonAliases[dungeonID] then
+        return NextKey_DungeonAliases[dungeonID]
+    end
+    return "???"
+end
+
+function Utils:GetDungeonFullName(dungeonID)
+    -- Access global name data from portals.lua
+    if NextKey_DungeonNames and NextKey_DungeonNames[dungeonID] then
+        return NextKey_DungeonNames[dungeonID]
+    end
+    return "Unknown Dungeon"
 end
 
 -- Module interface

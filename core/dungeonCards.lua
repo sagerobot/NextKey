@@ -507,14 +507,10 @@ function DungeonCards:Init()
     -- Load sort preference
     self.sortMethod = NextKey.db.char.dungeonSort or "alphabetical"
     
-    -- Initialize dungeon data from current season FIRST
-    local season = C_MythicPlus.GetCurrentSeason()
-    if season then
-        local seasonDungeons = C_MythicPlus.GetSeasonDungeonInfo(season)
-        if seasonDungeons then
-            for _, info in ipairs(seasonDungeons) do
-                self:GetCard(info.id, info.name, info.shortName)
-            end
+    -- Initialize dungeon data from the hardcoded portal data
+    if NextKey.PortalData and NextKey.PortalData.dungeons then
+        for dungeonID, dungeonInfo in pairs(NextKey.PortalData.dungeons) do
+            self:GetCard(dungeonID, dungeonInfo.name, dungeonInfo.alias)
         end
     end
     

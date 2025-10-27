@@ -28,7 +28,18 @@ local SERVER_RESET_TIMES = {
 -- @return boolean True if initialization successful
 function CharacterStorage:Initialize()
     return NextKey222.SafeRun(function()
+        -- BUGFIX: Check if database reference was set
+        if not self.db then
+            Debug:Error("CharacterStorage:Initialize - Database reference not set! Did you forget to call CharacterStorage.db = NextKey.db in boot.lua?")
+            return false
+        end
+        
         -- Initialize profile namespace if missing
+        if not self.db.profile then
+            Debug:Error("CharacterStorage:Initialize - Database profile not found!")
+            return false
+        end
+        
         if not self.db.profile.characters then
             self.db.profile.characters = {}
             Debug:Dev("storage", "Initialized character storage")
@@ -53,6 +64,13 @@ end
 function CharacterStorage:GetCharacter(characterID)
     return NextKey222.SafeRun(function()
         if not characterID then return nil end
+        
+        -- BUGFIX: Check if database is initialized
+        if not self.db or not self.db.profile or not self.db.profile.characters then
+            Debug:Dev("storage", "CharacterStorage database not initialized - returning nil")
+            return nil
+        end
+        
         return self.db.profile.characters[characterID]
     end, "CharacterStorage:GetCharacter")
 end

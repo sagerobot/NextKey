@@ -276,9 +276,17 @@ NextKey222.StartUp:RegisterPhaseHandler("Init", function()
     -- Initialize LibOpenRaid integration
     if NextKey222.LibOpenRaidIntegration and NextKey222.LibOpenRaidIntegration.Initialize then
         NextKey222.Debug:Dev("startup", "Initializing LibOpenRaidIntegration")
-        NextKey.SafeRun(function() 
-            NextKey222.LibOpenRaidIntegration:Initialize() 
+        NextKey.SafeRun(function()
+            NextKey222.LibOpenRaidIntegration:Initialize()
         end, "Initialize LibOpenRaidIntegration")
+    end
+    
+    -- Initialize ProfilesService (critical for spec change detection)
+    if NextKey222.ProfilesService and NextKey222.ProfilesService.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing ProfilesService")
+        NextKey.SafeRun(function()
+            NextKey222.ProfilesService:Initialize()
+        end, "Initialize ProfilesService")
     end
     
     NextKey222.Debug:Dev("startup", "Init phase completed")
@@ -287,6 +295,14 @@ end, 10) -- High priority for database initialization
 -- Phase 3: PostInit - Initialize UI and other systems
 NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
     NextKey222.Debug:Dev("startup", "=== PostInit Phase ===")
+    
+    -- Initialize DungeonNameService (must be early, after portal data loaded)
+    if NextKey222.DungeonNameService and NextKey222.DungeonNameService.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing DungeonNameService")
+        NextKey.SafeRun(function() NextKey222.DungeonNameService:Initialize() end, "Initialize DungeonNameService")
+    else
+        NextKey222.Debug:Error("DungeonNameService not available for initialization")
+    end
     
     -- Phase 7: Initialize Configuration Context (must be before UI)
     if NextKey222.ConfigurationContext then
@@ -394,6 +410,42 @@ NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
         NextKey.SafeRun(function()
             NextKey222.Communications:Initialize()
         end, "Initialize Communications")
+    end
+    
+    -- Initialize CharacterStorage (Phase 0 - M+ Organizer)
+    if NextKey222.CharacterStorage then
+        NextKey222.Debug:Dev("startup", "Initializing CharacterStorage")
+        -- Set database reference
+        NextKey222.CharacterStorage.db = NextKey.db
+        if NextKey222.CharacterStorage.Initialize then
+            NextKey.SafeRun(function()
+                NextKey222.CharacterStorage:Initialize()
+            end, "Initialize CharacterStorage")
+        end
+    end
+    
+    -- Initialize ParticipantSurvey (Phase 2 - M+ Organizer)
+    if NextKey222.ParticipantSurvey and NextKey222.ParticipantSurvey.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing ParticipantSurvey")
+        NextKey.SafeRun(function()
+            NextKey222.ParticipantSurvey:Initialize()
+        end, "Initialize ParticipantSurvey")
+    end
+    
+    -- Initialize RosterBoard (Phase 1 - M+ Organizer)
+    if NextKey222.RosterBoard and NextKey222.RosterBoard.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing RosterBoard")
+        NextKey.SafeRun(function()
+            NextKey222.RosterBoard:Initialize()
+        end, "Initialize RosterBoard")
+    end
+    
+    -- Initialize PollSimulator (Debug tool for Phase 2)
+    if NextKey222.PollSimulator and NextKey222.PollSimulator.Initialize then
+        NextKey222.Debug:Dev("startup", "Initializing PollSimulator")
+        NextKey.SafeRun(function()
+            NextKey222.PollSimulator:Initialize()
+        end, "Initialize PollSimulator")
     end
     
     -- Initialize PUG Helper

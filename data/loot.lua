@@ -14,7 +14,7 @@ local lootData = {
         name = "The War Within Season 3",
         dungeons = {
             -- MARK: Halls of Atonement
-            [377] = {
+            [378] = {
                 name = "Halls of Atonement",
                 items = {
                     [246344] = {

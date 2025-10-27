@@ -107,20 +107,36 @@ end
 -- @return boolean True if send successful
 function OrganizerComms:SendOrganizerMessage(opcode, data, channel, target)
     return NextKey222.SafeRun(function()
-        if not NextKey222.Communications then
-            Debug:Error("OrganizerComms:SendOrganizerMessage - Communications module not available")
+        local NextKey = NextKey222.Addon
+        if not NextKey or not NextKey.SendCommMessage then
+            Debug:Error("OrganizerComms:SendOrganizerMessage - Addon not available")
             return false
         end
         
-        local message = {
+        -- Get AceSerializer library
+        local AceSerializer = LibStub:GetLibrary("AceSerializer-3.0")
+        if not AceSerializer then
+            Debug:Error("OrganizerComms:SendOrganizerMessage - AceSerializer not available")
+            return false
+        end
+        
+        -- Create message payload
+        local payload = {
             opcode = opcode,
-            version = "0.3.0",
+            version = NextKey.version or "0.3.0",
             timestamp = GetTime(),
             sender = UnitName("player") .. "-" .. GetRealmName(),
             data = data or {}
         }
         
-        return NextKey222.Communications:SendMessage(message, channel or "PARTY", target)
+        -- Serialize the message
+        local serialized = AceSerializer:Serialize(payload)
+        
+        -- Send via AceComm
+        NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel or "PARTY", target)
+        
+        Debug:Dev("org_comms", "Sent organizer message:", opcode, "to", channel or "PARTY")
+        return true
     end, "OrganizerComms:SendOrganizerMessage")
 end
 

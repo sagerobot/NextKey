@@ -7,6 +7,85 @@
 
 local addonName, NextKey222 = ...
 
+-- MARK: - Role Testing Command (Debug)
+-- Separate slash command for role detection testing
+SLASH_NKTESTROLE1 = "/nktestrole"
+SlashCmdList["NKTESTROLE"] = function(msg)
+    NextKey222.Debug:User("=== Role Detection Test ===")
+    
+    -- Get current player info
+    local playerName = UnitName("player")
+    local realmName = GetRealmName()
+    local fullName = playerName .. "-" .. realmName
+    
+    NextKey222.Debug:User("Testing role detection for: " .. fullName)
+    
+    -- Test 1: Check GetSpecializationInfo directly
+    local specIndex = GetSpecialization()
+    if specIndex then
+        local specID, specName, _, _, role = GetSpecializationInfo(specIndex)
+        NextKey222.Debug:User("Blizzard API GetSpecializationInfo:")
+        NextKey222.Debug:User("  - Spec ID: " .. tostring(specID))
+        NextKey222.Debug:User("  - Spec Name: " .. tostring(specName))
+        NextKey222.Debug:User("  - Role: " .. tostring(role))
+    else
+        NextKey222.Debug:Error("No specialization selected!")
+        return
+    end
+    
+    -- Test 2: Force profile cache invalidation and rebuild
+    if NextKey222.ProfilesService then
+        NextKey222.Debug:User("Invalidating profile cache...")
+        
+        -- Clear the profile cache for current player
+        if NextKey222.ProfilesService.profileCache then
+            NextKey222.ProfilesService.profileCache[fullName] = nil
+            NextKey222.Debug:User("  - Profile cache cleared")
+        end
+        
+        -- Test 3: Build fresh profile using BuildProfileForPlayer
+        NextKey222.Debug:User("Building fresh profile...")
+        local profile = NextKey222.ProfilesService:BuildProfileForPlayer(fullName)
+        
+        if profile then
+            NextKey222.Debug:User("Standard Profile (BuildProfileForPlayer):")
+            NextKey222.Debug:User("  - profile.role: " .. tostring(profile.role))
+            NextKey222.Debug:User("  - profile.specID: " .. tostring(profile.specID))
+            NextKey222.Debug:User("  - profile.specName: " .. tostring(profile.specName))
+        else
+            NextKey222.Debug:Error("Failed to build standard profile!")
+        end
+        
+        -- Test 4: Build organizer profile using GetOrganizerProfile
+        NextKey222.Debug:User("Building organizer profile...")
+        local orgProfile = NextKey222.ProfilesService:GetOrganizerProfile(fullName)
+        
+        if orgProfile then
+            NextKey222.Debug:User("Organizer Profile (GetOrganizerProfile):")
+            NextKey222.Debug:User("  - profile.role: " .. tostring(orgProfile.role))
+            NextKey222.Debug:User("  - profile.specID: " .. tostring(orgProfile.specID))
+            NextKey222.Debug:User("  - profile.specName: " .. tostring(orgProfile.specName))
+            
+            if orgProfile.roles then
+                NextKey222.Debug:User("  - profile.roles array:")
+                for _, role in ipairs(orgProfile.roles) do
+                    NextKey222.Debug:User("    * " .. tostring(role))
+                end
+            else
+                NextKey222.Debug:User("  - profile.roles: nil")
+            end
+        else
+            NextKey222.Debug:Error("Failed to build organizer profile!")
+        end
+        
+        NextKey222.Debug:User("=== Test Complete ===")
+        NextKey222.Debug:User("Check the debug output above for any mismatches.")
+        NextKey222.Debug:User("Expected: All role values should be 'HEALER' for Preservation Evoker")
+    else
+        NextKey222.Debug:Error("ProfilesService not available!")
+    end
+end
+
 -- MARK: - Command Definitions
 -- This table defines all available commands and their help text
 -- Makes it easy to add new commands and keep help synchronized
@@ -62,6 +141,11 @@ local Commands = {
         handler = "TestCommands"
     },
     {
+        cmd = {"poll"},
+        desc = "Poll testing commands (use '/nk poll help' for details)",
+        handler = "PollCommands"
+    },
+    {
         cmd = {"components"},
         desc = "Test UI component system (use '/nk components help' for details)",
         handler = "ComponentCommands"
@@ -96,6 +180,20 @@ local Commands = {
         cmd = {"dungeon", "dungeons", "cards"},
         desc = "Show the dungeon overview UI",
         handler = "ShowDungeonCards"
+    },
+    
+    -- M+ Organizer commands
+    {
+        cmd = {"roster", "organizer", "org"},
+        desc = "Show the M+ Group Organizer",
+        handler = "ShowOrganizer"
+    },
+    
+    -- Drag test commands
+    {
+        cmd = {"drag", "dragtest"},
+        desc = "Show the drag-and-drop test window",
+        handler = "ShowDragTest"
     },
     
 }
@@ -176,7 +274,7 @@ local TestCommands = {
         desc = "Generate preset team: /nk test preset <type>",
         usage = "/nk test preset <type>",
         details = {
-            "  Types: mixed_skill, beginner, expert, high_keys"
+            "  Types: mixed_skill, beginner, expert, high_keys, raid_group"
         },
         handler = "GeneratePreset"
     },
@@ -194,6 +292,35 @@ local TestCommands = {
         cmd = {"help", "?"},
         desc = "Show test command help",
         handler = "ShowTestHelp"
+    }
+}
+
+-- Poll testing subcommands
+local PollCommands = {
+    {
+        cmd = {"", "help", "?"},
+        desc = "Show poll testing command help",
+        handler = "ShowPollHelp"
+    },
+    {
+        cmd = {"test"},
+        desc = "Test poll simulation: /nk poll test <instant|realistic>",
+        usage = "/nk poll test <instant|realistic>",
+        details = {
+            "  instant - All responses within 0-2 seconds",
+            "  realistic - Staggered responses over 0-60 seconds"
+        },
+        handler = "TestPollSimulation"
+    },
+    {
+        cmd = {"status"},
+        desc = "Show poll simulation status",
+        handler = "ShowPollStatus"
+    },
+    {
+        cmd = {"clear"},
+        desc = "Clear poll simulation state",
+        handler = "ClearPollSimulation"
     }
 }
 
@@ -444,6 +571,69 @@ function SlashCommands:HideMainWindow()
     end
 end
 
+-- Organizer commands
+function SlashCommands:ShowOrganizer()
+    print("[ORGANIZER DEBUG] ShowOrganizer called")
+    print("[ORGANIZER DEBUG] NextKey222.RosterBoard exists:", NextKey222.RosterBoard and "YES" or "NO")
+    
+    NextKey222.Debug:Dev("slashcommands", "ShowOrganizer called - RosterBoard available:", NextKey222.RosterBoard and "YES" or "NO")
+    
+    if NextKey222.RosterBoard then
+        print("[ORGANIZER DEBUG] RosterBoard exists, checking for Show method:", NextKey222.RosterBoard.Show and "YES" or "NO")
+        
+        if NextKey222.RosterBoard.Show then
+            print("[ORGANIZER DEBUG] Calling RosterBoard:Show()...")
+            NextKey222.Debug:Dev("slashcommands", "Using RosterBoard Show method")
+            NextKey222.RosterBoard:Show()
+            print("[ORGANIZER DEBUG] RosterBoard:Show() call completed")
+        else
+            print("[ORGANIZER DEBUG] ERROR: RosterBoard.Show method does not exist!")
+            NextKey222.Debug:Error("RosterBoard.Show method not available")
+        end
+    else
+        print("[ORGANIZER DEBUG] ERROR: RosterBoard module does not exist!")
+        NextKey222.Debug:User("M+ Group Organizer not ready yet")
+    end
+end
+
+-- Drag test command
+function SlashCommands:ShowDragTest()
+    NextKey222.Debug:Dev("slashcommands", "ShowDragTest called")
+    
+    -- Try simple drag test first (new pure native approach)
+    if NextKey222.SimpleDragTest then
+        if NextKey222.SimpleDragTest.Show then
+            NextKey222.SimpleDragTest:Show()
+        else
+            NextKey222.Debug:Error("SimpleDragTest.Show method not available")
+        end
+    -- Fall back to original if simple not available
+    elseif NextKey222.DragTest then
+        if NextKey222.DragTest.Show then
+            NextKey222.DragTest:Show()
+        else
+            NextKey222.Debug:Error("DragTest.Show method not available")
+        end
+    else
+        NextKey222.Debug:User("Drag test window not ready yet")
+    end
+end
+
+-- Dungeon cards commands
+function SlashCommands:ShowDungeonCards()
+    NextKey222.Debug:Dev("slashcommands", "ShowDungeonCards called")
+    
+    if NextKey222.Addon and NextKey222.Addon.DungeonCardsUI then
+        if NextKey222.Addon.DungeonCardsUI.Show then
+            NextKey222.Addon.DungeonCardsUI:Show()
+        elseif NextKey222.Addon.DungeonCardsUI.CreateFrame then
+            NextKey222.Addon.DungeonCardsUI:CreateFrame()
+        end
+    else
+        NextKey222.Debug:User("Dungeon cards UI not ready yet")
+    end
+end
+
 -- Help commands
 function SlashCommands:ShowHelp()
     NextKey222.Debug:User("=== NextKey Commands ===")
@@ -665,6 +855,100 @@ function SlashCommands:ShowTestHelp()
             end
         end
     end
+end
+
+-- MARK: - Poll Testing Command Handlers
+
+function SlashCommands:ShowPollHelp()
+    NextKey222.Debug:User("=== Poll Testing Commands ===")
+    for _, cmd in ipairs(PollCommands) do
+        local cmdStr = "/" .. "nk poll " .. cmd.cmd[1]
+        if cmd.cmd[1] == "" then
+            cmdStr = "/" .. "nk poll"
+        end
+        NextKey222.Debug:User("  " .. cmdStr .. " - " .. cmd.desc)
+        if cmd.details then
+            for _, detail in ipairs(cmd.details) do
+                NextKey222.Debug:User(detail)
+            end
+        end
+    end
+end
+
+function SlashCommands:TestPollSimulation(patternType)
+    if not NextKey222.PollSimulator or not NextKey222.PollSimulator:IsInitialized() then
+        NextKey222.Debug:User("Poll simulator not available")
+        return
+    end
+    
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
+        NextKey222.Debug:User("FakePlayerService not available - generate fake players first")
+        NextKey222.Debug:User("Use: /nk test preset raid_group")
+        return
+    end
+    
+    -- Check if we have fake players
+    local playerCount = #NextKey222.FakePlayerService:GetAllPlayerNames()
+    if playerCount == 0 then
+        NextKey222.Debug:User("No fake players available - generate some first")
+        NextKey222.Debug:User("Use: /nk test preset raid_group")
+        return
+    end
+    
+    patternType = patternType or "instant"
+    
+    if patternType ~= "instant" and patternType ~= "realistic" then
+        NextKey222.Debug:User("Usage: /nk poll test <instant|realistic>")
+        NextKey222.Debug:User("  instant - All responses within 0-2 seconds")
+        NextKey222.Debug:User("  realistic - Staggered responses over 0-60 seconds")
+        return
+    end
+    
+    -- Generate a unique poll ID
+    local pollID = "TEST_" .. tostring(math.random(1000, 9999))
+    
+    -- Start simulation
+    NextKey222.Debug:User("Starting " .. patternType .. " poll simulation...")
+    NextKey222.Debug:User("Poll ID: " .. pollID)
+    NextKey222.Debug:User("Fake players: " .. playerCount)
+    
+    if NextKey222.PollSimulator:SimulatePoll(patternType, pollID) then
+        NextKey222.Debug:User("Poll simulation started successfully")
+        NextKey222.Debug:User("Responses will arrive over the next " .. (patternType == "instant" and "2" or "60") .. " seconds")
+        NextKey222.Debug:User("Use '/nk poll status' to check progress")
+    else
+        NextKey222.Debug:Error("Failed to start poll simulation")
+    end
+end
+
+function SlashCommands:ShowPollStatus()
+    if not NextKey222.PollSimulator or not NextKey222.PollSimulator:IsInitialized() then
+        NextKey222.Debug:User("Poll simulator not available")
+        return
+    end
+    
+    local status = NextKey222.PollSimulator:GetStatus()
+    
+    if not status then
+        NextKey222.Debug:User("No active poll simulation")
+        return
+    end
+    
+    NextKey222.Debug:User("=== Poll Simulation Status ===")
+    NextKey222.Debug:User("- Poll ID: " .. status.pollID)
+    NextKey222.Debug:User("- Pattern: " .. status.pattern)
+    NextKey222.Debug:User("- Players: " .. status.playerCount)
+    NextKey222.Debug:User("- Elapsed: " .. string.format("%.1fs", status.elapsed))
+end
+
+function SlashCommands:ClearPollSimulation()
+    if not NextKey222.PollSimulator or not NextKey222.PollSimulator:IsInitialized() then
+        NextKey222.Debug:User("Poll simulator not available")
+        return
+    end
+    
+    NextKey222.PollSimulator:Clear()
+    NextKey222.Debug:User("Poll simulation cleared")
 end
 
 -- RaiderIO debug

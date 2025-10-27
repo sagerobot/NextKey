@@ -75,6 +75,8 @@ PlayerProfile = {
 
 -- MARK: Profiles Service
 local ProfilesService = {}
+NextKey222.ProfilesService = ProfilesService
+NextKey222.RegisterModule("ProfilesService", ProfilesService)
 
 -- Cache for built profiles (cleared on invalidation events)
 ProfilesService.cache = {}
@@ -103,8 +105,10 @@ function ProfilesService:InvalidateCache(playerName)
     
     if playerName then
         -- Selective invalidation: Only invalidate specific player
+        -- CRITICAL: Escape pattern-special characters in playerName (especially the dash in Name-Realm)
+        local escapedName = playerName:gsub("([%-%.%+%[%]%(%)%$%^%%%?%*])", "%%%1")
         for cacheKey in pairs(self.cache) do
-            if cacheKey:match("^" .. playerName .. ":") then
+            if cacheKey:match("^" .. escapedName .. ":") then
                 self.cache[cacheKey] = nil
                 invalidatedCount = invalidatedCount + 1
             end
@@ -134,9 +138,9 @@ function ProfilesService:InvalidateOnEvents()
     if NextKey222.Addon then
         -- Create event handler function if it doesn't exist
         if not NextKey222.Addon.OnProfilesInvalidation then
-            NextKey222.Addon.OnProfilesInvalidation = function(event, unit, ...)
+            NextKey222.Addon.OnProfilesInvalidation = function(self, event, unit, ...)
                 if NextKey222.Debug then
-                    NextKey222.Debug:Dev("profiles", "EVENT FIRED: " .. (event or "unknown"))
+                    NextKey222.Debug:Dev("profiles", "EVENT FIRED:", event or "unknown")
                 end
 
                 if NextKey222.ProfilesService then
@@ -145,17 +149,17 @@ function ProfilesService:InvalidateOnEvents()
                     local targetPlayer = nil
                     
                     if event == "PLAYER_SPECIALIZATION_CHANGED" then
-                        -- Only invalidate current player
-                        local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
-                        targetPlayer = currentPlayer
-                        shouldInvalidate = true
-                    elseif event == "UNIT_SPECIALIZATION" and unit then
-                        -- Invalidate specific unit that changed spec
-                        local name, realm = UnitName(unit)
-                        if name then
-                            targetPlayer = realm and (name .. "-" .. realm) or (name .. "-" .. GetRealmName())
+                            -- Only invalidate current player
+                            local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
+                            targetPlayer = currentPlayer
                             shouldInvalidate = true
-                        end
+                        elseif event == "UNIT_SPECIALIZATION" and unit then
+                            -- Invalidate specific unit that changed spec
+                            local name, realm = UnitName(unit)
+                            if name then
+                                targetPlayer = realm and (name .. "-" .. realm) or (name .. "-" .. GetRealmName())
+                                shouldInvalidate = true
+                            end
                     elseif event == "GROUP_ROSTER_UPDATE" then
                         -- Only invalidate cache if someone actually joined/left
                         -- Don't invalidate on minor roster changes
@@ -178,8 +182,9 @@ function ProfilesService:InvalidateOnEvents()
                     if shouldInvalidate then
                         NextKey222.ProfilesService:InvalidateCache(targetPlayer)
                         if NextKey222.Debug then
+                            local eventName = type(event) == "string" and event or tostring(event or "unknown")
                             NextKey222.Debug:Dev("profiles", string.format("Cache invalidated due to %s%s",
-                                event or "unknown", targetPlayer and (" for " .. targetPlayer) or ""))
+                                eventName, targetPlayer and (" for " .. targetPlayer) or ""))
                         end
                     end
 
@@ -187,35 +192,16 @@ function ProfilesService:InvalidateOnEvents()
                     if event == "PLAYER_SPECIALIZATION_CHANGED" or
                        event == "UNIT_SPECIALIZATION" or
                        event == "GROUP_ROSTER_UPDATE" then
-                        if NextKey222.UI and NextKey222.UI.RefreshResults then
-                            if NextKey222.UI:IsMainFrameVisible() then
-                                if NextKey222.Debug then
-                                    NextKey222.Debug:Dev("profiles", "Triggering UI refresh due to " .. event .. " (UI visible)")
-                                end
-                            else
-                                if NextKey222.Debug then
-                                    NextKey222.Debug:Dev("profiles", "Triggering UI refresh due to " .. event .. " (UI not visible, but refreshing anyway)")
-                                end
-                            end
-
-                            -- Small delay to allow profile data to update
-                            C_Timer.After(0.1, function()
-                                if NextKey222.UI and NextKey222.UI.RefreshResults then
-                                    NextKey222.UI:RefreshResults()
-                                    if NextKey222.Debug then
-                                        NextKey222.Debug:Dev("profiles", "UI refresh completed for " .. event)
-                                    end
-                                else
-                                    if NextKey222.Debug then
-                                        NextKey222.Debug:Dev("profiles", "UI refresh FAILED - UI not available for " .. event)
-                                    end
-                                end
-                            end)
-                        else
-                            if NextKey222.Debug then
-                                NextKey222.Debug:Dev("profiles", "UI refresh SKIPPED - UI not available for " .. event)
-                            end
+                        
+                        -- Use longer delay for spec changes to ensure Blizzard API has updated
+                        local delay = 0.1
+                        if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "UNIT_SPECIALIZATION" then
+                            delay = 0.3  -- 300ms for spec changes to allow API to update
                         end
+                        
+                        C_Timer.After(delay, function()
+                            ProfilesService:RefreshUIComponents(event)
+                        end)
                     end
                 end
             end
@@ -297,6 +283,47 @@ function ProfilesService:InvalidateOnEvents()
         
         if NextKey222.Debug then
             NextKey222.Debug:Dev("profiles", "Event-driven cache invalidation registered for " .. #events .. " events + backup frame")
+        end
+    end
+end
+
+--- Helper function to refresh all UI components after profile update
+-- @param event string The event that triggered the refresh
+function ProfilesService:RefreshUIComponents(event)
+    -- Refresh Main UI if visible
+    if NextKey222.UI and NextKey222.UI.RefreshResults then
+        if NextKey222.UI:IsMainFrameVisible() then
+            -- CRITICAL: Clear render tracking for spec changes so UI actually re-renders
+            -- Keystones don't change when specs change, but player roles do!
+            NextKey222.UI.lastRenderedKeystoneHash = nil
+            NextKey222.UI.lastRenderedSortMode = nil
+            
+            NextKey222.UI:RefreshResults()
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", "Main UI refresh completed for " .. event)
+            end
+        else
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", "Main UI not visible, skipping refresh for " .. event)
+            end
+        end
+    end
+    
+    -- Refresh RosterBoard if visible
+    if NextKey222.RosterBoard and NextKey222.RosterBoard.IsVisible and NextKey222.RosterBoard:IsVisible() then
+        if NextKey222.RosterBoard.RefreshAllCards then
+            NextKey222.RosterBoard:RefreshAllCards()
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", "RosterBoard refresh completed for " .. event)
+            end
+        else
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", "RosterBoard refresh method not available for " .. event)
+            end
+        end
+    else
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("profiles", "RosterBoard not visible, skipping refresh for " .. event)
         end
     end
 end
@@ -665,6 +692,15 @@ function ProfilesService:FinalizeProfile(profile)
     if not profile then
         return
     end
+    
+    -- PHASE 1: Diagnostic logging - track FinalizeProfile entry
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("profiles", string.format("FinalizeProfile called for: %s, class: %s, specID: %s, existing role: %s",
+            profile.name or "unknown",
+            profile.class or "nil",
+            profile.specID or "nil",
+            profile.role or "nil"))
+    end
 
     if profile.class then
         profile.class = string.upper(profile.class)
@@ -672,13 +708,86 @@ function ProfilesService:FinalizeProfile(profile)
 
     profile.capabilities = profile.capabilities or {}
 
-    if profile.specID and GetSpecializationInfoByID then
-        local _, specName, _, _, _, role = GetSpecializationInfoByID(profile.specID)
+    -- CRITICAL: Get role from specID using correct Blizzard API
+    local role = nil
+    local specName = nil
+    
+    -- For current player, ALWAYS use GetSpecialization() directly (ignore adapter specID)
+    local playerName = UnitName("player")
+    local realmName = GetRealmName()
+    local currentPlayer = playerName .. "-" .. realmName
+    
+    if profile.name == currentPlayer and GetSpecialization then
+        -- Current player: ALWAYS use GetSpecialization + GetSpecializationInfo
+        -- This is the source of truth for current player's active spec
+        local specIndex = GetSpecialization()
+        
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("profiles", string.format("[SPEC DEBUG] GetSpecialization() returned index: %s, profile.specID from adapter: %s",
+                tostring(specIndex), tostring(profile.specID)))
+        end
+        
+        if specIndex then
+            -- API returns: specID, name, description, icon, role, primaryStat
+            local currentSpecID, name, _, _, specRole = GetSpecializationInfo(specIndex)
+            
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("[SPEC DEBUG] GetSpecializationInfo(%d) returned: specID=%s, specName=%s, specRole=%s",
+                    specIndex, tostring(currentSpecID), tostring(name), tostring(specRole)))
+            end
+            
+            -- ALWAYS use current spec data, overwrite what adapters provided
+            profile.specID = currentSpecID
+            profile.role = specRole  -- CRITICAL: Actually set profile.role, not just local variable
+            profile.specName = name
+            role = specRole  -- Keep local for later checks
+            specName = name
+            
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("Current player spec data SET: specID=%d, specName=%s, profile.role=%s",
+                    currentSpecID or 0, name or "nil", specRole or "nil"))
+            end
+        else
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", "[SPEC DEBUG] GetSpecialization() returned nil!")
+            end
+        end
+    elseif profile.specID then
+        -- For other players, use GetSpecializationInfoByID with the specID from adapters
+        
+        if GetSpecializationInfoByID then
+            -- GetSpecializationInfoByID returns: id, name, description, icon, role, primaryStat
+            local _, name, _, _, specRole = GetSpecializationInfoByID(profile.specID)
+            
+            -- Validate the role is actually a valid role string
+            if specRole and (specRole == "TANK" or specRole == "HEALER" or specRole == "DAMAGER") then
+                role = specRole
+                specName = name
+                
+                if NextKey222.Debug then
+                    NextKey222.Debug:Dev("profiles", string.format("GetSpecializationInfoByID(%d) returned: specName=%s, role=%s",
+                        profile.specID, specName or "nil", role or "nil"))
+                end
+            else
+                -- GetSpecializationInfoByID is returning invalid data, log warning
+                if NextKey222.Debug then
+                    NextKey222.Debug:Dev("profiles", string.format("GetSpecializationInfoByID(%d) returned INVALID role: %s (expected TANK/HEALER/DAMAGER)",
+                        profile.specID, tostring(specRole)))
+                end
+            end
+        end
+        
+        -- ALWAYS use spec-based role if we got a valid one (overwrite any existing role)
+        if role then
+            profile.role = role
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("ROLE SET from specID %d: %s -> profile.role = %s",
+                    profile.specID, role, profile.role))
+            end
+        end
+        
         if specName and not profile.specName then
             profile.specName = specName
-        end
-        if role and not profile.role then
-            profile.role = role
         end
         
         -- Debug logging for Evoker spec/role detection
@@ -693,16 +802,21 @@ function ProfilesService:FinalizeProfile(profile)
         end
     end
 
+    -- Fallback ONLY if we still don't have a role after spec detection
     if not profile.role and profile.class then
         profile.role = DEFAULT_CLASS_ROLE[profile.class] or "DAMAGER"
         
-        -- Debug fallback logic
-        if profile.class == "EVOKER" then
-            local fallbackRole = DEFAULT_CLASS_ROLE[profile.class] or "DAMAGER"
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", string.format("Evoker Fallback: Using default role=%s for class=%s", fallbackRole, profile.class))
-            end
+        -- PHASE 1: Diagnostic logging - track fallback usage
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("profiles", string.format("FALLBACK: No role from spec, using default for class %s: %s",
+                profile.class, profile.role))
         end
+    end
+    
+    -- PHASE 1: Diagnostic logging - final role value
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("profiles", string.format("FinalizeProfile COMPLETE for %s: final role = %s",
+            profile.name or "unknown", profile.role or "nil"))
     end
 
     local specCaps = profile.specID and SPEC_CAPABILITIES[profile.specID] or nil
@@ -785,7 +899,10 @@ function ProfilesService:GetOrganizerProfile(playerName)
         roles = self:GetAvailableRoles(playerName),
         utilities = self:GetUtilities(playerName),
         preferences = self:GetPreferences(playerName),
-        alts = self:GetAlts(playerName)
+        alts = self:GetAlts(playerName),
+        
+        -- Keystone data (CRITICAL for organizer UI)
+        keystone = self:GetPlayerKeystone(playerName)
     }
     
     Debug:Dev("profiles", "Enhanced organizer profile created for:", playerName,
@@ -794,34 +911,43 @@ function ProfilesService:GetOrganizerProfile(playerName)
     return organizerProfile
 end
 
---- Gets available roles for a player from CharacterStorage
+--- Gets available roles for a player from CharacterStorage or spec detection
 -- @param playerName string Full player name (Name-Realm)
 -- @return table List of available roles {TANK, HEALER, DAMAGER}
 function ProfilesService:GetAvailableRoles(playerName)
-    if not NextKey222.CharacterStorage then
-        Debug:Dev("profiles", "CharacterStorage not available for role lookup")
-        return {}
-    end
-    
     local roles = {}
-    local characterData = NextKey222.CharacterStorage:GetCharacter(playerName)
     
-    if characterData and characterData.roles then
-        -- Convert character storage roles to organizer format
-        for role, isEnabled in pairs(characterData.roles) do
-            if isEnabled then
-                table.insert(roles, role)
+    -- Try CharacterStorage first (if player has configured multi-role)
+    if NextKey222.CharacterStorage then
+        local characterData = NextKey222.CharacterStorage:GetCharacter(playerName)
+        
+        -- BUGFIX: Check if characterData is actually a table (SafeRun returns false on error)
+        if type(characterData) == "table" and characterData.roles then
+            -- Convert character storage roles to organizer format
+            for role, isEnabled in pairs(characterData.roles) do
+                if isEnabled then
+                    table.insert(roles, role)
+                end
+            end
+            
+            -- If we got roles from storage, return them
+            if #roles > 0 then
+                Debug:Dev("profiles", "Available roles for", playerName, "from storage:", table.concat(roles, ", "))
+                return roles
             end
         end
-    else
-        -- Fallback to role from base profile
-        local baseProfile = self:BuildProfileForPlayer(playerName)
-        if baseProfile and baseProfile.role then
-            table.insert(roles, baseProfile.role)
-        end
     end
     
-    Debug:Dev("profiles", "Available roles for", playerName, ":", table.concat(roles, ", "))
+    -- Fallback: Get role from spec detection (base profile)
+    -- This ensures we get the CURRENT spec's role, not a default
+    local baseProfile = self:BuildProfileForPlayer(playerName)
+    if baseProfile and baseProfile.role then
+        table.insert(roles, baseProfile.role)
+        Debug:Dev("profiles", "Available roles for", playerName, "from spec:", baseProfile.role)
+    else
+        Debug:Dev("profiles", "No roles found for", playerName, "- returning empty array")
+    end
+    
     return roles
 end
 
@@ -837,7 +963,8 @@ function ProfilesService:GetUtilities(playerName)
     local utilities = { heroism = false, battleRes = false }
     local characterData = NextKey222.CharacterStorage:GetCharacter(playerName)
     
-    if characterData and characterData.utilities then
+    -- BUGFIX: Check if characterData is actually a table (SafeRun returns false on error)
+    if type(characterData) == "table" and characterData.utilities then
         utilities = characterData.utilities
     else
         -- Fallback to capabilities from base profile
@@ -877,12 +1004,52 @@ function ProfilesService:GetAlts(playerName)
     local alts = {}
     local characterData = NextKey222.CharacterStorage:GetCharacter(playerName)
     
-    if characterData and characterData.alts then
+    -- BUGFIX: Check if characterData is actually a table (SafeRun returns false on error)
+    if type(characterData) == "table" and characterData.alts then
         alts = characterData.alts
     end
     
     Debug:Dev("profiles", "Alts for", playerName, ":", #alts, "characters")
     return alts
+end
+
+--- Gets keystone data for a player
+-- @param playerName string Full player name (Name-Realm)
+-- @return table|nil Keystone data with dungeonID and level
+function ProfilesService:GetPlayerKeystone(playerName)
+    if not NextKey222.Addon or not NextKey222.Addon.GetAvailableKeys then
+        Debug:Dev("profiles", "GetAvailableKeys not available for keystone lookup")
+        return nil
+    end
+    
+    -- Get all available keys and find this player's keystone
+    local allKeys = NextKey222.Addon:GetAvailableKeys()
+    if not allKeys then
+        Debug:Dev("profiles", "No keys available")
+        return nil
+    end
+    
+    -- Normalize player name for comparison
+    local shortName = playerName:match("^([^%-]+)") or playerName
+    
+    for _, keyData in ipairs(allKeys) do
+        local keyShortName = keyData.ownerName and (keyData.ownerName:match("^([^%-]+)") or keyData.ownerName)
+        
+        -- Match by short name or full name
+        if keyData.ownerName == playerName or keyShortName == shortName then
+            -- Return keystone in organizer-expected format
+            local keystone = {
+                dungeonID = keyData.dungeonID,
+                level = keyData.level
+            }
+            
+            Debug:Dev("profiles", "Found keystone for", playerName, ":", keystone.dungeonID, "+", keystone.level)
+            return keystone
+        end
+    end
+    
+    Debug:Dev("profiles", "No keystone found for", playerName)
+    return nil
 end
 
 --- Gets organizer profiles for multiple players (batch processing)

@@ -203,7 +203,8 @@ function NextKey:ScanPartyRaiderIO()
             local keystoneLevel, keystoneMapID = 0, 0
             if unit == "player" then
                 keystoneLevel = C_MythicPlus.GetOwnedKeystoneLevel() or 0
-                keystoneMapID = C_MythicPlus.GetOwnedKeystoneMapID() or 0
+                -- FIXED: Use GetOwnedKeystoneChallengeMapID() instead of GetOwnedKeystoneMapID()
+                keystoneMapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID() or 0
                 NextKey222.Debug:Dev("keystones", "Blizzard API keystone for player:", keystoneLevel, keystoneMapID)
             end
             
@@ -263,24 +264,22 @@ function NextKey:ScanPlayerKeystone()
     if C_MythicPlus then
         NextKey222.Debug:Dev("keystones", "Trying Blizzard API methods")
         
-        -- Primary method: GetOwnedKeystone APIs
-        mapID = C_MythicPlus.GetOwnedKeystoneMapID() -- This should work for current keystones
+        -- FIXED: Use GetOwnedKeystoneChallengeMapID() instead of GetOwnedKeystoneMapID()
+        -- GetOwnedKeystoneMapID() returns map IDs like 2773 (incorrect)
+        -- GetOwnedKeystoneChallengeMapID() returns challenge mode IDs like 525 (correct)
+        mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
         level = C_MythicPlus.GetOwnedKeystoneLevel()
         
-        -- Alternative method: Challenge map API
-        if not mapID or mapID == 0 then
-            mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID()
-        end
-        
-        NextKey222.Debug:Dev("keystones", "Blizzard API returned mapID:", mapID or "nil", "level:", level or "nil")
+        NextKey222.Debug:Dev("keystones", "Blizzard API returned challenge mapID:", mapID or "nil", "level:", level or "nil")
         
         if mapID and mapID ~= 0 and level and level > 0 then
-            NextKey222.Debug:Dev("keystones", "Found keystone via Blizzard API:", mapID, level)
+            -- No conversion needed - GetOwnedKeystoneChallengeMapID() returns the correct ID
+            NextKey222.Debug:Dev("keystones", "Found keystone via Blizzard API - dungeonID:", mapID, "level:", level)
             -- Fall back to runtime name/short if boot hasn't populated playerFullName yet
             local runtimeName = GetUtils().safeGetName("player")
             local runtimeShort = GetUtils().getShortName(runtimeName)
             return {
-                dungeonID = mapID,
+                dungeonID = mapID,  -- Use challenge mode ID directly (matches portal data)
                 level = level,
                 ownerName = self.playerFullName or runtimeName,
                 ownerShort = self.playerShortName or runtimeShort,

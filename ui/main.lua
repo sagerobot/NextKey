@@ -65,7 +65,22 @@ local UI = {
     
     -- Organizer: UI mode state
     currentUIMode = nil, -- "KEYSTONE_OPTIMIZER" or "ROSTER_BOARD"
-    organizerState = nil -- Temporary state preservation for mode switches
+    organizerState = nil, -- Temporary state preservation for mode switches
+    
+    -- PERFORMANCE: Debounced render timer to prevent lag from rapid updates
+    pendingRenderTimer = nil,
+    renderDebounceDelay = 0.3, -- 300ms delay to batch multiple rapid changes
+    
+    -- PERFORMANCE: IO gain calculation cache to prevent recalculating same keystones
+    ioGainCache = {}, -- Keyed by "dungeonID:level:partyHash"
+    partyCompositionHash = nil, -- Hash of current party to detect changes
+    
+    -- PERFORMANCE: Rendered state tracking to prevent unnecessary re-renders
+    lastRenderedKeystoneHash = nil, -- Hash of last rendered keystone list
+    lastRenderedSortMode = nil, -- Last sort mode used
+    
+    -- AceGUI Widget Cleanup: Track all header widgets for proper release
+    headerWidgets = {} -- Store references to all AceGUI widgets created in header
 }
 NextKey222.UI = UI
 NextKey222.RegisterModule("UI", UI)
@@ -539,6 +554,13 @@ end
 function UI:CreateMainFrame()
     Debug:Trace("ui", "CreateMainFrame called")
     
+    -- CRITICAL: Invalidate current player's profile cache to get fresh spec data
+    if NextKey222.ProfilesService then
+        local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
+        NextKey222.ProfilesService:InvalidateCache(currentPlayer)
+        Debug:Dev("ui", "Invalidated profile cache for current player on window open")
+    end
+    
     if self.mainFrame then
         Debug:Dev("ui", "Main frame already exists, skipping creation")
         return
@@ -569,11 +591,54 @@ function UI:CreateMainFrame()
     frame:Hide()
     Debug:Dev("ui", "Frame created and immediately HIDDEN to prevent scroll bar on load")
     
+    -- DIAGNOSTIC: Track main UI widget creation for contamination debugging
+    Debug:Dev("ui_contamination", "[MAIN UI] Creating main frame - checking for existing organizer widgets")
+    
+    -- Check if any organizer widgets are still present
+    if NextKey222.RosterBoard then
+        if NextKey222.RosterBoard.mainFrame and NextKey222.RosterBoard.mainFrame:IsShown() then
+            Debug:Dev("ui_contamination", "[MAIN UI] WARNING: Organizer main frame is still visible!")
+        end
+        
+        if NextKey222.RosterBoard.headerWidgets then
+            local widgetCount = 0
+            for _ in pairs(NextKey222.RosterBoard.headerWidgets) do
+                widgetCount = widgetCount + 1
+            end
+            if widgetCount > 0 then
+                Debug:Dev("ui_contamination", "[MAIN UI] WARNING: Organizer has", widgetCount, "header widgets still allocated")
+            end
+        end
+        
+        if NextKey222.RosterBoard.benchCards and #NextKey222.RosterBoard.benchCards > 0 then
+            Debug:Dev("ui_contamination", "[MAIN UI] WARNING: Organizer has", #NextKey222.RosterBoard.benchCards, "bench cards still allocated")
+        end
+    end
+    
     -- Apply component backdrop styling to main frame
     NextKey222.UIComponents:ConfigureBackdrop(frame, "dialog", { colorScheme = "dark" })
 
     -- Standard close button behavior
     frame:SetCallback("OnClose", function(widget)
+        -- Cancel any pending debounced render
+        if self.pendingRenderTimer then
+            self.pendingRenderTimer:Cancel()
+            self.pendingRenderTimer = nil
+        end
+        
+        -- CRITICAL: Clear header widgets references
+        -- NOTE: Do NOT manually release - AceGUI:Release(widget) automatically releases children
+        -- But we need to clear the references to prevent stale widget reuse
+        self.headerWidgets = {}
+        
+        -- CRITICAL: Clear render tracking variables to prevent stale state
+        self.lastRenderedKeystoneHash = nil
+        self.lastRenderedSortMode = nil
+        self.partyCompositionHash = nil
+        self.ioGainCache = {}
+        
+        Debug:Dev("ui_contamination", "[MAIN UI] OnClose - cleared all tracking variables and caches")
+        
         AceGUI:Release(widget)
         self.mainFrame = nil
         self.resultsFrame = nil
@@ -623,8 +688,9 @@ function UI:CreateMainFrame()
         end
     })
     
-    -- Store reference to dropdown for updates
+    -- Store reference to dropdown for updates AND widget cleanup
     self.sortDropdown = sortDrop
+    self.headerWidgets.sortDropdown = sortDrop
     
     -- Set initial dropdown options based on current view (defaults to keystone view)
     self.viewMode = self.viewMode or "keystones"
@@ -645,6 +711,7 @@ function UI:CreateMainFrame()
         end
     })
     controls:AddChild(refreshBtn)
+    self.headerWidgets.refreshBtn = refreshBtn
 
     local syncBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
         text = "Sync",
@@ -668,6 +735,7 @@ function UI:CreateMainFrame()
         end
     })
     controls:AddChild(syncBtn)
+    self.headerWidgets.syncBtn = syncBtn
 
     -- Guild/Party Filter Toggle Button
     local guildToggleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
@@ -694,6 +762,7 @@ function UI:CreateMainFrame()
     })
     controls:AddChild(guildToggleBtn)
     self.guildToggleBtn = guildToggleBtn
+    self.headerWidgets.guildToggleBtn = guildToggleBtn
 
     local teleportWindowBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
         text = "Open Teleport",
@@ -702,6 +771,21 @@ function UI:CreateMainFrame()
         end
     })
     controls:AddChild(teleportWindowBtn)
+    self.headerWidgets.teleportWindowBtn = teleportWindowBtn
+
+    -- Add M+ Organizer button
+    local organizerBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
+        text = "Open Organizer",
+        onClick = function()
+            if NextKey222.RosterBoard then
+                NextKey222.RosterBoard:Show()
+            else
+                Debug:Error("RosterBoard module not available")
+            end
+        end
+    })
+    controls:AddChild(organizerBtn)
+    self.headerWidgets.organizerBtn = organizerBtn
 
     -- Add view toggle button to controls (this approach works reliably)
     local toggleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
@@ -712,8 +796,9 @@ function UI:CreateMainFrame()
     })
     controls:AddChild(toggleBtn)
 
-    -- Store reference for text updates
+    -- Store reference for text updates AND widget cleanup
     self.viewToggleBtn = toggleBtn
+    self.headerWidgets.viewToggleBtn = toggleBtn
 
     -- Group suggestion buttons (conditionally added when 6+ players)
     -- Create buttons but don't add to layout yet
@@ -724,6 +809,7 @@ function UI:CreateMainFrame()
         end
     })
     self.suggestGroupsBtn = suggestBtn
+    self.headerWidgets.suggestGroupsBtn = suggestBtn
     Debug:Dev("ui", "Suggest Groups button created (not added to layout yet)")
 
     local modeBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
@@ -733,6 +819,7 @@ function UI:CreateMainFrame()
         end
     })
     self.suggestionModeBtn = modeBtn
+    self.headerWidgets.suggestionModeBtn = modeBtn
     Debug:Dev("ui", "Suggestion Mode button created (not added to layout yet)")
 
     -- Debug-only controls for managing fake players
@@ -770,6 +857,7 @@ function UI:CreateMainFrame()
         })
         debugContainer:AddChild(tierDropdown)
         self.debugFakeTierDropdown = tierDropdown
+        self.headerWidgets.debugFakeTierDropdown = tierDropdown
 
         -- Create add fake player button
         local addFakeBtn = NextKey222.UIComponents:CreateButton("compact_list", nil, {
@@ -780,6 +868,7 @@ function UI:CreateMainFrame()
         })
         debugContainer:AddChild(addFakeBtn)
         self.debugAddFakeBtn = addFakeBtn
+        self.headerWidgets.debugAddFakeBtn = addFakeBtn
 
         -- Create clear fake players button
         local clearFakeBtn = NextKey222.UIComponents:CreateButton("compact_list", nil, {
@@ -790,6 +879,7 @@ function UI:CreateMainFrame()
         })
         debugContainer:AddChild(clearFakeBtn)
         self.debugClearFakeBtn = clearFakeBtn
+        self.headerWidgets.debugClearFakeBtn = clearFakeBtn
 
         -- Add to controls if debug is currently enabled
         local showDebug = self:ShouldShowDebugControls()
@@ -812,6 +902,7 @@ function UI:CreateMainFrame()
     })
     controls:AddChild(totalScoreLabel)
     self.totalScoreLabel = totalScoreLabel
+    self.headerWidgets.totalScoreLabel = totalScoreLabel
 
     local spacer = NextKey222.UIComponents:CreateText("body", nil, {
         text = "",
@@ -934,14 +1025,40 @@ function UI:SwitchToUIMode(newMode)
     -- Update current mode
     self.currentUIMode = newMode
     
-    -- If switching to ROSTER_BOARD mode, we'll need to create the Organizer UI
+    -- If switching to ROSTER_BOARD mode, show the Organizer UI
     if newMode == "ROSTER_BOARD" then
-        -- For now, just log that we're switching to Organizer mode
-        -- The actual Organizer UI will be implemented in Phase 1
-        Debug:Dev("ui", "Switching to ROSTER_BOARD mode - Organizer UI will be implemented in Phase 1")
+        Debug:Dev("ui", "Switching to ROSTER_BOARD mode")
+        
+        -- Hide existing main frame
+        if self.mainFrame then
+            self.mainFrame:Hide()
+        end
+        
+        -- Show Roster Board
+        if NextKey222.RosterBoard then
+            NextKey222.RosterBoard:Show()
+            Debug:Dev("ui", "RosterBoard:Show() called successfully")
+        else
+            Debug:Error("RosterBoard module not available")
+        end
     else
         -- Switching to KEYSTONE_OPTIMIZER mode
         Debug:Dev("ui", "Switching to KEYSTONE_OPTIMIZER mode")
+        
+        -- Hide Roster Board if visible
+        if NextKey222.RosterBoard then
+            NextKey222.RosterBoard:Hide()
+        end
+        
+        -- Show main frame
+        if self.mainFrame then
+            self.mainFrame:Show()
+        else
+            self:CreateMainFrame()
+            if self.mainFrame then
+                self.mainFrame:Show()
+            end
+        end
     end
 end
 
@@ -970,18 +1087,9 @@ function UI:ToggleMainFrame()
     if self.mainFrame and self.mainFrame:IsShown() then
         Debug:Dev("ui", "Hiding existing main frame")
         self.mainFrame:Hide()
+        -- AceGUI:Release triggers OnClose callback which handles all cleanup
         AceGUI:Release(self.mainFrame)
-        self.mainFrame = nil
-        self.resultsFrame = nil
-        self.controlsContainer = nil
-        self.debugControlsContainer = nil
-        self.debugFakeTierDropdown = nil
-        self.debugAddFakeBtn = nil
-        self.debugClearFakeBtn = nil
-        self.suggestionModeBtn = nil
-        self.suggestGroupsBtn = nil
-        self.resultsSpacer = nil
-        self:ClearAuxFrames()
+        -- OnClose callback will handle setting everything to nil
     else
         Debug:Dev("ui", "Showing or creating main frame")
         self:ShowMainFrame()
@@ -1050,9 +1158,6 @@ function UI:EnrichEntryMetadata(entry)
     local normalizedName = NextKey222.UIComponents and NextKey222.UIComponents:NormalizePlayerName(ownerName) or ownerName
     entry.normalizedOwnerName = normalizedName
 
-    -- Debug logging to track function calls
-    Debug:Dev("ui", string.format("EnrichEntryMetadata Called: ownerName=%s", ownerName))
-
     local profile = self:GetPlayerProfileCached(normalizedName)
 
     -- Debug logging for Evoker role issue
@@ -1072,11 +1177,20 @@ function UI:EnrichEntryMetadata(entry)
     entry.specName = profile and profile.specName or nil
     entry.specID = profile and profile.specID or nil
     
+    -- PHASE 1: Diagnostic logging - track role determination in UI
+    if NextKey222.Debug and (ownerName:find("Ryuza") or (profile and profile.class == "EVOKER")) then
+        NextKey222.Debug:Dev("ui", string.format("EnrichEntryMetadata BEFORE role detection: ownerName=%s, specID=%s, profile.role=%s",
+            ownerName, entry.specID or "nil", profile and profile.role or "nil"))
+    end
+    
     -- Use spec-to-role mapping for reliable role detection (same as tooltip)
     if entry.specID and NextKey222.UIComponents and NextKey222.UIComponents.GetRoleFromSpecID then
         entry.role = NextKey222.UIComponents:GetRoleFromSpecID(entry.specID, "DAMAGER")
-        Debug:Dev("ui", string.format("EnrichEntryMetadata: Using spec-to-role mapping for %s: specID=%d, role=%s",
-            ownerName, entry.specID, entry.role))
+        
+        -- PHASE 1: Diagnostic logging - track GetRoleFromSpecID result
+        if NextKey222.Debug and (ownerName:find("Ryuza") or (profile and profile.class == "EVOKER")) then
+            NextKey222.Debug:Dev("ui", string.format("GetRoleFromSpecID(%d) returned: %s", entry.specID, entry.role or "nil"))
+        end
     else
         -- Fallback to profile role
         entry.role = (profile and profile.role) or "DAMAGER"
@@ -1084,6 +1198,18 @@ function UI:EnrichEntryMetadata(entry)
         if entry.role then
             entry.role = string.upper(entry.role)
         end
+        
+        -- PHASE 1: Diagnostic logging - track fallback usage
+        if NextKey222.Debug and (ownerName:find("Ryuza") or (profile and profile.class == "EVOKER")) then
+            NextKey222.Debug:Dev("ui", string.format("FALLBACK to profile.role: %s (normalized to %s)",
+                profile and profile.role or "nil", entry.role))
+        end
+    end
+    
+    -- PHASE 1: Diagnostic logging - final role value for UI display
+    if NextKey222.Debug and (ownerName:find("Ryuza") or (profile and profile.class == "EVOKER")) then
+        NextKey222.Debug:Dev("ui", string.format("EnrichEntryMetadata COMPLETE: final entry.role = %s (will be used for icon display)",
+            entry.role or "nil"))
     end
 
     local classToken = entry.key.class or (profile and profile.class)
@@ -1127,7 +1253,31 @@ function UI:EnrichEntryMetadata(entry)
     end
 end
 
+--- Schedules a debounced render to prevent lag from rapid updates
+-- Cancels any pending render and schedules a new one after a short delay
+-- This prevents multiple rapid changes (like adding 5 fake players) from triggering 5 immediate re-renders
+function UI:ScheduleRender()
+    -- Cancel any pending render
+    if self.pendingRenderTimer then
+        self.pendingRenderTimer:Cancel()
+        self.pendingRenderTimer = nil
+    end
+    
+    -- Schedule new render after delay
+    self.pendingRenderTimer = C_Timer.NewTimer(self.renderDebounceDelay, function()
+        self.pendingRenderTimer = nil
+        
+        -- Execute the actual render
+        if self.viewMode == "dungeons" then
+            self:RenderDungeonCards()
+        else
+            self:RenderResults()
+        end
+    end)
+end
+
 --- Adds a single fake player using the current debug tier selection
+-- PERFORMANCE: Uses debounced rendering to prevent lag from rapid clicks
 function UI:HandleAddDebugFakePlayer()
     if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.CreatePlayer then
         Debug:Dev("fakeplayerservice", "FakePlayerService unavailable - cannot add player from UI")
@@ -1146,13 +1296,15 @@ function UI:HandleAddDebugFakePlayer()
     local createdName = NextKey222.FakePlayerService:CreatePlayer({ tier = chosenTier })
     if createdName then
         Debug:Dev("fakeplayerservice", "UI created fake player", createdName, "tier", chosenTier)
-        self:RenderResults()
+        -- Use debounced render instead of immediate render to prevent lag
+        self:ScheduleRender()
     else
         Debug:Dev("fakeplayerservice", "UI failed to create fake player for tier", chosenTier)
     end
 end
 
 --- Removes all fake players (debug helper)
+-- PERFORMANCE: Uses debounced rendering to prevent lag
 function UI:HandleDeleteAllFakePlayers()
     if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.ClearAllPlayers then
         Debug:Dev("fakeplayerservice", "FakePlayerService unavailable - cannot clear players")
@@ -1161,10 +1313,12 @@ function UI:HandleDeleteAllFakePlayers()
 
     local removedCount = NextKey222.FakePlayerService:ClearAllPlayers() or 0
     Debug:Dev("fakeplayerservice", "UI cleared fake players", removedCount)
-    self:RenderResults()
+    -- Use debounced render instead of immediate render
+    self:ScheduleRender()
 end
 
 --- Removes a specific fake player by name
+-- PERFORMANCE: Uses debounced rendering to prevent lag
 -- @param playerName string Full normalized player name
 function UI:HandleDeleteFakePlayer(playerName)
     if not playerName or not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.RemovePlayer then
@@ -1173,7 +1327,8 @@ function UI:HandleDeleteFakePlayer(playerName)
 
     NextKey222.FakePlayerService:RemovePlayer(playerName)
     Debug:Dev("fakeplayerservice", "UI removed fake player", playerName)
-    self:RenderResults()
+    -- Use debounced render instead of immediate render
+    self:ScheduleRender()
 end
 
 --- Generate and display intelligent group suggestions
@@ -1771,25 +1926,58 @@ function UI:RenderResults()
         return
     end
 
+    -- Get available keys FIRST to check if anything changed
+    local keys = NextKey222.Addon:GetAvailableKeys()
+    local mode = self:GetCurrentSortMode()
+    
+    -- PERFORMANCE: Generate hash of current keystone state
+    local currentKeystoneHash = self:GetKeystoneListHash(keys)
+    
+    -- PERFORMANCE: Skip render if nothing changed since last render
+    -- BUT: Don't skip if this is the first render (no previous hash exists)
+    if self.lastRenderedKeystoneHash and
+       self.lastRenderedKeystoneHash == currentKeystoneHash and
+       self.lastRenderedSortMode == mode then
+        -- Silently skip - no need for debug spam
+        Debug:Dev("ui_contamination", "[MAIN UI] Skipping render - no changes detected")
+        return
+    end
+    
+    -- Store current state for next comparison
+    self.lastRenderedKeystoneHash = currentKeystoneHash
+    self.lastRenderedSortMode = mode
+    Debug:Dev("ui_contamination", "[MAIN UI] Rendering - hash:", currentKeystoneHash ~= nil and "present" or "nil", "mode:", mode)
+
     -- Clearing previous content
     -- Clear existing content
     self:ClearAuxFrames()
     self.resultsFrame:ReleaseChildren()
-
-    -- Get available keys
-    local keys = NextKey222.Addon:GetAvailableKeys()
-    Debug:Dev("ui", "[KEY DEBUG] GetAvailableKeys returned", keys and #keys or 0, "keys")
     
-    -- Debug: Print all collected keys for troubleshooting
-    if keys then
-        for i, key in ipairs(keys) do
-            Debug:Dev("ui", string.format("[KEY DEBUG] Key %d: %s (ID:%s, Level:%s, Source:%s)",
-                i, key.ownerName or "nil", tostring(key.dungeonID), tostring(key.level), key.source or "unknown"))
+    -- DIAGNOSTIC: Check for organizer contamination before rendering
+    Debug:Dev("ui_contamination", "[MAIN UI] About to render - checking for organizer contamination")
+    
+    -- Check if any organizer elements are still present
+    if NextKey222.RosterBoard then
+        if NextKey222.RosterBoard.mainFrame and NextKey222.RosterBoard.mainFrame:IsShown() then
+            Debug:Dev("ui_contamination", "[MAIN UI] WARNING: Organizer main frame is still visible!")
+        end
+        
+        if NextKey222.RosterBoard.headerWidgets then
+            local widgetCount = 0
+            for _ in pairs(NextKey222.RosterBoard.headerWidgets) do
+                widgetCount = widgetCount + 1
+            end
+            if widgetCount > 0 then
+                Debug:Dev("ui_contamination", "[MAIN UI] WARNING: Organizer has", widgetCount, "header widgets still allocated")
+            end
+        end
+        
+        if NextKey222.RosterBoard.benchCards and #NextKey222.RosterBoard.benchCards > 0 then
+            Debug:Dev("ui_contamination", "[MAIN UI] WARNING: Organizer has", #NextKey222.RosterBoard.benchCards, "bench cards still allocated")
         end
     end
 
     -- Update status text
-    local mode = self:GetCurrentSortMode()
     local count = keys and #keys or 0
     local statusText = string.format("Mode: %s | Keys: %d | M0.6", tostring(mode), count)
     
@@ -1823,38 +2011,56 @@ function UI:RenderResults()
 
     -- No longer showing individual recommendations - just rank keystones by group IO gain
 
-    self.profileCache = {}
+    -- PERFORMANCE: Only build party data when actually needed for IO calculations
+    if mode == "IOGainPotential" then
+        -- Generate party composition hash and clear cache if party changed
+        local currentPartyHash = self:GetPartyCompositionHash()
+        if self.partyCompositionHash ~= currentPartyHash then
+            self.ioGainCache = {}
+            self.partyCompositionHash = currentPartyHash
+            self.profileCache = {}
+        end
+
+        -- Pre-build party profiles ONCE instead of once per keystone
+        local partyMembers = NextKey222.Addon:GetPartyMemberNames() or {}
+        local partyProfiles = {}
+        for _, memberName in pairs(partyMembers) do
+            if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
+                partyProfiles[memberName] = NextKey222.ProfilesService:GetProfile(memberName)
+            else
+                partyProfiles[memberName] = { playerName = memberName }
+            end
+        end
+        self.cachedPartyProfiles = partyProfiles
+    else
+        -- PERFORMANCE: Skip all IO calculation setup when not needed
+        self.cachedPartyProfiles = nil
+    end
+
     self.cachedItems = {}
     self.cachedSortMode = mode
 
     local items = self:SortKeys(keys, mode)
-    Debug:Dev("ui", string.format("[SORT DEBUG] SortKeys returned %d items for mode %s",
-        items and #items or 0, tostring(mode)))
-    
-    if items and #items > 0 then
-        for i, item in ipairs(items) do
-            Debug:Dev("ui", string.format("[SORT DEBUG] Item %d: %s, ioGainPotential=%s",
-                i, item.key and item.key.ownerName or "nil", tostring(item.ioGainPotential)))
-        end
-    end
     
     local useCompactMode = shouldUseCompactMode(#items)
     self.cachedUseCompactMode = useCompactMode
     self.cachedItemsCount = #items
     
+    -- PERFORMANCE: Skip expensive IO calculation metadata when not needed
+    -- But ALWAYS enrich basic metadata (role, spec, class) for icon display
+    local needsFullMetadata = (mode == "IOGainPotential")
+    
     -- PHASE 3: Batch metadata enrichment for performance
     local groupSize = GetNumGroupMembers() or 1
     if groupSize >= 10 then
-        -- Pre-enrich all metadata in batch for large groups
+        -- Pre-enrich metadata in batch for large groups
         for i, it in ipairs(items) do
-            self:EnrichEntryMetadata(it)
+            self:EnrichEntryMetadata(it)  -- Always called for role/spec/class data
             table.insert(self.cachedItems, it)
         end
         
         -- Then render with pre-enriched data
         for i, it in ipairs(self.cachedItems) do
-            Debug:Dev("ui", string.format("[RENDER DEBUG] Rendering pre-enriched card %d for %s",
-                i, it.key and it.key.ownerName or "nil"))
             local renderFunc = useCompactMode and self.AddKeyRowCompact or self.AddKeyRow
             local success = NextKey222.SafeRun(renderFunc, "Render keystone card", self, it)
             if not success then
@@ -1864,17 +2070,12 @@ function UI:RenderResults()
     else
         -- Original approach for smaller groups
         for i, it in ipairs(items) do
-            Debug:Dev("ui", string.format("[RENDER DEBUG] Attempting to render card %d for %s",
-                i, it.key and it.key.ownerName or "nil"))
-            self:EnrichEntryMetadata(it)
+            self:EnrichEntryMetadata(it)  -- Always called for role/spec/class data
             table.insert(self.cachedItems, it)
             local renderFunc = useCompactMode and self.AddKeyRowCompact or self.AddKeyRow
             local success = NextKey222.SafeRun(renderFunc, "Render keystone card", self, it)
             if not success then
                 Debug:Error("Failed to render card for", it.key and it.key.ownerName or "nil")
-            else
-                Debug:Dev("ui", string.format("[RENDER DEBUG] Successfully rendered card for %s",
-                    it.key and it.key.ownerName or "nil"))
             end
         end
     end
@@ -1953,14 +2154,11 @@ function UI:AddKeyRow(entry)
     local ioGainText = nil
     local regularViewIORange = nil  -- Store ioRange in outer scope for button creation later
     local currentSortMode = self:GetCurrentSortMode()
-    if currentSortMode == "IOGainPotential" then
-        -- Use pre-calculated range data if available, otherwise calculate
-        local ioRange = entry.ioGainRange or self:CalculateIOGainRange(keyInfo)
-        if ioRange and not entry.ioGainRange then
-            entry.ioGainRange = ioRange
-        end
-        -- Always show IO gain text, but color based on potential gain
-        regularViewIORange = ioRange  -- Store for later use in button creation
+    if currentSortMode == "IOGainPotential" and entry.ioGainRange then
+        -- PERFORMANCE: Only show IO gain if we already calculated it during sorting
+        -- Don't recalculate here - use pre-calculated data only
+        local ioRange = entry.ioGainRange
+        regularViewIORange = ioRange
         local expectedGain = ioRange.expected or 0
         local hasPotentialGain = expectedGain > 0
         
@@ -2171,13 +2369,11 @@ function UI:AddKeyRowCompact(entry)
     local currentSortMode = self:GetCurrentSortMode()
     local compactIORange = nil
     local showCompactIO = false
-    if currentSortMode == "IOGainPotential" then
-        compactIORange = entry.ioGainRange or self:CalculateIOGainRange(keyInfo)
-        -- Always show IO gain text in compact view, but color based on potential gain
+    if currentSortMode == "IOGainPotential" and entry.ioGainRange then
+        -- PERFORMANCE: Only show IO gain if we already calculated it during sorting
+        -- Don't recalculate here - use pre-calculated data only
+        compactIORange = entry.ioGainRange
         showCompactIO = true
-        if not entry.ioGainRange then
-            entry.ioGainRange = compactIORange
-        end
     end
 
     local fullText
@@ -3226,6 +3422,7 @@ end
 -- Dungeon preference functions moved to core/profiles.lua
 
 --- Calculate IO gain range for a keystone using existing IOCalculator
+-- PERFORMANCE: Uses both cached party profiles AND cached IO calculations
 -- @param keystoneData table The keystone data (with dungeonID, level, ownerName)
 -- @return table IO gain range with min, max, expected values
 function UI:CalculateIOGainRange(keystoneData)
@@ -3233,25 +3430,38 @@ function UI:CalculateIOGainRange(keystoneData)
         return { min = 0, max = 0, expected = 0 }
     end
     
-    -- Get party member names for group calculation
-    local partyMembers = NextKey222.Addon:GetPartyMemberNames() or {}
+    -- PERFORMANCE: Check cache first using keystone signature
+    local cacheKey = string.format("%d:%d:%s",
+        keystoneData.dungeonID or 0,
+        keystoneData.level or 0,
+        self.partyCompositionHash or "")
     
-    -- Build party profiles using existing profile building logic
-    local partyProfiles = {}
-    for _, memberName in pairs(partyMembers) do
-        if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
-            partyProfiles[memberName] = NextKey222.ProfilesService:GetProfile(memberName)
-        else
-            -- Fallback to simple profile
-            partyProfiles[memberName] = { playerName = memberName }
+    if self.ioGainCache[cacheKey] then
+        return self.ioGainCache[cacheKey]
+    end
+    
+    -- PERFORMANCE: Use cached party profiles if available (set during RenderResults)
+    local partyProfiles = self.cachedPartyProfiles
+    
+    if not partyProfiles then
+        -- Fallback: Build party profiles if cache not available
+        local partyMembers = NextKey222.Addon:GetPartyMemberNames() or {}
+        partyProfiles = {}
+        for _, memberName in pairs(partyMembers) do
+            if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
+                partyProfiles[memberName] = NextKey222.ProfilesService:GetProfile(memberName)
+            else
+                partyProfiles[memberName] = { playerName = memberName }
+            end
         end
     end
     
     -- Use IOCalculator's existing group range calculation
     local groupRange = NextKey222.IOCalculator:CalculateGroupIORange(keystoneData, partyProfiles)
     
+    local result = { min = 0, max = 0, expected = 0 }
     if groupRange then
-        return {
+        result = {
             min = groupRange.min or 0,
             max = groupRange.max or 0,
             expected = groupRange.expected or 0,
@@ -3259,7 +3469,58 @@ function UI:CalculateIOGainRange(keystoneData)
         }
     end
     
-    return { min = 0, max = 0, expected = 0 }
+    -- PERFORMANCE: Cache the result for future use
+    self.ioGainCache[cacheKey] = result
+    
+    return result
+end
+
+--- Generates a hash of current party composition for cache invalidation
+-- @return string Hash representing current party members
+function UI:GetPartyCompositionHash()
+    local partyMembers = NextKey222.Addon:GetPartyMemberNames() or {}
+    
+    -- Sort names for consistent hash
+    local sortedNames = {}
+    for _, name in pairs(partyMembers) do
+        table.insert(sortedNames, name)
+    end
+    table.sort(sortedNames)
+    
+    -- Create hash from concatenated names
+    return table.concat(sortedNames, "|")
+end
+
+--- Generates a hash of keystone list for render skipping
+-- @param keys table List of keystones
+-- @return string Hash representing keystone state
+function UI:GetKeystoneListHash(keys)
+    if not keys or #keys == 0 then
+        return "empty"
+    end
+    
+    -- Sort keystones by owner for consistent hash
+    local sortedKeys = {}
+    for _, key in ipairs(keys) do
+        table.insert(sortedKeys, string.format("%s:%d:%d",
+            key.ownerName or "unknown",
+            key.dungeonID or 0,
+            key.level or 0))
+    end
+    table.sort(sortedKeys)
+    
+    return table.concat(sortedKeys, "|")
+end
+
+--- Helper to count table entries
+-- @param t table The table to count
+-- @return number Entry count
+function UI:CountTable(t)
+    local count = 0
+    for _ in pairs(t or {}) do
+        count = count + 1
+    end
+    return count
 end
 
 --- Calculates group IO gain totals at key breakpoints (untimed/timed/+2/+3)
@@ -3601,39 +3862,21 @@ function UI:Initialize()
         Debug:Error("ConfigurationContext not available - dynamic configuration disabled")
     end
 
-    -- Register for spec change events using component system
-    local specChangeFrame = NextKey222.UIComponents:CreateFrame("container", nil, {
+    -- Register for group roster updates (UI mode switching)
+    local rosterChangeFrame = NextKey222.UIComponents:CreateFrame("container", nil, {
         width = 0, -- Hidden frame, no size needed
         height = 0,
         layout = "Flow"
     })
     
-    -- Register events on the underlying frame
-    specChangeFrame.frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    specChangeFrame.frame:RegisterEvent("GROUP_ROSTER_UPDATE")
-    specChangeFrame.frame:SetScript("OnEvent", function(self, event, unit, ...)
-        if event == "PLAYER_SPECIALIZATION_CHANGED" then
-            Debug:Dev("ui", "PLAYER_SPECIALIZATION_CHANGED event received")
-            
-            -- Phase 7: Update configuration context
-            if UI.configContext then
-                UI.configContext:SynchronizeWithUI(UI)
-            end
-            
-            -- Invalidate profile cache
-            if NextKey222.ProfilesService then
-                NextKey222.ProfilesService:InvalidateCache()
-                Debug:Dev("ui", "Profile cache invalidated due to spec change")
-            end
-            -- Refresh UI
-            C_Timer.After(0.2, function()
-                if NextKey222.UI and NextKey222.UI.RefreshResults then
-                    NextKey222.UI:RefreshResults()
-                    Debug:Dev("ui", "UI refreshed after spec change")
-                end
-            end)
-        elseif event == "GROUP_ROSTER_UPDATE" then
+    -- Register only GROUP_ROSTER_UPDATE - ProfilesService handles spec changes
+    rosterChangeFrame.frame:RegisterEvent("GROUP_ROSTER_UPDATE")
+    rosterChangeFrame.frame:SetScript("OnEvent", function(self, event, ...)
+        if event == "GROUP_ROSTER_UPDATE" then
             Debug:Dev("ui", "GROUP_ROSTER_UPDATE event received")
+            
+            -- Check for UI mode switching (6+ players = Roster Board)
+            UI:OnGroupRosterUpdate()
             
             -- Phase 7: Update configuration context
             if UI.configContext then
@@ -3649,8 +3892,60 @@ function UI:Initialize()
             end)
         end
     end)
+    
+    -- Note: Spec change events (PLAYER_SPECIALIZATION_CHANGED, UNIT_SPECIALIZATION)
+    -- are handled by ProfilesService which automatically triggers UI:RefreshResults()
+    Debug:Dev("ui", "Main UI registered for GROUP_ROSTER_UPDATE (spec changes handled by ProfilesService)")
 
     return true
+end
+
+--- Handles specialization changes for current player and party members
+-- @param unitID string Unit identifier ("player", "party1", "party2", etc.)
+function UI:OnSpecChanged(unitID)
+    -- Get player name from unit ID
+    local playerName
+    if not unitID or unitID == "player" then
+        playerName = UnitName("player") .. "-" .. GetRealmName()
+    else
+        local name, realm = UnitName(unitID)
+        if name then
+            realm = realm or GetRealmName()
+            playerName = name .. "-" .. realm
+        end
+    end
+    
+    if not playerName then
+        Debug:Dev("ui", "OnSpecChanged: Could not determine player name from unitID:", unitID or "nil")
+        return
+    end
+    
+    Debug:Dev("ui", "OnSpecChanged: Handling spec change for", playerName)
+    
+    -- Invalidate cache for this specific player
+    if NextKey222.ProfilesService then
+        NextKey222.ProfilesService:InvalidatePlayerCache(playerName)
+        Debug:Dev("ui", "Invalidated profile cache for", playerName)
+    end
+    
+    -- Clear UI's profile cache for this player
+    if self.profileCache then
+        self.profileCache[playerName] = nil
+        Debug:Dev("ui", "Cleared UI profile cache for", playerName)
+    end
+    
+    -- If main frame is open and visible, refresh the display after a short delay
+    -- This gives the profile system time to fetch updated data
+    if self.mainFrame and self.mainFrame:IsShown() then
+        C_Timer.After(0.15, function()
+            if self.viewMode == "dungeons" then
+                self:RenderDungeonCards()
+            else
+                self:RenderResults()
+            end
+            Debug:Dev("ui", "UI refreshed after spec change for", playerName)
+        end)
+    end
 end
 
 -- Slash command for manual debug control refresh (for testing)
@@ -3692,6 +3987,24 @@ SlashCmdList["NEXTKEYTESTSPEC"] = function(msg)
         end
     else
         Debug:Error("ProfilesService not available")
+    end
+end
+
+-- Slash command to manually show Roster Board for testing (Phase 1)
+SLASH_NEXTKEYROSTER1 = "/nk roster"
+SlashCmdList["NEXTKEYROSTER"] = function(msg)
+    Debug:User("Manually showing Roster Board for testing")
+    if NextKey222.RosterBoard then
+        -- Hide main frame if visible
+        if NextKey222.UI and NextKey222.UI.mainFrame and NextKey222.UI.mainFrame:IsShown() then
+            NextKey222.UI.mainFrame:Hide()
+        end
+
+        -- Show Roster Board
+        NextKey222.RosterBoard:Show()
+        Debug:User("Roster Board opened for testing")
+    else
+        Debug:Error("RosterBoard module not available")
     end
 end
 

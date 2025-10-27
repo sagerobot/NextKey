@@ -211,6 +211,30 @@ local PRESET_CONFIGS = {
         { tier = "title" },
         { tier = "elite" },
         { tier = "expert" }
+    },
+    raid_group = {
+        -- 20 players for M+ Group Organizer testing
+        -- 2 expert, 4 skilled, 8 competent, 6 average
+        { tier = "expert" },
+        { tier = "expert" },
+        { tier = "skilled" },
+        { tier = "skilled" },
+        { tier = "skilled" },
+        { tier = "skilled" },
+        { tier = "competent" },
+        { tier = "competent" },
+        { tier = "competent" },
+        { tier = "competent" },
+        { tier = "competent" },
+        { tier = "competent" },
+        { tier = "competent" },
+        { tier = "competent" },
+        { tier = "average" },
+        { tier = "average" },
+        { tier = "average" },
+        { tier = "average" },
+        { tier = "average" },
+        { tier = "average" }
     }
 }
 
@@ -269,6 +293,11 @@ local function saveToStorage(playerName, playerData)
     NextKey222.SafeRun(function()
         if NextKey222.Addon then
             NextKey222.Addon:SendMessage("NEXTKEY_FAKE_PLAYER_UPDATED", playerName)
+        end
+        
+        -- Also refresh RosterBoard if visible
+        if NextKey222.RosterBoard and NextKey222.RosterBoard.IsVisible and NextKey222.RosterBoard:IsVisible() then
+            NextKey222.RosterBoard:PopulateAllSections()
         end
     end, "FakePlayerService:SaveToStorage:SendMessage")
 end

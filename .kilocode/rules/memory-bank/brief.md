@@ -1,25 +1,27 @@
 # NextKey Project Brief
 
 ## Project Identity
-**Name**: NextKey  
-**Type**: World of Warcraft Addon  
-**Version**: 0.2.1  
-**Game Version**: Retail (11.0.2+)  
-**Primary Language**: Lua  
-**Current Phase**: Post-UI Refactor Bugfixing Phase - Loot System Stabilization
+**Name**: NextKey
+**Type**: World of Warcraft Addon
+**Version**: 0.2.1
+**Game Version**: Retail (11.0.2+)
+**Primary Language**: Lua
+**Current Phase**: M+ Group Organizer Implementation
 
 ## Core Purpose
-NextKey is a Mythic+ keystone optimization addon that helps groups intelligently select the best dungeon run next by analyzing party keystones, player scores, and loot preferences in under 30 seconds.
+NextKey is a Mythic+ keystone optimization addon that helps groups intelligently select the best dungeon run next by analyzing party keystones, player scores, and loot preferences in under 30 seconds. It also features a robust M+ Group Organizer for forming and managing groups.
 
 ## Target Users
 - Mythic+ premade groups optimizing key selection
-- Party leaders making dungeon run decisions  
+- Party leaders making dungeon run decisions
+- Raid leaders organizing M+ groups
 - Score pushers improving Mythic+ ratings
 - Loot-focused players farming specific items
 
 ## Operating Modes
 1. **Premade Group Mode** (Default): Full functionality with automatic key sharing, score syncing, complex sorting
 2. **PUG Mode**: Simplified travel assistance for group finder groups
+3. **M+ Group Organizer**: Advanced UI for raid-style M+ group formation
 
 ## Key Success Metrics
 - **Decision Time**: Groups select next key in <30 seconds
@@ -38,18 +40,18 @@ Transforms group key selection from a time-consuming decision process into an in
 - **Professional Quality**: Enterprise-grade debugging, performance monitoring, modular design
 - **Component-Driven**: Established factory pattern for consistent UI creation
 
-## Recent Completion: UI Refactor (Phases 1-6)
-The UI refactor successfully transformed NextKey's UI system:
-- **Phase 1**: Comprehensive analysis of UI patterns and Ace3 migration opportunities
-- **Phase 2**: Created Ace3 configuration wrapper system for consistent styling
-- **Phase 3**: Migrated main window to pure Ace3 with configuration wrappers
-- **Phase 4**: Migrated secondary UI components to Ace3
-- **Phase 5**: Migrated all PUG Mode UI components to Ace3
-- **Phase 6**: Created comprehensive Ace3 best practices documentation
+## Recent Completion: M+ Group Organizer UI
+The M+ Group Organizer UI has been implemented, featuring a complete visual redesign with:
+- Compact, single-line, draggable player cards for the bench
+- Visually distinct group slots with role-colored borders
+- Class-colored backgrounds for player cards
+- Card expansion on drop with more detailed information
+- Role validation and "bounce-back" logic for invalid placements
+- Modern WoW API compatibility (texture-based UI components)
 
-**Current Phase**: Bugfixing and stabilization to restore full functionality after the refactor, with emphasis on validating the loot targeting system added in 0.2.1 before resuming PUG mode work.
+**Current Phase**: M+ Group Organizer UI complete.
 
 ## Current Focus
-- Exercise the Season 3 loot targeting workflow (rendering, persistence, item data audit, Hero-track tooltip fix)
-- Confirm run counter logic and cross-session storage introduced with the new loot system
-- Queue Phase 4 PUG mode repairs once loot targeting is stable in live play
+- Validating the M+ Group Organizer UI in a live environment
+- Verifying drag-and-drop functionality, role validation, and visual fidelity
+- Queued: Loot targeting system validation and PUG mode repairs

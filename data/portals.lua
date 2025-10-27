@@ -13,15 +13,16 @@ local portalData = {
     ["TWW_S3"] = {
         name = "The War Within Season 3",
         dungeons = {
-            -- mapID = { name, alias, spellID, mapArtID }
-            [503] = { name = "Ara-Kara, City of Echoes", alias = "Ara", spellID = 445417, mapArtID = 2588 }, -- Real ID for Ara-Kara
-            [524] = { name = "The Dawnbreaker", alias = "Dawn", spellID = 445414, mapArtID = 2582 },
-            [526] = { name = "Eco-Dome Al'dani", alias = "Eco", spellID = 1237215, mapArtID = 2598 },
-            [377] = { name = "Halls of Atonement", alias = "Halls", spellID = 354465, mapArtID = 1672 },
+            -- FIXED: Using correct Blizzard challenge map IDs from C_ChallengeMode.GetMapTable()
+            -- Blizzard IDs: 499, 542, 378, 525, 503, 392, 391, 505
+            [503] = { name = "Ara-Kara, City of Echoes", alias = "Ara", spellID = 445417, mapArtID = 2588 },
+            [505] = { name = "The Dawnbreaker", alias = "Dawn", spellID = 445414, mapArtID = 2582 },
+            [542] = { name = "Eco-Dome Al'dani", alias = "Eco", spellID = 1237215, mapArtID = 2598 },
+            [378] = { name = "Halls of Atonement", alias = "Halls", spellID = 354465, mapArtID = 1672 },
             [525] = { name = "Operation: Floodgate", alias = "Flood", spellID = 1216786, mapArtID = 2596 },
-            [523] = { name = "Priory of the Sacred Flame", alias = "Priory", spellID = 445444, mapArtID = 2595 },
-            [401] = { name = "Tazavesh: Streets of Wonder", alias = "Streets", spellID = 367416, mapArtID = 2481 },
-            [402] = { name = "Tazavesh: So'leah's Gambit", alias = "Gambit", spellID = 367416, mapArtID = 2481 },
+            [499] = { name = "Priory of the Sacred Flame", alias = "Priory", spellID = 445444, mapArtID = 2595 },
+            [391] = { name = "Tazavesh: Streets of Wonder", alias = "Streets", spellID = 367416, mapArtID = 2481 },
+            [392] = { name = "Tazavesh: So'leah's Gambit", alias = "Gambit", spellID = 367416, mapArtID = 2481 },
         }
     },
     -- To add a new season:

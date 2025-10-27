@@ -1548,7 +1548,6 @@ function addon:SetupOptions()
                     },
                 },
             },
-            },
             mythicPlus = {
                 type = "group",
                 name = "M+ Data",
@@ -1711,13 +1710,19 @@ function addon:SetupOptions()
     -- Inject enhanced debug options using new DebugUI module
     if NextKey222.DebugUI and NextKey222.DebugUI.CreateDebugOptions then
         options.args.debugSystem = NextKey222.DebugUI:CreateDebugOptions()
-        Debug:Dev("options", "Enhanced debug system loaded successfully")
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("options", "Enhanced debug system loaded successfully")
+        end
     elseif self.InjectDebugOptions then
         -- Fallback to old debug options if new system not available
         self:InjectDebugOptions(options)
-        Debug:Dev("options", "Using legacy debug options as fallback")
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("options", "Using legacy debug options as fallback")
+        end
     else
-        Debug:Error("No debug options system available")
+        if NextKey222.Debug then
+            NextKey222.Debug:Error("No debug options system available")
+        end
     end
 
     local AceConfig = LibStub("AceConfig-3.0")

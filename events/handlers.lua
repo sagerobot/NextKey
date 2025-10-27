@@ -47,7 +47,10 @@ function Events:RegisterCoreEvents()
         self:OnChallengeModeCompleted(mapID, level)
     end)
     
-    NextKey222.Debug:Dev("events", "Core events registered")
+    -- Register organizer-specific events
+    self:RegisterOrganizerEvents()
+    
+    NextKey222.Debug:Dev("events", "Core and organizer events registered")
 end
 
 -- MARK: Core Event Handlers
@@ -163,6 +166,14 @@ function Events:ProcessRosterUpdate()
             NextKey.SafeRun(function()
                 NextKey222.UI:RefreshResults()
             end, "Auto refresh UI on group change")
+        end
+        
+        -- Refresh RosterBoard if visible (party changes affect player list)
+        if NextKey222.RosterBoard and NextKey222.RosterBoard.IsVisible and NextKey222.RosterBoard:IsVisible() then
+            NextKey222.Debug:Dev("events", "Refreshing RosterBoard due to party change")
+            NextKey.SafeRun(function()
+                NextKey222.RosterBoard:PopulateAllSections()
+            end, "Auto refresh RosterBoard on group change")
         end
         
         self.rosterUpdateTimer.handle = nil
@@ -355,6 +366,15 @@ function Events:OnChallengeModeCompleted(mapID, level)
         NextKey.SafeRun(NextKey222.PUGHelper.OnChallengeModeCompleted, "PUG Helper challenge mode completed", NextKey222.PUGHelper, mapID, level)
     end
     
+    -- Auto-show teleport window after M+ completion
+    if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
+        NextKey222.Debug:User("Auto-showing teleport window after M+ completion")
+        -- Show teleport window after a short delay to ensure completion processing is done
+        C_Timer.After(1.0, function()
+            NextKey222.Addon:ToggleTeleportWindow()
+        end)
+    end
+    
     NextKey222.Performance:StopProfile("OnChallengeModeCompleted")
 end
 
@@ -377,25 +397,23 @@ function Events:GetOnlineGroupMembers()
     local totalMembers = GetNumGroupMembers() or 0
     local onlineCount = 0
     
-    for i = 1, totalMembers do
-        local name, rank, subgroup, level, class, fileName, zone, online, isDead, role, isML = GetRaidRosterInfo(i)
-        if online then
-            onlineCount = onlineCount + 1
-        end
-    end
-    
-    -- If not in raid, check party members
-    if totalMembers == 0 then
-        local partyMembers = GetPartyMembers()
-        if partyMembers then
-            for _, unit in ipairs(partyMembers) do
-                if UnitIsConnected(unit) then
-                    onlineCount = onlineCount + 1
-                end
+    -- Check if in raid
+    if IsInRaid() then
+        for i = 1, totalMembers do
+            local name, rank, subgroup, level, class, fileName, zone, online, isDead, role, isML = GetRaidRosterInfo(i)
+            if online then
+                onlineCount = onlineCount + 1
             end
         end
-        -- Add current player if in party
-        if IsInGroup() then
+    else
+        -- Check party members
+        for i = 1, GetNumSubgroupMembers() do
+            if UnitIsConnected("party" .. i) then
+                onlineCount = onlineCount + 1
+            end
+        end
+        -- Add current player
+        if IsInGroup() or totalMembers > 0 then
             onlineCount = onlineCount + 1
         end
     end
@@ -511,16 +529,6 @@ function Events:RegisterOrganizerEvents()
     end
     
     NextKey222.Debug:Dev("events", "Organizer events registered")
-end
-
---- Extends core event registration to include organizer events
-function Events:RegisterCoreEvents()
-    self:RegisterCoreEvents()
-    
-    -- Register organizer-specific events
-    self:RegisterOrganizerEvents()
-    
-    NextKey222.Debug:Dev("events", "Core and organizer events registered")
 end
 
 return Events

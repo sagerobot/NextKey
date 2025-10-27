@@ -397,6 +397,10 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
         self:ProcessKeystoneRequest(payload, sender)
     elseif payload.opcode == "KEYSTONE_SHARE" then
         self:ProcessKeystoneShare(payload, sender)
+    elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.ORG_POLL_REQUEST then
+        self:ProcessOrganizerPollRequest(payload, sender)
+    elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.ORG_POLL_RESPONSE then
+        self:ProcessOrganizerPollResponse(payload, sender)
     else
         NextKey222.Debug:Dev("comms", "Unknown opcode:", payload.opcode, "from", sender)
     end
@@ -1160,6 +1164,55 @@ function Communications:ProcessOrganizerData(payload, sender)
             end
         end
     end
+end
+
+-- MARK: Phase 2 - Participant Survey System Handlers
+--- Processes organizer poll request messages
+-- @param payload table The message payload
+-- @param sender string The message sender
+function Communications:ProcessOrganizerPollRequest(payload, sender)
+    NextKey222.Debug:Dev("organizer", "Received poll request from", sender)
+    
+    -- Forward to survey module if available
+    if NextKey222.ParticipantSurvey then
+        NextKey222.ParticipantSurvey:OnPollRequestReceived(payload, sender)
+    else
+        NextKey222.Debug:Dev("organizer", "ParticipantSurvey module not available")
+    end
+end
+
+--- Processes organizer poll response messages
+-- @param payload table The message payload
+-- @param sender string The message sender
+function Communications:ProcessOrganizerPollResponse(payload, sender)
+    NextKey222.Debug:Dev("organizer", "Received poll response from", sender)
+    
+    -- Forward to survey module if available
+    if NextKey222.ParticipantSurvey then
+        NextKey222.ParticipantSurvey:OnPollResponseReceived(payload, sender)
+    else
+        NextKey222.Debug:Dev("organizer", "ParticipantSurvey module not available")
+    end
+    
+    -- Update RosterBoard poll progress if active
+    if NextKey222.RosterBoard and NextKey222.RosterBoard.activePoll then
+        -- Add response to active poll
+        table.insert(NextKey222.RosterBoard.activePoll.responses, {
+            sender = sender,
+            data = payload.data,
+            timestamp = GetTime()
+        })
+        
+        -- Update progress UI
+        NextKey222.RosterBoard:UpdatePollProgress()
+    end
+end
+
+--- Registers organizer message handlers (called during initialization)
+function Communications:RegisterOrganizerHandlers()
+    NextKey222.Debug:Dev("organizer", "Organizer communication handlers registered")
+    -- Handlers are integrated into main ProcessMessage() function
+    return true
 end
 
 return Communications
