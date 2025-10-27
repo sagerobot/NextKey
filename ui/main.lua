@@ -50,6 +50,9 @@ local UI = {
     debugFakeTierSelection = "random",
     suggestionMode = "auto", -- "auto", "best_key", or "best_groups"
     
+    -- Character capture tracking
+    hasTriggeredCharacterCapture = false, -- Track if we've captured character data on window open
+    
     -- Phase 7: Dynamic Configuration Context Reference
     configContext = nil, -- Will be set to NextKey222.ConfigurationContext
     
@@ -977,6 +980,27 @@ function UI:ShowMainFrame()
         if not self.currentUIMode then
             self.currentUIMode = self:DetectUIMode()
             Debug:Dev("ui", "Initial UI mode detected:", self.currentUIMode)
+        end
+        
+        -- REDUNDANT CHARACTER CAPTURE: Trigger on first window open
+        -- This provides additional redundancy after all systems are initialized
+        if not self.hasTriggeredCharacterCapture then
+            self.hasTriggeredCharacterCapture = true
+            
+            -- Capture character data when user opens window for the first time
+            if NextKey222.Events and NextKey222.Events.CaptureCurrentCharacterData then
+                Debug:Dev("ui", "Triggering redundant character capture on first window open")
+                
+                -- Use SafeRun to catch any errors
+                NextKey222.SafeRun(function()
+                    local success = NextKey222.Events:CaptureCurrentCharacterData(true) -- retry on failure
+                    if success then
+                        Debug:Dev("ui", "Character data captured successfully on window open")
+                    else
+                        Debug:Dev("ui", "Character data capture deferred for retry on window open")
+                    end
+                end, "UI:ShowMainFrame character capture")
+            end
         end
         
         Debug:Dev("ui", "Showing main frame - current visibility:", self.mainFrame:IsShown() and "VISIBLE" or "HIDDEN")

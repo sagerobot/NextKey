@@ -57,44 +57,11 @@ function OrganizerComms:RegisterOrganizerHandlers()
             return false
         end
         
-        -- Register handlers for each organizer opcode
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.POLL_REQUEST, function(message, sender)
-            self:OnPollRequestReceived(message, sender)
-        end)
+        -- Handler registration removed - Communications module routes organizer messages directly
+        -- via ProcessOrganizerPollRequest, ProcessOrganizerPollResponse, and ProcessOrganizerData
+        -- The Communications:ProcessMessage function handles routing based on opcodes
         
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.POLL_RESPONSE, function(message, sender)
-            self:OnPollResponseReceived(message, sender)
-        end)
-        
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.ROSTER_STATE_FULL, function(message, sender)
-            self:OnRosterStateFullReceived(message, sender)
-        end)
-        
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.ROSTER_STATE_DELTA, function(message, sender)
-            self:OnRosterStateDeltaReceived(message, sender)
-        end)
-        
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.PLAYER_CARD_MOVED, function(message, sender)
-            self:OnPlayerCardMovedReceived(message, sender)
-        end)
-        
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.KEYSTONE_DESIGNATED, function(message, sender)
-            self:OnKeystoneDesignatedReceived(message, sender)
-        end)
-        
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.OPTIMIZER_STARTED, function(message, sender)
-            self:OnOptimizerStartedReceived(message, sender)
-        end)
-        
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.OPTIMIZER_PROGRESS, function(message, sender)
-            self:OnOptimizerProgressReceived(message, sender)
-        end)
-        
-        NextKey222.Communications:RegisterMessageHandler(ORGANIZER_OPCODES.OPTIMIZER_COMPLETE, function(message, sender)
-            self:OnOptimizerCompleteReceived(message, sender)
-        end)
-        
-        Debug:Dev("org_comms", "Registered", #ORGANIZER_OPCODES, "organizer message handlers")
+        Debug:Dev("org_comms", "Organizer message handlers ready (routed via Communications module)")
         return true
     end, "OrganizerComms:RegisterOrganizerHandlers")
 end

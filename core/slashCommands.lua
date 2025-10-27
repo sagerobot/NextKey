@@ -189,6 +189,13 @@ local Commands = {
         handler = "ShowOrganizer"
     },
     
+    -- Character storage commands
+    {
+        cmd = {"chars", "characters"},
+        desc = "Character storage commands (use '/nk chars help' for details)",
+        handler = "CharacterStorageCommands"
+    },
+    
     -- Drag test commands
     {
         cmd = {"drag", "dragtest"},
@@ -1506,6 +1513,47 @@ function SlashCommands:TestDungeonCards()
     end
 end
 
+-- MARK: - Character Storage Command Handlers
+function SlashCommands:CharacterStorageCommands(args)
+    if not args or args == "" then
+        NextKey222.Debug:User("Character Storage Commands:")
+        NextKey222.Debug:User("  /nk chars save - Capture current character data")
+        NextKey222.Debug:User("  /nk chars list - List all saved characters")
+        NextKey222.Debug:User("  /nk chars capture - Force character data capture")
+        return
+    end
+    
+    args = string.lower(args)
+    
+    if args == "save" or args == "capture" then
+        -- Manually capture current character data
+        if NextKey222.Events and NextKey222.Events.CaptureCurrentCharacterData then
+            NextKey222.Events:CaptureCurrentCharacterData()
+            NextKey222.Debug:User("Character data captured manually")
+        else
+            NextKey222.Debug:Error("Events module not available")
+        end
+    elseif args == "list" or args == "debug" then
+        -- List all saved characters
+        if NextKey222.CharacterStorage and NextKey222.CharacterStorage.DebugPrintAllCharacters then
+            NextKey222.CharacterStorage:DebugPrintAllCharacters()
+        else
+            NextKey222.Debug:Error("CharacterStorage not available")
+        end
+    elseif args == "capture" then
+        -- Force character data capture with multiple attempts
+        if NextKey222.Events and NextKey222.Events.ScheduleCharacterCapture then
+            NextKey222.Events:ScheduleCharacterCapture()
+            NextKey222.Debug:User("Force character data capture scheduled")
+        else
+            NextKey222.Debug:Error("Events module not available")
+        end
+    else
+        NextKey222.Debug:User("Unknown character storage command:", args)
+        NextKey222.Debug:User("Available commands: save, list, capture")
+    end
+end
+
 -- MARK: - Main Slash Command Handler
 
 local function HandleSlashCommand(input)
@@ -1526,10 +1574,22 @@ local function HandleSlashCommand(input)
         pug = { commands = PUGCommands, help = "ShowPUGHelp" },
         components = { commands = ComponentCommands, help = "ShowComponentHelp" },
         validate = { commands = ValidationCommands, help = "ShowValidationHelp" },
+        chars = { commands = "CharacterStorageCommands", help = "CharacterStorageCommands" },
     }
 
     if commandGroups[mainCmd] then
         local group = commandGroups[mainCmd]
+        
+        -- Special handling for character storage commands (direct handler)
+        if mainCmd == "chars" then
+            local handler = SlashCommands[group.help]
+            if handler then
+                handler(SlashCommands, subCmd, subArgs)
+                return
+            end
+        end
+        
+        -- Handle other command groups normally
         for _, cmdDef in ipairs(group.commands) do
             for _, cmdName in ipairs(cmdDef.cmd) do
                 if subCmd == cmdName then

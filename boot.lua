@@ -512,6 +512,31 @@ NextKey222.StartUp:RegisterPhaseHandler("Enable", function()
     NextKey222.Debug:Dev("startup", "Enable phase completed")
 end)
 
+-- Phase 5: Finalize - Final setup and character data capture
+NextKey222.StartUp:RegisterPhaseHandler("Finalize", function()
+    NextKey222.Debug:Dev("startup", "=== Finalize Phase ===")
+    
+    -- Capture current character data now that all services are initialized
+    -- This ensures ProfilesService and other dependencies are ready
+    if NextKey222.CharacterStorage and NextKey222.Events then
+        NextKey222.Debug:Dev("startup", "Capturing current character data in Finalize phase")
+        NextKey.SafeRun(function()
+            -- Use the CaptureCurrentCharacterData function with retry enabled
+            -- This ensures we capture even if services aren't quite ready yet
+            if NextKey222.Events.CaptureCurrentCharacterData then
+                local success = NextKey222.Events:CaptureCurrentCharacterData(true) -- Enable retry on failure
+                if success then
+                    NextKey222.Debug:Dev("startup", "Character data captured successfully in Finalize phase")
+                else
+                    NextKey222.Debug:Dev("startup", "Character data capture deferred for retry in Finalize phase")
+                end
+            end
+        end, "Capture character data in Finalize phase")
+    end
+    
+    NextKey222.Debug:Dev("startup", "Finalize phase completed")
+end)
+
 -- MARK: Slash Command Registration
 -- Slash commands have been moved to core\slashCommands.lua for better organization
 -- This keeps boot.lua focused on initialization while making commands easy to modify

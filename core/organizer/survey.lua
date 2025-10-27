@@ -25,22 +25,9 @@ end
 
 -- MARK: Communication Handlers
 function ParticipantSurvey:RegisterHandlers()
-    if not NextKey222.Communications then
-        Debug:Error("Communications module not available for survey registration")
-        return
-    end
-    
-    -- Register poll request handler (participants receive this)
-    NextKey222.Communications:RegisterOrganizerHandler("ORG_POLL_REQUEST", function(message, sender)
-        self:OnPollRequestReceived(message, sender)
-    end)
-    
-    -- Register poll response handler (organizer receives this)
-    NextKey222.Communications:RegisterOrganizerHandler("ORG_POLL_RESPONSE", function(message, sender)
-        self:OnPollResponseReceived(message, sender)
-    end)
-    
-    Debug:Dev("organizer", "Survey communication handlers registered")
+    -- Handler registration removed - Communications module routes messages directly
+    -- via ProcessOrganizerPollRequest and ProcessOrganizerPollResponse
+    Debug:Dev("organizer", "Survey communication handlers ready (routed via Communications module)")
 end
 
 -- MARK: Poll Request (Organizer → Participants)

@@ -1,494 +1,503 @@
 -- MARK: Module Definition
+-- Progressive Poll Window for M+ Group Organizer
+-- Three-phase UI: Participation → Character Selection → Spec Selection
+
 local _, NextKey222 = ...
 
 local SurveyDialog = {}
 NextKey222.SurveyDialog = SurveyDialog
 NextKey222.RegisterModule("SurveyDialog", SurveyDialog)
 
-local AceGUI = LibStub("AceGUI-3.0")
 local Debug = NextKey222.Debug
+local UIConfig = NextKey222.UIConfig
 
 -- MARK: Module State
 SurveyDialog.activeDialog = nil
+SurveyDialog.currentPhase = nil
+SurveyDialog.pollData = nil
+SurveyDialog.responseData = {
+    phase1 = nil,  -- { participation = "yes" | "yes_alt" | "no" }
+    phase2 = nil,  -- { selectedCharacterID, characterData }
+    phase3 = nil   -- { specPreferences = { [specID] = "none" | "play" | "fill" } }
+}
 
 -- MARK: Initialization
 function SurveyDialog:Initialize()
     return NextKey222.SafeRun(function()
-        Debug:Dev("organizer", "Initializing Survey Dialog module")
-        Debug:Dev("organizer", "Survey Dialog initialized successfully")
+        Debug:Dev("organizer", "Initializing Progressive Survey Dialog module")
         return true
     end, "SurveyDialog:Initialize")
 end
 
--- MARK: Main Dialog Creation
+-- MARK: Main Entry Point
 function SurveyDialog:Show(pollData)
     return NextKey222.SafeRun(function()
-        -- Close existing dialog if open
-        if self.activeDialog then
-            AceGUI:Release(self.activeDialog)
-            self.activeDialog = nil
-        end
+        self.pollData = pollData
+        self.responseData = { phase1 = nil, phase2 = nil, phase3 = nil }
         
-        -- Create dialog frame
-        local dialog = AceGUI:Create("Frame")
-        dialog:SetTitle("M+ Group Organizer - Poll")
-        dialog:SetWidth(500)
-        dialog:SetHeight(600)
-        dialog:SetLayout("Flow")
-        
-        -- Store poll metadata
-        dialog.pollID = pollData.pollID
-        dialog.organizerName = pollData.organizerName
-        
-        -- Set callback for close button
-        dialog:SetCallback("OnClose", function(widget)
-            AceGUI:Release(widget)
-            self.activeDialog = nil
-        end)
-        
-        -- Build all sections
-        self:AddInstructionSection(dialog)
-        self:AddParticipationSection(dialog)
-        self:AddCharacterSelectionSection(dialog)
-        self:AddRoleSelectionSection(dialog)
-        self:AddButtonSection(dialog)
-        
-        -- Force layout refresh to render all widgets
-        dialog:DoLayout()
-        
-        -- Store reference
-        self.activeDialog = dialog
-        
-        -- CRITICAL: Show the dialog (AceGUI Frames are hidden by default)
-        dialog:Show()
-        
-        Debug:Dev("organizer", "Showed survey dialog for poll:", pollData.pollID)
-        
+        -- Start with Phase 1
+        self:ShowPhase1()
     end, "SurveyDialog:Show")
 end
 
--- MARK: Instruction Section
-function SurveyDialog:AddInstructionSection(dialog)
-    local instructions = AceGUI:Create("Label")
-    instructions:SetText("The raid leader is organizing M+ groups. Please indicate your participation preferences.")
-    instructions:SetFullWidth(true)
-    -- Remove SetFont call - AceGUI Labels don't use this method the same way
-    dialog:AddChild(instructions)
-    
-    -- Spacer
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText(" ")
-    spacer:SetFullWidth(true)
-    dialog:AddChild(spacer)
-end
-
--- MARK: Participation Section
-function SurveyDialog:AddParticipationSection(dialog)
-    local header = AceGUI:Create("Heading")
-    header:SetText("1. Participation")
-    header:SetFullWidth(true)
-    dialog:AddChild(header)
-    
-    -- Opt-in checkbox
-    local optInCheckbox = AceGUI:Create("CheckBox")
-    optInCheckbox:SetLabel("I want to participate")
-    optInCheckbox:SetValue(true)
-    optInCheckbox:SetCallback("OnValueChanged", function(widget, event, value)
-        if value then
-            dialog.optOutCheckbox:SetValue(false)
-            self:ShowCharacterAndRoleSelections(dialog)
-        end
-    end)
-    dialog:AddChild(optInCheckbox)
-    dialog.optInCheckbox = optInCheckbox
-    
-    -- Opt-out checkbox
-    local optOutCheckbox = AceGUI:Create("CheckBox")
-    optOutCheckbox:SetLabel("I do NOT want to participate")
-    optOutCheckbox:SetValue(false)
-    optOutCheckbox:SetCallback("OnValueChanged", function(widget, event, value)
-        if value then
-            dialog.optInCheckbox:SetValue(false)
-            self:HideCharacterAndRoleSelections(dialog)
-        end
-    end)
-    dialog:AddChild(optOutCheckbox)
-    dialog.optOutCheckbox = optOutCheckbox
-    
-    -- Spacer
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText(" ")
-    spacer:SetFullWidth(true)
-    dialog:AddChild(spacer)
-end
-
--- MARK: Character Selection Section
-function SurveyDialog:AddCharacterSelectionSection(dialog)
-    local header = AceGUI:Create("Heading")
-    header:SetText("2. Character Selection")
-    header:SetFullWidth(true)
-    dialog:AddChild(header)
-    dialog.charHeader = header
-    
-    -- Get all characters from storage
-    local currentChar = UnitName("player") .. "-" .. GetRealmName()
-    local charList = self:BuildCharacterList()
-    
-    -- Dropdown for character selection
-    local charDropdown = AceGUI:Create("Dropdown")
-    charDropdown:SetLabel("Select Character:")
-    charDropdown:SetList(charList)
-    charDropdown:SetValue(currentChar)
-    charDropdown:SetFullWidth(true)
-    charDropdown:SetCallback("OnValueChanged", function(widget, event, value)
-        dialog.selectedCharacter = value
-        self:OnCharacterChanged(dialog, value)
-    end)
-    dialog:AddChild(charDropdown)
-    dialog.charDropdown = charDropdown
-    dialog.selectedCharacter = currentChar
-    
-    -- Alt warning label
-    local altWarning = AceGUI:Create("Label")
-    altWarning:SetText("")
-    altWarning:SetFullWidth(true)
-    -- Remove SetFont call - AceGUI Labels don't use this method
-    dialog:AddChild(altWarning)
-    dialog.altWarning = altWarning
-    
-    -- Spacer
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText(" ")
-    spacer:SetFullWidth(true)
-    dialog:AddChild(spacer)
-end
-
--- MARK: Role Selection Section
-function SurveyDialog:AddRoleSelectionSection(dialog)
-    local header = AceGUI:Create("Heading")
-    header:SetText("3. Role Preferences")
-    header:SetFullWidth(true)
-    dialog:AddChild(header)
-    dialog.roleHeader = header
-    
-    -- Get available roles for current character
-    local currentChar = UnitName("player") .. "-" .. GetRealmName()
-    local availableRoles = self:GetAvailableRolesForCharacter(currentChar)
-    
-    -- Create role preference widgets
-    dialog.rolePreferences = {}
-    dialog.roleWidgets = {}
-    
-    for _, role in ipairs({"Tank", "Healer", "DPS"}) do
-        if availableRoles[role] then
-            local roleGroup = self:CreateRolePreferenceWidget(dialog, role)
-            dialog:AddChild(roleGroup)
-            table.insert(dialog.roleWidgets, roleGroup)
-        end
-    end
-    
-    -- Spacer
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText(" ")
-    spacer:SetFullWidth(true)
-    dialog:AddChild(spacer)
-end
-
--- MARK: Role Preference Widget
-function SurveyDialog:CreateRolePreferenceWidget(dialog, role)
-    local group = AceGUI:Create("InlineGroup")
-    group:SetTitle(role)
-    group:SetFullWidth(true)
-    group:SetLayout("Flow")
-    
-    -- Preference dropdown
-    local prefDropdown = AceGUI:Create("Dropdown")
-    prefDropdown:SetLabel("Preference:")
-    prefDropdown:SetList({
-        will_play = "Will Play",
-        fill = "Fill (if needed)"
-    })
-    prefDropdown:SetValue("will_play")
-    prefDropdown:SetWidth(200)
-    group:AddChild(prefDropdown)
-    
-    -- Store reference
-    dialog.rolePreferences[role] = prefDropdown
-    
-    return group
-end
-
--- MARK: Button Section
-function SurveyDialog:AddButtonSection(dialog)
-    local buttonGroup = AceGUI:Create("SimpleGroup")
-    buttonGroup:SetFullWidth(true)
-    buttonGroup:SetLayout("Flow")
-    
-    -- Submit button
-    local submitButton = AceGUI:Create("Button")
-    submitButton:SetText("Submit Response")
-    submitButton:SetWidth(150)
-    submitButton:SetCallback("OnClick", function()
-        self:OnSubmitClicked(dialog)
-    end)
-    buttonGroup:AddChild(submitButton)
-    
-    -- Cancel button
-    local cancelButton = AceGUI:Create("Button")
-    cancelButton:SetText("Cancel")
-    cancelButton:SetWidth(100)
-    cancelButton:SetCallback("OnClick", function()
-        self:OnCancelClicked(dialog)
-    end)
-    buttonGroup:AddChild(cancelButton)
-    
-    -- Force layout on button group
-    buttonGroup:DoLayout()
-    
-    dialog:AddChild(buttonGroup)
-end
-
--- MARK: Event Handlers
-function SurveyDialog:OnCharacterChanged(dialog, selectedCharID)
-    local currentChar = UnitName("player") .. "-" .. GetRealmName()
-    
-    if selectedCharID ~= currentChar then
-        -- Show alt warning
-        dialog.altWarning:SetText("|cFFFFAA00Note: Your current character will be moved to 'Opted Out'.|r")
-        
-        -- Update role selection to show alt's roles
-        self:UpdateRoleSelectionForCharacter(dialog, selectedCharID)
-    else
-        dialog.altWarning:SetText("")
-        self:UpdateRoleSelectionForCharacter(dialog, currentChar)
-    end
-end
-
-function SurveyDialog:UpdateRoleSelectionForCharacter(dialog, charID)
-    -- Get available roles for selected character
-    local availableRoles = self:GetAvailableRolesForCharacter(charID)
-    
-    -- Clear existing role widgets
-    if dialog.roleWidgets then
-        for _, widget in ipairs(dialog.roleWidgets) do
-            widget:Release()
-        end
-    end
-    dialog.roleWidgets = {}
-    dialog.rolePreferences = {}
-    
-    -- Recreate role widgets based on character's roles
-    for _, role in ipairs({"Tank", "Healer", "DPS"}) do
-        if availableRoles[role] then
-            local roleGroup = self:CreateRolePreferenceWidget(dialog, role)
-            dialog:AddChild(roleGroup)
-            table.insert(dialog.roleWidgets, roleGroup)
-        end
-    end
-    
-    Debug:Dev("organizer", "Updated role selection for:", charID)
-end
-
-function SurveyDialog:OnSubmitClicked(dialog)
+-- MARK: Phase 1 - Participation Question
+function SurveyDialog:ShowPhase1()
     return NextKey222.SafeRun(function()
-        -- Validate response
-        if not dialog.optInCheckbox:GetValue() and not dialog.optOutCheckbox:GetValue() then
-            Debug:User("Please select whether you want to participate")
+        -- Close existing dialog if open
+        self:CloseDialog()
+        
+        local cfg = UIConfig.POLL_WINDOW
+        
+        -- Create main frame
+        local frame = CreateFrame("Frame", "NextKeySurveyDialog", UIParent, "BackdropTemplate")
+        frame:SetSize(cfg.PHASE1_WIDTH, cfg.PHASE1_HEIGHT)
+        frame:SetPoint("CENTER", UIParent, "CENTER")
+        frame:SetFrameStrata("FULLSCREEN_DIALOG")
+        frame:SetFrameLevel(100)
+        frame:SetToplevel(true)
+        frame:SetMovable(true)
+        frame:EnableMouse(true)
+        frame:RegisterForDrag("LeftButton")
+        
+        -- Backdrop
+        frame:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 11, right = 12, top = 12, bottom = 11 }
+        })
+        frame:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
+        frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+        
+        -- Drag functionality
+        frame:SetScript("OnDragStart", frame.StartMoving)
+        frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+        
+        -- Title
+        local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        title:SetPoint("TOP", frame, "TOP", 0, -15)
+        title:SetText("M+ Group Organizer - Poll")
+        title:SetTextColor(1, 0.82, 0)
+        
+        -- Header text
+        local header = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        header:SetPoint("TOP", frame, "TOP", 0, -45)
+        header:SetWidth(cfg.PHASE1_WIDTH - 40)
+        header:SetJustifyH("CENTER")
+        header:SetText(string.format("%s is organizing M+ groups.\nDo you want to play M+ tonight?", 
+            self.pollData.organizerName or "The raid leader"))
+        header:SetTextColor(1, 1, 1)
+        
+        -- Create three participation cards
+        local yOffset = -100
+        
+        -- Card 1: Yes
+        local yesCard = self:CreateParticipationCard(frame, "yes", yOffset)
+        
+        -- Card 2: Yes on Alt
+        local altCard = self:CreateParticipationCard(frame, "yes_alt", yOffset - cfg.PARTICIPATION_CARD_HEIGHT_YES - cfg.PARTICIPATION_CARD_SPACING)
+        
+        -- Card 3: No
+        local noCard = self:CreateParticipationCard(frame, "no", yOffset - (cfg.PARTICIPATION_CARD_HEIGHT_YES + cfg.PARTICIPATION_CARD_SPACING) * 2)
+        
+        frame:Show()
+        self.activeDialog = frame
+        self.currentPhase = 1
+        
+        Debug:Dev("organizer", "Showed Phase 1: Participation cards")
+    end, "SurveyDialog:ShowPhase1")
+end
+
+-- MARK: Create Participation Card
+function SurveyDialog:CreateParticipationCard(parent, cardType, yOffset)
+    local cfg = UIConfig.POLL_WINDOW
+    
+    -- Determine card height based on type
+    local cardHeight = (cardType == "no") and cfg.PARTICIPATION_CARD_HEIGHT_NO or cfg.PARTICIPATION_CARD_HEIGHT_YES
+    
+    local card = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    card:SetSize(cfg.PHASE1_WIDTH - 40, cardHeight)
+    card:SetPoint("TOP", parent, "TOP", 0, yOffset)
+    
+    -- Backdrop
+    card:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 }
+    })
+    
+    -- Card configuration based on type
+    local config = {
+        yes = {
+            icon = "Interface\\Buttons\\UI-CheckBox-Check",
+            iconColor = {0.2, 0.9, 0.2},
+            borderColor = cfg.COLOR_GREEN_BORDER,
+            primaryText = "Yes",
+            secondaryText = "Play on current character"
+        },
+        yes_alt = {
+            icon = "Interface\\Icons\\Ability_Warrior_StrengthOfArms",
+            iconColor = {0.2, 0.9, 0.2},
+            borderColor = cfg.COLOR_GREEN_BORDER,
+            primaryText = "Yes on an Alt",
+            secondaryText = "Choose a different character"
+        },
+        no = {
+            icon = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+            iconColor = {0.9, 0.2, 0.2},
+            borderColor = cfg.COLOR_RED_BORDER,
+            primaryText = "No",
+            secondaryText = "Not playing tonight"
+        }
+    }
+    
+    local cardConfig = config[cardType]
+    
+    -- Set initial colors
+    card:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
+    card:SetBackdropBorderColor(cardConfig.borderColor[1], cardConfig.borderColor[2], cardConfig.borderColor[3], cardConfig.borderColor[4])
+    
+    -- Icon
+    local icon = card:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(cfg.ICON_SIZE, cfg.ICON_SIZE)
+    icon:SetPoint("LEFT", card, "LEFT", 12, 0)
+    icon:SetTexture(cardConfig.icon)
+    icon:SetVertexColor(cardConfig.iconColor[1], cardConfig.iconColor[2], cardConfig.iconColor[3])
+    
+    -- Primary text
+    local primaryText = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    primaryText:SetPoint("LEFT", icon, "RIGHT", 12, 12)
+    primaryText:SetText(cardConfig.primaryText)
+    primaryText:SetTextColor(1, 1, 1)
+    
+    -- Secondary text
+    local secondaryText = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    secondaryText:SetPoint("LEFT", icon, "RIGHT", 12, -8)
+    secondaryText:SetText(cardConfig.secondaryText)
+    secondaryText:SetTextColor(0.8, 0.8, 0.8)
+    
+    -- Hover effects
+    card:SetScript("OnEnter", function()
+        card:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
+        card:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    end)
+    
+    card:SetScript("OnLeave", function()
+        card:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
+        card:SetBackdropBorderColor(cardConfig.borderColor[1], cardConfig.borderColor[2], cardConfig.borderColor[3], cardConfig.borderColor[4])
+    end)
+    
+    -- Click handler
+    card:SetScript("OnClick", function()
+        self:OnPhase1CardClick(cardType)
+    end)
+    
+    return card
+end
+
+-- MARK: Phase 1 Click Handler
+function SurveyDialog:OnPhase1CardClick(participation)
+    return NextKey222.SafeRun(function()
+        self.responseData.phase1 = { participation = participation, timestamp = GetTime() }
+        
+        if participation == "no" then
+            -- Opt-out flow: Submit immediately and close
+            self:SubmitFinalResponse(false)
+            self:CloseDialog()
+        elseif participation == "yes" then
+            -- Go directly to Phase 3 (spec selection) for current character
+            local currentChar = UnitName("player") .. "-" .. GetRealmName()
+            self.responseData.phase2 = { selectedCharacterID = currentChar }
+            self:ShowPhase3(currentChar)
+        else -- yes_alt
+            -- Go to Phase 2 (character selection)
+            self:ShowPhase2()
+        end
+        
+        Debug:Dev("organizer", "Phase 1 response:", participation)
+    end, "SurveyDialog:OnPhase1CardClick")
+end
+
+-- MARK: Phase 2 - Alt Character Selection
+function SurveyDialog:ShowPhase2()
+    return NextKey222.SafeRun(function()
+        -- Close existing dialog
+        self:CloseDialog()
+        
+        local cfg = UIConfig.POLL_WINDOW
+        
+        -- Get character list (includes current character at end with "Current" marker)
+        local charList = NextKey222.CharacterStorage:GetMaxLevelCharactersSortedByIO(false)
+        
+        if not charList or #charList == 0 then
+            Debug:User("No characters found in storage")
             return
         end
         
-        -- Build response data
-        local response = {
-            pollID = dialog.pollID,
-            optedIn = dialog.optInCheckbox:GetValue(),
-            selectedCharacter = dialog.selectedCharacter,
-            rolePreferences = {}
-        }
+        -- Calculate window height based on character count
+        local windowHeight = cfg.PHASE2_BASE_HEIGHT + (#charList * (cfg.PHASE2_CARD_HEIGHT + 8))
+        windowHeight = math.min(windowHeight, cfg.PHASE2_MAX_HEIGHT)
         
-        if response.optedIn then
-            -- Collect role preferences
-            for role, dropdown in pairs(dialog.rolePreferences) do
-                response.rolePreferences[role] = dropdown:GetValue()
-            end
-            
-            -- Include character data if alt selected
-            local currentChar = UnitName("player") .. "-" .. GetRealmName()
-            if response.selectedCharacter ~= currentChar then
-                local altData = self:GetCharacterData(response.selectedCharacter)
-                response.characterData = {
-                    name = altData.name,
-                    realm = altData.realm,
-                    class = altData.class,
-                    keystone = altData.currentKeystone,
-                    scores = altData.dungeonScores,
-                    overallScore = altData.overallScore,
-                    availableRoles = altData.availableRoles,
-                    utilities = altData.utilities,
-                    specName = altData.specName
-                }
-            end
+        -- Create main frame
+        local frame = CreateFrame("Frame", "NextKeySurveyDialog", UIParent, "BackdropTemplate")
+        frame:SetSize(cfg.PHASE2_WIDTH, windowHeight)
+        frame:SetPoint("CENTER", UIParent, "CENTER")
+        frame:SetFrameStrata("FULLSCREEN_DIALOG")
+        frame:SetFrameLevel(100)
+        frame:SetToplevel(true)
+        frame:SetMovable(true)
+        frame:EnableMouse(true)
+        frame:RegisterForDrag("LeftButton")
+        
+        -- Backdrop
+        frame:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 11, right = 12, top = 12, bottom = 11 }
+        })
+        frame:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
+        frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+        
+        -- Drag functionality
+        frame:SetScript("OnDragStart", frame.StartMoving)
+        frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+        
+        -- Title
+        local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        title:SetPoint("TOP", frame, "TOP", 0, -15)
+        title:SetText("M+ Group Organizer - Choose Character")
+        title:SetTextColor(1, 0.82, 0)
+        
+        -- Header text
+        local header = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        header:SetPoint("TOP", frame, "TOP", 0, -45)
+        header:SetText("Select which character you want to play:")
+        header:SetTextColor(1, 1, 1)
+        
+        -- Scroll frame for characters
+        local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+        scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, -75)
+        scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -35, 50)
+        
+        local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+        scrollChild:SetSize(cfg.PHASE2_WIDTH - 50, #charList * (cfg.PHASE2_CARD_HEIGHT + 8))
+        scrollFrame:SetScrollChild(scrollChild)
+        
+        -- Create character cards
+        local yOffset = 0
+        for i, charEntry in ipairs(charList) do
+            local card = self:CreateCharacterCard(scrollChild, charEntry, yOffset)
+            yOffset = yOffset - (cfg.PHASE2_CARD_HEIGHT + 8)
         end
         
-        -- Check if we're the organizer - if so, process response directly
+        -- Back button
+        local backButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        backButton:SetSize(80, 24)
+        backButton:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 15, 15)
+        backButton:SetText("← Back")
+        backButton:SetScript("OnClick", function()
+            self:ShowPhase1()
+        end)
+        
+        frame:Show()
+        self.activeDialog = frame
+        self.currentPhase = 2
+        
+        Debug:Dev("organizer", "Showed Phase 2: Character selection -", #charList, "characters")
+    end, "SurveyDialog:ShowPhase2")
+end
+
+-- MARK: Create Character Card
+function SurveyDialog:CreateCharacterCard(parent, charEntry, yOffset)
+    local cfg = UIConfig.POLL_WINDOW
+    local charData = charEntry.data
+    
+    local card = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    card:SetSize(cfg.PHASE2_WIDTH - 60, cfg.PHASE2_CARD_HEIGHT)
+    card:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, yOffset)
+    
+    -- Backdrop
+    card:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 }
+    })
+    card:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
+    card:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.8)
+    
+    -- Class icon
+    local classIcon = card:CreateTexture(nil, "ARTWORK")
+    classIcon:SetSize(cfg.ICON_SIZE, cfg.ICON_SIZE)
+    classIcon:SetPoint("LEFT", card, "LEFT", 8, 0)
+    
+    -- Set class icon texture
+    local classFile = charData.class or "WARRIOR"
+    local coords = CLASS_ICON_TCOORDS[classFile]
+    if coords then
+        classIcon:SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
+        classIcon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+    end
+    
+    -- Get class color
+    local classColor = RAID_CLASS_COLORS[classFile] or {r=1, g=1, b=1}
+    
+    -- Character name (line 1)
+    local nameLabel = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    nameLabel:SetPoint("LEFT", classIcon, "RIGHT", 10, 20)
+    nameLabel:SetText(charData.name or "Unknown")
+    nameLabel:SetTextColor(classColor.r, classColor.g, classColor.b)
+    
+    -- Current character indicator
+    if charEntry.isCurrent then
+        local currentLabel = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        currentLabel:SetPoint("LEFT", nameLabel, "RIGHT", 5, 0)
+        currentLabel:SetText("(Current)")
+        currentLabel:SetTextColor(0.8, 0.8, 0.8)
+    end
+    
+    -- Class info (line 2)
+    local classInfo = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    classInfo:SetPoint("LEFT", classIcon, "RIGHT", 10, 4)
+    local className = charData.class or "Unknown"
+    local specName = charData.specName or "Unknown Spec"
+    classInfo:SetText(string.format("%s - %s", className, specName))
+    classInfo:SetTextColor(1, 1, 1)
+    
+    -- Scores (line 3)
+    local scoresLabel = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    scoresLabel:SetPoint("LEFT", classIcon, "RIGHT", 10, -12)
+    scoresLabel:SetText(string.format("IO: %d | iLvl: %d",
+        charEntry.io or 0,
+        charEntry.itemLevel or 0))
+    scoresLabel:SetTextColor(0.8, 0.8, 1)
+    
+    -- Keystone (line 4)
+    local keystoneLabel = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    keystoneLabel:SetPoint("LEFT", classIcon, "RIGHT", 10, -28)
+    
+    if charData.currentKeystone and charData.currentKeystone.dungeonID then
+        local dungeonName = NextKey222.DungeonNameService and
+            NextKey222.DungeonNameService:GetAlias(charData.currentKeystone.dungeonID) or "???"
+        keystoneLabel:SetText(string.format("Key: %s +%d",
+            dungeonName,
+            charData.currentKeystone.level or 0))
+    else
+        keystoneLabel:SetText("Key: None")
+    end
+    keystoneLabel:SetTextColor(0.7, 0.7, 0.7)
+    
+    -- Hover effects
+    card:SetScript("OnEnter", function()
+        card:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
+        card:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    end)
+    
+    card:SetScript("OnLeave", function()
+        card:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
+        card:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.8)
+    end)
+    
+    -- Click handler
+    card:SetScript("OnClick", function()
+        self:OnPhase2CardClick(charEntry)
+    end)
+    
+    return card
+end
+
+-- MARK: Phase 2 Click Handler
+function SurveyDialog:OnPhase2CardClick(charEntry)
+    return NextKey222.SafeRun(function()
+        self.responseData.phase2 = {
+            selectedCharacterID = charEntry.id,
+            characterData = {
+                name = charEntry.data.name,
+                class = charEntry.data.class,
+                io = charEntry.io,
+                itemLevel = charEntry.itemLevel,
+                keystone = charEntry.data.currentKeystone
+            }
+        }
+        
+        -- Proceed to Phase 3 (spec selection)
+        self:ShowPhase3(charEntry.id)
+        
+        Debug:Dev("organizer", "Phase 2 response: Selected", charEntry.id)
+    end, "SurveyDialog:OnPhase2CardClick")
+end
+
+-- MARK: Phase 3 - Spec Selection (TODO: Next implementation)
+function SurveyDialog:ShowPhase3(characterID)
+    return NextKey222.SafeRun(function()
+        Debug:User("Phase 3 (Spec Selection) - Not yet implemented. Character:", characterID)
+        -- TODO: Implement spec selection cards
+    end, "SurveyDialog:ShowPhase3")
+end
+
+-- MARK: Submit Final Response
+function SurveyDialog:SubmitFinalResponse(optedIn)
+    return NextKey222.SafeRun(function()
+        local response = {
+            pollID = self.pollData.pollID,
+            optedIn = optedIn,
+            timestamp = GetTime()
+        }
+        
+        if optedIn and self.responseData.phase2 and self.responseData.phase3 then
+            response.selectedCharacter = self.responseData.phase2.selectedCharacterID
+            response.characterData = self.responseData.phase2.characterData
+            response.specPreferences = self.responseData.phase3.specPreferences
+        end
+        
+        -- Check if we're the organizer
         local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
-        if currentPlayer == dialog.organizerName then
-            -- We're the organizer - process our own response directly
-            Debug:Dev("organizer", "Organizer submitting own response - processing directly")
+        if currentPlayer == self.pollData.organizerName then
+            -- Process our own response directly
             if NextKey222.ParticipantSurvey then
                 NextKey222.ParticipantSurvey:ProcessResponse(currentPlayer, response)
             end
-            -- Also update poll progress
-            if NextKey222.RosterBoard and NextKey222.RosterBoard.UpdatePollProgress then
-                -- Add to responses list
-                if NextKey222.RosterBoard.activePoll then
-                    table.insert(NextKey222.RosterBoard.activePoll.responses, {
-                        sender = currentPlayer,
-                        response = response,
-                        timestamp = GetTime()
-                    })
+            
+            -- Update poll progress
+            if NextKey222.RosterBoard and NextKey222.RosterBoard.activePoll then
+                table.insert(NextKey222.RosterBoard.activePoll.responses, {
+                    sender = currentPlayer,
+                    response = response,
+                    timestamp = GetTime()
+                })
+                if NextKey222.RosterBoard.UpdatePollProgress then
+                    NextKey222.RosterBoard:UpdatePollProgress()
                 end
-                NextKey222.RosterBoard:UpdatePollProgress()
             end
         else
-            -- We're a participant - send response to organizer
+            -- Send response to organizer
             if NextKey222.ParticipantSurvey then
-                NextKey222.ParticipantSurvey:SendPollResponse(response, dialog.organizerName)
+                NextKey222.ParticipantSurvey:SendPollResponse(response, self.pollData.organizerName)
             end
         end
         
-        -- Close dialog - only hide, don't release (parent will release)
-        if dialog then
-            dialog:Hide()
-        end
+        Debug:Dev("organizer", "Submitted final response - opted in:", optedIn)
+    end, "SurveyDialog:SubmitFinalResponse")
+end
+
+-- MARK: Utility Functions
+function SurveyDialog:CloseDialog()
+    if self.activeDialog then
+        self.activeDialog:Hide()
+        self.activeDialog:SetParent(nil)
         self.activeDialog = nil
-        
-        Debug:Dev("organizer", "Submitted poll response - opted in:", response.optedIn)
-        
-    end, "SurveyDialog:OnSubmitClicked")
+    end
+    self.currentPhase = nil
 end
 
-function SurveyDialog:OnCancelClicked(dialog)
-    Debug:Dev("organizer", "Survey dialog cancelled")
-    dialog:Hide()
-    AceGUI:Release(dialog)
-    self.activeDialog = nil
-end
-
-function SurveyDialog:ShowCharacterAndRoleSelections(dialog)
-    -- Show character selection widgets using frame.frame:Show()
-    if dialog.charHeader and dialog.charHeader.frame then dialog.charHeader.frame:Show() end
-    if dialog.charDropdown and dialog.charDropdown.frame then dialog.charDropdown.frame:Show() end
-    if dialog.altWarning and dialog.altWarning.frame then dialog.altWarning.frame:Show() end
-    
-    -- Show role selection widgets
-    if dialog.roleHeader and dialog.roleHeader.frame then dialog.roleHeader.frame:Show() end
-    if dialog.roleWidgets then
-        for _, widget in ipairs(dialog.roleWidgets) do
-            if widget and widget.frame then
-                widget.frame:Show()
-            end
-        end
-    end
-end
-
-function SurveyDialog:HideCharacterAndRoleSelections(dialog)
-    -- Hide character selection widgets using frame.frame:Hide()
-    if dialog.charHeader and dialog.charHeader.frame then dialog.charHeader.frame:Hide() end
-    if dialog.charDropdown and dialog.charDropdown.frame then dialog.charDropdown.frame:Hide() end
-    if dialog.altWarning and dialog.altWarning.frame then dialog.altWarning.frame:Hide() end
-    
-    -- Hide role selection widgets
-    if dialog.roleHeader and dialog.roleHeader.frame then dialog.roleHeader.frame:Hide() end
-    if dialog.roleWidgets then
-        for _, widget in ipairs(dialog.roleWidgets) do
-            if widget and widget.frame then
-                widget.frame:Hide()
-            end
-        end
-    end
-end
-
--- MARK: Helper Functions
-function SurveyDialog:BuildCharacterList()
-    local charList = {}
-    
-    -- Get all characters from CharacterStorage
-    if NextKey222.CharacterStorage then
-        local characters = NextKey222.CharacterStorage:GetAllCharacters()
-        for charID, charData in pairs(characters) do
-            local keystoneText = "No Key"
-            if charData.currentKeystone then
-                local dungeon = "???"
-                if NextKey222.DungeonNameService then
-                    dungeon = NextKey222.DungeonNameService:GetAlias(charData.currentKeystone.dungeonID)
-                end
-                keystoneText = dungeon .. ": +" .. charData.currentKeystone.level
-            end
-            
-            local displayText = charData.name .. " - " .. charData.class .. " (" .. keystoneText .. ")"
-            charList[charID] = displayText
-        end
-    end
-    
-    -- Always include current character
-    local currentChar = UnitName("player") .. "-" .. GetRealmName()
-    if not charList[currentChar] then
-        local class = select(2, UnitClass("player"))
-        charList[currentChar] = currentChar:match("^([^%-]+)") .. " - " .. class .. " (Current)"
-    end
-    
-    return charList
-end
-
-function SurveyDialog:GetAvailableRolesForCharacter(charID)
-    -- Get roles from CharacterStorage or current player
-    local currentChar = UnitName("player") .. "-" .. GetRealmName()
-    
-    if charID == currentChar then
-        -- Get current player's roles from ProfilesService
-        local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetOrganizerProfile(charID)
-        if profile and profile.roles then
-            local roles = {}
-            for _, role in ipairs(profile.roles) do
-                local normalizedRole = role:upper()
-                if normalizedRole == "TANK" then
-                    roles.Tank = true
-                elseif normalizedRole == "HEALER" then
-                    roles.Healer = true
-                else
-                    roles.DPS = true
-                end
-            end
-            return roles
-        end
-    else
-        -- Get alt's roles from CharacterStorage
-        if NextKey222.CharacterStorage then
-            local charData = NextKey222.CharacterStorage:GetCharacter(charID)
-            if charData and charData.availableRoles then
-                return charData.availableRoles
-            end
-        end
-    end
-    
-    -- Fallback: return DPS only
-    return {DPS = true}
-end
-
-function SurveyDialog:GetCharacterData(charID)
-    -- Get character data from CharacterStorage
-    if NextKey222.CharacterStorage then
-        local charData = NextKey222.CharacterStorage:GetCharacter(charID)
-        if charData then
-            return charData
-        end
-    end
-    
-    -- Fallback: return minimal data
-    return {
-        name = charID:match("^([^%-]+)") or charID,
-        realm = GetRealmName(),
-        class = "WARRIOR",
-        availableRoles = {DPS = true}
-    }
-end
+return SurveyDialog

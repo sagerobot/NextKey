@@ -60,6 +60,17 @@ function Events:OnPlayerEnteringWorld(isLogin, isReload)
     if isLogin or isReload then
         NextKey222.Debug:Dev("events", "Player entering world - login/reload")
         
+        -- Attempt character data capture with retry on failure
+        -- Note: The Finalize phase capture is the primary mechanism
+        -- This is a backup in case the player logs in after addon is already loaded
+        if NextKey222.CharacterStorage then
+            NextKey.SafeRun(function()
+                NextKey222.Debug:Dev("events", "PLAYER_ENTERING_WORLD character data capture attempt...")
+                -- Enable retry since this is early in the login sequence
+                self:CaptureCurrentCharacterData(true)
+            end, "Capture character data on login")
+        end
+        
         -- Initialize player data
         if NextKey.Keystones and NextKey.Keystones.ScanPlayerKeystones then
             NextKey.SafeRun(NextKey.Keystones.ScanPlayerKeystones, "Scan player keystones on login")
@@ -72,6 +83,208 @@ function Events:OnPlayerEnteringWorld(isLogin, isReload)
     end
     
     NextKey222.Performance:StopProfile("OnPlayerEnteringWorld")
+end
+
+-- MARK: Additional Character Capture Triggers
+-- Add more triggers to ensure character data is captured
+function Events:ScheduleCharacterCapture()
+    if not NextKey222.CharacterStorage then
+        NextKey222.Debug:Error("CharacterStorage not available for scheduled capture")
+        return
+    end
+    
+    NextKey222.Debug:Dev("events", "Scheduling additional character data capture...")
+    NextKey.SafeRun(function()
+        self:CaptureCurrentCharacterData()
+    end, "Scheduled character data capture")
+end
+
+-- MARK: Character Data Capture
+--- Captures and saves current character data to CharacterStorage
+-- @param retryOnFailure boolean Whether to retry if dependencies aren't ready
+-- @return boolean True if capture was successful
+function Events:CaptureCurrentCharacterData(retryOnFailure)
+    -- Validate critical dependencies
+    if not NextKey222.CharacterStorage then
+        NextKey222.Debug:Error("CharacterStorage not available for capture")
+        return false
+    end
+    
+    -- Check if CharacterStorage is properly initialized
+    if not NextKey222.CharacterStorage.db or not NextKey222.CharacterStorage.db.profile then
+        NextKey222.Debug:Dev("events", "CharacterStorage database not initialized, capture deferred")
+        
+        -- Retry after a short delay if requested
+        if retryOnFailure then
+            C_Timer.After(2.0, function()
+                NextKey222.Debug:Dev("events", "Retrying character data capture after database init delay")
+                self:CaptureCurrentCharacterData(false) -- Don't retry again
+            end)
+        end
+        return false
+    end
+    
+    local characterID = UnitName("player") .. "-" .. GetRealmName()
+    local class = select(2, UnitClass("player"))
+    local level = UnitLevel("player")
+    
+    NextKey222.Debug:Dev("events", "Starting character data capture for", characterID)
+    
+    -- Get current character profile from ProfilesService
+    local profile = nil
+    if NextKey222.ProfilesService and NextKey222.ProfilesService.GetOrganizerProfile then
+        NextKey222.Debug:Dev("events", "ProfilesService available, getting organizer profile")
+        
+        -- IMPORTANT: Force cache invalidation to get fresh data
+        -- ProfilesService may have cached incomplete data from early initialization
+        if NextKey222.ProfilesService.InvalidateCache then
+            NextKey222.ProfilesService:InvalidateCache(characterID)
+            NextKey222.Debug:Dev("events", "Invalidated ProfilesService cache for", characterID)
+        end
+        
+        profile = NextKey222.ProfilesService:GetOrganizerProfile(characterID)
+        if profile then
+            NextKey222.Debug:Dev("events", "Profile found:", profile.specName or "Unknown", "IO:", profile.io or 0)
+            
+            -- Validate profile has actual data (not just defaults)
+            -- If spec data is missing, the WoW API wasn't ready yet
+            -- We need BOTH IO score AND spec information to be valid
+            local hasValidIO = profile.io and profile.io > 0
+            local hasValidSpec = profile.specName and profile.specName ~= ""
+            
+            if not hasValidSpec then
+                NextKey222.Debug:Dev("events", "Profile data incomplete (no spec name) - deferring capture")
+                
+                -- Retry if requested
+                if retryOnFailure then
+                    C_Timer.After(5.0, function()
+                        NextKey222.Debug:Dev("events", "Retrying character data capture after WoW API init delay")
+                        self:CaptureCurrentCharacterData(false) -- Don't retry again
+                    end)
+                end
+                return false
+            end
+        else
+            NextKey222.Debug:Dev("events", "No profile found for", characterID)
+        end
+    else
+        NextKey222.Debug:Dev("events", "ProfilesService not available, capturing basic data only")
+    end
+    
+    -- Build character data
+    local characterData = {
+        name = UnitName("player"),
+        realm = GetRealmName(),
+        class = class,
+        level = level,
+        lastSeen = time()
+    }
+    
+    -- Add profile data if available
+    if profile then
+        characterData.overallScore = profile.io or profile.overallScore or 0
+        characterData.dungeonScores = profile.dungeonScores or profile.scores
+        characterData.specName = profile.specName
+        characterData.currentSpec = profile.currentSpec
+        
+        -- Detect ALL available roles based on class specs (not just current spec)
+        characterData.availableRoles = {}
+        
+        -- Get all specs for the current class
+        local numSpecs = GetNumSpecializationsForClassID and GetNumSpecializationsForClassID(select(3, UnitClass("player"))) or GetNumSpecializations()
+        
+        if numSpecs and numSpecs > 0 then
+            NextKey222.Debug:Dev("events", "Character has", numSpecs, "specializations")
+            
+            -- Iterate through all specs to find all available roles
+            for i = 1, numSpecs do
+                local specID, specName, _, _, role = GetSpecializationInfo(i)
+                
+                if role and role ~= "" then
+                    NextKey222.Debug:Dev("events", "Spec", i, ":", specName, "provides role:", role)
+                    
+                    -- Map Blizzard role names to our format
+                    if role == "TANK" then
+                        characterData.availableRoles.Tank = true
+                    elseif role == "HEALER" then
+                        characterData.availableRoles.Healer = true
+                    elseif role == "DAMAGER" then
+                        characterData.availableRoles.DPS = true
+                    end
+                end
+            end
+            
+            -- Log final detected roles
+            local roleList = {}
+            for role, enabled in pairs(characterData.availableRoles) do
+                if enabled then
+                    table.insert(roleList, role)
+                end
+            end
+            NextKey222.Debug:Dev("events", "All available roles for", characterID, ":", table.concat(roleList, ", "))
+        else
+            -- Fallback: use current spec role only
+            NextKey222.Debug:Dev("events", "Could not detect all specs, using current spec role only")
+            if profile.roles then
+                for _, role in ipairs(profile.roles) do
+                    local normalizedRole = role:upper()
+                    if normalizedRole == "TANK" then
+                        characterData.availableRoles.Tank = true
+                    elseif normalizedRole == "HEALER" then
+                        characterData.availableRoles.Healer = true
+                    elseif normalizedRole == "DAMAGER" then
+                        characterData.availableRoles.DPS = true
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Get item level
+    if NextKey222.CharacterStorage.GetCurrentCharacterItemLevel then
+        characterData.itemLevel = NextKey222.CharacterStorage:GetCurrentCharacterItemLevel()
+        NextKey222.Debug:Dev("events", "Item level captured:", characterData.itemLevel)
+    end
+    
+    -- Get keystone if available (only for current character)
+    -- For other characters, preserve existing keystone data
+    local currentChar = UnitName("player") .. "-" .. GetRealmName()
+    if characterID == currentChar then
+        -- Current character: Try to capture current keystone
+        -- Use NextKey:ScanPlayerKeystone() - it's on the addon object, not Keystones module
+        if NextKey and NextKey.ScanPlayerKeystone then
+            local keystone = NextKey:ScanPlayerKeystone()
+            if keystone and keystone.dungeonID and keystone.dungeonID > 0 then
+                characterData.currentKeystone = {
+                    dungeonID = keystone.dungeonID,
+                    level = keystone.level,
+                    lastUpdated = time()
+                }
+                NextKey222.Debug:Dev("events", "Keystone captured:", keystone.level, "dungeon", keystone.dungeonID)
+            else
+                NextKey222.Debug:Dev("events", "No keystone found for current character")
+            end
+        else
+            NextKey222.Debug:Dev("events", "NextKey.ScanPlayerKeystone not available")
+        end
+    else
+        -- Not current character: Preserve existing keystone data from storage
+        local existingChar = NextKey222.CharacterStorage:GetCharacter(characterID)
+        if type(existingChar) == "table" and existingChar.currentKeystone then
+            characterData.currentKeystone = existingChar.currentKeystone
+            NextKey222.Debug:Dev("events", "Preserved existing keystone for", characterID)
+        end
+    end
+    
+    -- Save to storage
+    local success = NextKey222.CharacterStorage:SaveCharacter(characterID, characterData)
+    if success then
+        NextKey222.Debug:Dev("events", "Successfully captured and saved character data for", characterID)
+        return true
+    else
+        NextKey222.Debug:Error("Failed to save character data for", characterID)
+        return false
+    end
 end
 
 -- MARK: Performance-Optimized Group Roster Update

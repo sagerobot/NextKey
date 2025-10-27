@@ -97,6 +97,37 @@ local UIConfig = {
         CARDS_PER_ROW_COMPACT = 3       -- Number of compact cards per row
     },
     
+    -- MARK: Poll Window Configuration (from ui/organizer/surveyDialog.lua)
+    POLL_WINDOW = {
+        -- Phase 1: Participation
+        PHASE1_WIDTH = 380,
+        PHASE1_HEIGHT = 280,
+        PARTICIPATION_CARD_HEIGHT_YES = 50,     -- 25% smaller (was 90)
+        PARTICIPATION_CARD_HEIGHT_NO = 35,      -- 50% smaller (was 90)
+        PARTICIPATION_CARD_SPACING = 8,
+        
+        -- Phase 2: Alt Selection
+        PHASE2_WIDTH = 420,
+        PHASE2_BASE_HEIGHT = 180,
+        PHASE2_CARD_HEIGHT = 95,
+        PHASE2_MAX_HEIGHT = 700,
+        
+        -- Phase 3: Spec Selection
+        PHASE3_WIDTH = 340,
+        PHASE3_BASE_HEIGHT = 160,
+        PHASE3_SPEC_HEIGHT = 80,
+        
+        -- Card styling
+        ICON_SIZE = 48,
+        CARD_PADDING = 8,
+        
+        -- Colors
+        COLOR_GREEN_BORDER = {0.2, 0.8, 0.2, 1},
+        COLOR_RED_BORDER = {0.8, 0.2, 0.2, 1},
+        COLOR_YELLOW_BORDER = {0.9, 0.8, 0.2, 1},
+        COLOR_GREY_BORDER = {0.35, 0.35, 0.35, 0.8}
+    },
+    
     -- MARK: Spell Configuration (from ui/teleport.lua)
     SPELL = {
         BANK_PLAYER = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0,

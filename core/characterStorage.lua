@@ -393,7 +393,7 @@ function CharacterStorage:DebugPrintAllCharacters()
             end
             
             if characterData.overallScore then
-                Debug:User("  Overall Score:", characterData.overallScore)
+                Debug:User("  IO Score:", characterData.overallScore)
             end
             
             Debug:User("  Data Freshness:", self:CheckDataFreshness(characterData))
@@ -403,6 +403,78 @@ function CharacterStorage:DebugPrintAllCharacters()
         
         Debug:User("=== Total Characters:", count, "===")
     end, "CharacterStorage:DebugPrintAllCharacters")
+end
+
+--- Get max-level characters sorted by IO score (for Phase 2 alt selection)
+-- @param excludeCurrentChar boolean Whether to exclude current character
+-- @return table Array of character data sorted by IO (highest first)
+function CharacterStorage:GetMaxLevelCharactersSortedByIO(excludeCurrentChar)
+    return NextKey222.SafeRun(function()
+        local characters = self:GetAllCharacters()
+        local currentChar = UnitName("player") .. "-" .. GetRealmName()
+        local maxLevel = GetMaxPlayerLevel and GetMaxPlayerLevel() or 80
+        
+        local charList = {}
+        
+        for charID, charData in pairs(characters) do
+            -- Include if max level
+            if charData.level and charData.level >= maxLevel then
+                -- Skip current character in main loop - we'll add it at the end
+                if charID ~= currentChar then
+                    table.insert(charList, {
+                        id = charID,
+                        data = charData,
+                        io = charData.overallScore or 0,
+                        itemLevel = charData.itemLevel or 0
+                    })
+                end
+            end
+        end
+        
+        -- Sort by IO score (highest first)
+        table.sort(charList, function(a, b)
+            return a.io > b.io
+        end)
+        
+        -- Add current character at the end (unless explicitly excluded)
+        if not excludeCurrentChar then
+            local currentCharData = characters[currentChar]
+            if currentCharData and currentCharData.level and currentCharData.level >= maxLevel then
+                table.insert(charList, {
+                    id = currentChar,
+                    data = currentCharData,
+                    io = currentCharData.overallScore or 0,
+                    itemLevel = currentCharData.itemLevel or 0,
+                    isCurrent = true
+                })
+            end
+        end
+        
+        return charList
+    end, "CharacterStorage:GetMaxLevelCharactersSortedByIO")
+end
+
+--- Get or update item level for current character
+-- @return number Current character's item level
+function CharacterStorage:GetCurrentCharacterItemLevel()
+    return NextKey222.SafeRun(function()
+        local avgItemLevel, avgItemLevelEquipped = GetAverageItemLevel()
+        return math.floor(avgItemLevelEquipped or avgItemLevel or 0)
+    end, "CharacterStorage:GetCurrentCharacterItemLevel")
+end
+
+--- Update current character's item level in storage
+function CharacterStorage:UpdateCurrentCharacterItemLevel()
+    return NextKey222.SafeRun(function()
+        local currentChar = UnitName("player") .. "-" .. GetRealmName()
+        local character = self:GetCharacter(currentChar)
+        
+        if character then
+            character.itemLevel = self:GetCurrentCharacterItemLevel()
+            character.lastSeen = time()
+            Debug:Dev("storage", "Updated item level for", currentChar, ":", character.itemLevel)
+        end
+    end, "CharacterStorage:UpdateCurrentCharacterItemLevel")
 end
 
 -- MARK: Module Database Reference
