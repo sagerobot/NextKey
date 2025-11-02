@@ -41,9 +41,16 @@ local RESPONSE_PATTERNS = {
 -- MARK: Utility Functions
 
 local function generateAltName(parentName)
-    -- Remove realm suffix for alt name
+    -- NEW: Use Alt01FP, Alt02FP format to match new naming scheme
+    -- Extract the number from the parent name (e.g., "01FP" -> "01")
     local baseName = parentName:match("^([^%-]+)")
-    return baseName .. "Alt"
+    if baseName:match("^%d+FP$") then
+        -- It's a numbered fake player - use Alt prefix
+        return "Alt" .. baseName
+    else
+        -- Real player or other format - use legacy format
+        return baseName .. "Alt"
+    end
 end
 
 local function getRandomResponse(pattern)
@@ -75,6 +82,107 @@ end
 
 -- MARK: Response Simulation
 
+local function generateSpecPreferences(playerData)
+    -- Generate realistic spec preferences based on player's role
+    local specPreferences = {}
+    local specDetails = {}  -- NEW: Track spec-level details for tooltips
+    
+    -- CRITICAL FIX: Use OrganizerPlayerDataBuilder to generate default spec preferences
+    -- This matches the pre-poll behavior and ensures tooltips work correctly
+    if NextKey222.OrganizerPlayerDataBuilder and
+       NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+        
+        -- CRITICAL: playerData.name is ALREADY in "Name-Realm" format for fake players
+        -- Don't append realm again or we get "01FP-Dalaran-Dalaran"
+        local characterID = playerData.name
+        local success, specPrefs, specDets = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(characterID)
+        
+        if success and specPrefs and specDets then
+            NextKey222.Debug:Dev("organizer", "Poll: Generated spec preferences for", characterID, "using OrganizerPlayerDataBuilder")
+            return specPrefs, specDets
+        else
+            NextKey222.Debug:Error("Poll: Failed to generate spec preferences for", characterID, "- falling back to simple generation")
+        end
+    end
+    
+    -- FALLBACK: If OrganizerPlayerDataBuilder fails, use simple role generation
+    -- This path should rarely be used now
+    if true then
+        local classRoles = {}
+        if NextKey222.CharacterStorage then
+            classRoles = NextKey222.CharacterStorage:GetClassRoles(playerData.class)
+        end
+        
+        if #classRoles == 0 then
+            classRoles = {playerData.role or "DAMAGER"}
+        end
+        
+        -- Generate simple role preferences without spec details
+        for _, role in ipairs(classRoles) do
+            local rand = math.random()
+            if role == playerData.role then
+                specPreferences[role] = rand < 0.70 and "play" or (rand < 0.90 and "fill" or "none")
+            else
+                specPreferences[role] = rand < 0.30 and "play" or (rand < 0.70 and "fill" or "none")
+            end
+        end
+        
+        return specPreferences, specDetails
+    end
+    
+    -- Generate spec-level preferences (matching surveyDialog.lua logic)
+    local priorityMap = { play = 3, fill = 2, none = 1 }
+    
+    for _, specInfo in ipairs(availableSpecs) do
+        local rand = math.random()
+        local preference = "none"
+        
+        -- Primary role/spec: 70% will play, 20% fill, 10% none
+        if specInfo.role == playerData.role then
+            if rand < 0.70 then
+                preference = "play"
+            elseif rand < 0.90 then
+                preference = "fill"
+            else
+                preference = "none"
+            end
+        else
+            -- Off-spec: 30% will play, 40% fill, 30% none
+            if rand < 0.30 then
+                preference = "play"
+            elseif rand < 0.70 then
+                preference = "fill"
+            else
+                preference = "none"
+            end
+        end
+        
+        -- Track spec details for tooltips
+        -- CRITICAL: Normalize role to uppercase for consistent keying
+        local normalizedRole = specInfo.role:upper()
+        
+        if not specDetails[normalizedRole] then
+            specDetails[normalizedRole] = {}
+        end
+        table.insert(specDetails[normalizedRole], {
+            specName = specInfo.specName,
+            preference = preference
+        })
+        
+        -- Store by role with priority (highest priority wins)
+        if preference ~= "none" then
+            local currentPriority = priorityMap[specPreferences[normalizedRole]] or 0
+            local newPriority = priorityMap[preference] or 0
+            
+            if newPriority > currentPriority then
+                specPreferences[normalizedRole] = preference
+            end
+        end
+    end
+    
+    return specPreferences, specDetails
+end
+
 local function simulatePlayerResponse(playerName, responseType, useAlt, pollID)
     NextKey222.Debug:Dev("organizer", "Simulating response for", playerName, "type:", responseType, "useAlt:", useAlt)
     
@@ -98,14 +206,32 @@ local function simulatePlayerResponse(playerName, responseType, useAlt, pollID)
         selectedCharacter = playerName,
         useAlt = useAlt,
         roles = { playerData.role },  -- Use player's primary role
-        preferences = {}  -- Empty for simulation
+        specPreferences = {}  -- Will be populated for opt-in responses
     }
+    
+    -- Generate spec preferences for opt-in responses
+    if responseType == "opt_in" then
+        local specPreferences, specDetails = generateSpecPreferences(playerData)
+        responseData.specPreferences = specPreferences
+        responseData.specDetails = specDetails  -- NEW: Include spec details for tooltips
+        NextKey222.Debug:Dev("organizer", "Generated spec preferences for", playerName, ":", responseData.specPreferences)
+    end
     
     -- If using alt, modify response
     if useAlt and responseType == "opt_in" then
         local altName = generateAltName(playerName)
         responseData.selectedCharacter = altName
         responseData.altOfPlayer = playerName
+        
+        -- Generate character data for alt (simplified)
+        responseData.characterData = {
+            name = altName,
+            class = playerData.class,
+            io = playerData.io and (playerData.io - 200) or 1000,  -- Alt has lower IO
+            itemLevel = 610,
+            keystone = nil
+        }
+        
         NextKey222.Debug:Dev("organizer", "Player", playerName, "selected alt:", altName)
     end
     

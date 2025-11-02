@@ -142,6 +142,15 @@ function AutoDetection:BuildPlayerDataFromAPIs(unit, fullName)
             dataFreshness = "current"
         }
         
+        -- Generate default spec preferences based on current spec
+        -- This ensures tooltips work for auto-detected players
+        if NextKey222.OrganizerPlayerDataBuilder and
+           NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+            local specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fullName)
+            playerData.specPreferences = specPrefs
+            playerData.specDetails = specDetails
+        end
+        
         return playerData
     end, "AutoDetection:BuildPlayerDataFromAPIs")
 end

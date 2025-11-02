@@ -182,6 +182,38 @@ function DragManager:CanPlayerFillSlot(playerData, slot)
         return false
     end
 
+    -- ENHANCED: Check spec preferences for multi-role players
+    if playerData.specPreferences then
+        -- Check if player has any preference (play/fill) for this role
+        local slotRole = slot.role
+        
+        -- Normalize slot role for comparison
+        if slotRole == "DAMAGER" then
+            slotRole = "DPS"
+        end
+        
+        for role, preference in pairs(playerData.specPreferences) do
+            -- Skip "none" preferences
+            if preference ~= "none" then
+                local normalizedRole = role
+                if normalizedRole == "DAMAGER" then
+                    normalizedRole = "DPS"
+                end
+                
+                -- Match slot role
+                if normalizedRole:upper() == slotRole:upper() or
+                   normalizedRole == slotRole or
+                   (normalizedRole == "DPS" and slotRole == "DAMAGER") or
+                   (normalizedRole == "DAMAGER" and slotRole == "DPS") then
+                    return true
+                end
+            end
+        end
+        
+        return false
+    end
+    
+    -- Fallback: Use roles array (legacy behavior)
     local roles = playerData.roles or playerData.availableRoles
     if not roles then
         return false

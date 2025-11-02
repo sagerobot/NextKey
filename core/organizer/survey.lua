@@ -130,53 +130,176 @@ function ParticipantSurvey:ProcessResponse(playerID, response)
         if optedIn then
             -- Check if they selected an alt or their current character
             if response.selectedCharacter == playerID then
-                -- Current character - check if already in bench before adding
+                -- Current character - check if already exists ANYWHERE before adding
                 local playerData = self:BuildPlayerDataFromResponse(playerID, response)
                 
                 if NextKey222.RosterBoard then
-                    -- Check if player is already in bench
+                    -- CRITICAL FIX: Find card in ANY location (bench, slot, or opt-out)
                     local existingCard = NextKey222.RosterBoard:FindCardByPlayerID(playerID)
-                    if existingCard and existingCard.location == "bench" then
-                        Debug:Dev("organizer", playerID, "already in bench - skipping duplicate add")
-                    elseif NextKey222.RosterBoard.AddPlayerToBench then
-                        NextKey222.RosterBoard:AddPlayerToBench(playerData)
-                        Debug:Dev("organizer", "Added", playerID, "to bench (current character)")
+                    
+                    if existingCard then
+                        Debug:Dev("organizer", playerID, "already exists at location:", existingCard.location, "- updating spec preferences")
+                        Debug:Dev("organizer", "New spec preferences:", playerData.specPreferences)
+                        
+                        -- CRITICAL FIX: Update existing card's playerData with new spec preferences
+                        existingCard.playerData.specPreferences = playerData.specPreferences
+                        existingCard.playerData.specDetails = playerData.specDetails  -- NEW: For tooltip display
+                        existingCard.playerData.surveyResponse = playerData.surveyResponse
+                        
+                        -- DEBUG: Verify the data was copied correctly
+                        Debug:Dev("organizer", "POST-UPDATE verification for", playerID, ":")
+                        Debug:Dev("organizer", "  - existingCard.playerData.specPreferences:", existingCard.playerData.specPreferences ~= nil)
+                        Debug:Dev("organizer", "  - existingCard.playerData.specDetails:", existingCard.playerData.specDetails ~= nil)
+                        
+                        if existingCard.playerData.specDetails then
+                            Debug:Dev("organizer", "  - specDetails keys:")
+                            for role, specs in pairs(existingCard.playerData.specDetails) do
+                                Debug:Dev("organizer", "      -", role, ":", #specs, "specs")
+                            end
+                        else
+                            Debug:Error("POST-UPDATE: existingCard.playerData.specDetails is NIL after assignment!")
+                        end
+                        
+                        -- DEBUG: Log the spec preferences we're setting
+                        Debug:Dev("organizer", "Setting spec preferences for", playerID, ":")
+                        if playerData.specPreferences then
+                            for role, preference in pairs(playerData.specPreferences) do
+                                Debug:Dev("organizer", "  -", role, ":", preference)
+                            end
+                        else
+                            Debug:Dev("organizer", "  - NO SPEC PREFERENCES IN RESPONSE")
+                        end
+                        
+                        -- FIX #1: If card is in a slot, update IN PLACE (don't move to bench)
+                        if type(existingCard.location) == "table" and existingCard.location.type == "role_slot" then
+                            Debug:Dev("organizer", "Updating", playerID, "in slot with new spec preferences (staying in slot)")
+                            Debug:Dev("organizer", "Card playerData.specPreferences after update:")
+                            if existingCard.playerData.specPreferences then
+                                for role, preference in pairs(existingCard.playerData.specPreferences) do
+                                    Debug:Dev("organizer", "  -", role, ":", preference)
+                                end
+                            else
+                                Debug:Dev("organizer", "  - CARD HAS NO SPEC PREFERENCES")
+                            end
+                            -- Update the card content to show multi-role icons
+                            if NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
+                                NextKey222.PlayerCard:UpdateCardContent(existingCard, "expanded")
+                            end
+                        elseif existingCard.location == "opt_out" then
+                            Debug:Dev("organizer", "Moving", playerID, "from opt-out to bench (re-opted in)")
+                            -- Use HandleCardDrop to properly move the card
+                            local benchTarget = {type = "bench"}
+                            NextKey222.RosterBoard:HandleCardDrop(existingCard, benchTarget)
+                        else
+                            -- Already in bench - just refresh display
+                            Debug:Dev("organizer", "Updating", playerID, "in bench with new spec preferences")
+                            if NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
+                                NextKey222.PlayerCard:UpdateCardContent(existingCard, "compact")
+                            end
+                        end
+                    else
+                        -- Player doesn't exist anywhere - add to bench
+                        if NextKey222.RosterBoard.AddPlayerToBench then
+                            NextKey222.RosterBoard:AddPlayerToBench(playerData)
+                            Debug:Dev("organizer", "Added", playerID, "to bench (current character)")
+                        end
                     end
                 end
                 
             else
-                -- Alt selected
+                -- FIX #2: Alt selected - prevent duplicate cards
                 Debug:Dev("organizer", playerID, "selected alt:", response.selectedCharacter)
                 
-                -- 1. Create temporary player card for alt
-                local altPlayerData = self:BuildAltPlayerData(response)
-                if NextKey222.RosterBoard and NextKey222.RosterBoard.AddPlayerToBench then
-                    NextKey222.RosterBoard:AddPlayerToBench(altPlayerData)
-                    Debug:Dev("organizer", "Added alt to bench:", response.selectedCharacter)
-                end
-                
-                -- 2. Add main character to opt-out
-                local mainPlayerData = self:BuildPlayerDataFromResponse(playerID, response)
-                mainPlayerData.benchedForAlt = true
-                if NextKey222.RosterBoard and NextKey222.RosterBoard.AddPlayerToOptOut then
-                    NextKey222.RosterBoard:AddPlayerToOptOut(mainPlayerData)
-                    Debug:Dev("organizer", "Added main to opt-out:", playerID)
+                if NextKey222.RosterBoard then
+                    -- STEP 1: Check if alt card already exists
+                    local altPlayerData = self:BuildAltPlayerData(response)
+                    local existingAltCard = NextKey222.RosterBoard:FindCardByPlayerID(altPlayerData.id)
+                    
+                    if not existingAltCard then
+                        -- Alt doesn't exist - create it
+                        if NextKey222.RosterBoard.AddPlayerToBench then
+                            NextKey222.RosterBoard:AddPlayerToBench(altPlayerData)
+                            Debug:Dev("organizer", "Created new alt card in bench:", response.selectedCharacter)
+                        end
+                    else
+                        Debug:Dev("organizer", "Alt card already exists - updating:", altPlayerData.id)
+                        existingAltCard.playerData.specPreferences = altPlayerData.specPreferences
+                        existingAltCard.playerData.specDetails = altPlayerData.specDetails  -- NEW: For tooltip display
+                        
+                        -- DEBUG: Verify alt data copy
+                        Debug:Dev("organizer", "Alt POST-UPDATE - specDetails:", existingAltCard.playerData.specDetails ~= nil)
+                        if NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
+                            local displayMode = existingAltCard.location == "bench" and "compact" or "expanded"
+                            NextKey222.PlayerCard:UpdateCardContent(existingAltCard, displayMode)
+                        end
+                    end
+                    
+                    -- STEP 2: Handle main character - MOVE to opt-out instead of creating new card
+                    local existingMainCard = NextKey222.RosterBoard:FindCardByPlayerID(playerID)
+                    
+                    if existingMainCard then
+                        Debug:Dev("organizer", "Found existing main card at:", existingMainCard.location, "- moving to opt-out")
+                        
+                        -- Update card data
+                        local mainPlayerData = self:BuildPlayerDataFromResponse(playerID, response)
+                        mainPlayerData.benchedForAlt = true
+                        existingMainCard.playerData.benchedForAlt = true
+                        existingMainCard.playerData.surveyResponse = mainPlayerData.surveyResponse
+                        
+                        -- Move to opt-out if not already there
+                        if existingMainCard.location ~= "opt_out" then
+                            local optOutTarget = {type = "opt_out"}
+                            NextKey222.RosterBoard:HandleCardDrop(existingMainCard, optOutTarget)
+                        else
+                            Debug:Dev("organizer", "Main card already in opt-out - updating data")
+                            if NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
+                                NextKey222.PlayerCard:UpdateCardContent(existingMainCard, "opt_out")
+                            end
+                        end
+                    else
+                        -- Main card doesn't exist - create new opt-out card
+                        Debug:Dev("organizer", "Main card not found - creating new opt-out card")
+                        local mainPlayerData = self:BuildPlayerDataFromResponse(playerID, response)
+                        mainPlayerData.benchedForAlt = true
+                        if NextKey222.RosterBoard.AddPlayerToOptOut then
+                            NextKey222.RosterBoard:AddPlayerToOptOut(mainPlayerData)
+                        end
+                    end
                 end
             end
         else
-            -- Opted out - need to remove from bench first if present
+            -- Opted out - CRITICAL FIX: Check ALL locations before creating new card
             local playerData = self:BuildPlayerDataFromResponse(playerID, response)
             
-            -- Remove from bench if present
-            if NextKey222.RosterBoard and NextKey222.RosterBoard.RemovePlayerFromBench then
-                NextKey222.RosterBoard:RemovePlayerFromBench(playerID)
-                Debug:Dev("organizer", "Removed", playerID, "from bench before opt-out")
-            end
-            
-            -- Add to opt-out section
-            if NextKey222.RosterBoard and NextKey222.RosterBoard.AddPlayerToOptOut then
-                NextKey222.RosterBoard:AddPlayerToOptOut(playerData)
-                Debug:Dev("organizer", "Added", playerID, "to opt-out")
+            if NextKey222.RosterBoard then
+                -- Find existing card in ANY location (bench, slot, or already in opt-out)
+                local existingCard = NextKey222.RosterBoard:FindCardByPlayerID(playerID)
+                
+                if existingCard then
+                    Debug:Dev("organizer", playerID, "already exists at location:", existingCard.location, "- moving to opt-out")
+                    
+                    -- Update card data with survey response
+                    existingCard.playerData.surveyResponse = playerData.surveyResponse
+                    
+                    -- If already in opt-out, just update the card
+                    if existingCard.location == "opt_out" then
+                        Debug:Dev("organizer", playerID, "already in opt-out - updating data")
+                        if NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
+                            NextKey222.PlayerCard:UpdateCardContent(existingCard, "opt_out")
+                        end
+                    else
+                        -- Move from current location (bench or slot) to opt-out
+                        Debug:Dev("organizer", "Moving", playerID, "from", existingCard.location, "to opt-out")
+                        local optOutTarget = {type = "opt_out"}
+                        NextKey222.RosterBoard:HandleCardDrop(existingCard, optOutTarget)
+                    end
+                else
+                    -- Player doesn't exist anywhere - create new card in opt-out
+                    if NextKey222.RosterBoard.AddPlayerToOptOut then
+                        NextKey222.RosterBoard:AddPlayerToOptOut(playerData)
+                        Debug:Dev("organizer", "Created new opt-out card for", playerID)
+                    end
+                end
             end
         end
         
@@ -189,6 +312,26 @@ function ParticipantSurvey:BuildPlayerDataFromResponse(playerID, response)
     local profile = {}
     if NextKey222.ProfilesService and NextKey222.ProfilesService.GetOrganizerProfile then
         profile = NextKey222.ProfilesService:GetOrganizerProfile(playerID) or {}
+    end
+    
+    -- CRITICAL: Add spec preferences from poll response for multi-role display
+    if response.specPreferences then
+        profile.specPreferences = response.specPreferences
+        profile.specDetails = response.specDetails  -- NEW: Store spec-level breakdown for tooltips
+        
+        -- DEBUG: Verify specDetails structure
+        if response.specDetails then
+            Debug:Dev("organizer", "BuildPlayerDataFromResponse - specDetails for", playerID, ":")
+            for role, specs in pairs(response.specDetails) do
+                Debug:Dev("organizer", "  - Role:", role, "- Specs:", #specs)
+            end
+        else
+            Debug:Error("BuildPlayerDataFromResponse - response.specDetails is NIL for", playerID)
+        end
+        
+        Debug:Dev("organizer", "Added spec preferences to player data:", playerID, "- prefs:", response.specPreferences)
+    else
+        Debug:Error("BuildPlayerDataFromResponse - response.specPreferences is NIL for", playerID)
     end
     
     -- Enhance with survey response data
@@ -231,6 +374,10 @@ function ParticipantSurvey:BuildAltPlayerData(response)
         specName = altData.specName,
         preferences = {},
         
+        -- CRITICAL: Add spec preferences from poll response for multi-role display
+        specPreferences = response.specPreferences,
+        specDetails = response.specDetails,  -- NEW: Store spec-level breakdown for tooltips
+        
         -- Temporary flags
         isTemporary = true,
         sourceCharacter = response.selectedCharacter,
@@ -243,7 +390,7 @@ function ParticipantSurvey:BuildAltPlayerData(response)
         }
     }
     
-    Debug:Dev("organizer", "Built alt player data for", playerData.name)
+    Debug:Dev("organizer", "Built alt player data for", playerData.name, "with spec prefs:", response.specPreferences)
     
     return playerData
 end

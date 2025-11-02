@@ -1,6 +1,6 @@
 -- MARK: Module Definition
 -- Progressive Poll Window for M+ Group Organizer
--- Three-phase UI: Participation → Character Selection → Spec Selection
+-- Three-phase UI: Participation -> Character Selection -> Spec Selection
 
 local _, NextKey222 = ...
 
@@ -53,11 +53,12 @@ function SurveyDialog:ShowPhase1()
         frame:SetSize(cfg.PHASE1_WIDTH, cfg.PHASE1_HEIGHT)
         frame:SetPoint("CENTER", UIParent, "CENTER")
         frame:SetFrameStrata("FULLSCREEN_DIALOG")
-        frame:SetFrameLevel(100)
+        frame:SetFrameLevel(9999)  -- Very high level to ensure it's on top
         frame:SetToplevel(true)
         frame:SetMovable(true)
         frame:EnableMouse(true)
         frame:RegisterForDrag("LeftButton")
+        frame:Raise()  -- Explicitly raise to front
         
         -- Backdrop
         frame:SetBackdrop({
@@ -248,11 +249,12 @@ function SurveyDialog:ShowPhase2()
         frame:SetSize(cfg.PHASE2_WIDTH, windowHeight)
         frame:SetPoint("CENTER", UIParent, "CENTER")
         frame:SetFrameStrata("FULLSCREEN_DIALOG")
-        frame:SetFrameLevel(100)
+        frame:SetFrameLevel(9999)  -- Very high level to ensure it's on top
         frame:SetToplevel(true)
         frame:SetMovable(true)
         frame:EnableMouse(true)
         frame:RegisterForDrag("LeftButton")
+        frame:Raise()  -- Explicitly raise to front
         
         -- Backdrop
         frame:SetBackdrop({
@@ -437,12 +439,390 @@ function SurveyDialog:OnPhase2CardClick(charEntry)
     end, "SurveyDialog:OnPhase2CardClick")
 end
 
--- MARK: Phase 3 - Spec Selection (TODO: Next implementation)
+-- MARK: Phase 3 - Spec Selection
 function SurveyDialog:ShowPhase3(characterID)
     return NextKey222.SafeRun(function()
-        Debug:User("Phase 3 (Spec Selection) - Not yet implemented. Character:", characterID)
-        -- TODO: Implement spec selection cards
+        -- Close existing dialog
+        self:CloseDialog()
+        
+        local cfg = UIConfig.POLL_WINDOW
+        
+        -- Get character data to determine available specs
+        local charData = NextKey222.CharacterStorage:GetCharacter(characterID)
+        if not charData then
+            Debug:Error("Phase 3 - Character data not found:", characterID)
+            return
+        end
+        
+        -- Get available specializations (with spec IDs and icons)
+        local availableSpecs = NextKey222.CharacterStorage:GetAvailableSpecializations(characterID)
+        
+        Debug:Dev("organizer", "Character has", #availableSpecs, "available specializations")
+        
+        -- Calculate window height based on number of specs
+        local windowHeight = cfg.PHASE3_BASE_HEIGHT + (#availableSpecs * (cfg.PHASE3_SPEC_HEIGHT + 8))
+        windowHeight = math.min(windowHeight, 500)
+        
+        -- Create main frame
+        local frame = CreateFrame("Frame", "NextKeySurveyDialog", UIParent, "BackdropTemplate")
+        frame:SetSize(cfg.PHASE3_WIDTH, windowHeight)
+        frame:SetPoint("CENTER", UIParent, "CENTER")
+        frame:SetFrameStrata("FULLSCREEN_DIALOG")
+        frame:SetFrameLevel(9999)  -- Very high level to ensure it's on top
+        frame:SetToplevel(true)
+        frame:SetMovable(true)
+        frame:EnableMouse(true)
+        frame:RegisterForDrag("LeftButton")
+        frame:Raise()  -- Explicitly raise to front
+        
+        -- Backdrop
+        frame:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 11, right = 12, top = 12, bottom = 11 }
+        })
+        frame:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
+        frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+        
+        -- Drag functionality
+        frame:SetScript("OnDragStart", frame.StartMoving)
+        frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+        
+        -- Title
+        local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        title:SetPoint("TOP", frame, "TOP", 0, -15)
+        title:SetText("M+ Group Organizer - Spec Preferences")
+        title:SetTextColor(1, 0.82, 0)
+        
+        -- Header text
+        local header = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        header:SetPoint("TOP", frame, "TOP", 0, -45)
+        header:SetWidth(cfg.PHASE3_WIDTH - 40)
+        header:SetJustifyH("CENTER")
+        header:SetText("Select which specs you're willing to play:")
+        header:SetTextColor(1, 1, 1)
+        
+        -- Store spec preferences
+        frame.specPreferences = {}
+        
+        -- Determine current player's active spec for default state
+        local currentChar = UnitName("player") .. "-" .. GetRealmName()
+        local isCurrentChar = (characterID == currentChar)
+        local currentSpecID = nil
+        
+        if isCurrentChar and GetSpecialization then
+            currentSpecID = select(1, GetSpecializationInfo(GetSpecialization()))
+        end
+        
+        -- Create spec preference cards for each specialization
+        local yOffset = -75
+        for i, specInfo in ipairs(availableSpecs) do
+            -- Default state logic:
+            -- - Current character + current spec: "play" (green)
+            -- - Current character + other specs: "none" (grey)
+            -- - Alt character + last played spec: "play" (green)
+            -- - Alt character + other specs: "none" (grey)
+            local defaultState = "none"
+            
+            if isCurrentChar then
+                -- Current character: green for active spec only
+                if specInfo.specID == currentSpecID then
+                    defaultState = "play"
+                end
+            else
+                -- Alt character: green for last played spec
+                if charData.specName and specInfo.specName == charData.specName then
+                    defaultState = "play"
+                end
+            end
+            
+            local specCard = self:CreateSpecCard(frame, specInfo, yOffset, defaultState)
+            yOffset = yOffset - (cfg.PHASE3_SPEC_HEIGHT + 8)
+            
+            -- Store reference for data collection (keyed by specID to support multi-spec roles like Evoker)
+            frame.specPreferences[specInfo.specID] = specCard
+        end
+        
+        -- Button container at bottom
+        local buttonY = yOffset - 20
+        
+        -- Back button
+        local backButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        backButton:SetSize(80, 24)
+        backButton:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 15, 15)
+        backButton:SetText("← Back")
+        backButton:SetScript("OnClick", function()
+            -- Go back to Phase 2 (alt selection) or Phase 1 if current character
+            local currentChar = UnitName("player") .. "-" .. GetRealmName()
+            if characterID == currentChar then
+                self:ShowPhase1()
+            else
+                self:ShowPhase2()
+            end
+        end)
+        
+        -- Submit button
+        local submitButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        submitButton:SetSize(100, 24)
+        submitButton:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -15, 15)
+        submitButton:SetText("Submit")
+        submitButton:SetScript("OnClick", function()
+            self:OnPhase3SubmitClicked(frame, characterID)
+        end)
+        
+        frame:Show()
+        self.activeDialog = frame
+        self.currentPhase = 3
+        
+        Debug:Dev("organizer", "Showed Phase 3: Spec selection -", #availableSpecs, "specs for", characterID)
     end, "SurveyDialog:ShowPhase3")
+end
+
+-- MARK: Create Spec Card
+function SurveyDialog:CreateSpecCard(parent, specInfo, yOffset, defaultState)
+    local cfg = UIConfig.POLL_WINDOW
+    
+    -- Make card clickable (Button instead of Frame)
+    local card = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    card:SetSize(cfg.PHASE3_WIDTH - 40, cfg.PHASE3_SPEC_HEIGHT)
+    card:SetPoint("TOP", parent, "TOP", 0, yOffset)
+    
+    -- Backdrop
+    card:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 }
+    })
+    
+    -- Initialize state (none/play/fill)
+    card.state = defaultState or "none"
+    
+    -- Spec icon
+    local specIcon = card:CreateTexture(nil, "ARTWORK")
+    specIcon:SetSize(40, 40)
+    specIcon:SetPoint("LEFT", card, "LEFT", 10, 0)
+    
+    -- Use spec icon if available, otherwise fallback to role color
+    if specInfo.iconTexture and specInfo.iconTexture ~= "" then
+        specIcon:SetTexture(specInfo.iconTexture)
+        Debug:Dev("organizer", "Set spec icon texture:", specInfo.iconTexture, "for", specInfo.specName)
+    elseif specInfo.specID then
+        -- Try to get icon from specID using WoW API
+        local _, _, _, iconTexture = GetSpecializationInfoByID(specInfo.specID)
+        if iconTexture then
+            specIcon:SetTexture(iconTexture)
+            Debug:Dev("organizer", "Set spec icon from API for specID:", specInfo.specID)
+        else
+            -- Fallback to colored circle
+            local roleColors = {
+                Tank = {0.2, 0.5, 1.0},
+                Healer = {0.1, 0.9, 0.1},
+                DPS = {0.9, 0.1, 0.1}
+            }
+            local color = roleColors[specInfo.role] or {1, 1, 1}
+            specIcon:SetColorTexture(color[1], color[2], color[3], 0.6)
+            Debug:Dev("organizer", "Using fallback color for spec:", specInfo.specName)
+        end
+    else
+        -- Legacy fallback: use role color
+        local roleColors = {
+            Tank = {0.2, 0.5, 1.0},
+            Healer = {0.1, 0.9, 0.1},
+            DPS = {0.9, 0.1, 0.1}
+        }
+        local color = roleColors[specInfo.role] or {1, 1, 1}
+        specIcon:SetColorTexture(color[1], color[2], color[3], 0.6)
+    end
+    
+    -- Spec name label (use specName if available, otherwise role)
+    local specLabel = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    specLabel:SetPoint("LEFT", specIcon, "RIGHT", 10, 10)
+    specLabel:SetText(specInfo.specName or specInfo.role)
+    
+    -- Spec name color based on role
+    local roleColors = {
+        Tank = {0.2, 0.5, 1.0},
+        Healer = {0.1, 0.9, 0.1},
+        DPS = {0.9, 0.1, 0.1}
+    }
+    local color = roleColors[specInfo.role] or {1, 1, 1}
+    specLabel:SetTextColor(color[1], color[2], color[3])
+    
+    -- State indicator label (right side)
+    local stateLabel = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    stateLabel:SetPoint("RIGHT", card, "RIGHT", -10, 0)
+    card.stateLabel = stateLabel
+    
+    -- Function to update card visuals based on state
+    local function UpdateCardState()
+        local stateConfig = {
+            none = {
+                text = "Not Playing",
+                bgColor = {0.05, 0.05, 0.05, 0.85},
+                borderColor = {0.3, 0.3, 0.3, 0.6},
+                textColor = {0.5, 0.5, 0.5}
+            },
+            play = {
+                text = "Want to Play",
+                bgColor = {0.05, 0.3, 0.05, 0.9},
+                borderColor = {0.2, 0.9, 0.2, 1.0},
+                textColor = {0.2, 0.9, 0.2}
+            },
+            fill = {
+                text = "Will Fill",
+                bgColor = {0.3, 0.25, 0.05, 0.9},
+                borderColor = {0.9, 0.8, 0.2, 1.0},
+                textColor = {0.9, 0.8, 0.2}
+            }
+        }
+        
+        local config = stateConfig[card.state] or stateConfig.none
+        card:SetBackdropColor(config.bgColor[1], config.bgColor[2], config.bgColor[3], config.bgColor[4])
+        card:SetBackdropBorderColor(config.borderColor[1], config.borderColor[2], config.borderColor[3], config.borderColor[4])
+        stateLabel:SetText(config.text)
+        stateLabel:SetTextColor(config.textColor[1], config.textColor[2], config.textColor[3])
+    end
+    
+    -- Click handler to cycle states: none -> play -> fill -> none
+    card:SetScript("OnClick", function()
+        local oldState = card.state
+        if card.state == "none" then
+            card.state = "play"
+        elseif card.state == "play" then
+            card.state = "fill"
+        else
+            card.state = "none"
+        end
+        UpdateCardState()
+        Debug:Dev("organizer", "Spec card clicked:", specInfo.specName, "- State changed from", oldState, "to", card.state)
+    end)
+    
+    -- Hover effects
+    card:SetScript("OnEnter", function()
+        -- Brighten background on hover
+        local currentBgColor = {card:GetBackdropColor()}
+        card:SetBackdropColor(
+            math.min(currentBgColor[1] * 1.3, 1),
+            math.min(currentBgColor[2] * 1.3, 1),
+            math.min(currentBgColor[3] * 1.3, 1),
+            currentBgColor[4]
+        )
+        
+        -- Lighten border on hover (more prominent effect)
+        local currentBorderColor = {card:GetBackdropBorderColor()}
+        card:SetBackdropBorderColor(
+            math.min(currentBorderColor[1] * 1.5, 1),
+            math.min(currentBorderColor[2] * 1.5, 1),
+            math.min(currentBorderColor[3] * 1.5, 1),
+            1.0  -- Full opacity
+        )
+        
+        -- Show tooltip
+        GameTooltip:SetOwner(card, "ANCHOR_RIGHT")
+        GameTooltip:SetText(specInfo.specName or specInfo.role, 1, 1, 1)
+        GameTooltip:AddLine("Click to cycle preference", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(" ", 1, 1, 1)
+        GameTooltip:AddLine("|cff808080Not Playing|r -> |cff33ff33Want to Play|r -> |cffffff33Will Fill|r", 0.8, 0.8, 0.8)
+        GameTooltip:Show()
+    end)
+    
+    card:SetScript("OnLeave", function()
+        UpdateCardState()  -- Restore original colors
+        GameTooltip:Hide()
+    end)
+    
+    -- Initialize visuals
+    UpdateCardState()
+    
+    -- Store references
+    card.role = specInfo.role
+    card.specID = specInfo.specID
+    card.specName = specInfo.specName
+    
+    return card
+end
+
+-- MARK: Phase 3 Submit Handler
+function SurveyDialog:OnPhase3SubmitClicked(frame, characterID)
+    return NextKey222.SafeRun(function()
+        -- Collect spec preferences from card states
+        local specPreferences = {}
+        local hasAnyPreference = false
+        
+        Debug:Dev("organizer", "Collecting spec preferences from Phase 3 cards:")
+        
+        -- Priority: play > fill > none
+        local priorityMap = { play = 3, fill = 2, none = 1 }
+        
+        -- Track spec-level data for tooltip
+        local specDetails = {}
+        
+        for specID, specCard in pairs(frame.specPreferences) do
+            local cardState = specCard.state or "none"
+            
+            Debug:Dev("organizer", "  - specID", specID, "(", specCard.specName, ") card state:", cardState)
+            
+            -- Track individual spec preferences for tooltip
+            -- CRITICAL: Normalize role to uppercase for consistent keying
+            local normalizedRole = specCard.role:upper()
+            
+            if not specDetails[normalizedRole] then
+                specDetails[normalizedRole] = {}
+            end
+            table.insert(specDetails[normalizedRole], {
+                specName = specCard.specName,
+                preference = cardState
+            })
+            
+            -- Store by role with priority (highest priority wins)
+            if cardState and cardState ~= "none" then
+                local currentPriority = priorityMap[specPreferences[normalizedRole]] or 0
+                local newPriority = priorityMap[cardState] or 0
+                
+                if newPriority > currentPriority then
+                    specPreferences[normalizedRole] = cardState
+                    Debug:Dev("organizer", "    -> Setting", normalizedRole, "to", cardState, "(higher priority)")
+                end
+            end
+            
+            if specCard.state and specCard.state ~= "none" then
+                hasAnyPreference = true
+            end
+        end
+        
+        -- Store spec details for tooltip rendering
+        frame.specDetails = specDetails
+        
+        Debug:Dev("organizer", "Final spec preferences being sent:", specPreferences)
+        
+        -- Validate that at least one spec is selected
+        if not hasAnyPreference then
+            Debug:User("Please select at least one spec preference (click cards to cycle states)")
+            return
+        end
+        
+        -- Store Phase 3 data (include specDetails for tooltip rendering)
+        self.responseData.phase3 = {
+            specPreferences = specPreferences,
+            specDetails = specDetails,  -- CRITICAL: Include spec-level breakdown for tooltips
+            timestamp = GetTime()
+        }
+        
+        -- Submit final response
+        self:SubmitFinalResponse(true)
+        
+        -- Close dialog
+        self:CloseDialog()
+        
+        Debug:Dev("organizer", "Phase 3 submitted with preferences:", specPreferences)
+        
+    end, "SurveyDialog:OnPhase3SubmitClicked")
 end
 
 -- MARK: Submit Final Response
@@ -458,6 +838,7 @@ function SurveyDialog:SubmitFinalResponse(optedIn)
             response.selectedCharacter = self.responseData.phase2.selectedCharacterID
             response.characterData = self.responseData.phase2.characterData
             response.specPreferences = self.responseData.phase3.specPreferences
+            response.specDetails = self.responseData.phase3.specDetails  -- CRITICAL: Include for tooltip rendering
         end
         
         -- Check if we're the organizer

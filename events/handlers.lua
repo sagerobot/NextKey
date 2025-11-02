@@ -35,7 +35,7 @@ function Events:RegisterCoreEvents()
     end)
     
     -- PUG Helper events
-    NextKey:RegisterEvent("LFG_LIST_APPLICATION_STATUS_CHANGED", function(_, resultID, newStatus, oldStatus)
+    NextKey:RegisterEvent("LFG_LIST_APPLICATION_STATUS_UPDATED", function(_, resultID, newStatus, oldStatus)
         self:OnLFGApplicationStatusChanged(resultID, newStatus, oldStatus)
     end)
     
@@ -187,8 +187,9 @@ function Events:CaptureCurrentCharacterData(retryOnFailure)
         characterData.specName = profile.specName
         characterData.currentSpec = profile.currentSpec
         
-        -- Detect ALL available roles based on class specs (not just current spec)
+        -- Detect ALL available roles and specs based on class specs (not just current spec)
         characterData.availableRoles = {}
+        characterData.specializations = {}  -- NEW: Store full spec list for UI
         
         -- Get all specs for the current class
         local numSpecs = GetNumSpecializationsForClassID and GetNumSpecializationsForClassID(select(3, UnitClass("player"))) or GetNumSpecializations()
@@ -196,25 +197,39 @@ function Events:CaptureCurrentCharacterData(retryOnFailure)
         if numSpecs and numSpecs > 0 then
             NextKey222.Debug:Dev("events", "Character has", numSpecs, "specializations")
             
-            -- Iterate through all specs to find all available roles
+            -- Iterate through all specs to find all available roles and build spec list
             for i = 1, numSpecs do
-                local specID, specName, _, _, role = GetSpecializationInfo(i)
+                local specID, specName, _, iconTexture, role = GetSpecializationInfo(i)
                 
-                if role and role ~= "" then
-                    NextKey222.Debug:Dev("events", "Spec", i, ":", specName, "provides role:", role)
+                if role and role ~= "" and specID and specName then
+                    NextKey222.Debug:Dev("events", "Spec", i, ":", specName, "(ID:", specID, ") provides role:", role)
                     
                     -- Map Blizzard role names to our format
+                    local normalizedRole = nil
                     if role == "TANK" then
                         characterData.availableRoles.Tank = true
+                        normalizedRole = "Tank"
                     elseif role == "HEALER" then
                         characterData.availableRoles.Healer = true
+                        normalizedRole = "Healer"
                     elseif role == "DAMAGER" then
                         characterData.availableRoles.DPS = true
+                        normalizedRole = "DPS"
+                    end
+                    
+                    -- Store complete spec info for UI (NEW)
+                    if normalizedRole then
+                        table.insert(characterData.specializations, {
+                            specID = specID,
+                            specName = specName,
+                            role = normalizedRole,
+                            iconTexture = iconTexture
+                        })
                     end
                 end
             end
             
-            -- Log final detected roles
+            -- Log final detected roles and specs
             local roleList = {}
             for role, enabled in pairs(characterData.availableRoles) do
                 if enabled then
@@ -222,6 +237,7 @@ function Events:CaptureCurrentCharacterData(retryOnFailure)
                 end
             end
             NextKey222.Debug:Dev("events", "All available roles for", characterID, ":", table.concat(roleList, ", "))
+            NextKey222.Debug:Dev("events", "Captured", #characterData.specializations, "specializations")
         else
             -- Fallback: use current spec role only
             NextKey222.Debug:Dev("events", "Could not detect all specs, using current spec role only")
@@ -494,16 +510,17 @@ function Events:OnGroupInviteConfirmation(name)
     if NextKey222.PUGHelper and NextKey222.PUGHelper:IsEnabled() then
         NextKey222.Debug:User("EVENTS: PUG Helper enabled - checking for application match")
         local matchedApp = NextKey222.PUGHelper:MatchInviteToApplication(name)
-        if matchedApp then
-            NextKey222.Debug:User("EVENTS: Matched invite to application: " .. (matchedApp.name or "Unknown"))
-            NextKey222.Debug:User("EVENTS: Dungeon ID: " .. (matchedApp.dungeonID or "nil") .. ", Key Level: " .. (matchedApp.keyLevel or "nil"))
-            
-            -- Show travel window with PUG context after a short delay
-            -- This ensures the travel window appears alongside Blizzard's invite popup
-            C_Timer.After(0.5, function()
-                NextKey222.Debug:User("EVENTS: Triggering teleport window for PUG invite")
+        
+        -- CRITICAL FIX: Always show travel assistant, even if no match found
+        -- Use matched application data if available, otherwise show generic travel options
+        C_Timer.After(0.5, function()
+            if matchedApp then
+                NextKey222.Debug:User("EVENTS: Matched invite to application: " .. (matchedApp.name or "Unknown"))
+                NextKey222.Debug:User("EVENTS: Dungeon ID: " .. (matchedApp.dungeonID or "nil") .. ", Key Level: " .. (matchedApp.keyLevel or "nil"))
+                
+                NextKey222.Debug:User("EVENTS: Triggering teleport window for matched PUG invite")
                 if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
-                    -- Create fake keystone info for PUG context
+                    -- Create fake keystone info for PUG context with matched data
                     local fakeKeyInfo = {
                         dungeonID = matchedApp.dungeonID,
                         level = matchedApp.keyLevel or 0,
@@ -525,10 +542,23 @@ function Events:OnGroupInviteConfirmation(name)
                 else
                     NextKey222.Debug:Error("EVENTS: Cannot show teleport window - Addon or ToggleTeleportWindow not available")
                 end
-            end)
-        else
-            NextKey222.Debug:User("EVENTS: Invite has no matching application: " .. name)
-        end
+            else
+                -- FALLBACK: Show generic travel window even without matched application
+                NextKey222.Debug:User("EVENTS: No matching application for invite from " .. name .. " - showing generic travel window")
+                
+                if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
+                    -- Set PUG context without specific dungeon (shows all travel options)
+                    NextKey222.Debug:User("EVENTS: Setting generic PUG mode context for teleport window")
+                    NextKey222.Addon:SetTeleportWindowContext({ mode = "PUG" })
+                    
+                    NextKey222.Addon:ToggleTeleportWindow()
+                    
+                    NextKey222.Debug:User("EVENTS: Generic travel window shown for unmatched PUG invite from: " .. name)
+                else
+                    NextKey222.Debug:Error("EVENTS: Cannot show teleport window - Addon or ToggleTeleportWindow not available")
+                end
+            end
+        end)
     else
         NextKey222.Debug:User("EVENTS: PUG Helper not enabled - skipping auto travel window")
     end

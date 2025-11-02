@@ -75,6 +75,8 @@ core\organizer\playerDataBuilder.lua
 core\organizer\validation.lua
 core\organizer\comms.lua
 core\organizer\survey.lua
+core\organizer\sorting.lua
+core\organizer\animationQueue.lua
 
 # Organizer UI Components - Survey Dialog
 ui\organizer\surveyDialog.lua
@@ -105,6 +107,7 @@ debug\card_layout_test.lua
 debug\pugPerformanceTest.lua
 debug\organizer_survey_tests.lua
 debug\pollSimulator.lua
+debug\spec_change_test.lua
 
 # UI Components
 ui\main.lua

@@ -10,16 +10,181 @@ NextKey222.OrganizerPlayerDataBuilder = PlayerDataBuilder
 -- Register with module system (MANDATORY)
 NextKey222.RegisterModule("OrganizerPlayerDataBuilder", PlayerDataBuilder)
 
+-- CRITICAL: Get Debug reference (was missing, causing crash on line 30)
+local Debug = NextKey222.Debug
+print("[TEMP DEBUG] NextKey222.Debug exists:", NextKey222.Debug ~= nil)
+
 -- MARK: Private Implementation
 
 -- Data source priority order
 local DATA_SOURCE_PRIORITY = {
     "addon",        -- Survey responses from addon users
-    "auto-detected", -- API data for non-addon users  
+    "auto-detected", -- API data for non-addon users
     "temporary"      -- Alt character data from character storage
 }
 
 -- MARK: Public Interface
+
+--- Generate default spec preferences based on player's current spec
+-- Used for players who haven't responded to a poll yet
+-- @param playerID string Player name in format "Name-Realm"
+-- @return table, table specPreferences and specDetails tables
+function PlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
+    return NextKey222.SafeRun(function()
+        print("[TRACE 1] GenerateDefaultSpecPreferences START for:", playerID)
+        Debug:Dev("organizer", "=== GenerateDefaultSpecPreferences called for:", playerID)
+        
+        print("[TRACE 2] About to create empty tables")
+        local specPreferences = {}
+        local specDetails = {}
+        print("[TRACE 3] Empty tables created successfully")
+        
+        -- ALWAYS use WoW API to get ALL specs for player's class
+        -- CharacterStorage may not have fake players, so skip it entirely
+        print("[TRACE 4] About to create availableSpecs table")
+        local availableSpecs = {}
+        
+        print("[TRACE 5] About to call GetProfile for:", playerID)
+        local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(playerID)
+        print("[TRACE 6] GetProfile returned, profile exists:", profile ~= nil)
+        if profile and profile.class then
+            print("[TRACE 7] Profile has class:", profile.class)
+            Debug:Dev("organizer", "Got profile for", playerID, "- class:", profile.class)
+                
+  -- Get class ID for API call
+  print("[TRACE 8] About to call GetNumClasses()")
+  local numClasses = GetNumClasses()
+  print("[TRACE 9] GetNumClasses() returned:", numClasses)
+  
+  local classID = nil
+  for i = 1, numClasses do
+   print("[TRACE 10] Loop iteration:", i)
+   local className, classToken = GetClassInfo(i)
+   print("[TRACE 11] GetClassInfo returned:", className, classToken)
+        			if classToken == profile.class then
+        				classID = i
+        				print("[TRACE 12] Found matching class! classID:", classID)
+        			                      Debug:Dev("organizer", "Found classID:", classID, "for", profile.class)
+        				break
+        			  end
+        			  end
+        			
+        		print("[TRACE 13] Loop complete. classID:", classID)
+        			  	
+        			  if classID then
+        			  	print("[TRACE 14] classID exists, about to call GetNumSpecializationsForClassID")
+        			  	-- Query ALL specializations for this class
+        			  	print("[TRACE 15] Calling GetNumSpecializationsForClassID with classID:", classID)
+        			  	local numSpecs = GetNumSpecializationsForClassID(classID)
+        			  	print("[TRACE 16] GetNumSpecializationsForClassID returned:", numSpecs)
+        			      Debug:Dev("organizer", "Class has", numSpecs, "specializations")
+        			      
+        			   print("[TRACE 17] About to start specs loop, numSpecs:", numSpecs)
+        			   for i = 1, numSpecs do
+        			    print("[TRACE 18] Specs loop iteration:", i)
+        			    local specID, specName, _, iconTexture, role = GetSpecializationInfoForClassID(classID, i)
+        			    print("[TRACE 19] GetSpecializationInfoForClassID returned:", specID, specName, role)
+        			    if specID then
+        			  			table.insert(availableSpecs, {
+        			  				specID = specID,
+        			  				specName = specName,
+        			  				role = role,
+        			  				iconTexture = iconTexture
+        			  			})
+        			  			
+        			  			Debug:Dev("organizer", "Found spec via WoW API:", specName, "role:", role, "for", playerID)
+        			  		end
+        			  	end
+        			  else
+        			      Debug:Error("Could not find classID for class:", profile.class)
+        			  end
+        	else
+        			  Debug:Error("No profile found for:", playerID)
+        	end
+        
+        -- Get player's current role to identify primary spec
+        local currentRole = nil
+        local profileForRole = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(playerID)
+        if profileForRole then
+            currentRole = profileForRole.role
+            Debug:Dev("organizer", "Player", playerID, "current role:", currentRole)
+        end
+        
+        -- Generate preferences: current spec = "play", others = "none"
+        -- Use priority mapping to handle multiple specs per role
+        local priorityMap = { play = 3, fill = 2, none = 1 }
+        
+        for _, specInfo in ipairs(availableSpecs) do
+            local preference = "none"
+            
+            -- CRITICAL: Normalize role to uppercase for consistent keying
+            local normalizedRole = specInfo.role and specInfo.role:upper() or "DAMAGER"
+            local normalizedCurrentRole = currentRole and currentRole:upper() or "DAMAGER"
+            
+            -- If this spec matches the player's current role, mark as "play"
+            if normalizedRole == normalizedCurrentRole then
+                preference = "play"
+                Debug:Dev("organizer", "Marking", specInfo.specName, "as 'play' for", playerID)
+            end
+            
+            -- Track spec details for tooltips (ALWAYS use uppercase keys)
+            if not specDetails[normalizedRole] then
+                specDetails[normalizedRole] = {}
+            end
+            table.insert(specDetails[normalizedRole], {
+                specName = specInfo.specName,
+                preference = preference
+            })
+            
+            -- Store by role with priority (highest priority wins)
+            if preference ~= "none" then
+                local currentPriority = priorityMap[specPreferences[normalizedRole]] or 0
+                local newPriority = priorityMap[preference] or 0
+                
+                if newPriority > currentPriority then
+                    specPreferences[normalizedRole] = preference
+                end
+            end
+        end
+        
+        print("[TRACE 20] About to call Debug:Dev for summary")
+        Debug:Dev("organizer", "Generated spec preferences for", playerID, ":",
+                  "specPrefs has data:", next(specPreferences) ~= nil,
+                  "specDetails has data:", next(specDetails) ~= nil)
+        
+        print("[TRACE 21] About to check if specDetails has data")
+        -- Log the actual contents for debugging
+        if next(specDetails) then
+            print("[TRACE 22] specDetails has data, about to iterate")
+            for role, specs in pairs(specDetails) do
+                print("[TRACE 23] Role:", role, "has", #specs, "specs")
+                Debug:Dev("organizer", "  Role", role, "has", #specs, "specs")
+            end
+            print("[TRACE 24] Finished iterating specDetails")
+        else
+            print("[TRACE 25] specDetails is EMPTY!")
+            Debug:Error("specDetails is EMPTY for", playerID)
+        end
+        
+        print("[TRACE 26] About to return specPreferences and specDetails")
+        print("[TRACE 27] specPreferences contents:", specPreferences and "EXISTS" or "NIL")
+        if specPreferences then
+            for k, v in pairs(specPreferences) do
+                print("[TRACE 28] specPreferences[" .. tostring(k) .. "] =", tostring(v))
+            end
+        end
+        print("[TRACE 29] specDetails contents:", specDetails and "EXISTS" or "NIL")
+        if specDetails then
+            for k, v in pairs(specDetails) do
+                print("[TRACE 30] specDetails[" .. tostring(k) .. "] = table with", #v, "specs")
+            end
+        end
+        print("[TRACE 31] RETURNING NOW")
+        local returnVal1, returnVal2 = specPreferences, specDetails
+        print("[TRACE 32] returnVal1 type:", type(returnVal1), "returnVal2 type:", type(returnVal2))
+        return returnVal1, returnVal2
+    end, "PlayerDataBuilder:GenerateDefaultSpecPreferences")
+end
 
 --- Initialize Player Data Builder module
 -- @return boolean True if initialization successful
@@ -175,9 +340,11 @@ end
 -- @return table Assembled player object
 function PlayerDataBuilder:AssemblePlayerObject(profile, preferences, roles, keystone, source)
     return NextKey222.SafeRun(function()
+        local playerID = profile.name .. "-" .. (profile.realm or GetRealmName())
+        
         local playerData = {
             -- Basic Info
-            id = profile.name .. "-" .. (profile.realm or GetRealmName()),
+            id = playerID,
             name = profile.name,
             realm = profile.realm or GetRealmName(),
             class = profile.class,
@@ -207,6 +374,15 @@ function PlayerDataBuilder:AssemblePlayerObject(profile, preferences, roles, key
             hasAddon = (source == "addon"),
             dataFreshness = "current"
         }
+        
+        -- Generate default spec preferences if not already set (no poll response yet)
+        if not playerData.specPreferences or next(playerData.specPreferences) == nil then
+            local defaultSpecPrefs, defaultSpecDetails = self:GenerateDefaultSpecPreferences(playerID)
+            playerData.specPreferences = defaultSpecPrefs
+            playerData.specDetails = defaultSpecDetails
+            
+            Debug:Dev("organizer", "Added default spec preferences for", playerID)
+        end
         
         -- Validate the assembled object
         local isValid, errors = NextKey222.PlayerTypes.ValidatePlayerObject(playerData)

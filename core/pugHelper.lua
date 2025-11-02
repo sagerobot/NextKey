@@ -245,6 +245,38 @@ function PUGHelper:HandleInviteTimeout()
     self:TransitionToState(self.STATE.TRACKING, "invite_timeout")
 end
 
+-- MARK: Helper Methods
+
+-- Get dungeon information for a given dungeon ID
+function PUGHelper:GetDungeonInfo(dungeonID)
+    if not dungeonID then
+        return nil
+    end
+    
+    -- Try to get dungeon name from DungeonNameService
+    local dungeonName = nil
+    if NextKey222.DungeonNameService and NextKey222.DungeonNameService.GetDungeonName then
+        dungeonName = NextKey222.DungeonNameService:GetDungeonName(dungeonID)
+    end
+    
+    -- Fallback to portal data if available
+    if not dungeonName and NextKey222.PortalData then
+        local activeSeason = NextKey222.PortalData.activeSeasonKey
+        if activeSeason and NextKey222.PortalData[activeSeason] then
+            local dungeons = NextKey222.PortalData[activeSeason].dungeons
+            if dungeons and dungeons[dungeonID] then
+                dungeonName = dungeons[dungeonID].name
+            end
+        end
+    end
+    
+    -- Return dungeon info structure
+    return {
+        id = dungeonID,
+        name = dungeonName or "Unknown Dungeon"
+    }
+end
+
 -- MARK: Cleanup
 
 function PUGHelper:Cleanup()

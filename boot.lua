@@ -85,15 +85,27 @@ function NextKey.SafeRun(func, executionName, ...)
         return false
     end
     
-    local runToCompletion, result = pcall(func, ...)
+    -- Capture ALL return values from pcall
+    local results = {pcall(func, ...)}
+    local runToCompletion = table.remove(results, 1)  -- Extract success flag
+    
     if not runToCompletion then
-        -- Use debug system if available
+        -- results[1] now contains the error message
         if NextKey222.Debug then
-            NextKey222.Debug:Error("SafeRun failed:", executionName or "unknown", "-", result)
+            NextKey222.Debug:Error("SafeRun failed:", executionName or "unknown", "-", results[1])
         end
         return false
     end
-    return result ~= false and result or true
+    
+    -- BACKWARD COMPATIBILITY: If only one result, return it directly (old behavior)
+    -- If multiple results, return (true, result1, result2, ...) (new behavior)
+    if #results == 0 then
+        return true  -- Function returned nothing
+    elseif #results == 1 then
+        return results[1]  -- Backward compatible - single return value
+    else
+        return true, unpack(results)  -- Multiple return values - include success flag
+    end
 end
 
 -- Expose SafeRun through NextKey222 namespace as well

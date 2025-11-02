@@ -168,6 +168,38 @@ function CharacterStorage:GetAvailableRoles(characterID)
     end, "CharacterStorage:GetAvailableRoles")
 end
 
+--- Get character specializations with full spec data (ID, Name, Role, Icon)
+-- @param characterID string Character name in format "Name-Realm"
+-- @return table Array of specialization tables {specID, specName, role, iconTexture}
+function CharacterStorage:GetAvailableSpecializations(characterID)
+    return NextKey222.SafeRun(function()
+        local character = self:GetCharacter(characterID)
+        if not character then return {} end
+        
+        -- Return stored specialization data if available
+        if character.specializations and #character.specializations > 0 then
+            return character.specializations
+        end
+        
+        -- Fallback: derive from availableRoles (legacy compatibility)
+        local specs = {}
+        if character.availableRoles then
+            for role, available in pairs(character.availableRoles) do
+                if available then
+                    table.insert(specs, {
+                        specID = nil,  -- Not available in legacy data
+                        specName = role,  -- Use role name as fallback
+                        role = role,
+                        iconTexture = nil  -- Not available in legacy data
+                    })
+                end
+            end
+        end
+        
+        return specs
+    end, "CharacterStorage:GetAvailableSpecializations")
+end
+
 --- Check if keystone data is stale (expired after Tuesday reset)
 -- @param characterID string Character name in format "Name-Realm"
 -- @return boolean True if keystone data is stale
@@ -302,23 +334,25 @@ end
 -- @return table List of default roles for class
 function CharacterStorage:GetClassRoles(class)
     return NextKey222.SafeRun(function()
+        -- CRITICAL: Use WoW API role constants (TANK, HEALER, DAMAGER)
+        -- These MUST match what ProfilesService returns from GetSpecializationInfo
         local classRoles = {
-            WARRIOR = {"Tank", "DPS"},
-            PALADIN = {"Tank", "Healer", "DPS"},
-            HUNTER = {"DPS"},
-            ROGUE = {"DPS"},
-            PRIEST = {"Healer", "DPS"},
-            DEATHKNIGHT = {"Tank", "DPS"},
-            SHAMAN = {"Healer", "DPS"},
-            MAGE = {"DPS"},
-            WARLOCK = {"DPS"},
-            MONK = {"Tank", "Healer", "DPS"},
-            DRUID = {"Tank", "Healer", "DPS"},
-            DEMONHUNTER = {"Tank", "DPS"},
-            EVOKER = {"Healer", "DPS"}
+            WARRIOR = {"TANK", "DAMAGER"},
+            PALADIN = {"TANK", "HEALER", "DAMAGER"},
+            HUNTER = {"DAMAGER"},
+            ROGUE = {"DAMAGER"},
+            PRIEST = {"HEALER", "DAMAGER"},
+            DEATHKNIGHT = {"TANK", "DAMAGER"},
+            SHAMAN = {"HEALER", "DAMAGER"},
+            MAGE = {"DAMAGER"},
+            WARLOCK = {"DAMAGER"},
+            MONK = {"TANK", "HEALER", "DAMAGER"},
+            DRUID = {"TANK", "HEALER", "DAMAGER"},
+            DEMONHUNTER = {"TANK", "DAMAGER"},
+            EVOKER = {"HEALER", "DAMAGER"}
         }
         
-        return classRoles[class] or {"DPS"}
+        return classRoles[class] or {"DAMAGER"}
     end, "CharacterStorage:GetClassRoles")
 end
 

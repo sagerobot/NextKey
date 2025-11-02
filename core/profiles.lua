@@ -455,16 +455,27 @@ function ProfilesService:MergeProfileData(target, source)
         end
     end
 
-    if source.role and not target.role then
-        target.role = source.role
+    -- CRITICAL: Blizzard adapter provides real-time spec data
+    -- If source is from Blizzard adapter, ALWAYS override spec-related fields
+    -- This ensures spec changes are detected immediately
+    local isBlizzardData = source.dataSource == "blizzard"
+    
+    if source.role then
+        if isBlizzardData or not target.role then
+            target.role = source.role
+        end
     end
 
-    if source.specID and not target.specID then
-        target.specID = source.specID
+    if source.specID then
+        if isBlizzardData or not target.specID then
+            target.specID = source.specID
+        end
     end
 
-    if source.specName and not target.specName then
-        target.specName = source.specName
+    if source.specName then
+        if isBlizzardData or not target.specName then
+            target.specName = source.specName
+        end
     end
 
     if source.capabilities then

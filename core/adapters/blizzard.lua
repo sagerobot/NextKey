@@ -25,26 +25,43 @@ function BlizzardAdapter:GetProfile(playerName)
     local currentRealm = GetRealmName()
     local currentFullName = currentPlayerName .. "-" .. currentRealm
     
-    if playerName ~= currentFullName and playerName ~= currentPlayerName then
-        -- Blizzard APIs don't provide data for other players in most cases
-        return nil
-    end
+    local isCurrentPlayer = (playerName == currentFullName or playerName == currentPlayerName)
     
-    -- Build profile for current player
-    local currentSpec = GetSpecialization() or 0
-    local specID = GetSpecializationInfo and select(1, GetSpecializationInfo(currentSpec))
-
-    -- Debug logging for current player spec detection
-    if NextKey222.Debug then
-        local specName = GetSpecializationInfo and select(2, GetSpecializationInfo(currentSpec)) or "Unknown"
-        local role = GetSpecializationInfo and select(5, GetSpecializationInfo(currentSpec)) or "Unknown"
-        NextKey222.Debug:Dev("blizzard_adapter", string.format("Current Player Debug: playerName=%s, currentSpec=%d, specID=%d, specName=%s, role=%s",
-            playerName, currentSpec, specID or 0, specName, role))
+    -- Try to get spec data for group members
+    local specID, className
+    if isCurrentPlayer then
+        -- Current player: use GetSpecialization
+        local currentSpec = GetSpecialization() or 0
+        specID = GetSpecializationInfo and select(1, GetSpecializationInfo(currentSpec))
+        className = select(2, UnitClass("player"))
+        
+        -- Debug logging for current player spec detection
+        if NextKey222.Debug then
+            local specName = GetSpecializationInfo and select(2, GetSpecializationInfo(currentSpec)) or "Unknown"
+            local role = GetSpecializationInfo and select(5, GetSpecializationInfo(currentSpec)) or "Unknown"
+            NextKey222.Debug:Dev("blizzard_adapter", string.format("Current Player Debug: playerName=%s, currentSpec=%d, specID=%d, specName=%s, role=%s",
+                playerName, currentSpec, specID or 0, specName, role))
+        end
+    else
+        -- Group member: try to find unit ID and get spec
+        local unitID = self:FindUnitIDForPlayer(playerName)
+        if unitID then
+            specID = GetInspectSpecialization(unitID)
+            className = select(2, UnitClass(unitID))
+            
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("blizzard_adapter", string.format("Group Member Debug: playerName=%s, unitID=%s, specID=%s, class=%s",
+                    playerName, unitID, tostring(specID), tostring(className)))
+            end
+        else
+            -- Can't find unit ID, return nil for non-current player
+            return nil
+        end
     end
     
     local profile = {
         name = playerName,
-        class = select(2, UnitClass("player")),
+        class = className,
         specID = specID,
         io = 0, -- Will be calculated from dungeon scores
         dataSource = "blizzard",
@@ -52,8 +69,10 @@ function BlizzardAdapter:GetProfile(playerName)
         addonStatus = { nextkey = true, raiderio = false }
     }
     
-    -- Get mythic plus data
-    self:LoadMythicPlusData(profile)
+    -- Only load M+ data for current player (Blizzard APIs don't provide this for others)
+    if isCurrentPlayer then
+        self:LoadMythicPlusData(profile)
+    end
     
     return profile
 end
@@ -206,14 +225,49 @@ function BlizzardAdapter:GetGroupMembers()
     return members
 end
 
+-- MARK: Unit ID Lookup
+function BlizzardAdapter:FindUnitIDForPlayer(playerName)
+    -- Try to find the unit ID for a player name (for group members)
+    local shortName = playerName:match("^([^%-]+)") or playerName
+    
+    -- Check party members
+    if IsInGroup() then
+        for i = 1, GetNumSubgroupMembers() do
+            local unit = "party" .. i
+            local name = UnitName(unit)
+            if name == shortName or name == playerName then
+                return unit
+            end
+        end
+    end
+    
+    -- Check raid members
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local unit = "raid" .. i
+            local name = UnitName(unit)
+            if name == shortName or name == playerName then
+                return unit
+            end
+        end
+    end
+    
+    return nil
+end
+
 -- MARK: Player Detection
 function BlizzardAdapter:HasPlayerData(playerName)
-    -- Only has data for current player
+    -- Has data for current player
     local currentPlayerName = UnitName("player")
     local currentRealm = GetRealmName()
     local currentFullName = currentPlayerName .. "-" .. currentRealm
     
-    return playerName == currentFullName or playerName == currentPlayerName
+    if playerName == currentFullName or playerName == currentPlayerName then
+        return true
+    end
+    
+    -- Also has basic spec data for group members
+    return self:FindUnitIDForPlayer(playerName) ~= nil
 end
 
 -- MARK: Season Information

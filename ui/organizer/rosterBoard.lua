@@ -361,34 +361,73 @@ function RosterBoard:GetBenchPlayers()
     local allPlayers = {}
     local seenPlayers = {}  -- Track which players we've already added
     
-    -- Add fake players (normalize format to match expected structure)
+    -- STEP 1: Preserve existing bench cards with poll response data (CRITICAL FIX)
+    -- This prevents poll responses (specPreferences, surveyResponse) from being lost
+    if self.benchCards then
+        Debug:Dev("organizer_ui", "Preserving", #self.benchCards, "existing bench cards with poll data")
+        for _, card in ipairs(self.benchCards) do
+            if card.playerData then
+                table.insert(allPlayers, card.playerData)  -- Reuse existing data
+                seenPlayers[card.playerData.id] = true
+                Debug:Dev("organizer_ui", "Preserved player data for:", card.playerData.id,
+                         "- has specPreferences:", card.playerData.specPreferences ~= nil,
+                         "- has specDetails:", card.playerData.specDetails ~= nil)
+            end
+        end
+    end
+    
+    -- STEP 2: Add NEW fake players not already in bench
     if NextKey222.FakePlayerService then
         local fakePlayers = NextKey222.FakePlayerService:GetAllPlayers()
         if fakePlayers then
             Debug:Dev("organizer_ui", "Found", #fakePlayers, "fake players")
             for _, fakeData in ipairs(fakePlayers) do
-                -- Convert fake player format to expected card format
-                local playerData = {
-                    id = fakeData.name,  -- Use full name with realm as ID
-                    name = fakeData.name:match("^([^%-]+)") or fakeData.name,  -- Short name
-                    class = fakeData.class,
-                    roles = {fakeData.role or "DAMAGER"},  -- Convert string to array
-                    keystone = fakeData.keystone,
-                    overallScore = fakeData.io or 0,  -- Rename io -> overallScore
-                    specName = fakeData.specName,  -- Preserve spec name
-                    utilities = {}
-                }
-                
-                -- Add utilities based on capabilities
-                if fakeData.heroismCaster then
-                    table.insert(playerData.utilities, "heroism")
+                -- Skip if already preserved from bench
+                if seenPlayers[fakeData.name] then
+                    Debug:Dev("organizer_ui", "Skipping", fakeData.name, "- already preserved from bench")
+                else
+                    -- Convert fake player format to expected card format
+                    local playerData = {
+                        id = fakeData.name,  -- Use full name with realm as ID
+                        name = fakeData.name:match("^([^%-]+)") or fakeData.name,  -- Short name
+                        class = fakeData.class,
+                        roles = {fakeData.role or "DAMAGER"},  -- Convert string to array
+                        keystone = fakeData.keystone,
+                        overallScore = fakeData.io or 0,  -- Rename io -> overallScore
+                        specName = fakeData.specName,  -- Preserve spec name
+                        utilities = {}
+                    }
+                    
+                    -- Add utilities based on capabilities
+                    if fakeData.heroismCaster then
+                        table.insert(playerData.utilities, "heroism")
+                    end
+                    if fakeData.battleResCaster then
+                        table.insert(playerData.utilities, "battleRes")
+                    end
+                    
+                    -- CRITICAL FIX: Generate default spec preferences for fake players
+                    -- This ensures tooltips work correctly before poll is sent
+                    if NextKey222.OrganizerPlayerDataBuilder and
+                       NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+                        -- CRITICAL: Capture success flag from SafeRun wrapper
+                        local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fakeData.name)
+                        
+                        if success and specPrefs then
+                            playerData.specPreferences = specPrefs
+                            playerData.specDetails = specDetails
+                            
+                            Debug:Dev("organizer_ui", "Generated default spec preferences for fake player:", fakeData.name,
+                                     "- has specPreferences:", specPrefs ~= nil,
+                                     "- has specDetails:", specDetails ~= nil)
+                        else
+                            Debug:Error("Failed to generate default spec preferences for fake player:", fakeData.name)
+                        end
+                    end
+                    
+                    table.insert(allPlayers, playerData)
+                    seenPlayers[fakeData.name] = true  -- Mark as seen
                 end
-                if fakeData.battleResCaster then
-                    table.insert(playerData.utilities, "battleRes")
-                end
-                
-                table.insert(allPlayers, playerData)
-                seenPlayers[fakeData.name] = true  -- Mark as seen
             end
         end
     end
@@ -435,6 +474,25 @@ function RosterBoard:GetBenchPlayers()
                         end
                     end
                     
+                    -- CRITICAL FIX: Generate default spec preferences for real players too
+                    -- This ensures tooltips work correctly before poll is sent
+                    if NextKey222.OrganizerPlayerDataBuilder and
+                       NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+                        -- CRITICAL: Capture success flag from SafeRun wrapper (same as fake players)
+                        local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(memberName)
+                        
+                        if success and specPrefs then
+                            playerData.specPreferences = specPrefs
+                            playerData.specDetails = specDetails
+                            
+                            Debug:Dev("organizer_ui", "Generated default spec preferences for real player:", memberName,
+                                     "- has specPreferences:", specPrefs ~= nil,
+                                     "- has specDetails:", specDetails ~= nil)
+                        else
+                            Debug:Error("Failed to generate default spec preferences for real player:", memberName)
+                        end
+                    end
+                    
                     Debug:Dev("organizer_ui", "Created player data for", memberName, "with current spec role:", profile.role, "specName:", profile.specName)
                     
                     table.insert(allPlayers, playerData)
@@ -449,11 +507,16 @@ function RosterBoard:GetBenchPlayers()
 end
 
 function RosterBoard:GetGroupedPlayers()
-    local result = NextKey222.SafeRun(function()
+    local success, result = NextKey222.SafeRun(function()
         return {}
     end, "RosterBoard:GetGroupedPlayers")
     
-    return result or {}
+    -- SafeRun now returns (success, result), so handle properly
+    if success then
+        return result
+    else
+        return {}
+    end
 end
 
 -- MARK: Data Population
@@ -506,6 +569,36 @@ function RosterBoard:CreateHeaderSection(nativeParent)
     pollButton.frame:Show()
     self.pollButton = pollButton
     self.headerWidgets.pollButton = pollButton
+    xOffset = xOffset + buttonWidth + 5
+    
+    -- Add Fake Raid Button (debug only - next to Poll button)
+    if NextKey222.FakePlayerService and NextKey222.FakePlayerService:IsEnabled() then
+        local fakeRaidButton = AceGUI:Create("Button")
+        fakeRaidButton:SetText("Add Raid")
+        fakeRaidButton:SetWidth(buttonWidth)
+        fakeRaidButton:SetCallback("OnClick", function()
+            self:OnAddFakeRaidClicked()
+        end)
+        fakeRaidButton.frame:SetParent(headerContainer)
+        fakeRaidButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
+        fakeRaidButton.frame:Show()
+        self.fakeRaidButton = fakeRaidButton
+        self.headerWidgets.fakeRaidButton = fakeRaidButton
+        xOffset = xOffset + buttonWidth + 5
+    end
+    
+    -- Sort Button (organizer only)
+    local sortButton = AceGUI:Create("Button")
+    sortButton:SetText("Sort")
+    sortButton:SetWidth(buttonWidth)
+    sortButton:SetCallback("OnClick", function()
+        self:OnSortClicked()
+    end)
+    sortButton.frame:SetParent(headerContainer)
+    sortButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
+    sortButton.frame:Show()
+    self.sortButton = sortButton
+    self.headerWidgets.sortButton = sortButton
     xOffset = xOffset + buttonWidth + 5
     
     -- Announce Button (always visible)
@@ -787,6 +880,40 @@ function RosterBoard:CompletePoll()
     self.activePoll = nil
 end
 
+function RosterBoard:OnAddFakeRaidClicked()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "Add Fake Raid button clicked")
+        
+        if not NextKey222.FakePlayerService then
+            Debug:Error("FakePlayerService not available")
+            return
+        end
+        
+        -- Generate the raid team
+        local count = NextKey222.FakePlayerService:GenerateRaidTeam()
+        
+        if count > 0 then
+            Debug:User("Created " .. count .. "-player raid team + you (20 total)")
+            
+            -- Close and recreate the window to rebuild with correct number of groups
+            if self.mainFrame then
+                local wasVisible = self.mainFrame:IsVisible()
+                self:OnMainFrameClosed(self.mainFrame)
+                
+                if wasVisible then
+                    -- Small delay to ensure cleanup is complete
+                    C_Timer.After(0.1, function()
+                        self:CreateMainFrame()
+                    end)
+                end
+            end
+        else
+            Debug:Error("Failed to create raid team")
+        end
+        
+    end, "RosterBoard:OnAddFakeRaidClicked")
+end
+
 function RosterBoard:OnOptimizeClicked()
     Debug:Dev("organizer_ui", "Optimize clicked with mode:", self.selectedOptimizerMode)
     Debug:User("Optimizer algorithms will be implemented in Phase 4")
@@ -795,6 +922,118 @@ end
 function RosterBoard:OnAnnounceClicked()
     Debug:Dev("organizer_ui", "Announce clicked")
     Debug:User("Announcement system will be implemented in Phase 5")
+end
+
+-- MARK: Sorting Orchestrator
+function RosterBoard:OnSortClicked()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer", "Sort button clicked - starting sequential sort")
+        
+        -- Validate we have players and groups
+        if not self.benchCards or #self.benchCards == 0 then
+            Debug:User("No players on bench to sort")
+            return
+        end
+        
+        if not self.groupSlots or #self.groupSlots == 0 then
+            Debug:User("No groups available for sorting")
+            return
+        end
+        
+        -- Disable sort button during execution
+        if self.sortButton then
+            self.sortButton:SetDisabled(true)
+            self.sortButton:SetText("Sorting...")
+        end
+        
+        -- Get bench players
+        local benchPlayers = {}
+        for _, card in ipairs(self.benchCards) do
+            if card.playerData then
+                table.insert(benchPlayers, card.playerData)
+            end
+        end
+        
+        -- Calculate assignment plan
+        local numGroups = #self.groupSlots
+        local assignmentPlan = NextKey222.OrganizerSorting:CalculateSequentialAssignment(
+            benchPlayers,
+            numGroups
+        )
+        
+        if not assignmentPlan or #assignmentPlan == 0 then
+            Debug:Error("Failed to generate assignment plan")
+            self:ResetSortButton()
+            return
+        end
+        
+        Debug:Dev("organizer", "Generated", #assignmentPlan, "assignments - building animation queue")
+        
+        -- Clear animation queue first
+        NextKey222.AnimationQueue:Clear()
+        
+        -- Build animation queue
+        local validAssignments = 0
+        for _, assignment in ipairs(assignmentPlan) do
+            local card = self:FindCardByPlayerID(assignment.player.id)
+            local targetSlot = self.groupSlots[assignment.groupIndex] and
+                              self.groupSlots[assignment.groupIndex][assignment.slotIndex]
+            
+            if card and targetSlot then
+                -- Check if slot is empty
+                if targetSlot.isEmpty then
+                    NextKey222.AnimationQueue:Enqueue({
+                        card = card,
+                        targetSlot = targetSlot,
+                        player = assignment.player
+                    })
+                    validAssignments = validAssignments + 1
+                else
+                    Debug:Dev("organizer", "Skipping assignment - slot occupied:",
+                        assignment.groupIndex, assignment.slotIndex)
+                end
+            else
+                Debug:Error("Failed to find card or slot for assignment:",
+                    assignment.player.id, assignment.groupIndex, assignment.slotIndex)
+            end
+        end
+        
+        if validAssignments == 0 then
+            Debug:User("No valid assignments available - all slots may be occupied")
+            self:ResetSortButton()
+            return
+        end
+        
+        -- Set completion callback
+        NextKey222.AnimationQueue.onQueueComplete = function()
+            self:OnSortComplete()
+        end
+        
+        -- Store total for progress tracking
+        NextKey222.AnimationQueue.totalTasks = validAssignments
+        
+        Debug:User("Starting sort animation for", validAssignments, "players")
+        
+    end, "RosterBoard:OnSortClicked")
+end
+
+function RosterBoard:OnSortComplete()
+    Debug:Dev("organizer", "Sort animation sequence completed")
+    
+    -- Re-enable sort button
+    self:ResetSortButton()
+    
+    -- Refresh layout
+    self:LayoutBench()
+    
+    Debug:User("Sorting complete!")
+end
+
+function RosterBoard:ResetSortButton()
+    if self.sortButton then
+        self.sortButton:SetDisabled(false)
+        self.sortButton:SetText("Sort")
+    end
 end
 
 -- MARK: Access Control
@@ -1283,6 +1522,19 @@ end
 function RosterBoard:PlaceCardInOptOut(card)
     Debug:Dev("organizer_ui", "Placing card in opt-out")
     
+    -- Check if card's keystone was designated
+    if card.location and
+       type(card.location) == "table" and
+       card.location.type == "role_slot" then
+        
+        local groupIndex = card.location.groupIndex
+        
+        if self:IsKeystoneDesignated(groupIndex, card.playerData.id) then
+            self:ClearGroupKeystone(groupIndex)
+            Debug:Dev("organizer", "Cleared keystone - card removed from group")
+        end
+    end
+    
     if not self.optOutSection or not self.optOutSection.scrollChild then
         Debug:Error("Opt-out section not initialized")
         return
@@ -1379,6 +1631,20 @@ end
 function RosterBoard:HandleCardDrop(card, dropTarget)
     return NextKey222.SafeRun(function()
         Debug:Dev("organizer_ui", "HandleCardDrop - type:", dropTarget.type)
+        
+        -- Check if card had a designated keystone in previous location
+        if card.location and
+           type(card.location) == "table" and
+           card.location.type == "role_slot" then
+            
+            local prevGroupIndex = card.location.groupIndex
+            
+            -- If this card's keystone was designated for previous group, clear it
+            if self:IsKeystoneDesignated(prevGroupIndex, card.playerData.id) then
+                self:ClearGroupKeystone(prevGroupIndex)
+                Debug:Dev("organizer", "Cleared keystone - card moved to different group")
+            end
+        end
         
         -- Phase 1: Mark for removal (non-destructive)
         self:MarkCardForRemoval(card)
@@ -1562,6 +1828,19 @@ end
 function RosterBoard:PlaceCardInBench(card)
     Debug:Dev("organizer_ui", "Placing card in bench")
     
+    -- Check if card's keystone was designated
+    if card.location and
+       type(card.location) == "table" and
+       card.location.type == "role_slot" then
+        
+        local groupIndex = card.location.groupIndex
+        
+        if self:IsKeystoneDesignated(groupIndex, card.playerData.id) then
+            self:ClearGroupKeystone(groupIndex)
+            Debug:Dev("organizer", "Cleared keystone - card removed from group")
+        end
+    end
+    
     -- Update card size for compact mode
     card:SetSize(180, 20)  -- Compact size
     card:SetParent(self.benchContainer)
@@ -1583,6 +1862,22 @@ function RosterBoard:PlaceCardInBench(card)
     self:LayoutBench()
     
     Debug:Dev("organizer_ui", "Card placed in bench successfully")
+end
+
+-- MARK: Remove Card From Bench Array Helper
+function RosterBoard:RemoveCardFromBenchArray(card)
+    if not self.benchCards then return end
+    
+    for i = #self.benchCards, 1, -1 do
+        if self.benchCards[i] == card then
+            table.remove(self.benchCards, i)
+            Debug:Dev("organizer_ui", "Removed card from benchCards array at index", i)
+            return true
+        end
+    end
+    
+    Debug:Dev("organizer_ui", "Card not found in benchCards array")
+    return false
 end
 
 -- MARK: Rejection Animation (NEW - Two-Phase Compatible)
@@ -1701,16 +1996,48 @@ function RosterBoard:CanPlayerFillRole(playerRoles, slotRole)
         normalizedSlotRole = "DPS"
     end
     
-    for _, role in ipairs(playerRoles) do
-        local normalizedPlayerRole = role:upper()
-        if normalizedPlayerRole == "DAMAGER" then
-            normalizedPlayerRole = "DPS"
+    -- ENHANCED: Support both array and table formats
+    -- Array format: {"TANK", "HEALER"} (legacy)
+    -- Table format: {Tank = "play", Healer = "fill", DPS = "none"} (new spec preferences)
+    
+    -- Check if it's a spec preferences table (key-value pairs)
+    local isSpecPreferencesTable = false
+    for k, v in pairs(playerRoles) do
+        if type(k) == "string" and type(v) == "string" then
+            isSpecPreferencesTable = true
+            break
         end
-        
-        if normalizedPlayerRole == normalizedSlotRole or 
-           normalizedPlayerRole == slotRole:upper() or
-           normalizedPlayerRole == normalizedSlotRole:upper() then
-            return true
+    end
+    
+    if isSpecPreferencesTable then
+        -- New format: check spec preferences
+        for role, preference in pairs(playerRoles) do
+            -- Skip "none" preferences
+            if preference ~= "none" then
+                local normalizedRole = role:upper()
+                if normalizedRole == "DAMAGER" then
+                    normalizedRole = "DPS"
+                end
+                
+                if normalizedRole == normalizedSlotRole:upper() or
+                   normalizedRole == slotRole:upper() then
+                    return true
+                end
+            end
+        end
+    else
+        -- Legacy format: array of role strings
+        for _, role in ipairs(playerRoles) do
+            local normalizedPlayerRole = role:upper()
+            if normalizedPlayerRole == "DAMAGER" then
+                normalizedPlayerRole = "DPS"
+            end
+            
+            if normalizedPlayerRole == normalizedSlotRole or
+               normalizedPlayerRole == slotRole:upper() or
+               normalizedPlayerRole == normalizedSlotRole:upper() then
+                return true
+            end
         end
     end
     
@@ -1722,8 +2049,11 @@ function RosterBoard:FindCompatibleSlotInGroup(card, groupIndex)
         return nil
     end
     
+    -- ENHANCED: Check spec preferences if available, otherwise fall back to roles array
+    local rolesToCheck = card.playerData.specPreferences or card.playerData.roles
+    
     for _, slot in ipairs(self.groupSlots[groupIndex]) do
-        if slot.isEmpty and self:CanPlayerFillRole(card.playerData.roles, slot.role) then
+        if slot.isEmpty and self:CanPlayerFillRole(rolesToCheck, slot.role) then
             return slot
         end
     end
@@ -1793,16 +2123,41 @@ end
 -- MARK: Keystone Designation
 function RosterBoard:DesignateGroupKeystone(groupIndex, keystone, playerID)
     return NextKey222.SafeRun(function()
-        local groupColumn = self.groupColumns[groupIndex]
-        if not groupColumn then
+        Debug:Dev("organizer", "DesignateGroupKeystone called:", groupIndex, playerID)
+        
+        -- Validate group exists
+        if not self.groupKeystones[groupIndex] then
+            Debug:Error("Invalid group index:", groupIndex)
             return
         end
         
-        self:ClearPreviousDesignation(groupIndex)
+        -- Check if clicking the same keystone (toggle off)
+        if self.groupKeystones[groupIndex].playerID == playerID then
+            Debug:Dev("organizer", "Undesignating keystone")
+            self:ClearGroupKeystone(groupIndex)
+            return
+        end
         
-        groupColumn.selectedKeystone = keystone
-        groupColumn.keystoneOwnerID = playerID
+        -- Clear previous designation if different player
+        if self.groupKeystones[groupIndex].playerID then
+            self:UnhighlightKeystoneButton(
+                self.groupKeystones[groupIndex].playerID
+            )
+        end
         
+        -- Set new designation
+        self.groupKeystones[groupIndex] = {
+            keystone = keystone,
+            playerID = playerID
+        }
+        
+        -- Update group header
+        self:UpdateGroupHeader(groupIndex, keystone)
+        
+        -- Highlight new keystone button
+        self:HighlightKeystoneButton(playerID)
+        
+        -- Sync to participants
         self:BroadcastRosterUpdate({
             action = "KEYSTONE_DESIGNATED",
             groupIndex = groupIndex,
@@ -1810,34 +2165,101 @@ function RosterBoard:DesignateGroupKeystone(groupIndex, keystone, playerID)
             keystone = keystone
         })
         
+        Debug:Dev("organizer", "Designated keystone for group", groupIndex)
+        
     end, "RosterBoard:DesignateGroupKeystone")
 end
 
-function RosterBoard:ClearPreviousDesignation(groupIndex)
-    local groupColumn = self.groupColumns[groupIndex]
-    if not groupColumn then
-        return
+function RosterBoard:ClearGroupKeystone(groupIndex)
+    if not self.groupKeystones[groupIndex] then return end
+    
+    -- Unhighlight button
+    if self.groupKeystones[groupIndex].playerID then
+        self:UnhighlightKeystoneButton(
+            self.groupKeystones[groupIndex].playerID
+        )
     end
     
-    groupColumn.selectedKeystone = nil
-    groupColumn.keystoneOwnerID = nil
+    -- Clear data
+    self.groupKeystones[groupIndex] = {
+        keystone = nil,
+        playerID = nil
+    }
+    
+    -- Reset group header
+    if self.groupTitles[groupIndex] then
+        self.groupTitles[groupIndex]:SetText("M+ Grp. " .. groupIndex)
+        self.groupTitles[groupIndex]:SetTextColor(1, 1, 1)
+    end
+    
+    -- Sync to participants
+    self:BroadcastRosterUpdate({
+        action = "KEYSTONE_CLEARED",
+        groupIndex = groupIndex
+    })
+    
+    Debug:Dev("organizer", "Cleared keystone for group", groupIndex)
+end
+
+function RosterBoard:HighlightKeystoneButton(playerID)
+    local card = self:FindCardByPlayerID(playerID)
+    if not card or not card.keystoneButton then return end
+    
+    -- Gold border and bright gold icon
+    card.keystoneButton:SetBackdropBorderColor(1, 0.84, 0, 1.0)
+    if card.keystoneButton.icon then
+        card.keystoneButton.icon:SetVertexColor(1.0, 0.84, 0)  -- Bright gold
+    end
+    Debug:Dev("organizer", "Highlighted keystone button for:", playerID)
+end
+
+function RosterBoard:UnhighlightKeystoneButton(playerID)
+    local card = self:FindCardByPlayerID(playerID)
+    if not card or not card.keystoneButton then return end
+    
+    -- Gray border and gray icon
+    card.keystoneButton:SetBackdropBorderColor(0.4, 0.4, 0.4, 1.0)
+    if card.keystoneButton.icon then
+        card.keystoneButton.icon:SetVertexColor(0.8, 0.8, 0.8)  -- Gray
+    end
+    Debug:Dev("organizer", "Unhighlighted keystone button for:", playerID)
+end
+
+function RosterBoard:IsKeystoneDesignated(groupIndex, playerID)
+    if not self.groupKeystones[groupIndex] then return false end
+    return self.groupKeystones[groupIndex].playerID == playerID
 end
 
 function RosterBoard:UpdateGroupHeader(groupIndex, keystone)
-    local groupColumn = self.groupColumns[groupIndex]
-    if not groupColumn or not groupColumn.titleLabel then
+    if not self.groupTitles[groupIndex] then
+        Debug:Error("Group title not found for index:", groupIndex)
         return
     end
     
     if keystone then
+        -- Get dungeon abbreviation using centralized service
         local dungeonAbbrev = "???"
-        if NextKey222.Utils and NextKey222.Utils.GetDungeonAbbreviation then
-            dungeonAbbrev = NextKey222.Utils:GetDungeonAbbreviation(keystone.dungeonID)
+        if NextKey222.DungeonNameService then
+            dungeonAbbrev = NextKey222.DungeonNameService:GetAlias(keystone.dungeonID)
         end
-        local headerText = dungeonAbbrev .. ": +" .. keystone.level
-        groupColumn.titleLabel:SetText(headerText)
+        
+        local headerText = dungeonAbbrev .. " +" .. keystone.level
+        self.groupTitles[groupIndex]:SetText(headerText)
+        
+        -- Color code by key level
+        if keystone.level >= 15 then
+            self.groupTitles[groupIndex]:SetTextColor(1, 0.5, 0)  -- Orange
+        elseif keystone.level >= 10 then
+            self.groupTitles[groupIndex]:SetTextColor(0.8, 0.8, 1)  -- Light blue
+        else
+            self.groupTitles[groupIndex]:SetTextColor(1, 1, 1)  -- White
+        end
+        
+        Debug:Dev("organizer", "Updated group", groupIndex, "header:", headerText)
     else
-        groupColumn.titleLabel:SetText("M+ Grp. " .. groupIndex)
+        -- Reset to default
+        self.groupTitles[groupIndex]:SetText("M+ Grp. " .. groupIndex)
+        self.groupTitles[groupIndex]:SetTextColor(1, 1, 1)  -- White
     end
 end
 

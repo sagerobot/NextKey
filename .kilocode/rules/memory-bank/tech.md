@@ -40,46 +40,12 @@
 - **WoW AddOns Folder**: `_retail_/Interface/AddOns/`
 - **Script Errors**: Enable with `/console scriptErrors 1`
 
-### Recommended VS Code Extensions
-- Lua Language Server
-- WoW API IntelliSense (if available)
-- GitLens for version control
-- Bracket Pair Colorizer
-
 ### Development Workflow
 1. Edit files in AddOns directory
 2. `/reload` in-game to test changes
 3. Use `/nk config` → Debug System for troubleshooting
-4. Run `/script NextKeyRunTests()` for validation
-5. Test with fake players: `/nk test`
-6. Run targeted regressions:
-   - Loot tracking: `/script TestLootTrackingFixes()`
-   - PUG performance: `/nk pug performance test`
-   - Component system: `/nk components test`
-
-## Project Structure Standards
-
-### File Organization
-- **Core logic**: `core/` directory
-- **UI components**: `ui/` directory
-- **Configuration**: `options/` directory
-- **Static data**: `data/` directory
-- **Event handling**: `events/` directory
-- **Testing**: `debug/` directory
-
-### Load Order Management
-Critical files loaded via [`NextKey.toc`](../../../NextKey.toc):
-1. Libraries first (`embeds.xml`)
-2. Configuration (`core/config.lua`)
-3. Debug system (`core/debugService.lua`, `core/debugUI.lua`)
-4. Boot system (`boot.lua`)
-5. Slash commands (`core/slashCommands.lua`)
-6. Component factory (`ui/components.lua`)
-7. Seasonal data (`data/portals.lua`, `data/loot.lua`)
-8. Core modules
-9. UI modules
-10. Options panels
-11. Debug/test modules
+4. Test with fake players: `/nk test`
+5. Run targeted tests as needed
 
 ## Technical Constraints
 
@@ -110,7 +76,6 @@ Critical files loaded via [`NextKey.toc`](../../../NextKey.toc):
 1. **RaiderIO Addon** (Hard Dependency)
    - Player M+ scores and ratings
    - Dungeon-specific performance data
-   - Run counts and completion statistics
    - **Must be installed** for core functionality
 
 2. **Blizzard APIs** (Always Available)
@@ -126,11 +91,10 @@ Critical files loaded via [`NextKey.toc`](../../../NextKey.toc):
 4. **Fake Player Service** (Development Only)
    - Testing data generation
    - Realistic IO score distributions
-   - Development workflow support
+
 5. **Seasonal Loot Dataset** (`data/loot.lua`)
    - Featured and dropdown loot for the active season
    - Slot metadata for tooltip and filtering logic
-   - Run counter defaults for persistence validation
 
 ### Data Flow Priority
 ```
@@ -176,12 +140,12 @@ Blizzard API (Base) → LibOpenRaid (Real-time) → RaiderIO (Comprehensive) →
 - Profiles built on-demand
 - Scores fetched when needed
 - Tooltips generated dynamically
-### Performance Tooling (0.2.1)
-- `ui/performanceOptimizer.lua` centralizes UI throttling helpers; pair with `events/performanceHandlers.lua` for roster/LFG batching.
-- `/nk pug performance test` exercises `debug/pugPerformanceTest.lua` load scenarios and validates throttles.
-- `/nkperf metrics` and `/nkperf test` use `debug/performanceMonitor.lua` + `debug/performanceTest.lua` to surface runtime metrics.
-- `/script TestLootTrackingFixes()` validates loot persistence, run counters, and +7 gating before shipping.
 
+### Performance Tooling
+- `ui/performanceOptimizer.lua` centralizes UI throttling helpers
+- `events/performanceHandlers.lua` for roster/LFG batching
+- `debug/performanceMonitor.lua` + `debug/performanceTest.lua` for runtime metrics
+- Test commands: `/nk pug performance test`, `/nkperf metrics`, `/nkperf test`
 
 ## Debugging Infrastructure
 
@@ -191,7 +155,6 @@ Blizzard API (Base) → LibOpenRaid (Real-time) → RaiderIO (Comprehensive) →
 - **UI Controls**: `/nk config` → Debug System
 - **Performance**: Zero overhead when `DEV_MODE = false`
 - **Compile-time Stripping**: Dev/Trace calls removed in release
-- **Simplified**: Removed advanced performance monitoring and filtering features
 
 ### Debug Categories
 ```lua
@@ -202,20 +165,10 @@ Blizzard API (Base) → LibOpenRaid (Real-time) → RaiderIO (Comprehensive) →
 -- Testing: test, debug
 ```
 
-### Performance Monitoring
-```lua
--- Built-in profiling system
-NextKey222.Performance:StartProfile("operation_name")
--- ... code ...
-NextKey222.Performance:StopProfile("operation_name")
-```
-
 ## Testing Infrastructure
 
 ### Simplified Testing Protocol
 NextKey uses a simplified, practical testing approach focused on core functionality and reliability.
-
-**Core Philosophy**: Testing should be straightforward and focus on what users actually need.
 
 **Testing Hierarchy**:
 1. **In-Game Testing**: Use the addon as a normal user would
@@ -223,77 +176,34 @@ NextKey uses a simplified, practical testing approach focused on core functional
 3. **Error Reporting**: Focus on catching and reporting errors effectively
 4. **Manual Verification**: Check that features work as expected
 
-**Visual Testing Infrastructure**: Removed to simplify the addon and focus on core functionality.
-
-### Test Commands
+### Common Test Commands
 ```lua
 /nk test                        -- Generate 4 random fake players
 /nk test preset mixed_skill     -- Generate preset team
 /nk test clear                  -- Remove all fake players
 /script NextKeyRunTests()       -- Run test suite
-
--- Component System Testing (PHASE 2)
-/nk components test             -- Run all component tests
-/nk components help             -- Show component command help
-/nk components backdrop         -- Test backdrop factory
-/nk components button           -- Test button factory
-/nk components frame            -- Test frame factory
-/nk components text             -- Test text factory
-/nk components icon             -- Test icon factory
-/nk components integration      -- Test component integration
-/nk components performance      -- Test component performance
-/nk components validation       -- Test component validation
-
--- PUG Mode Testing
-/nk pug test                    -- Test PUG Helper application tracking
-/nk pug simulate invite         -- Simulate receiving group invite
-/nk pug simulate join           -- Simulate joining group
-/nk pug simulate complete       -- Simulate dungeon completion
-/nk pug status                  -- Show PUG Helper status
 ```
-
 
 ## Build & Release Process
 
 ### Pre-Release Checklist
-1. Set `DEV_MODE = false` in [`core/debugService.lua`](../../../core/debugService.lua:102)
+1. Set `DEV_MODE = false` in [`core/debugService.lua`](../../../core/debugService.lua)
 2. Remove all `print()` statements (search entire project)
 3. Test with debug level NONE (0) - should be silent
 4. Verify memory usage under 10MB baseline
 5. Test cross-realm functionality
-6. Run full test suite: `/script NextKeyRunTests()`
+6. Run full test suite
 
 ### Version Numbering
-- **Format**: `major.minor.patch.build`
-- **Current**: 0.2.0.1
-- **Location**: [`boot.lua`](../../../boot.lua:56-60) and [`NextKey.toc`](../../../NextKey.toc:5)
+- **Format**: `major.minor.patch`
+- **Current**: 0.2.1
+- **Location**: [`boot.lua`](../../../boot.lua) and [`NextKey.toc`](../../../NextKey.toc)
 
 ### Release Artifacts
 - NextKey addon folder (complete directory)
 - Documentation (user-facing only)
 - README with installation instructions
 - Changelog with version updates
-
-## Integration Testing
-
-### Simplified Testing Scenarios
-1. **Solo Mode**: Addon functions without party
-2. **Party Mode**: 5-player group functionality
-3. **Cross-Realm**: Mixed realm party members
-4. **Partial Coverage**: Some members without NextKey
-5. **Guild Mode**: Guild-wide keystone coordination
-6. **PUG Mode**: Group Finder integration
-
-### Test Commands
-```lua
-/nk                          -- Open main window
-/nk config                   -- Open options panel
-/nk test                     -- Generate 4 fake players
-/nk test preset mixed_skill  -- Generate preset team
-/nk test clear               -- Remove fake players
-/script NextKeyRunTests()    -- Run test suite
-/console scriptErrors 1      -- Enable error display
-```
 
 ## Known Technical Limitations
 
@@ -323,7 +233,7 @@ NextKey uses a simplified, practical testing approach focused on core functional
 - All debug uses `Debug:Error/User/Dev/Trace()`
 - All expensive operations profiled with `Performance`
 - MARK comments for VS Code navigation
-- Phase 2: Use component factories for all UI creation
+- Use component factories for all UI creation
 
 ### Error Handling Requirements
 - Validate all function inputs
@@ -338,50 +248,7 @@ NextKey uses a simplified, practical testing approach focused on core functional
 - Batch UI updates
 - Avoid string concatenation in loops
 - Use table pools for frequent allocations
-- Phase 2: Component pooling for frequent creation (100 components in <0.1s)
-
-### UI Component Creation (Phase 2+)
-- Use factory functions from `Components` module
-- Configure via config tables
-- Leverage type constants for consistency
-- Validate component types before creation
-- Use color schemes for consistent theming
-- Reference migration examples for existing code
-
-### Post-Refactor Bugfixing (Current Phase)
-- Use debug system extensively to identify UI rendering issues
-- Check for configuration wrapper misapplications
-- Verify Ace3 widget proper initialization and parenting
-- Test component factory function outputs
-- Ensure all fixes maintain compliance with established patterns
-
-## Documentation Standards
-
-### Required Documentation
-- **DEVELOPMENT.md**: Technical implementation guide (PRIMARY)
-- **DEBUG_SYSTEM.md**: Debug system usage (MANDATORY)
-- **DESIGN.md**: Feature specifications and UX
-- **USER_GUIDE.md**: End-user instructions
-- **README.md**: Documentation index and navigation
-
-### Code Documentation
-- MARK comments for navigation
-- Inline comments for complex logic
-- Function headers with parameter descriptions
-- Type annotations where helpful
-
-## Version Control
-
-### Repository Structure
-- **Root**: Addon files only
-- **Documentation/**: All documentation files
-- **.kilocode/**: Kilo Code configuration
-- **Libs/**: Embedded libraries (committed)
-
-### Branching Strategy
-- Main/master branch for stable releases
-- Feature branches for development
-- Hotfix branches for critical fixes
+- Component pooling for frequent creation
 
 ## Deployment
 

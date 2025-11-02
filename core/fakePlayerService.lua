@@ -488,7 +488,8 @@ function FakePlayerService:CreatePlayer(config)
     return NextKey222.SafeRun(function()
         -- Generate player name with realm
         local playerID = generatePlayerID()
-        local playerName = config.name or ("FakePlayer" .. playerID)
+        -- NEW: Use numbered format (01FP, 02FP, etc.) instead of FakePlayer1, FakePlayer2
+        local playerName = config.name or string.format("%02dFP", playerID)
         playerName = normalizePlayerName(playerName)
         
         -- Validate no duplicate
@@ -532,24 +533,37 @@ function FakePlayerService:CreatePlayer(config)
         local classToken = config.class and string.upper(config.class) or getRandomClass()
         local specInfo = pickSpecForClass(classToken)
         local capabilities = determineCapabilities(classToken, specInfo and specInfo.specID)
-
+      
+        -- NEW: Get ALL specs for this class for spec preference generation
+        local allClassSpecs = CLASS_SPEC_DATA[classToken] or {}
+        local specializationData = {}
+        for _, spec in ipairs(allClassSpecs) do
+        	table.insert(specializationData, {
+        		specID = spec.specID,
+        		specName = spec.specName,
+        		role = spec.role,
+        		iconTexture = nil  -- Could add icon paths if needed for debugging
+        	})
+        end
+      
         -- Create player data structure
         local playerData = {
-            id = playerID,
-            name = playerName,
-            class = classToken,
-            tier = tier,
-            dungeonScores = dungeonScores,
-            keystone = keystone,
-            addonStatus = config.addonStatus or { nextkey = false, raiderio = false },
-            io = config.io or calculateTotalIO(dungeonScores),
-            createdAt = GetTime(),
-            dataSource = "fake_player_service",
-            role = specInfo and specInfo.role or "DAMAGER",
-            specID = specInfo and specInfo.specID or nil,
-            specName = specInfo and specInfo.specName or nil,
-            heroismCaster = capabilities.heroism,
-            battleResCaster = capabilities.battleRes
+        	id = playerID,
+        	name = playerName,
+        	class = classToken,
+        	tier = tier,
+        	dungeonScores = dungeonScores,
+        	keystone = keystone,
+        	addonStatus = config.addonStatus or { nextkey = false, raiderio = false },
+        	io = config.io or calculateTotalIO(dungeonScores),
+        	createdAt = GetTime(),
+        	dataSource = "fake_player_service",
+        	role = specInfo and specInfo.role or "DAMAGER",
+        	specID = specInfo and specInfo.specID or nil,
+        	specName = specInfo and specInfo.specName or nil,
+        	specializations = specializationData,  -- NEW: Store all specs for GenerateDefaultSpecPreferences
+        	heroismCaster = capabilities.heroism,
+        	battleResCaster = capabilities.battleRes
         }
 
         -- Save to storage
@@ -815,6 +829,118 @@ function FakePlayerService:GenerateRandomPlayers(count, addonMix)
         NextKey222.Debug:Dev("fakeplayerservice", "Created", created, "random fake players")
         return created
     end, "FakePlayerService:GenerateRandomPlayers") or 0
+end
+
+--- Generates a full 20-player raid team with optimal role distribution
+-- Detects real player's roles and fills remaining slots intelligently
+-- Distribution: 2 tanks, 5 healers, 13 DPS (standard M+ raid composition)
+-- @return number Count of players created
+function FakePlayerService:GenerateRaidTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        -- Define target composition (20 players total including real player)
+        local targetTanks = 2
+        local targetHealers = 5
+        local targetDPS = 13
+        
+        -- We'll create 19 fake players since real player is #20
+        local fakePlayers = 19
+        
+        -- Create role distribution for fake players
+        local roleAssignments = {}
+        
+        -- TANKS: Create pure tanks (primary role = TANK)
+        for i = 1, targetTanks do
+            table.insert(roleAssignments, {
+                primaryRole = "TANK",
+                tier = i == 1 and "expert" or "skilled"
+            })
+        end
+        
+        -- HEALERS: Create healers (primary role = HEALER)
+        for i = 1, targetHealers do
+            table.insert(roleAssignments, {
+                primaryRole = "HEALER",
+                tier = i <= 2 and "skilled" or "competent"
+            })
+        end
+        
+        -- DPS: Create DPS (primary role = DAMAGER)
+        for i = 1, targetDPS do
+            table.insert(roleAssignments, {
+                primaryRole = "DAMAGER",
+                tier = i <= 3 and "expert" or (i <= 8 and "competent" or "average")
+            })
+        end
+        
+        -- Shuffle to mix skill levels
+        for i = #roleAssignments, 2, -1 do
+            local j = math.random(i)
+            roleAssignments[i], roleAssignments[j] = roleAssignments[j], roleAssignments[i]
+        end
+        
+        -- Create fake players
+        local created = 0
+        for i = 1, fakePlayers do
+            local assignment = roleAssignments[i]
+            
+            -- Pick a class that can fill the primary role
+            local classToken = self:GetRandomClassForRole(assignment.primaryRole)
+            
+            local playerName = self:CreatePlayer({
+                tier = assignment.tier,
+                class = classToken,
+                addonStatus = addonConfig
+            })
+            
+            if playerName then
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User(string.format(
+            "Created %d-player raid team (%d tanks, %d healers, %d DPS + you)",
+            created + 1,
+            targetTanks,
+            targetHealers,
+            targetDPS
+        ))
+        
+        return created
+    end, "FakePlayerService:GenerateRaidTeam") or 0
+end
+
+--- Gets a random class that can fill a specific role
+-- @param role string "TANK", "HEALER", or "DAMAGER"
+-- @return string Class token
+function FakePlayerService:GetRandomClassForRole(role)
+    local tankClasses = {"WARRIOR", "PALADIN", "DEATHKNIGHT", "MONK", "DRUID", "DEMONHUNTER"}
+    local healerClasses = {"PALADIN", "PRIEST", "SHAMAN", "MONK", "DRUID", "EVOKER"}
+    local dpsClasses = VALID_CLASSES  -- All classes can DPS
+    
+    if role == "TANK" then
+        return tankClasses[math.random(#tankClasses)]
+    elseif role == "HEALER" then
+        return healerClasses[math.random(#healerClasses)]
+    else  -- DAMAGER/DPS
+        return dpsClasses[math.random(#dpsClasses)]
+    end
 end
 
 -- MARK: Public API - Data Modification
