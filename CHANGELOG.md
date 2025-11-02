@@ -1,5 +1,21 @@
 # NextKey Changelog
 
+## [0.2.2] - 2025-11-02
+### Fixed
+- **M+ Group Organizer Tooltip System** - Complete fix for post-poll tooltip issues
+  - Fixed poll simulator double-appending realm names (`01FP-Dalaran-Dalaran` → `01FP-Dalaran`)
+  - Fixed role icons vanishing for fake players after poll responses
+  - Removed blank line between role header and spec details in tooltips
+  - Normalized role naming inconsistency (DAMAGER → DPS) for all players
+  - Fixed spec-level tooltip breakdowns not displaying for fake players after poll
+  - Poll simulator now uses `OrganizerPlayerDataBuilder` for consistent spec preference generation
+
+### Technical
+- Enhanced `debug/pollSimulator.lua` to use correct character IDs for spec preference generation
+- Updated `ui/organizer/playerCard.lua` tooltip formatting and role name normalization
+- Added comprehensive debug logging to trace spec preference data flow
+- Fixed `playerData.specPreferences` being empty after poll responses
+
 ## [0.2.1] - 2025-10-20
 ### Added
 - **Loot Targeting System** - Complete implementation of item tracking functionality
