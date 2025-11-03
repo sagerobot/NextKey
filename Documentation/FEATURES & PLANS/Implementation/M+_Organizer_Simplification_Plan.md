@@ -109,8 +109,9 @@ end
 - [x] Replace bench card refresh logic
 - [x] Replace slot card refresh logic
 - [x] Replace opt-out card refresh logic
-- [ ] Test spec change detection (PENDING IN-GAME TEST)
-- [ ] Test card visual updates (PENDING IN-GAME TEST)
+- [x] Test spec change detection
+- [x] Test card visual updates
+- [x] In-game validation complete (November 2, 2025)
 
 ---
 
@@ -627,8 +628,8 @@ end
 ## Session Log
 
 ### Session 1: November 2, 2025
-**Duration**: Architecture Audit  
-**Status**: ✅ Complete  
+**Duration**: Architecture Audit
+**Status**: ✅ Complete
 **Achievements**:
 - Analyzed 8,752 lines across 12 files
 - Identified root cause of poll data bug
@@ -636,6 +637,25 @@ end
 - Documented 9 simplification opportunities
 
 **Next Session**: Begin Week 1, Task 1.1 (RefreshCard helper)
+
+---
+
+### Session 2: November 2, 2025
+**Duration**: Task 1.1 Implementation & Testing
+**Status**: ✅ Complete
+**Achievements**:
+- Implemented RefreshCard() helper function
+- Reduced RefreshAllCards() from 127 lines to 28 lines (99 line reduction)
+- Eliminated 114 lines of duplicate code across bench/slot/opt-out refresh logic
+- In-game validation successful after debugging
+- All card refresh functionality working correctly
+
+**Issues Resolved**:
+- Fixed initial implementation bugs during in-game testing
+- Verified spec change detection works properly
+- Confirmed visual updates render correctly
+
+**Next Session**: Task 1.2 (Merge Spec Generation Functions)
 
 ---
 

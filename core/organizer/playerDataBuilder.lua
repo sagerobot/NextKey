@@ -25,26 +25,33 @@ local DATA_SOURCE_PRIORITY = {
 
 -- MARK: Public Interface
 
---- Generate default spec preferences based on player's current spec
--- Used for PRE-POLL display (shows only current spec as "play")
+--- Generate spec preferences for player
+-- Unified function supporting both deterministic (pre-poll) and randomized (poll simulation) modes
 -- @param playerID string Player name in format "Name-Realm"
+-- @param options table Optional configuration: {randomize = boolean}
+--   - randomize=false (default): Current spec="play", others="none" (PRE-POLL)
+--   - randomize=true: Weighted random preferences (POST-POLL simulation)
 -- @return table, table specPreferences and specDetails tables
-function PlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
+function PlayerDataBuilder:GenerateSpecPreferences(playerID, options)
     return NextKey222.SafeRun(function()
-        Debug:Dev("organizer", "=== GenerateDefaultSpecPreferences (PRE-POLL) for:", playerID)
+        options = options or {}
+        local randomize = options.randomize or false
+        
+        local mode = randomize and "RANDOMIZED (POST-POLL)" or "DETERMINISTIC (PRE-POLL)"
+        Debug:Dev("organizer", "=== GenerateSpecPreferences", mode, "for:", playerID)
         
         local specPreferences = {}
         local specDetails = {}
         local availableSpecs = {}
         
-        -- Get player profile to find their CURRENT spec
+        -- Get player profile
         local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(playerID)
         if not profile or not profile.class then
             Debug:Error("No profile found for:", playerID)
             return specPreferences, specDetails
         end
         
-        local currentSpecID = profile.specID  -- This is the player's CURRENT spec
+        local currentSpecID = profile.specID
         Debug:Dev("organizer", "Player", playerID, "current specID:", currentSpecID, "specName:", profile.specName)
         
         -- Get class ID for API call
@@ -77,21 +84,46 @@ function PlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
             end
         end
         
-        -- Generate preferences: current spec = "play", others = "none"
-        -- Use priority mapping to handle multiple specs per role
+        -- Generate preferences based on mode
         local priorityMap = { play = 3, fill = 2, none = 1 }
         
-        -- PRE-POLL: Mark ONLY the player's current spec as "play", all others as "none"
         for _, specInfo in ipairs(availableSpecs) do
             local normalizedRole = specInfo.role and specInfo.role:upper() or "DAMAGER"
+            local isCurrentSpec = currentSpecID and specInfo.specID == currentSpecID
             
-            -- CRITICAL: Check if this spec matches the player's CURRENT spec (by specID)
             local preference
-            if currentSpecID and specInfo.specID == currentSpecID then
-                preference = "play"
-                Debug:Dev("organizer", "Marking CURRENT spec", specInfo.specName, "as 'play' for", playerID)
+            if randomize then
+                -- RANDOMIZED MODE: Weighted probabilities
+                if isCurrentSpec then
+                    -- Current spec: 70% play, 20% fill, 10% none
+                    local rand = math.random()
+                    if rand < 0.70 then
+                        preference = "play"
+                    elseif rand < 0.90 then
+                        preference = "fill"
+                    else
+                        preference = "none"
+                    end
+                else
+                    -- Off-spec: 30% play, 40% fill, 30% none
+                    local rand = math.random()
+                    if rand < 0.30 then
+                        preference = "play"
+                    elseif rand < 0.70 then
+                        preference = "fill"
+                    else
+                        preference = "none"
+                    end
+                end
+                Debug:Dev("organizer", (isCurrentSpec and "Current spec" or "Off-spec"), specInfo.specName, "->", preference)
             else
-                preference = "none"
+                -- DETERMINISTIC MODE: Current spec="play", others="none"
+                if isCurrentSpec then
+                    preference = "play"
+                    Debug:Dev("organizer", "Marking CURRENT spec", specInfo.specName, "as 'play' for", playerID)
+                else
+                    preference = "none"
+                end
             end
             
             -- Track spec details for tooltips (ALWAYS use uppercase keys)
@@ -104,7 +136,6 @@ function PlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
             })
             
             -- Store by role with priority (highest priority wins)
-            -- CRITICAL FIX: Store ALL preferences (including "none") so UI can properly display multi-role capabilities
             local currentPriority = priorityMap[specPreferences[normalizedRole]] or 0
             local newPriority = priorityMap[preference] or 0
             
@@ -113,152 +144,24 @@ function PlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
             end
         end
         
-        Debug:Trace("organizer", "About to call Debug:Dev for summary")
         Debug:Dev("organizer", "Generated spec preferences for", playerID, ":",
                   "specPrefs has data:", next(specPreferences) ~= nil,
                   "specDetails has data:", next(specDetails) ~= nil)
         
-        Debug:Trace("organizer", "About to check if specDetails has data")
-        -- Log the actual contents for debugging
-        if next(specDetails) then
-            Debug:Trace("organizer", "specDetails has data, about to iterate")
-            for role, specs in pairs(specDetails) do
-                Debug:Trace("organizer", "Role:", role, "has", #specs, "specs")
-                Debug:Dev("organizer", "  Role", role, "has", #specs, "specs")
-            end
-            Debug:Trace("organizer", "Finished iterating specDetails")
-        else
-            Debug:Trace("organizer", "specDetails is EMPTY!")
-            Debug:Error("specDetails is EMPTY for", playerID)
-        end
-        
-        Debug:Trace("organizer", "About to return specPreferences and specDetails")
-        Debug:Trace("organizer", "specPreferences contents:", specPreferences and "EXISTS" or "NIL")
-        if specPreferences then
-            for k, v in pairs(specPreferences) do
-                Debug:Trace("organizer", "specPreferences[" .. tostring(k) .. "] =", tostring(v))
-            end
-        end
-        Debug:Trace("organizer", "specDetails contents:", specDetails and "EXISTS" or "NIL")
-        if specDetails then
-            for k, v in pairs(specDetails) do
-                Debug:Trace("organizer", "specDetails[" .. tostring(k) .. "] = table with", #v, "specs")
-            end
-        end
-        Debug:Trace("organizer", "RETURNING NOW")
-        local returnVal1, returnVal2 = specPreferences, specDetails
-        Debug:Trace("organizer", "returnVal1 type:", type(returnVal1), "returnVal2 type:", type(returnVal2))
-        return returnVal1, returnVal2
-    end, "PlayerDataBuilder:GenerateDefaultSpecPreferences")
+        return specPreferences, specDetails
+    end, "PlayerDataBuilder:GenerateSpecPreferences")
 end
 
---- Generate realistic poll response preferences (POST-POLL simulation)
--- Used by PollSimulator to generate realistic multi-role responses
--- @param playerID string Player name in format "Name-Realm"
--- @return table, table specPreferences and specDetails tables
+--- Generate default spec preferences (DEPRECATED - use GenerateSpecPreferences with randomize=false)
+-- @deprecated Use GenerateSpecPreferences(playerID, {randomize = false}) instead
+function PlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
+    return self:GenerateSpecPreferences(playerID, {randomize = false})
+end
+
+--- Generate realistic poll response (DEPRECATED - use GenerateSpecPreferences with randomize=true)
+-- @deprecated Use GenerateSpecPreferences(playerID, {randomize = true}) instead
 function PlayerDataBuilder:GenerateRealisticPollResponse(playerID)
-    return NextKey222.SafeRun(function()
-        Debug:Dev("organizer", "=== GenerateRealisticPollResponse (POST-POLL) for:", playerID)
-        
-        local specPreferences = {}
-        local specDetails = {}
-        local availableSpecs = {}
-        
-        -- Get player profile to find their current spec
-        local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(playerID)
-        if not profile or not profile.class then
-            Debug:Error("No profile found for:", playerID)
-            return specPreferences, specDetails
-        end
-        
-        local currentSpecID = profile.specID
-        local currentRole = profile.role and profile.role:upper()
-        Debug:Dev("organizer", "Player", playerID, "current specID:", currentSpecID, "role:", currentRole)
-        
-        -- Get class ID for API call
-        local classID = nil
-        local numClasses = GetNumClasses()
-        for i = 1, numClasses do
-            local className, classToken = GetClassInfo(i)
-            if classToken == profile.class then
-                classID = i
-                break
-            end
-        end
-        
-        if not classID then
-            Debug:Error("Could not find classID for class:", profile.class)
-            return specPreferences, specDetails
-        end
-        
-        -- Query ALL specializations for this class
-        local numSpecs = GetNumSpecializationsForClassID(classID)
-        for i = 1, numSpecs do
-            local specID, specName, _, iconTexture, role = GetSpecializationInfoForClassID(classID, i)
-            if specID then
-                table.insert(availableSpecs, {
-                    specID = specID,
-                    specName = specName,
-                    role = role,
-                    iconTexture = iconTexture
-                })
-            end
-        end
-        
-        -- POST-POLL: Generate randomized preferences for each spec
-        local priorityMap = { play = 3, fill = 2, none = 1 }
-        
-        for _, specInfo in ipairs(availableSpecs) do
-            local normalizedRole = specInfo.role and specInfo.role:upper() or "DAMAGER"
-            
-            -- Generate realistic preference based on whether this is current spec
-            local preference
-            if currentSpecID and specInfo.specID == currentSpecID then
-                -- Current spec: 70% play, 20% fill, 10% none
-                local rand = math.random()
-                if rand < 0.70 then
-                    preference = "play"
-                elseif rand < 0.90 then
-                    preference = "fill"
-                else
-                    preference = "none"
-                end
-                Debug:Dev("organizer", "Current spec", specInfo.specName, "->", preference)
-            else
-                -- Off-spec: 30% play, 40% fill, 30% none
-                local rand = math.random()
-                if rand < 0.30 then
-                    preference = "play"
-                elseif rand < 0.70 then
-                    preference = "fill"
-                else
-                    preference = "none"
-                end
-                Debug:Dev("organizer", "Off-spec", specInfo.specName, "->", preference)
-            end
-            
-            -- Track spec details for tooltips
-            if not specDetails[normalizedRole] then
-                specDetails[normalizedRole] = {}
-            end
-            table.insert(specDetails[normalizedRole], {
-                specName = specInfo.specName,
-                preference = preference
-            })
-            
-            -- Store by role with priority (highest priority wins)
-            local currentPriority = priorityMap[specPreferences[normalizedRole]] or 0
-            local newPriority = priorityMap[preference] or 0
-            
-            if newPriority > currentPriority then
-                specPreferences[normalizedRole] = preference
-            end
-        end
-        
-        Debug:Dev("organizer", "Generated realistic poll response for", playerID)
-        return specPreferences, specDetails
-        
-    end, "PlayerDataBuilder:GenerateRealisticPollResponse")
+    return self:GenerateSpecPreferences(playerID, {randomize = true})
 end
 
 --- Initialize Player Data Builder module
