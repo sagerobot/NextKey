@@ -105,10 +105,22 @@ local function ShowRoleTooltip(roleButton, roleInfo, playerData)
     if playerData.specDetails and playerData.specDetails[normalizedRole] then
     	for _, specInfo in ipairs(playerData.specDetails[normalizedRole]) do
     		-- CRITICAL: Only show "play" and "fill" preferences, hide "none"
-    		if specInfo.preference == "play" then
-    			GameTooltip:AddLine(specInfo.specName .. ": Want to Play", 0.2, 0.9, 0.2)
-    		elseif specInfo.preference == "fill" then
-    			GameTooltip:AddLine(specInfo.specName .. ": Will Fill", 0.9, 0.8, 0.2)
+    		if specInfo.preference == "play" or specInfo.preference == "fill" then
+    			-- Check if this is the player's current spec
+    			local isCurrentSpec = (specInfo.specID == playerData.specID)
+    			local label = specInfo.specName
+    			
+    			-- Add (Current Spec) indicator if this is active spec
+    			if isCurrentSpec then
+    				label = label .. " (Current Spec)"
+    			end
+    			
+    			-- Show with appropriate color
+    			if specInfo.preference == "play" then
+    				GameTooltip:AddLine(label .. ": Want to Play", 0.2, 0.9, 0.2)
+    			else -- fill
+    				GameTooltip:AddLine(label .. ": Will Fill", 0.9, 0.8, 0.2)
+    			end
     		end
     		-- NOTE: "none" preferences are NOT displayed (per user request)
     	end

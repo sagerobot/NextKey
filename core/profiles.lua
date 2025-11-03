@@ -140,7 +140,7 @@ function ProfilesService:InvalidateOnEvents()
         if not NextKey222.Addon.OnProfilesInvalidation then
             NextKey222.Addon.OnProfilesInvalidation = function(self, event, unit, ...)
                 if NextKey222.Debug then
-                    NextKey222.Debug:Dev("profiles", "EVENT FIRED:", event or "unknown")
+                    NextKey222.Debug:Dev("profiles", "EVENT FIRED:", event or "unknown", "unit:", unit or "none")
                 end
 
                 if NextKey222.ProfilesService then
@@ -153,12 +153,14 @@ function ProfilesService:InvalidateOnEvents()
                             local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
                             targetPlayer = currentPlayer
                             shouldInvalidate = true
+                            NextKey222.Debug:Dev("profiles", "PLAYER_SPECIALIZATION_CHANGED detected for:", currentPlayer)
                         elseif event == "UNIT_SPECIALIZATION" and unit then
                             -- Invalidate specific unit that changed spec
                             local name, realm = UnitName(unit)
                             if name then
                                 targetPlayer = realm and (name .. "-" .. realm) or (name .. "-" .. GetRealmName())
                                 shouldInvalidate = true
+                                NextKey222.Debug:Dev("profiles", "UNIT_SPECIALIZATION detected for:", targetPlayer, "unit:", unit)
                             end
                     elseif event == "GROUP_ROSTER_UPDATE" then
                         -- Only invalidate cache if someone actually joined/left
@@ -196,11 +198,13 @@ function ProfilesService:InvalidateOnEvents()
                         -- Use longer delay for spec changes to ensure Blizzard API has updated
                         local delay = 0.1
                         if event == "PLAYER_SPECIALIZATION_CHANGED" or event == "UNIT_SPECIALIZATION" then
-                            delay = 0.3  -- 300ms for spec changes to allow API to update
+                            delay = 0.5  -- 500ms for spec changes to allow API to update
                         end
                         
                         C_Timer.After(delay, function()
+                            NextKey222.Debug:Dev("profiles", "About to call RefreshUIComponents for spec change event")
                             ProfilesService:RefreshUIComponents(event)
+                            NextKey222.Debug:Dev("profiles", "RefreshUIComponents call completed")
                         end)
                     end
                 end
@@ -312,9 +316,15 @@ function ProfilesService:RefreshUIComponents(event)
     -- Refresh RosterBoard if visible
     if NextKey222.RosterBoard and NextKey222.RosterBoard.IsVisible and NextKey222.RosterBoard:IsVisible() then
         if NextKey222.RosterBoard.RefreshAllCards then
-            NextKey222.RosterBoard:RefreshAllCards()
+            -- CRITICAL: Clear any render caches before refreshing (same as main UI does)
+            -- This ensures spec changes actually trigger a re-render
+            if NextKey222.RosterBoard.lastRenderedState then
+                NextKey222.RosterBoard.lastRenderedState = nil
+            end
+            
+            NextKey222.RosterBoard:RefreshAllCards(true)  -- Pass true to indicate this is a spec change
             if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", "RosterBoard refresh completed for " .. event)
+                NextKey222.Debug:Dev("profiles", "RosterBoard refresh completed for " .. event .. " (SPEC CHANGE)")
             end
         else
             if NextKey222.Debug then

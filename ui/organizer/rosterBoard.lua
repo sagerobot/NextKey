@@ -2363,48 +2363,131 @@ function RosterBoard:RebuildBenchAfterPoll()
 end
 
 -- MARK: Card Refresh System
+--- Refreshes a single card with fresh profile data
+-- @param card The card frame to refresh
+-- @param displayMode The display mode for the card ("compact", "expanded", "opt_out")
+-- @param locationContext Optional string for debug logging (e.g., "bench", "group 1 slot 2")
+-- @param isSpecChange Optional boolean indicating if this refresh is due to a spec change
+local function RefreshSingleCard(card, displayMode, locationContext, isSpecChange)
+    if not (card and card.playerData and card.playerData.id) then
+        return false
+    end
+    
+    local playerID = card.playerData.id
+    
+    -- Get fresh BASE profile data (has current spec's role)
+    local profile = NextKey222.ProfilesService and
+                   NextKey222.ProfilesService:GetProfile(playerID)
+    
+    if not profile then
+        return false
+    end
+    
+    -- Update card's player data with fresh profile info
+    card.playerData.class = profile.class
+    -- CRITICAL: Use current spec's role from base profile, not multi-role array
+    card.playerData.roles = {profile.role or "DAMAGER"}
+    card.playerData.specName = profile.specName
+    card.playerData.specID = profile.specID
+    card.playerData.overallScore = profile.io or 0
+    
+    -- CRITICAL FIX: Smart invalidation - only regenerate if new spec wasn't in poll response
+    if isSpecChange then
+        Debug:Dev("organizer_ui", "Spec change detected for:", playerID, "- new role:", profile.role)
+        
+        -- Check if player has poll data
+        if card.playerData.specPreferences then
+            -- Check if new spec's role is in their poll preferences
+            local newSpecRole = profile.role
+            local pollHasThisRole = false
+            
+            for role, preference in pairs(card.playerData.specPreferences) do
+                if role:upper() == newSpecRole:upper() and preference ~= "none" then
+                    pollHasThisRole = true
+                    break
+                end
+            end
+            
+            if not pollHasThisRole then
+                -- They switched to a spec they didn't sign up for - invalidate poll
+                Debug:Dev("organizer_ui", "New spec NOT in poll preferences - invalidating poll response")
+                
+                if NextKey222.OrganizerPlayerDataBuilder and
+                   NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+                    local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
+                    
+                    if success and specPrefs then
+                        card.playerData.specPreferences = specPrefs
+                        card.playerData.specDetails = specDetails
+                        Debug:Dev("organizer_ui", "Poll invalidated - regenerated defaults for:", playerID)
+                    else
+                        Debug:Error("Failed to regenerate specPreferences for:", playerID)
+                        card.playerData.specPreferences = nil
+                        card.playerData.specDetails = nil
+                    end
+                end
+            else
+                -- New spec IS in their poll preferences - keep poll data, just update specDetails
+                Debug:Dev("organizer_ui", "Spec change within poll preferences - preserving poll data")
+            end
+        else
+            -- No poll data - just regenerate defaults for new spec
+            Debug:Dev("organizer_ui", "No poll data - generating defaults for new spec")
+            
+            if NextKey222.OrganizerPlayerDataBuilder and
+               NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+                local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
+                
+                if success and specPrefs then
+                    card.playerData.specPreferences = specPrefs
+                    card.playerData.specDetails = specDetails
+                end
+            end
+        end
+    else
+        Debug:Dev("organizer_ui", "General refresh - preserving specPreferences for:", playerID)
+    end
+    
+    -- Update utilities from capabilities
+    card.playerData.utilities = {}
+    if profile.capabilities then
+        if profile.capabilities.heroism then
+            table.insert(card.playerData.utilities, "heroism")
+        end
+        if profile.capabilities.battleRes then
+            table.insert(card.playerData.utilities, "battleRes")
+        end
+    end
+    
+    -- Update card content to reflect new data
+    NextKey222.PlayerCard:UpdateCardContent(card, displayMode)
+    
+    Debug:Dev("organizer_ui", "Refreshed card for:", playerID,
+             locationContext and ("(" .. locationContext .. ")") or "",
+             "- role:", profile.role, "spec:", profile.specName,
+             "- CLEARED specPreferences to force role icon update")
+    
+    return true
+end
+
 --- Refreshes all player cards to reflect updated profile data (e.g., after spec changes)
 -- This method updates both bench cards and slot cards with fresh profile information
-function RosterBoard:RefreshAllCards()
+function RosterBoard:RefreshAllCards(isSpecChange)
     return NextKey222.SafeRun(function()
-        Debug:Dev("organizer_ui", "RefreshAllCards called - updating all player cards")
+        Debug:Dev("organizer_ui", "RefreshAllCards called - updating all player cards",
+                 isSpecChange and "(SPEC CHANGE)" or "(general refresh)")
+        Debug:Dev("organizer_ui", "RefreshAllCards isSpecChange parameter:", isSpecChange)
+        
+        -- CRITICAL: Clear ProfilesService cache FIRST to ensure we get fresh spec data
+        if NextKey222.ProfilesService then
+            NextKey222.ProfilesService:InvalidateCache()
+            Debug:Dev("organizer_ui", "Invalidated ProfilesService cache before refresh")
+        end
         
         -- Refresh bench cards
         if self.benchCards then
             for _, card in ipairs(self.benchCards) do
-                if card and card.playerData and card.playerData.id then
-                    local playerID = card.playerData.id
-                    
-                    -- Get fresh BASE profile data (has current spec's role)
-                    local profile = NextKey222.ProfilesService and
-                                   NextKey222.ProfilesService:GetProfile(playerID)
-                    
-                    if profile then
-                        -- Update card's player data with fresh profile info
-                        card.playerData.class = profile.class
-                        -- CRITICAL: Use current spec's role from base profile, not multi-role array
-                        card.playerData.roles = {profile.role or "DAMAGER"}
-                        card.playerData.specName = profile.specName
-                        card.playerData.specID = profile.specID
-                        card.playerData.overallScore = profile.io or 0
-                        
-                        -- Update utilities from capabilities
-                        card.playerData.utilities = {}
-                        if profile.capabilities then
-                            if profile.capabilities.heroism then
-                                table.insert(card.playerData.utilities, "heroism")
-                            end
-                            if profile.capabilities.battleRes then
-                                table.insert(card.playerData.utilities, "battleRes")
-                            end
-                        end
-                        
-                        -- Update card content to reflect new data
-                        NextKey222.PlayerCard:UpdateCardContent(card, "compact")
-                        
-                        Debug:Dev("organizer_ui", "Refreshed bench card for:", playerID, "- role:", profile.role, "spec:", profile.specName)
-                    end
-                end
+                RefreshSingleCard(card, "compact", "bench", isSpecChange)
             end
         end
         
@@ -2412,39 +2495,9 @@ function RosterBoard:RefreshAllCards()
         if self.groupSlots then
             for groupIndex, slots in pairs(self.groupSlots) do
                 for slotIndex, slot in pairs(slots) do
-                    if slot.playerCard and slot.playerCard.playerData and slot.playerCard.playerData.id then
-                        local card = slot.playerCard
-                        local playerID = card.playerData.id
-                        
-                        -- Get fresh BASE profile data (has current spec's role)
-                        local profile = NextKey222.ProfilesService and
-                                       NextKey222.ProfilesService:GetProfile(playerID)
-                        
-                        if profile then
-                            -- Update card's player data with fresh profile info
-                            card.playerData.class = profile.class
-                            -- CRITICAL: Use current spec's role from base profile, not multi-role array
-                            card.playerData.roles = {profile.role or "DAMAGER"}
-                            card.playerData.specName = profile.specName
-                            card.playerData.specID = profile.specID
-                            card.playerData.overallScore = profile.io or 0
-                            
-                            -- Update utilities from capabilities
-                            card.playerData.utilities = {}
-                            if profile.capabilities then
-                                if profile.capabilities.heroism then
-                                    table.insert(card.playerData.utilities, "heroism")
-                                end
-                                if profile.capabilities.battleRes then
-                                    table.insert(card.playerData.utilities, "battleRes")
-                                end
-                            end
-                            
-                            -- Update card content to reflect new data
-                            NextKey222.PlayerCard:UpdateCardContent(card, "expanded")
-                            
-                            Debug:Dev("organizer_ui", "Refreshed slot card for:", playerID, "in group", groupIndex, "slot", slotIndex, "- role:", profile.role, "spec:", profile.specName)
-                        end
+                    if slot.playerCard then
+                        local locationContext = "group " .. groupIndex .. " slot " .. slotIndex
+                        RefreshSingleCard(slot.playerCard, "expanded", locationContext, isSpecChange)
                     end
                 end
             end
@@ -2453,39 +2506,7 @@ function RosterBoard:RefreshAllCards()
         -- Refresh opt-out cards
         if self.optOutSection and self.optOutSection.playerCards then
             for _, card in ipairs(self.optOutSection.playerCards) do
-                if card and card.playerData and card.playerData.id then
-                    local playerID = card.playerData.id
-                    
-                    -- Get fresh BASE profile data (has current spec's role)
-                    local profile = NextKey222.ProfilesService and
-                                   NextKey222.ProfilesService:GetProfile(playerID)
-                    
-                    if profile then
-                        -- Update card's player data with fresh profile info
-                        card.playerData.class = profile.class
-                        -- CRITICAL: Use current spec's role from base profile, not multi-role array
-                        card.playerData.roles = {profile.role or "DAMAGER"}
-                        card.playerData.specName = profile.specName
-                        card.playerData.specID = profile.specID
-                        card.playerData.overallScore = profile.io or 0
-                        
-                        -- Update utilities from capabilities
-                        card.playerData.utilities = {}
-                        if profile.capabilities then
-                            if profile.capabilities.heroism then
-                                table.insert(card.playerData.utilities, "heroism")
-                            end
-                            if profile.capabilities.battleRes then
-                                table.insert(card.playerData.utilities, "battleRes")
-                            end
-                        end
-                        
-                        -- Update card content to reflect new data
-                        NextKey222.PlayerCard:UpdateCardContent(card, "opt_out")
-                        
-                        Debug:Dev("organizer_ui", "Refreshed opt-out card for:", playerID, "- role:", profile.role, "spec:", profile.specName)
-                    end
-                end
+                RefreshSingleCard(card, "opt_out", "opt-out", isSpecChange)
             end
         end
         

@@ -10,16 +10,16 @@
 
 ### Overall Status
 - [x] **Phase 0**: Architecture Audit Complete
-- [ ] **Week 1**: Quick Wins (LOW RISK)
+- [-] **Week 1**: Quick Wins (LOW RISK) - IN PROGRESS
 - [ ] **Week 2**: Structural Improvements (MEDIUM RISK)
 - [ ] **Week 3-4**: Architectural Evolution (HIGH RISK, OPTIONAL)
 
 ### Current Metrics
 | Metric | Current | Target | Status |
 |--------|---------|--------|--------|
-| **Total Lines** | 8,752 | ~6,000 | 🔴 Not Started |
-| **Largest File** | 2,495 | ~500 | 🔴 Not Started |
-| **Duplicate Logic** | ~400 lines | ~50 lines | 🔴 Not Started |
+| **Total Lines** | 8,653 (-99) | ~6,000 | 🟡 Week 1 Started |
+| **Largest File** | 2,396 (-99) | ~500 | 🟡 Week 1 Started |
+| **Duplicate Logic** | ~301 lines (-99) | ~50 lines | 🟡 Task 1.1 Complete |
 | **Data Ownership** | Unclear (5+ formats) | Single source | 🔴 Not Started |
 
 ---
@@ -61,12 +61,13 @@ The poll data reset bug occurred because **cards were treated as the source of t
 
 ### Tasks
 
-#### Task 1.1: Extract RefreshCard() Helper ⏳ Not Started
+#### Task 1.1: Extract RefreshCard() Helper ✅ COMPLETE
 - **File**: `ui/organizer/rosterBoard.lua`
-- **Lines Affected**: 2368-2495 (127 lines)
-- **Savings**: 99 lines
+- **Lines Affected**: 2365-2449 (85 lines after refactoring)
+- **Savings**: 99 lines (127 → 28 for RefreshAllCards)
 - **Difficulty**: Easy
 - **Testing**: Verify card refresh after spec changes
+- **Completed**: November 2, 2025
 
 **Before** (114 duplicate lines):
 ```lua
@@ -104,12 +105,12 @@ end
 ```
 
 **Checklist**:
-- [ ] Extract RefreshCard() helper function
-- [ ] Replace bench card refresh logic
-- [ ] Replace slot card refresh logic
-- [ ] Replace opt-out card refresh logic
-- [ ] Test spec change detection
-- [ ] Test card visual updates
+- [x] Extract RefreshSingleCard() helper function
+- [x] Replace bench card refresh logic
+- [x] Replace slot card refresh logic
+- [x] Replace opt-out card refresh logic
+- [ ] Test spec change detection (PENDING IN-GAME TEST)
+- [ ] Test card visual updates (PENDING IN-GAME TEST)
 
 ---
 
