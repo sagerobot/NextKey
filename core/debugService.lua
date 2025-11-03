@@ -68,15 +68,26 @@ local DEBUG_CATEGORY_GROUPS = {
             teleport = { name = "Teleport System", description = "Teleport functionality and spell management" },
             lootwindow = { name = "Loot Tracking", description = "Loot window and item tracking interface" },
             profiles = { name = "Profile Management", description = "Player profile creation and management" },
-            pughelper = { name = "PUG Helper", description = "Pick Up Group workflow assistance and automation" },
-            organizer_ui = { name = "M+ Group Organizer", description = "M+ Group Organizer UI and roster management" }
+            pughelper = { name = "PUG Helper", description = "Pick Up Group workflow assistance and automation" }
+        }
+    },
+
+    ["M+ Group Organizer"] = {
+        description = "M+ Group Organizer system components",
+        icon = "Interface\\Icons\\INV_Misc_GroupLooking",
+        order = 4,
+        categories = {
+            organizer = { name = "Organizer Core", description = "Survey system, sorting algorithms, and player data building" },
+            organizer_ui = { name = "Organizer UI", description = "Roster board UI, player cards, and visual elements" },
+            org_sync = { name = "Organizer Sync", description = "Roster state synchronization and updates" },
+            dragmanager = { name = "Drag Manager", description = "Drag and drop card management system" }
         }
     },
 
     ["Data Processing"] = {
         description = "Data calculation and processing systems",
         icon = "Interface\\Icons\\INV_Enchant_DessertCrystals",
-        order = 4,
+        order = 5,
         categories = {
             keystones = { name = "Keystone Processing", description = "Keystone data collection and processing" },
             season = { name = "Seasonal Data", description = "Season information and dungeon management" },
@@ -89,7 +100,7 @@ local DEBUG_CATEGORY_GROUPS = {
     ["Testing & Development"] = {
         description = "Development tools and testing utilities",
         icon = "Interface\\Icons\\INV_Eng_Gears",
-        order = 5,
+        order = 6,
         categories = {
             test = { name = "Testing Utilities", description = "General testing tools and utilities" },
             debug = { name = "Meta-Debug", description = "Debug system self-monitoring and diagnostics" }
@@ -136,8 +147,13 @@ local DebugService = {
         components = false,
         lootwindow = false,
         pughelper = false,  -- PUG Helper functionality
-        organizer_ui = false,  -- M+ Group Organizer UI
         ui_contamination = true,  -- UI contamination tracking (always enabled for debugging)
+
+        -- M+ Group Organizer
+        organizer = false,  -- M+ Group Organizer core (survey, sorting, player data)
+        organizer_ui = false,  -- M+ Group Organizer UI
+        org_sync = false,  -- M+ Group Organizer sync system
+        dragmanager = false,  -- Drag and drop manager
 
         -- Testing & Development
         fakeplayerservice = false,

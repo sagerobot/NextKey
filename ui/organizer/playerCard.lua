@@ -225,6 +225,18 @@ function PlayerCard:UpdateCardContent(card, newDisplayMode)
     end
     
     Debug:Dev("organizer_ui", "Updated card content to mode:", newDisplayMode, "- Active regions:", card.regions.activeCount)
+    
+    -- DEBUG: Log what data we're working with AFTER recreation
+    Debug:Dev("organizer_ui", "Card content updated for:", card.playerData.name)
+    Debug:Dev("organizer_ui", "  - has specPreferences:", card.playerData.specPreferences ~= nil)
+    if card.playerData.specPreferences then
+        local prefCount = 0
+        for role, pref in pairs(card.playerData.specPreferences) do
+            prefCount = prefCount + 1
+            Debug:Dev("organizer_ui", "    -", role, ":", pref)
+        end
+        Debug:Dev("organizer_ui", "  - Total prefs:", prefCount)
+    end
 end
 
 -- MARK: Compact Card Content (Native Frame Version - Region Tracked)

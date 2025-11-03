@@ -368,7 +368,7 @@ function RosterBoard:GetBenchPlayers()
         for _, card in ipairs(self.benchCards) do
             if card.playerData then
                 table.insert(allPlayers, card.playerData)  -- Reuse existing data
-                seenPlayers[card.playerData.id] = true
+                seenPlayers[card.playerData.id] = true  -- CRITICAL: Mark as seen to prevent duplicate processing
                 Debug:Dev("organizer_ui", "Preserved player data for:", card.playerData.id,
                          "- has specPreferences:", card.playerData.specPreferences ~= nil,
                          "- has specDetails:", card.playerData.specDetails ~= nil)
@@ -406,23 +406,27 @@ function RosterBoard:GetBenchPlayers()
                         table.insert(playerData.utilities, "battleRes")
                     end
                     
-                    -- CRITICAL FIX: Generate default spec preferences for fake players
-                    -- This ensures tooltips work correctly before poll is sent
-                    if NextKey222.OrganizerPlayerDataBuilder and
-                       NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-                        -- CRITICAL: Capture success flag from SafeRun wrapper
-                        local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fakeData.name)
-                        
-                        if success and specPrefs then
-                            playerData.specPreferences = specPrefs
-                            playerData.specDetails = specDetails
-                            
-                            Debug:Dev("organizer_ui", "Generated default spec preferences for fake player:", fakeData.name,
-                                     "- has specPreferences:", specPrefs ~= nil,
-                                     "- has specDetails:", specDetails ~= nil)
-                        else
-                            Debug:Error("Failed to generate default spec preferences for fake player:", fakeData.name)
-                        end
+                    -- CRITICAL FIX: Only generate defaults if player doesn't already have spec preferences
+                    -- (preserves poll response data if it exists)
+                    if not playerData.specPreferences or not next(playerData.specPreferences) then
+                    	if NextKey222.OrganizerPlayerDataBuilder and
+                    	   NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+                    		-- SafeRun returns the function's direct outputs: (specPreferences, specDetails)
+                    		local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fakeData.name)
+                    		
+                    		if success and specPrefs then
+                    			playerData.specPreferences = specPrefs
+                    			playerData.specDetails = specDetails
+                    			
+                    			Debug:Dev("organizer_ui", "Generated default spec preferences for fake player:", fakeData.name,
+                    			         "- has specPreferences:", specPrefs ~= nil,
+                    			         "- has specDetails:", specDetails ~= nil)
+                    		else
+                    			Debug:Error("Failed to generate default spec preferences for fake player:", fakeData.name)
+                    		end
+                    	end
+                    else
+                    	Debug:Dev("organizer_ui", "Player", fakeData.name, "already has spec preferences - preserving")
                     end
                     
                     table.insert(allPlayers, playerData)
@@ -474,23 +478,27 @@ function RosterBoard:GetBenchPlayers()
                         end
                     end
                     
-                    -- CRITICAL FIX: Generate default spec preferences for real players too
-                    -- This ensures tooltips work correctly before poll is sent
-                    if NextKey222.OrganizerPlayerDataBuilder and
-                       NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-                        -- CRITICAL: Capture success flag from SafeRun wrapper (same as fake players)
-                        local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(memberName)
-                        
-                        if success and specPrefs then
-                            playerData.specPreferences = specPrefs
-                            playerData.specDetails = specDetails
-                            
-                            Debug:Dev("organizer_ui", "Generated default spec preferences for real player:", memberName,
-                                     "- has specPreferences:", specPrefs ~= nil,
-                                     "- has specDetails:", specDetails ~= nil)
-                        else
-                            Debug:Error("Failed to generate default spec preferences for real player:", memberName)
-                        end
+                    -- CRITICAL FIX: Only generate defaults if player doesn't already have spec preferences
+                    -- (preserves poll response data if it exists)
+                    if not playerData.specPreferences or not next(playerData.specPreferences) then
+                    	if NextKey222.OrganizerPlayerDataBuilder and
+                    	   NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+                    		-- SafeRun returns the function's direct outputs: (specPreferences, specDetails)
+                    		local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(memberName)
+                    		
+                    		if success and specPrefs then
+                    			playerData.specPreferences = specPrefs
+                    			playerData.specDetails = specDetails
+                    			
+                    			Debug:Dev("organizer_ui", "Generated default spec preferences for real player:", memberName,
+                    			         "- has specPreferences:", specPrefs ~= nil,
+                    			         "- has specDetails:", specDetails ~= nil)
+                    		else
+                    			Debug:Error("Failed to generate default spec preferences for real player:", memberName)
+                    		end
+                    	end
+                    else
+                    	Debug:Dev("organizer_ui", "Player", memberName, "already has spec preferences - preserving")
                     end
                     
                     Debug:Dev("organizer_ui", "Created player data for", memberName, "with current spec role:", profile.role, "specName:", profile.specName)
@@ -553,14 +561,14 @@ function RosterBoard:CreateHeaderSection(nativeParent)
     
     -- Create AceGUI widgets with compact horizontal flow (no gaps)
     local xOffset = 0
-    local buttonWidth = 90
+    local buttonWidth = 120
     local checkboxWidth = 60
     local dropdownWidth = 110
     
-    -- Poll Group Button (always visible)
+    -- Poll Group Button (always visible) - WIDER to accommodate "Polling... (15/20)"
     local pollButton = AceGUI:Create("Button")
     pollButton:SetText("Poll")
-    pollButton:SetWidth(buttonWidth)
+    pollButton:SetWidth(150)  -- Increased from 120 to 150 for double-digit counts
     pollButton:SetCallback("OnClick", function()
         self:OnPollGroupClicked()
     end)
@@ -689,41 +697,44 @@ function RosterBoard:OnPollGroupClicked()
                                #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
         
         if hasFakePlayers then
-            Debug:User("DEBUG MODE: Triggering poll simulation with fake players")
-            
-            -- Generate unique poll ID
-            local pollID = self:GeneratePollID()
-            
-            -- Store poll state
-            self.activePoll = {
-                id = pollID,
-                startTime = GetTime(),
-                responses = {},
-                timeout = 60
-            }
-            
-            -- Update UI to show polling
-            self:ShowPollInProgress()
-            
-            -- Trigger instant simulation
-            if NextKey222.PollSimulator and NextKey222.PollSimulator:IsInitialized() then
-                NextKey222.PollSimulator:SimulatePoll("instant", pollID)
-                Debug:Dev("organizer", "Started instant poll simulation with ID:", pollID)
-            else
-                Debug:Error("PollSimulator not available")
-            end
-            
-            -- Show organizer's own survey
-            if NextKey222.ParticipantSurvey then
-                local pollRequest = {
-                    pollID = pollID,
-                    timeout = 60,
-                    organizerName = UnitName("player") .. "-" .. GetRealmName()
-                }
-                NextKey222.ParticipantSurvey:OnPollRequestReceived(pollRequest, pollRequest.organizerName)
-            end
-            
-            return
+        	Debug:User("DEBUG MODE: Triggering poll simulation with fake players")
+        	
+        	-- Generate unique poll ID
+        	local pollID = self:GeneratePollID()
+        	
+        	-- Store poll state
+        	self.activePoll = {
+        		id = pollID,
+        		startTime = GetTime(),
+        		responses = {},
+        		timeout = 60
+        	}
+        	
+        	-- Update UI to show polling
+        	self:ShowPollInProgress()
+        	
+        	-- CRITICAL FIX: Start timeout timer for debug mode too!
+        	self:StartPollTimeout()
+        	
+        	-- Trigger instant simulation
+        	if NextKey222.PollSimulator and NextKey222.PollSimulator:IsInitialized() then
+        		NextKey222.PollSimulator:SimulatePoll("instant", pollID)
+        		Debug:Dev("organizer", "Started instant poll simulation with ID:", pollID)
+        	else
+        		Debug:Error("PollSimulator not available")
+        	end
+        	
+        	-- Show organizer's own survey (ONLY in debug mode)
+        	if NextKey222.ParticipantSurvey then
+        		local pollRequest = {
+        			pollID = pollID,
+        			timeout = 60,
+        			organizerName = UnitName("player") .. "-" .. GetRealmName()
+        		}
+        		NextKey222.ParticipantSurvey:OnPollRequestReceived(pollRequest, pollRequest.organizerName)
+        	end
+        	
+        	return
         end
         
         -- PRODUCTION MODE: Normal group polling
@@ -748,15 +759,10 @@ function RosterBoard:OnPollGroupClicked()
         
         -- Send poll request to all members (including self)
         if NextKey222.ParticipantSurvey then
-            NextKey222.ParticipantSurvey:SendPollRequest(pollID)
-            
-            -- Also show survey to organizer
-            local pollRequest = {
-                pollID = pollID,
-                timeout = 60,
-                organizerName = UnitName("player") .. "-" .. GetRealmName()
-            }
-            NextKey222.ParticipantSurvey:OnPollRequestReceived(pollRequest, pollRequest.organizerName)
+        	NextKey222.ParticipantSurvey:SendPollRequest(pollID)
+        	
+        	-- REMOVED: Duplicate organizer survey call (SendPollRequest already includes organizer)
+        	-- The organizer receives the poll via the RAID broadcast in SendPollRequest
         end
         
         -- Simultaneously trigger auto-detection
@@ -810,12 +816,24 @@ function RosterBoard:OnPollTimeout()
 end
 
 function RosterBoard:ShowPollInProgress()
-    -- Disable poll button
-    if self.pollButton then
-        self.pollButton:SetDisabled(true)
-        local total = GetNumGroupMembers()
-        self.pollButton:SetText("Polling... (0/" .. total .. ")")
-    end
+	-- Disable poll button
+	if self.pollButton then
+		self.pollButton:SetDisabled(true)
+		
+		-- Calculate total expected responses FIRST (before using it)
+		local totalMembers = GetNumGroupMembers()
+		
+		-- In debug mode with fake players, count fake players
+		local hasFakePlayers = NextKey222.FakePlayerService and
+		                       NextKey222.FakePlayerService:IsEnabled() and
+		                       #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
+		
+		if hasFakePlayers then
+			totalMembers = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1  -- +1 for organizer
+		end
+		
+		self.pollButton:SetText("Polling... (0/" .. totalMembers .. ")")
+	end
 end
 
 function RosterBoard:UpdatePollProgress()
@@ -858,7 +876,7 @@ function RosterBoard:CompletePoll()
     -- Re-enable poll button
     if self.pollButton then
         self.pollButton:SetDisabled(false)
-        self.pollButton:SetText("Poll Group")
+        self.pollButton:SetText("Poll")
     end
     
     -- Show completion message
@@ -878,6 +896,10 @@ function RosterBoard:CompletePoll()
     
     -- Clear active poll
     self.activePoll = nil
+    
+    -- NO REBUILD NEEDED - Cards are already updated in real-time as poll responses arrive
+    -- RebuildBenchAfterPoll was causing poll data to be lost and regenerated as defaults
+    Debug:Dev("organizer_ui", "Poll complete - cards already showing correct data from poll responses")
 end
 
 function RosterBoard:OnAddFakeRaidClicked()
@@ -2287,6 +2309,57 @@ function RosterBoard:FindCardByPlayerID(playerID)
     end
     
     return nil
+end
+
+-- MARK: Bench Rebuild After Poll (NEW - Forces UI Refresh)
+function RosterBoard:RebuildBenchAfterPoll()
+    return NextKey222.SafeRun(function()
+        if not self.benchContainer then
+            Debug:Error("Cannot rebuild bench - container not initialized")
+            return
+        end
+        
+        Debug:Dev("organizer_ui", "RebuildBenchAfterPoll - clearing all existing bench cards")
+        
+        -- Clear ALL existing bench cards completely
+        for _, card in ipairs(self.benchCards) do
+            if card then
+                card:Hide()
+                card:SetParent(nil)
+                card:ClearAllPoints()
+            end
+        end
+        self.benchCards = {}
+        
+        -- Get fresh player list (will preserve poll response data from existing cards)
+        local benchPlayers = self:GetBenchPlayers()
+        
+        Debug:Dev("organizer_ui", "Creating fresh cards for", #benchPlayers, "bench players")
+        
+        -- Create brand new cards with updated data
+        for i, playerData in ipairs(benchPlayers) do
+            local card = NextKey222.PlayerCard:CreateNativeCard(
+                playerData,
+                self.benchContainer,
+                "bench",
+                "compact"
+            )
+            
+            if card then
+                table.insert(self.benchCards, card)
+                Debug:Dev("organizer_ui", "Recreated bench card", i, "for:", playerData.name,
+                         "- has specPreferences:", playerData.specPreferences ~= nil)
+            else
+                Debug:Error("Failed to recreate card for:", playerData.name)
+            end
+        end
+        
+        -- Re-layout bench
+        self:LayoutBench()
+        
+        Debug:Dev("organizer_ui", "Bench rebuild complete -", #self.benchCards, "cards created")
+        
+    end, "RosterBoard:RebuildBenchAfterPoll")
 end
 
 -- MARK: Card Refresh System

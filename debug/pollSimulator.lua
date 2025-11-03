@@ -87,21 +87,21 @@ local function generateSpecPreferences(playerData)
     local specPreferences = {}
     local specDetails = {}  -- NEW: Track spec-level details for tooltips
     
-    -- CRITICAL FIX: Use OrganizerPlayerDataBuilder to generate default spec preferences
-    -- This matches the pre-poll behavior and ensures tooltips work correctly
+    -- CRITICAL FIX: Use OrganizerPlayerDataBuilder to generate REALISTIC POLL RESPONSE
+    -- NOT default spec preferences (which are for pre-poll display only)
     if NextKey222.OrganizerPlayerDataBuilder and
-       NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
+       NextKey222.OrganizerPlayerDataBuilder.GenerateRealisticPollResponse then
         
         -- CRITICAL: playerData.name is ALREADY in "Name-Realm" format for fake players
         -- Don't append realm again or we get "01FP-Dalaran-Dalaran"
         local characterID = playerData.name
-        local success, specPrefs, specDets = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(characterID)
+        local success, specPrefs, specDets = NextKey222.OrganizerPlayerDataBuilder:GenerateRealisticPollResponse(characterID)
         
         if success and specPrefs and specDets then
-            NextKey222.Debug:Dev("organizer", "Poll: Generated spec preferences for", characterID, "using OrganizerPlayerDataBuilder")
+            NextKey222.Debug:Dev("organizer", "Poll: Generated REALISTIC poll response for", characterID, "using OrganizerPlayerDataBuilder")
             return specPrefs, specDets
         else
-            NextKey222.Debug:Error("Poll: Failed to generate spec preferences for", characterID, "- falling back to simple generation")
+            NextKey222.Debug:Error("Poll: Failed to generate realistic poll response for", characterID, "- falling back to simple generation")
         end
     end
     

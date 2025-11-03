@@ -108,6 +108,7 @@ debug\pugPerformanceTest.lua
 debug\organizer_survey_tests.lua
 debug\pollSimulator.lua
 debug\spec_change_test.lua
+debug\check_card_state.lua
 
 # UI Components
 ui\main.lua

@@ -98,7 +98,17 @@ function ParticipantSurvey:OnPollResponseReceived(message, sender)
             return
         end
         
-        Debug:Dev("organizer", "Received valid poll response from", sender)
+        Debug:Dev("organizer", "POLL RESPONSE RECEIVED from", sender)
+        Debug:Dev("organizer", "  - Has specPreferences:", response.specPreferences ~= nil)
+        Debug:Dev("organizer", "  - Has specDetails:", response.specDetails ~= nil)
+        if response.specPreferences then
+            local prefCount = 0
+            for role, pref in pairs(response.specPreferences) do
+                prefCount = prefCount + 1
+                Debug:Dev("organizer", "    - Role", role, "=", pref)
+            end
+            Debug:Dev("organizer", "  - Total preferences:", prefCount)
+        end
         
         -- Store response
         table.insert(NextKey222.RosterBoard.activePoll.responses, {
@@ -131,14 +141,18 @@ function ParticipantSurvey:ProcessResponse(playerID, response)
             -- Check if they selected an alt or their current character
             if response.selectedCharacter == playerID then
                 -- Current character - check if already exists ANYWHERE before adding
+                Debug:Dev("organizer", "Building player data for current character:", playerID)
                 local playerData = self:BuildPlayerDataFromResponse(playerID, response)
+                Debug:Dev("organizer", "Built playerData - has specPreferences:", playerData.specPreferences ~= nil)
+                Debug:Dev("organizer", "Built playerData - has specDetails:", playerData.specDetails ~= nil)
                 
                 if NextKey222.RosterBoard then
                     -- CRITICAL FIX: Find card in ANY location (bench, slot, or opt-out)
                     local existingCard = NextKey222.RosterBoard:FindCardByPlayerID(playerID)
                     
                     if existingCard then
-                        Debug:Dev("organizer", playerID, "already exists at location:", existingCard.location, "- updating spec preferences")
+                        Debug:Dev("organizer", "Found existing card for", playerID, "at location:", existingCard.location)
+                        Debug:Dev("organizer", "Updating", playerID, "in", existingCard.location, "with new spec preferences")
                         Debug:Dev("organizer", "New spec preferences:", playerData.specPreferences)
                         
                         -- CRITICAL FIX: Update existing card's playerData with new spec preferences
@@ -182,8 +196,12 @@ function ParticipantSurvey:ProcessResponse(playerID, response)
                                 Debug:Dev("organizer", "  - CARD HAS NO SPEC PREFERENCES")
                             end
                             -- Update the card content to show multi-role icons
+                            Debug:Dev("organizer", "CALLING UpdateCardContent for slot card:", playerID)
                             if NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
                                 NextKey222.PlayerCard:UpdateCardContent(existingCard, "expanded")
+                                Debug:Dev("organizer", "UpdateCardContent COMPLETED for slot card:", playerID)
+                            else
+                                Debug:Error("PlayerCard.UpdateCardContent NOT AVAILABLE!")
                             end
                         elseif existingCard.location == "opt_out" then
                             Debug:Dev("organizer", "Moving", playerID, "from opt-out to bench (re-opted in)")
@@ -193,8 +211,12 @@ function ParticipantSurvey:ProcessResponse(playerID, response)
                         else
                             -- Already in bench - just refresh display
                             Debug:Dev("organizer", "Updating", playerID, "in bench with new spec preferences")
+                            Debug:Dev("organizer", "CALLING UpdateCardContent for bench card:", playerID)
                             if NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
                                 NextKey222.PlayerCard:UpdateCardContent(existingCard, "compact")
+                                Debug:Dev("organizer", "UpdateCardContent COMPLETED for bench card:", playerID)
+                            else
+                                Debug:Error("PlayerCard.UpdateCardContent NOT AVAILABLE!")
                             end
                         end
                     else
@@ -228,9 +250,13 @@ function ParticipantSurvey:ProcessResponse(playerID, response)
                         
                         -- DEBUG: Verify alt data copy
                         Debug:Dev("organizer", "Alt POST-UPDATE - specDetails:", existingAltCard.playerData.specDetails ~= nil)
+                        Debug:Dev("organizer", "CALLING UpdateCardContent for alt card:", altPlayerData.id)
                         if NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
                             local displayMode = existingAltCard.location == "bench" and "compact" or "expanded"
                             NextKey222.PlayerCard:UpdateCardContent(existingAltCard, displayMode)
+                            Debug:Dev("organizer", "UpdateCardContent COMPLETED for alt card:", altPlayerData.id)
+                        else
+                            Debug:Error("PlayerCard.UpdateCardContent NOT AVAILABLE!")
                         end
                     end
                     
