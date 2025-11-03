@@ -358,173 +358,11 @@ function RosterBoard:CalculateOptimalLayout()
 end
 
 function RosterBoard:GetBenchPlayers()
-    local allPlayers = {}
-    local seenPlayers = {}  -- Track which players we've already added
-    
-    -- STEP 1: Preserve existing bench cards with poll response data (CRITICAL FIX)
-    -- This prevents poll responses (specPreferences, surveyResponse) from being lost
-    if self.benchCards then
-        Debug:Dev("organizer_ui", "Preserving", #self.benchCards, "existing bench cards with poll data")
-        for _, card in ipairs(self.benchCards) do
-            if card.playerData then
-                table.insert(allPlayers, card.playerData)  -- Reuse existing data
-                seenPlayers[card.playerData.id] = true  -- CRITICAL: Mark as seen to prevent duplicate processing
-                Debug:Dev("organizer_ui", "Preserved player data for:", card.playerData.id,
-                         "- has specPreferences:", card.playerData.specPreferences ~= nil,
-                         "- has specDetails:", card.playerData.specDetails ~= nil)
-            end
-        end
-    end
-    
-    -- STEP 2: Add NEW fake players not already in bench
-    if NextKey222.FakePlayerService then
-        local fakePlayers = NextKey222.FakePlayerService:GetAllPlayers()
-        if fakePlayers then
-            Debug:Dev("organizer_ui", "Found", #fakePlayers, "fake players")
-            for _, fakeData in ipairs(fakePlayers) do
-                -- Skip if already preserved from bench
-                if seenPlayers[fakeData.name] then
-                    Debug:Dev("organizer_ui", "Skipping", fakeData.name, "- already preserved from bench")
-                else
-                    -- Convert fake player format to expected card format
-                    local playerData = {
-                        id = fakeData.name,  -- Use full name with realm as ID
-                        name = fakeData.name:match("^([^%-]+)") or fakeData.name,  -- Short name
-                        class = fakeData.class,
-                        roles = {fakeData.role or "DAMAGER"},  -- Convert string to array
-                        keystone = fakeData.keystone,
-                        overallScore = fakeData.io or 0,  -- Rename io -> overallScore
-                        specName = fakeData.specName,  -- Preserve spec name
-                        utilities = {}
-                    }
-                    
-                    -- Add utilities based on capabilities
-                    if fakeData.heroismCaster then
-                        table.insert(playerData.utilities, "heroism")
-                    end
-                    if fakeData.battleResCaster then
-                        table.insert(playerData.utilities, "battleRes")
-                    end
-                    
-                    -- CRITICAL FIX: Only generate defaults if player doesn't already have spec preferences
-                    -- (preserves poll response data if it exists)
-                    if not playerData.specPreferences or not next(playerData.specPreferences) then
-                    	if NextKey222.OrganizerPlayerDataBuilder and
-                    	   NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-                    		-- SafeRun returns the function's direct outputs: (specPreferences, specDetails)
-                    		local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fakeData.name)
-                    		
-                    		if success and specPrefs then
-                    			playerData.specPreferences = specPrefs
-                    			playerData.specDetails = specDetails
-                    			
-                    			Debug:Dev("organizer_ui", "Generated default spec preferences for fake player:", fakeData.name,
-                    			         "- has specPreferences:", specPrefs ~= nil,
-                    			         "- has specDetails:", specDetails ~= nil)
-                    		else
-                    			Debug:Error("Failed to generate default spec preferences for fake player:", fakeData.name)
-                    		end
-                    	end
-                    else
-                    	Debug:Dev("organizer_ui", "Player", fakeData.name, "already has spec preferences - preserving")
-                    end
-                    
-                    table.insert(allPlayers, playerData)
-                    seenPlayers[fakeData.name] = true  -- Mark as seen
-                end
-            end
-        end
-    end
-    
-    -- Add real party members (skip if already added as fake players)
-    if NextKey222.Addon and NextKey222.Addon.GetPartyMemberNames then
-        local partyMembers = NextKey222.Addon:GetPartyMemberNames()
-        Debug:Dev("organizer_ui", "Found", #partyMembers, "party members")
-        
-        for _, memberName in ipairs(partyMembers) do
-            -- Skip if already added as fake player
-            if seenPlayers[memberName] then
-                Debug:Dev("organizer_ui", "Skipping", memberName, "- already added as fake player")
-            else
-                -- Use BASE profile to get CURRENT spec's role
-                local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(memberName)
-                if profile then
-                    local playerData = {
-                        id = memberName,
-                        name = memberName:match("^([^%-]+)") or memberName,
-                        class = profile.class,
-                        -- CRITICAL: Use current spec's role, not multi-role array from CharacterStorage
-                        roles = {profile.role or "DAMAGER"},
-                        keystone = nil,  -- Will be populated below
-                        overallScore = profile.io or 0,
-                        specName = profile.specName,
-                        specID = profile.specID,
-                        utilities = {}
-                    }
-                    
-                    -- Get keystone from organizer profile
-                    local organizerProfile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetOrganizerProfile(memberName)
-                    if organizerProfile and organizerProfile.keystone then
-                        playerData.keystone = organizerProfile.keystone
-                    end
-                    
-                    -- Use capabilities from base profile for utilities
-                    if profile.capabilities then
-                        if profile.capabilities.heroism then
-                            table.insert(playerData.utilities, "heroism")
-                        end
-                        if profile.capabilities.battleRes then
-                            table.insert(playerData.utilities, "battleRes")
-                        end
-                    end
-                    
-                    -- CRITICAL FIX: Only generate defaults if player doesn't already have spec preferences
-                    -- (preserves poll response data if it exists)
-                    if not playerData.specPreferences or not next(playerData.specPreferences) then
-                    	if NextKey222.OrganizerPlayerDataBuilder and
-                    	   NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-                    		-- SafeRun returns the function's direct outputs: (specPreferences, specDetails)
-                    		local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(memberName)
-                    		
-                    		if success and specPrefs then
-                    			playerData.specPreferences = specPrefs
-                    			playerData.specDetails = specDetails
-                    			
-                    			Debug:Dev("organizer_ui", "Generated default spec preferences for real player:", memberName,
-                    			         "- has specPreferences:", specPrefs ~= nil,
-                    			         "- has specDetails:", specDetails ~= nil)
-                    		else
-                    			Debug:Error("Failed to generate default spec preferences for real player:", memberName)
-                    		end
-                    	end
-                    else
-                    	Debug:Dev("organizer_ui", "Player", memberName, "already has spec preferences - preserving")
-                    end
-                    
-                    Debug:Dev("organizer_ui", "Created player data for", memberName, "with current spec role:", profile.role, "specName:", profile.specName)
-                    
-                    table.insert(allPlayers, playerData)
-                    seenPlayers[memberName] = true  -- Mark as seen
-                end
-            end
-        end
-    end
-    
-    Debug:Dev("organizer_ui", "GetBenchPlayers returning", #allPlayers, "total players")
-    return allPlayers
+    return NextKey222.BenchManager:get_bench_players(self)
 end
 
 function RosterBoard:GetGroupedPlayers()
-    local success, result = NextKey222.SafeRun(function()
-        return {}
-    end, "RosterBoard:GetGroupedPlayers")
-    
-    -- SafeRun now returns (success, result), so handle properly
-    if success then
-        return result
-    else
-        return {}
-    end
+    return NextKey222.SlotManager:get_grouped_players(self)
 end
 
 -- MARK: Data Population
@@ -989,13 +827,10 @@ function RosterBoard:OnSortClicked()
             return
         end
         
-        Debug:Dev("organizer", "Generated", #assignmentPlan, "assignments - building animation queue")
+        Debug:Dev("organizer", "Generated", #assignmentPlan, "assignments - preparing animation sequence")
         
-        -- Clear animation queue first
-        NextKey222.AnimationQueue:Clear()
-        
-        -- Build animation queue
-        local validAssignments = 0
+        -- Build valid assignment list (filter out occupied slots)
+        local validAssignments = {}
         for _, assignment in ipairs(assignmentPlan) do
             local card = self:FindCardByPlayerID(assignment.player.id)
             local targetSlot = self.groupSlots[assignment.groupIndex] and
@@ -1004,12 +839,11 @@ function RosterBoard:OnSortClicked()
             if card and targetSlot then
                 -- Check if slot is empty
                 if targetSlot.isEmpty then
-                    NextKey222.AnimationQueue:Enqueue({
+                    table.insert(validAssignments, {
                         card = card,
                         targetSlot = targetSlot,
                         player = assignment.player
                     })
-                    validAssignments = validAssignments + 1
                 else
                     Debug:Dev("organizer", "Skipping assignment - slot occupied:",
                         assignment.groupIndex, assignment.slotIndex)
@@ -1020,21 +854,18 @@ function RosterBoard:OnSortClicked()
             end
         end
         
-        if validAssignments == 0 then
+        if #validAssignments == 0 then
             Debug:User("No valid assignments available - all slots may be occupied")
             self:ResetSortButton()
             return
         end
         
-        -- Set completion callback
-        NextKey222.AnimationQueue.onQueueComplete = function()
+        Debug:User("Starting sort animation for", #validAssignments, "players")
+        
+        -- Execute animation sequence with simplified API
+        NextKey222.AnimationQueue:ExecuteSequence(validAssignments, function()
             self:OnSortComplete()
-        end
-        
-        -- Store total for progress tracking
-        NextKey222.AnimationQueue.totalTasks = validAssignments
-        
-        Debug:User("Starting sort animation for", validAssignments, "players")
+        end)
         
     end, "RosterBoard:OnSortClicked")
 end
@@ -1076,224 +907,23 @@ function RosterBoard:DisableOrganizerControls()
     Debug:Dev("organizer_ui", "Disabled organizer controls (participant view)")
 end
 
--- MARK: Active Pool Section (FLAT ARCHITECTURE - All Siblings)
+-- MARK: Active Pool Section (Delegates to SlotManager)
 function RosterBoard:CreateActivePoolSection(nativeParent)
-    print("[ORGANIZER DIAGNOSTIC] CreateActivePoolSection (FLAT) called")
-    print("[ORGANIZER DIAGNOSTIC] Parent frame strata:", nativeParent:GetFrameStrata(), "level:", nativeParent:GetFrameLevel())
-    
-    -- Create a pure native container frame
-    local poolContainer = CreateFrame("Frame", nil, nativeParent)
-    poolContainer:SetPoint("TOPLEFT", nativeParent, "TOPLEFT", 10, -90)  -- Below header
-    poolContainer:SetPoint("BOTTOMRIGHT", nativeParent, "BOTTOMRIGHT", -10, 120)  -- Above opt-out
-    poolContainer:Show()
-    print("[ORGANIZER DIAGNOSTIC] Pool container created - Strata:", poolContainer:GetFrameStrata(), "Level:", poolContainer:GetFrameLevel())
-    
-    Debug:Dev("organizer_ui", "Created pool container with flat architecture")
-    
-    local layout = self:CalculateOptimalLayout()
-    print("[ORGANIZER DIAGNOSTIC] Layout - groups:", layout.groupColumns)
-    
-    -- Initialize arrays
-    self.groupBackgrounds = {}
-    self.groupSlots = {}
-    self.groupTitles = {}
-    self.groupKeystones = {}
-    self.allInteractiveFrames = {}
-    
-    -- Create visual backgrounds and interactive slots (all as siblings)
-    local columnWidth = 170
-    local columnSpacing = 10
-    
-    for groupIndex = 1, layout.groupColumns do
-        local groupXOffset = (groupIndex - 1) * (columnWidth + columnSpacing)
-        
-        print("[ORGANIZER DIAGNOSTIC] Creating group", groupIndex, "at xOffset:", groupXOffset)
-        
-        -- Create visual background texture (non-interactive)
-        local bgTexture = poolContainer:CreateTexture(nil, "BACKGROUND")
-        bgTexture:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Background")
-        bgTexture:SetPoint("TOPLEFT", poolContainer, "TOPLEFT", groupXOffset, 0)
-        bgTexture:SetSize(columnWidth, 550)
-        bgTexture:SetDrawLayer("BACKGROUND", -5)  -- Way back
-        self.groupBackgrounds[groupIndex] = bgTexture
-        
-        -- Create title label (sibling of slots)
-        local titleLabel = poolContainer:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-        titleLabel:SetPoint("TOPLEFT", poolContainer, "TOPLEFT", groupXOffset + (columnWidth / 2), -10)
-        titleLabel:SetJustifyH("CENTER")
-        titleLabel:SetText("M+ Grp. " .. groupIndex)
-        titleLabel:SetDrawLayer("ARTWORK", 5)  -- Above backgrounds, below slots
-        self.groupTitles[groupIndex] = titleLabel  -- Store for later updates
-        
-        -- Initialize keystone data
-        self.groupKeystones[groupIndex] = {keystone = nil, playerID = nil}
-        
-        -- Create role slots as direct children of poolContainer (NOT nested)
-        self.groupSlots[groupIndex] = {}
-        local roles = {"TANK", "HEALER", "DAMAGER", "DAMAGER", "DAMAGER"}
-        local roleLabels = {"Tank", "Healer", "DPS", "DPS", "DPS"}
-        
-        for slotIndex, role in ipairs(roles) do
-            local slotYOffset = 35 + ((slotIndex - 1) * 98)  -- Title space + (slot height + spacing)
-            
-            local slot = self:CreateFlatRoleSlot(
-                poolContainer,
-                groupIndex,
-                role,
-                roleLabels[slotIndex],
-                slotIndex,
-                groupXOffset + 10,  -- X: column offset + padding
-                -slotYOffset         -- Y: negative for downward positioning
-            )
-            
-            self.groupSlots[groupIndex][slotIndex] = slot
-            table.insert(self.allInteractiveFrames, slot)  -- Strong reference
-            
-            print("[ORGANIZER DIAGNOSTIC] Created slot", groupIndex, slotIndex, roleLabels[slotIndex], "at:", groupXOffset + 10, -slotYOffset)
-        end
-    end
-    
-    print("[ORGANIZER DIAGNOSTIC] Created", #self.groupSlots, "groups with", #self.allInteractiveFrames, "total slots")
-    
-    -- Create bench (also as sibling)
-    local benchXOffset = layout.groupColumns * (columnWidth + columnSpacing)
-    local benchColumn = self:CreateNativeBenchColumn(layout.benchWidth, poolContainer)
-    benchColumn:SetPoint("TOPLEFT", poolContainer, "TOPLEFT", benchXOffset, 0)
-    
-    self.activePoolSection = poolContainer
-    
-    Debug:Dev("organizer_ui", "Active pool section created with flat architecture")
+    return NextKey222.SlotManager:create_active_pool_section(self, nativeParent)
 end
 
--- MARK: Flat Role Slot Creation (Sibling Architecture)
+-- MARK: Flat Role Slot Creation (Delegates to SlotManager)
 function RosterBoard:CreateFlatRoleSlot(parentContainer, groupIndex, role, roleLabel, slotIndex, xPos, yPos)
-    -- Create slot frame as direct child of poolContainer (NOT nested in column)
-    local slot = CreateFrame("Frame", nil, parentContainer, "BackdropTemplate")
-    slot:SetSize(150, 95)
-    slot:SetPoint("TOPLEFT", parentContainer, "TOPLEFT", xPos, yPos)
-    slot:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        tile = false, edgeSize = 2,
-        insets = {left = 2, right = 2, top = 2, bottom = 2}
-    })
-    slot:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
-    
-    -- Role-colored border
-    local borderColor = {r=0.5, g=0.5, b=0.5}
-    if role == "TANK" then
-        borderColor = {r=0.2, g=0.5, b=1.0}
-    elseif role == "HEALER" then
-        borderColor = {r=0.1, g=0.9, b=0.1}
-    elseif role == "DAMAGER" then
-        borderColor = {r=0.9, g=0.1, b=0.1}
-    end
-    slot:SetBackdropBorderColor(borderColor.r, borderColor.g, borderColor.b, 1.0)
-    
-    -- Empty label
-    local emptyLabel = slot:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    emptyLabel:SetPoint("CENTER")
-    emptyLabel:SetText(roleLabel)
-    emptyLabel:SetTextColor(0.7, 0.7, 0.7)
-    
-    -- Enable mouse for drop detection (CRITICAL)
-    slot:EnableMouse(true)
-    slot:SetFrameLevel(parentContainer:GetFrameLevel() + 50)  -- WAY above parent
-    slot:Show()
-    
-    print("[SLOT DIAGNOSTIC]", roleLabel, "Level:", slot:GetFrameLevel(), "Parent level:", parentContainer:GetFrameLevel())
-    Debug:Dev("organizer_ui", "Created FLAT slot:", groupIndex, slotIndex, roleLabel, "Strata:", slot:GetFrameStrata(), "Level:", slot:GetFrameLevel())
-    
-    -- Store metadata
-    slot.groupIndex = groupIndex
-    slot.role = role
-    slot.roleLabel = roleLabel
-    slot.slotIndex = slotIndex
-    slot.playerCard = nil
-    slot.emptyLabel = emptyLabel
-    slot.isEmpty = true
-    slot.frame = slot  -- For compatibility
-    
-    return slot
+    return NextKey222.SlotManager:create_flat_role_slot(parentContainer, groupIndex, role, roleLabel, slotIndex, xPos, yPos)
 end
 
--- MARK: Native Bench Column (FULLY NATIVE - Based on drag_test_simple.lua)
+-- MARK: Native Bench Column (Delegates to BenchManager)
 function RosterBoard:CreateNativeBenchColumn(width, parentFrame)
-    -- Create pure native bench frame
-    local bench = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
-    bench:SetSize(width, 540)
-    bench:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 8, right = 8, top = 8, bottom = 8 }
-    })
-    bench:Show()
-    
-    -- Title label
-    local titleLabel = bench:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    titleLabel:SetPoint("TOP", 0, -10)
-    titleLabel:SetText("Roster")
-    
-    -- Create native scroll frame inside
-    local scrollFrame = CreateFrame("ScrollFrame", nil, bench, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 10, -30)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
-    scrollFrame:Show()
-    
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(180, 1)  -- Compact width
-    scrollFrame:SetScrollChild(scrollChild)
-    scrollChild:Show()
-    
-    -- Store references
-    bench.scrollFrame = scrollFrame
-    bench.scrollChild = scrollChild
-    bench.frame = bench  -- For compatibility
-    self.benchContainer = scrollChild
-    self.benchScrollFrame = scrollFrame
-    self.benchCards = {}
-    
-    Debug:Dev("organizer_ui", "Created FULLY NATIVE bench column")
-    
-    return bench
+    return NextKey222.BenchManager:create_native_bench_column(self, width, parentFrame)
 end
--- MARK: Add Player to Bench (Individual)
+-- MARK: Add Player to Bench (Delegates to BenchManager)
 function RosterBoard:AddPlayerToBench(playerData)
-    return NextKey222.SafeRun(function()
-        if not self.benchContainer then
-            Debug:Error("Bench container not initialized")
-            return
-        end
-        
-        -- Create native card
-        local card = NextKey222.PlayerCard:CreateNativeCard(
-            playerData,
-            self.benchContainer,
-            "bench",
-            "compact"
-        )
-        
-        if card then
-            table.insert(self.benchCards, card)
-            
-            -- Add visual indicator if auto-detected
-            if playerData.dataSource == "auto-detected" then
-                self:AddAutoDetectedIndicator(card)
-            end
-            
-            -- Re-layout bench
-            self:LayoutBench()
-            
-            -- Check if window needs to resize for more groups
-            self:CheckAndResizeWindow()
-            
-            Debug:Dev("organizer", "Added player to bench:", playerData.name)
-        else
-            Debug:Error("Failed to create card for:", playerData.name)
-        end
-        
-    end, "RosterBoard:AddPlayerToBench")
+    return NextKey222.BenchManager:add_player_to_bench(self, playerData)
 end
 
 function RosterBoard:AddPlayerToOptOut(playerData)
@@ -1326,761 +956,94 @@ function RosterBoard:AddPlayerToOptOut(playerData)
 end
 
 function RosterBoard:RemovePlayerFromBench(playerID)
-    return NextKey222.SafeRun(function()
-        if not self.benchCards then
-            return
-        end
-        
-        -- Find and remove the player card
-        for i = #self.benchCards, 1, -1 do
-            local card = self.benchCards[i]
-            if card.playerData and card.playerData.id == playerID then
-                -- Hide and remove card
-                card:Hide()
-                card:SetParent(nil)
-                table.remove(self.benchCards, i)
-                
-                Debug:Dev("organizer", "Removed player from bench:", playerID)
-                
-                -- Re-layout bench
-                self:LayoutBench()
-                return true
-            end
-        end
-        
-        Debug:Dev("organizer", "Player not found in bench:", playerID)
-        return false
-        
-    end, "RosterBoard:RemovePlayerFromBench")
+    return NextKey222.BenchManager:remove_player_from_bench(self, playerID)
 end
 
 function RosterBoard:AddAutoDetectedIndicator(playerCard)
-    -- Add small icon overlay to card indicating no addon
-    -- For now, just log it - can add visual indicator later
-    Debug:Dev("organizer", "Player auto-detected (no addon):", playerCard.playerData.name)
+    return NextKey222.BenchManager:add_auto_detected_indicator(playerCard)
 end
 
--- MARK: Populate Bench (Batch)
+-- MARK: Populate Bench (Delegates to BenchManager)
 function RosterBoard:PopulateBench(players)
-    if not self.benchContainer then
-        Debug:Error("Bench container not initialized")
-        return
-    end
-    
-    -- Clear existing cards
-    for _, card in ipairs(self.benchCards) do
-        if card then
-            card:Hide()
-            card:SetParent(nil)
-        end
-    end
-    self.benchCards = {}
-    
-    Debug:Dev("organizer_ui", "Populating bench with", #players, "players")
-    
-    -- Create native cards
-    for i, playerData in ipairs(players) do
-        local card = NextKey222.PlayerCard:CreateNativeCard(
-            playerData,
-            self.benchContainer,
-            "bench",
-            "compact"
-        )
-        
-        if card then
-            table.insert(self.benchCards, card)
-            Debug:Dev("organizer_ui", "Created bench card", i, "for:", playerData.name)
-        else
-            Debug:Error("Failed to create card for:", playerData.name)
-        end
-    end
-    
-    -- Layout bench
-    self:LayoutBench()
-    
-    Debug:Dev("organizer_ui", "Bench populated with", #self.benchCards, "cards")
+    return NextKey222.BenchManager:populate_bench(self, players)
 end
 
--- MARK: Window Resize Check
+-- MARK: Window Resize Check (Delegates to BenchManager)
 function RosterBoard:CheckAndResizeWindow()
-    if not self.mainFrame then
-        return
-    end
-    
-    -- Calculate what the layout should be
-    local newLayout = self:CalculateOptimalLayout()
-    
-    -- Get current number of groups
-    local currentGroupCount = #self.groupSlots or 0
-    
-    -- If we need more groups, rebuild the entire window
-    if newLayout.groupColumns > currentGroupCount then
-        Debug:Dev("organizer_ui", "Player count increased - need more groups. Rebuilding window...")
-        
-        -- Store visibility state
-        local wasVisible = self.mainFrame:IsVisible()
-        
-        -- Close and recreate
-        self:OnMainFrameClosed(self.mainFrame)
-        
-        if wasVisible then
-            self:CreateMainFrame()
-        end
-    end
+    return NextKey222.BenchManager:check_and_resize_window(self)
 end
 
--- MARK: Layout Bench (NEW - Manual Layout System)
+-- MARK: Layout Bench (Delegates to BenchManager)
 function RosterBoard:LayoutBench()
-    if not self.benchContainer or not self.benchCards then
-        return
-    end
-    
-    local yOffset = 0
-    local spacing = 3
-    
-    Debug:Dev("organizer_ui", "Laying out", #self.benchCards, "bench cards")
-    
-    for i, card in ipairs(self.benchCards) do
-        card:ClearAllPoints()
-        card:SetPoint("TOP", self.benchContainer, "TOP", 0, -yOffset)
-        card:SetSize(180, 20)  -- Compact: 180px wide, 20px tall
-        card:SetParent(self.benchContainer)  -- Ensure correct parent
-        card:Show()
-        yOffset = yOffset + 20 + spacing
-    end
-    
-    -- Update scroll child height
-    self.benchContainer:SetHeight(math.max(yOffset, 1))
-    
-    Debug:Dev("organizer_ui", "Bench layout complete")
+    return NextKey222.BenchManager:layout_bench(self)
 end
 
--- MARK: Opt-Out Section (FULLY NATIVE - Fixed Horizontal Scrolling)
+-- MARK: Opt-Out Section (Delegates to SlotManager)
 function RosterBoard:CreateOptOutSection(nativeParent)
-    -- Create pure native opt-out frame
-    local optOut = CreateFrame("Frame", nil, nativeParent, "BackdropTemplate")
-    optOut:SetPoint("BOTTOMLEFT", nativeParent, "BOTTOMLEFT", 10, 15)
-    optOut:SetPoint("BOTTOMRIGHT", nativeParent, "BOTTOMRIGHT", -10, 15)
-    optOut:SetHeight(95)
-    optOut:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 8, right = 8, top = 8, bottom = 8 }
-    })
-    optOut:Show()
-    
-    -- Title label
-    local titleLabel = optOut:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    titleLabel:SetPoint("TOP", 0, -10)
-    titleLabel:SetText("Not Playing")
-    
-    -- Create native scroll frame inside (HORIZONTAL scrolling)
-    local scrollFrame = CreateFrame("ScrollFrame", nil, optOut, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 10, -30)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
-    scrollFrame:Show()
-    
-    -- Enable mouse wheel for horizontal scrolling
-    scrollFrame:EnableMouseWheel(true)
-    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
-        local current = self:GetHorizontalScroll()
-        local maxScroll = self:GetHorizontalScrollRange()
-        local newScroll = math.max(0, math.min(current - (delta * 40), maxScroll))
-        self:SetHorizontalScroll(newScroll)
-    end)
-    
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(1, 30)  -- Start with minimal width, height for single row
-    scrollFrame:SetScrollChild(scrollChild)
-    scrollChild:Show()
-    
-    -- Store references
-    optOut.scrollFrame = scrollFrame
-    optOut.scrollChild = scrollChild
-    optOut.playerCards = {}
-    optOut.frame = optOut  -- For compatibility
-    
-    self.optOutSection = optOut
-    
-    Debug:Dev("organizer_ui", "Created FULLY NATIVE opt-out section with horizontal scrolling")
+    return NextKey222.SlotManager:create_opt_out_section(self, nativeParent)
 end
 
 function RosterBoard:PopulateOptOut(players)
-    if not self.optOutSection or not self.optOutSection.scrollChild then
-        return
-    end
-    
-    -- Clear existing cards
-    for _, card in ipairs(self.optOutSection.playerCards) do
-        if card then
-            card:Hide()
-            card:SetParent(nil)
-        end
-    end
-    self.optOutSection.playerCards = {}
-    
-    -- Create native cards for opted-out players
-    for i, playerData in ipairs(players) do
-        local card = NextKey222.PlayerCard:CreateNativeCard(
-            playerData,
-            self.optOutSection.scrollChild,
-            "opt_out",
-            "compact"  -- Use compact mode (same as bench)
-        )
-        
-        if card then
-            table.insert(self.optOutSection.playerCards, card)
-        end
-    end
-    
-    -- Layout horizontally
-    self:LayoutOptOut()
-    
-    Debug:Dev("organizer_ui", "Populated opt-out with", #players, "players")
+    return NextKey222.SlotManager:populate_opt_out(self, players)
 end
 
--- MARK: Place Card in Opt-Out
+-- MARK: Place Card in Opt-Out (Delegates to SlotManager)
 function RosterBoard:PlaceCardInOptOut(card)
-    Debug:Dev("organizer_ui", "Placing card in opt-out")
-    
-    -- Check if card's keystone was designated
-    if card.location and
-       type(card.location) == "table" and
-       card.location.type == "role_slot" then
-        
-        local groupIndex = card.location.groupIndex
-        
-        if self:IsKeystoneDesignated(groupIndex, card.playerData.id) then
-            self:ClearGroupKeystone(groupIndex)
-            Debug:Dev("organizer", "Cleared keystone - card removed from group")
-        end
-    end
-    
-    if not self.optOutSection or not self.optOutSection.scrollChild then
-        Debug:Error("Opt-out section not initialized")
-        return
-    end
-    
-    -- Use opt_out mode (2-line square layout)
-    card:SetSize(90, 40)  -- Opt-out size (square-ish for 2-line)
-    card:SetParent(self.optOutSection.scrollChild)
-    
-    -- Update metadata
-    card.location = "opt_out"
-    
-    -- Update card content to opt_out mode
-    NextKey222.PlayerCard:UpdateCardContent(card, "opt_out")
-    
-    -- Add to opt-out array
-    table.insert(self.optOutSection.playerCards, card)
-    
-    -- Reset colors
-    card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
-    card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
-    
-    -- Re-layout opt-out section horizontally
-    self:LayoutOptOut()
-    
-    Debug:Dev("organizer_ui", "Card placed in opt-out successfully")
+    return NextKey222.SlotManager:place_card_in_opt_out(self, card)
 end
 
--- MARK: Layout Opt-Out (Horizontal)
+-- MARK: Layout Opt-Out (Delegates to SlotManager)
 function RosterBoard:LayoutOptOut()
-    if not self.optOutSection or not self.optOutSection.scrollChild or not self.optOutSection.playerCards then
-        return
-    end
-    
-    local xOffset = 0
-    local spacing = 5
-    local cardWidth = 90  -- Opt-out width (square-ish)
-    local cardHeight = 40  -- Opt-out height (2-line)
-    
-    Debug:Dev("organizer_ui", "Laying out", #self.optOutSection.playerCards, "opt-out cards horizontally")
-    
-    for i, card in ipairs(self.optOutSection.playerCards) do
-        card:ClearAllPoints()
-        card:SetPoint("TOPLEFT", self.optOutSection.scrollChild, "TOPLEFT", xOffset, 0)
-        card:SetSize(cardWidth, cardHeight)
-        card:SetParent(self.optOutSection.scrollChild)
-        card:Show()
-        xOffset = xOffset + cardWidth + spacing
-    end
-    
-    -- Update scroll child width for horizontal scrolling
-    self.optOutSection.scrollChild:SetWidth(math.max(xOffset, 1))
-    self.optOutSection.scrollChild:SetHeight(cardHeight + 10)
-    
-    Debug:Dev("organizer_ui", "Opt-out layout complete, total width:", xOffset)
+    return NextKey222.SlotManager:layout_opt_out(self)
 end
 
--- MARK: Drop Target Detection (NEW - IsMouseOver based)
+-- MARK: Drop Target Detection (Delegates to CardMovement)
 function RosterBoard:DetectDropTarget()
-    -- Check role slots first (highest priority)
-    if self.groupSlots then
-        for groupIndex, slots in pairs(self.groupSlots) do
-            for slotIndex, slot in pairs(slots) do
-                if slot and slot.frame and slot.frame:IsMouseOver() then
-                    Debug:Dev("organizer_ui", "Mouse over slot:", groupIndex, slotIndex, slot.roleLabel)
-                    return {
-                        type = "role_slot",
-                        slot = slot,
-                        groupIndex = groupIndex,
-                        slotIndex = slotIndex,
-                        role = slot.role
-                    }
-                end
-            end
-        end
-    end
-    
-    -- Check bench scroll frame (entire area including empty space)
-    if self.benchScrollFrame and self.benchScrollFrame:IsMouseOver() then
-        Debug:Dev("organizer_ui", "Mouse over bench")
-        return {type = "bench"}
-    end
-    
-    -- Check opt-out scroll frame (entire area including empty space)
-    if self.optOutSection and self.optOutSection.scrollFrame and self.optOutSection.scrollFrame:IsMouseOver() then
-        Debug:Dev("organizer_ui", "Mouse over opt-out")
-        return {type = "opt_out"}
-    end
-    
-    return nil
+    return NextKey222.CardMovement:detect_drop_target(self)
 end
 
--- MARK: Card Drop Handler (NEW - Two-Phase Removal)
+-- MARK: Card Drop Handler (Delegates to CardMovement)
 function RosterBoard:HandleCardDrop(card, dropTarget)
-    return NextKey222.SafeRun(function()
-        Debug:Dev("organizer_ui", "HandleCardDrop - type:", dropTarget.type)
-        
-        -- Check if card had a designated keystone in previous location
-        if card.location and
-           type(card.location) == "table" and
-           card.location.type == "role_slot" then
-            
-            local prevGroupIndex = card.location.groupIndex
-            
-            -- If this card's keystone was designated for previous group, clear it
-            if self:IsKeystoneDesignated(prevGroupIndex, card.playerData.id) then
-                self:ClearGroupKeystone(prevGroupIndex)
-                Debug:Dev("organizer", "Cleared keystone - card moved to different group")
-            end
-        end
-        
-        -- Phase 1: Mark for removal (non-destructive)
-        self:MarkCardForRemoval(card)
-        
-        if dropTarget.type == "role_slot" then
-            -- Validate role
-            local canFill = self:CanPlayerFillRole(card.playerData.roles, dropTarget.role)
-            
-            if not canFill then
-                -- Try to find compatible slot in same group
-                local compatibleSlot = self:FindCompatibleSlotInGroup(card, dropTarget.groupIndex)
-                if compatibleSlot then
-                    Debug:Dev("organizer_ui", "Found compatible slot:", compatibleSlot.roleLabel)
-                    dropTarget = {
-                        type = "role_slot",
-                        slot = compatibleSlot,
-                        groupIndex = dropTarget.groupIndex,
-                        slotIndex = compatibleSlot.slotIndex,
-                        role = compatibleSlot.role
-                    }
-                else
-                    Debug:Dev("organizer_ui", "No compatible slot - rejecting")
-                    self:AnimateRejection(card)
-                    return
-                end
-            end
-            
-            -- Check if slot is occupied
-            if not dropTarget.slot.isEmpty then
-                Debug:Dev("organizer_ui", "Slot occupied - rejecting")
-                self:AnimateRejection(card)
-                return
-            end
-            
-            -- SUCCESS - Phase 2: Actually remove from source
-            self:CompleteCardRemoval(card)
-            
-            -- Place in slot
-            self:PlaceCardInSlot(card, dropTarget.slot)
-            
-        elseif dropTarget.type == "bench" then
-            -- SUCCESS - Phase 2: Actually remove from source
-            self:CompleteCardRemoval(card)
-            
-            -- Bench always accepts - no rejection animation
-            self:PlaceCardInBench(card)
-            
-        elseif dropTarget.type == "opt_out" then
-            -- SUCCESS - Phase 2: Actually remove from source
-            self:CompleteCardRemoval(card)
-            
-            -- Opt-out accepts all
-            self:PlaceCardInOptOut(card)
-        end
-        
-    end, "RosterBoard:HandleCardDrop")
+    return NextKey222.CardMovement:handle_card_drop(self, card, dropTarget)
 end
 
--- MARK: Mark Card For Removal (Phase 1 - Non-Destructive)
+-- MARK: Mark Card For Removal (Delegates to CardMovement)
 function RosterBoard:MarkCardForRemoval(card)
-    local location = card.location
-    
-    -- Mark card as pending removal (non-destructive)
-    card.pendingRemoval = true
-    card.originalLocation = location
-    card.originalIndex = nil
-    card.originalList = nil
-    card.originalSlot = nil
-    
-    if location == "bench" then
-        -- Store metadata only - DO NOT remove from array
-        for i, benchCard in ipairs(self.benchCards) do
-            if benchCard == card then
-                card.originalIndex = i
-                card.originalList = self.benchCards
-                Debug:Dev("organizer_ui", "Marked bench card for removal at index", i)
-                break
-            end
-        end
-    elseif location == "opt_out" then
-        -- Store opt-out list reference
-        if self.optOutSection and self.optOutSection.playerCards then
-            for i, optOutCard in ipairs(self.optOutSection.playerCards) do
-                if optOutCard == card then
-                    card.originalIndex = i
-                    card.originalList = self.optOutSection.playerCards
-                    Debug:Dev("organizer_ui", "Marked opt-out card for removal at index", i)
-                    break
-                end
-            end
-        end
-    elseif type(location) == "table" and location.type == "role_slot" then
-        -- Store slot reference - DO NOT clear slot.playerCard
-        local slot = self.groupSlots[location.groupIndex] and
-                     self.groupSlots[location.groupIndex][location.slotIndex]
-        
-        if slot and slot.playerCard == card then
-            card.originalSlot = slot
-            Debug:Dev("organizer_ui", "Marked slot card for removal")
-        end
-    end
+    return NextKey222.CardMovement:mark_card_for_removal(self, card)
 end
 
--- MARK: Complete Card Removal (Phase 2 - Destructive)
+-- MARK: Complete Card Removal (Delegates to CardMovement)
 function RosterBoard:CompleteCardRemoval(card)
-    -- Actually remove from arrays (called ONLY on successful drop)
-    
-    if card.originalList then
-        for i, c in ipairs(card.originalList) do
-            if c == card then
-                table.remove(card.originalList, i)
-                Debug:Dev("organizer_ui", "Completed removal at index", i)
-                break
-            end
-        end
-        -- Refresh layout based on original location
-        if card.originalLocation == "bench" then
-            self:LayoutBench()
-        elseif card.originalLocation == "opt_out" then
-            self:LayoutOptOut()
-        end
-    elseif card.originalSlot then
-        card.originalSlot.playerCard = nil
-        card.originalSlot.isEmpty = true
-        
-        -- Restore empty label
-        if card.originalSlot.emptyLabel then
-            card.originalSlot.emptyLabel:Show()
-        end
-        
-        Debug:Dev("organizer_ui", "Completed removal from slot")
-    end
-    
-    -- Clear temporary data
-    card.originalIndex = nil
-    card.originalList = nil
-    card.originalSlot = nil
-    card.pendingRemoval = false
+    return NextKey222.CardMovement:complete_card_removal(self, card)
 end
 
--- MARK: Place Card in Slot
+-- MARK: Place Card in Slot (Delegates to SlotManager)
 function RosterBoard:PlaceCardInSlot(card, slot)
-    Debug:Dev("organizer_ui", "Placing card in slot:", slot.groupIndex, slot.roleLabel)
-    
-    -- Hide empty label
-    if slot.emptyLabel then
-        slot.emptyLabel:Hide()
-    end
-    
-    -- Update card size and position for expanded mode
-    card:SetSize(145, 90)  -- Expanded
-    card:SetParent(slot)
-    card:ClearAllPoints()
-    card:SetPoint("CENTER", slot, "CENTER", 0, 0)
-    
-    -- Update card metadata
-    card.location = {
-        type = "role_slot",
-        groupIndex = slot.groupIndex,
-        slotIndex = slot.slotIndex,
-        role = slot.role
-    }
-    
-    -- Update card content to expanded mode
-    NextKey222.PlayerCard:UpdateCardContent(card, "expanded")
-    
-    -- Store in slot
-    slot.playerCard = card
-    slot.isEmpty = false
-    
-    -- Reset colors
-    card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
-    card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
-    
-    card:Show()
-    
-    Debug:Dev("organizer_ui", "Card placed in slot successfully")
+    return NextKey222.SlotManager:place_card_in_slot(card, slot)
 end
 
--- MARK: Place Card in Bench
+-- MARK: Place Card in Bench (Delegates to CardMovement)
 function RosterBoard:PlaceCardInBench(card)
-    Debug:Dev("organizer_ui", "Placing card in bench")
-    
-    -- Check if card's keystone was designated
-    if card.location and
-       type(card.location) == "table" and
-       card.location.type == "role_slot" then
-        
-        local groupIndex = card.location.groupIndex
-        
-        if self:IsKeystoneDesignated(groupIndex, card.playerData.id) then
-            self:ClearGroupKeystone(groupIndex)
-            Debug:Dev("organizer", "Cleared keystone - card removed from group")
-        end
-    end
-    
-    -- Update card size for compact mode
-    card:SetSize(180, 20)  -- Compact size
-    card:SetParent(self.benchContainer)
-    
-    -- Update metadata
-    card.location = "bench"
-    
-    -- Update card content to compact mode
-    NextKey222.PlayerCard:UpdateCardContent(card, "compact")
-    
-    -- Add to bench array
-    table.insert(self.benchCards, card)
-    
-    -- Reset colors
-    card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
-    card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
-    
-    -- Re-layout bench
-    self:LayoutBench()
-    
-    Debug:Dev("organizer_ui", "Card placed in bench successfully")
+    return NextKey222.CardMovement:place_card_in_bench(self, card)
 end
 
--- MARK: Remove Card From Bench Array Helper
+-- MARK: Remove Card From Bench Array (Delegates to CardMovement)
 function RosterBoard:RemoveCardFromBenchArray(card)
-    if not self.benchCards then return end
-    
-    for i = #self.benchCards, 1, -1 do
-        if self.benchCards[i] == card then
-            table.remove(self.benchCards, i)
-            Debug:Dev("organizer_ui", "Removed card from benchCards array at index", i)
-            return true
-        end
-    end
-    
-    Debug:Dev("organizer_ui", "Card not found in benchCards array")
-    return false
+    return NextKey222.CardMovement:remove_card_from_bench_array(self, card)
 end
 
--- MARK: Rejection Animation (NEW - Two-Phase Compatible)
+-- MARK: Rejection Animation (Delegates to CardMovement)
 function RosterBoard:AnimateRejection(card)
-    Debug:Dev("organizer_ui", "Animating rejection for:", card.playerData.name)
-    
-    -- Clear pending removal flag (card was never removed from arrays)
-    card.pendingRemoval = false
-    
-    -- Use stored original data
-    local originalLocation = card.originalLocation or card.location
-    local originalSlot = card.originalSlot
-    
-    -- Flash red
-    card:SetBackdropColor(1.0, 0.2, 0.2, 1.0)
-    card:SetBackdropBorderColor(1.0, 1.0, 0.0, 1.0)
-    
-    local startX, startY = card:GetCenter()
-    local targetX, targetY = card.originalX, card.originalY
-    
-    local duration = 0.3
-    local steps = 15
-    local stepDelay = duration / steps
-    local currentStep = 0
-    
-    card:SetParent(UIParent)
-    card:SetFrameStrata("TOOLTIP")
-    
-    local function AnimateStep()
-        currentStep = currentStep + 1
-        local progress = currentStep / steps
-        local easedProgress = 1 - (1 - progress) * (1 - progress)
-        
-        local newX = startX + (targetX - startX) * easedProgress
-        local newY = startY + (targetY - startY) * easedProgress
-        
-        card:ClearAllPoints()
-        card:SetPoint("CENTER", UIParent, "BOTTOMLEFT", newX, newY)
-        
-        if currentStep >= steps then
-            -- Animation complete - card already in correct list, just refresh layout
-            if originalLocation == "bench" or not originalLocation then
-                -- Card already in bench array - just refresh layout
-                card:SetParent(self.benchContainer)
-                card:SetSize(180, 20)  -- Compact size
-                card.location = "bench"
-                
-                -- Refresh layout to show card in correct position
-                self:LayoutBench()
-                
-            elseif originalLocation == "opt_out" then
-                -- Card already in opt-out array - just refresh layout
-                card:SetParent(self.optOutSection.scrollChild)
-                card:SetSize(180, 20)  -- Compact size (same as bench)
-                card.location = "opt_out"
-                
-                -- Refresh layout to show card in correct position
-                self:LayoutOptOut()
-                
-            elseif type(originalLocation) == "table" and originalLocation.type == "role_slot" then
-                -- Card already assigned to slot - just ensure it's visible
-                if originalSlot then
-                    card:SetParent(originalSlot)
-                    card:SetSize(145, 90)  -- Expanded size
-                    card:ClearAllPoints()
-                    card:SetPoint("CENTER", originalSlot, "CENTER")
-                    card.location = originalLocation
-                    
-                    -- Ensure slot metadata is correct
-                    originalSlot.isEmpty = false
-                    if originalSlot.emptyLabel then
-                        originalSlot.emptyLabel:Hide()
-                    end
-                else
-                    -- Fallback to bench
-                    card:SetParent(self.benchContainer)
-                    card:SetSize(180, 20)
-                    card.location = "bench"
-                    self:LayoutBench()
-                end
-            end
-            
-            -- Clear temporary restoration data
-            card.originalIndex = nil
-            card.originalList = nil
-            card.originalSlot = nil
-            card.originalLocation = nil
-            
-            -- CRITICAL: Restore frame properties using stored originals
-            card:SetFrameStrata(card.originalFrameStrata or "MEDIUM")
-            card:SetFrameLevel(card.originalFrameLevel or (card:GetParent():GetFrameLevel() + 1))
-            card:EnableMouse(true)
-            card:SetMovable(true)
-            
-            -- Reset colors
-            card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
-            card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
-            
-            Debug:Dev("organizer_ui", "Rejection animation complete - card restored and clickable")
-        else
-            C_Timer.After(stepDelay, AnimateStep)
-        end
-    end
-    
-    C_Timer.After(stepDelay, AnimateStep)
+    return NextKey222.CardMovement:animate_rejection(self, card)
 end
 
--- MARK: Role Validation
+-- MARK: Role Validation (Delegates to CardMovement)
 function RosterBoard:CanPlayerFillRole(playerRoles, slotRole)
-    if not playerRoles then
-        return false
-    end
-    
-    local normalizedSlotRole = slotRole
-    if slotRole == "DAMAGER" then
-        normalizedSlotRole = "DPS"
-    end
-    
-    -- ENHANCED: Support both array and table formats
-    -- Array format: {"TANK", "HEALER"} (legacy)
-    -- Table format: {Tank = "play", Healer = "fill", DPS = "none"} (new spec preferences)
-    
-    -- Check if it's a spec preferences table (key-value pairs)
-    local isSpecPreferencesTable = false
-    for k, v in pairs(playerRoles) do
-        if type(k) == "string" and type(v) == "string" then
-            isSpecPreferencesTable = true
-            break
-        end
-    end
-    
-    if isSpecPreferencesTable then
-        -- New format: check spec preferences
-        for role, preference in pairs(playerRoles) do
-            -- Skip "none" preferences
-            if preference ~= "none" then
-                local normalizedRole = role:upper()
-                if normalizedRole == "DAMAGER" then
-                    normalizedRole = "DPS"
-                end
-                
-                if normalizedRole == normalizedSlotRole:upper() or
-                   normalizedRole == slotRole:upper() then
-                    return true
-                end
-            end
-        end
-    else
-        -- Legacy format: array of role strings
-        for _, role in ipairs(playerRoles) do
-            local normalizedPlayerRole = role:upper()
-            if normalizedPlayerRole == "DAMAGER" then
-                normalizedPlayerRole = "DPS"
-            end
-            
-            if normalizedPlayerRole == normalizedSlotRole or
-               normalizedPlayerRole == slotRole:upper() or
-               normalizedPlayerRole == normalizedSlotRole:upper() then
-                return true
-            end
-        end
-    end
-    
-    return false
+    return NextKey222.CardMovement:can_player_fill_role(playerRoles, slotRole)
 end
 
 function RosterBoard:FindCompatibleSlotInGroup(card, groupIndex)
-    if not self.groupSlots[groupIndex] then
-        return nil
-    end
-    
-    -- ENHANCED: Check spec preferences if available, otherwise fall back to roles array
-    local rolesToCheck = card.playerData.specPreferences or card.playerData.roles
-    
-    for _, slot in ipairs(self.groupSlots[groupIndex]) do
-        if slot.isEmpty and self:CanPlayerFillRole(rolesToCheck, slot.role) then
-            return slot
-        end
-    end
-    
-    return nil
+    return NextKey222.CardMovement:find_compatible_slot_in_group(self, card, groupIndex)
 end
 
 -- MARK: State Synchronization
@@ -2142,173 +1105,34 @@ function RosterBoard:IsVisible()
     return self.mainFrame and self.mainFrame:IsVisible()
 end
 
--- MARK: Keystone Designation
+-- MARK: Keystone Designation (Delegates to KeystoneManager)
 function RosterBoard:DesignateGroupKeystone(groupIndex, keystone, playerID)
-    return NextKey222.SafeRun(function()
-        Debug:Dev("organizer", "DesignateGroupKeystone called:", groupIndex, playerID)
-        
-        -- Validate group exists
-        if not self.groupKeystones[groupIndex] then
-            Debug:Error("Invalid group index:", groupIndex)
-            return
-        end
-        
-        -- Check if clicking the same keystone (toggle off)
-        if self.groupKeystones[groupIndex].playerID == playerID then
-            Debug:Dev("organizer", "Undesignating keystone")
-            self:ClearGroupKeystone(groupIndex)
-            return
-        end
-        
-        -- Clear previous designation if different player
-        if self.groupKeystones[groupIndex].playerID then
-            self:UnhighlightKeystoneButton(
-                self.groupKeystones[groupIndex].playerID
-            )
-        end
-        
-        -- Set new designation
-        self.groupKeystones[groupIndex] = {
-            keystone = keystone,
-            playerID = playerID
-        }
-        
-        -- Update group header
-        self:UpdateGroupHeader(groupIndex, keystone)
-        
-        -- Highlight new keystone button
-        self:HighlightKeystoneButton(playerID)
-        
-        -- Sync to participants
-        self:BroadcastRosterUpdate({
-            action = "KEYSTONE_DESIGNATED",
-            groupIndex = groupIndex,
-            keystoneOwner = playerID,
-            keystone = keystone
-        })
-        
-        Debug:Dev("organizer", "Designated keystone for group", groupIndex)
-        
-    end, "RosterBoard:DesignateGroupKeystone")
+    return NextKey222.KeystoneManager:designate_group_keystone(self, groupIndex, keystone, playerID)
 end
 
 function RosterBoard:ClearGroupKeystone(groupIndex)
-    if not self.groupKeystones[groupIndex] then return end
-    
-    -- Unhighlight button
-    if self.groupKeystones[groupIndex].playerID then
-        self:UnhighlightKeystoneButton(
-            self.groupKeystones[groupIndex].playerID
-        )
-    end
-    
-    -- Clear data
-    self.groupKeystones[groupIndex] = {
-        keystone = nil,
-        playerID = nil
-    }
-    
-    -- Reset group header
-    if self.groupTitles[groupIndex] then
-        self.groupTitles[groupIndex]:SetText("M+ Grp. " .. groupIndex)
-        self.groupTitles[groupIndex]:SetTextColor(1, 1, 1)
-    end
-    
-    -- Sync to participants
-    self:BroadcastRosterUpdate({
-        action = "KEYSTONE_CLEARED",
-        groupIndex = groupIndex
-    })
-    
-    Debug:Dev("organizer", "Cleared keystone for group", groupIndex)
+    return NextKey222.KeystoneManager:clear_group_keystone(self, groupIndex)
 end
 
 function RosterBoard:HighlightKeystoneButton(playerID)
-    local card = self:FindCardByPlayerID(playerID)
-    if not card or not card.keystoneButton then return end
-    
-    -- Gold border and bright gold icon
-    card.keystoneButton:SetBackdropBorderColor(1, 0.84, 0, 1.0)
-    if card.keystoneButton.icon then
-        card.keystoneButton.icon:SetVertexColor(1.0, 0.84, 0)  -- Bright gold
-    end
-    Debug:Dev("organizer", "Highlighted keystone button for:", playerID)
+    return NextKey222.KeystoneManager:highlight_keystone_button(self, playerID)
 end
 
 function RosterBoard:UnhighlightKeystoneButton(playerID)
-    local card = self:FindCardByPlayerID(playerID)
-    if not card or not card.keystoneButton then return end
-    
-    -- Gray border and gray icon
-    card.keystoneButton:SetBackdropBorderColor(0.4, 0.4, 0.4, 1.0)
-    if card.keystoneButton.icon then
-        card.keystoneButton.icon:SetVertexColor(0.8, 0.8, 0.8)  -- Gray
-    end
-    Debug:Dev("organizer", "Unhighlighted keystone button for:", playerID)
+    return NextKey222.KeystoneManager:unhighlight_keystone_button(self, playerID)
 end
 
 function RosterBoard:IsKeystoneDesignated(groupIndex, playerID)
-    if not self.groupKeystones[groupIndex] then return false end
-    return self.groupKeystones[groupIndex].playerID == playerID
+    return NextKey222.KeystoneManager:is_keystone_designated(self, groupIndex, playerID)
 end
 
 function RosterBoard:UpdateGroupHeader(groupIndex, keystone)
-    if not self.groupTitles[groupIndex] then
-        Debug:Error("Group title not found for index:", groupIndex)
-        return
-    end
-    
-    if keystone then
-        -- Get dungeon abbreviation using centralized service
-        local dungeonAbbrev = "???"
-        if NextKey222.DungeonNameService then
-            dungeonAbbrev = NextKey222.DungeonNameService:GetAlias(keystone.dungeonID)
-        end
-        
-        local headerText = dungeonAbbrev .. " +" .. keystone.level
-        self.groupTitles[groupIndex]:SetText(headerText)
-        
-        -- Color code by key level
-        if keystone.level >= 15 then
-            self.groupTitles[groupIndex]:SetTextColor(1, 0.5, 0)  -- Orange
-        elseif keystone.level >= 10 then
-            self.groupTitles[groupIndex]:SetTextColor(0.8, 0.8, 1)  -- Light blue
-        else
-            self.groupTitles[groupIndex]:SetTextColor(1, 1, 1)  -- White
-        end
-        
-        Debug:Dev("organizer", "Updated group", groupIndex, "header:", headerText)
-    else
-        -- Reset to default
-        self.groupTitles[groupIndex]:SetText("M+ Grp. " .. groupIndex)
-        self.groupTitles[groupIndex]:SetTextColor(1, 1, 1)  -- White
-    end
+    return NextKey222.KeystoneManager:update_group_header(self, groupIndex, keystone)
 end
 
--- MARK: Helper Functions
+-- MARK: Helper Functions (Delegates to KeystoneManager)
 function RosterBoard:FindCardByPlayerID(playerID)
-    -- Search bench
-    if self.benchCards then
-        for _, card in ipairs(self.benchCards) do
-            if card.playerData and card.playerData.id == playerID then
-                return card
-            end
-        end
-    end
-    
-    -- Search slots
-    if self.groupSlots then
-        for _, slots in pairs(self.groupSlots) do
-            for _, slot in pairs(slots) do
-                if slot.playerCard and slot.playerCard.playerData and 
-                   slot.playerCard.playerData.id == playerID then
-                    return slot.playerCard
-                end
-            end
-        end
-    end
-    
-    return nil
+    return NextKey222.KeystoneManager:find_card_by_player_id(self, playerID)
 end
 
 -- MARK: Bench Rebuild After Poll (NEW - Forces UI Refresh)

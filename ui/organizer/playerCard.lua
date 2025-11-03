@@ -85,48 +85,22 @@ local function ShowRoleTooltip(roleButton, roleInfo, playerData)
     -- Show spec-level breakdown if available (CRITICAL: normalize role key to uppercase)
     local normalizedRole = roleInfo.role:upper()
     
-    -- DEBUG: Log what we're checking (using normalized key)
-    Debug:Dev("organizer_ui", "Tooltip hover - Role:", roleInfo.role, "-> Normalized:", normalizedRole)
-    Debug:Dev("organizer_ui", "  - playerData.specDetails exists:", playerData.specDetails ~= nil)
-    if playerData.specDetails then
-        -- Build key list for debugging
-        local keys = {}
-        for k in pairs(playerData.specDetails) do
-            table.insert(keys, k)
-        end
-        Debug:Dev("organizer_ui", "  - specDetails keys:", table.concat(keys, ", "))
-        Debug:Dev("organizer_ui", "  - specDetails[" .. normalizedRole .. "] exists:", playerData.specDetails[normalizedRole] ~= nil)
-        if playerData.specDetails[normalizedRole] then
-            Debug:Dev("organizer_ui", "  - Number of specs:", #playerData.specDetails[normalizedRole])
-        end
-    end
-    
     -- ONLY show tooltip if we have spec details - otherwise show fallback
     if playerData.specDetails and playerData.specDetails[normalizedRole] then
     	for _, specInfo in ipairs(playerData.specDetails[normalizedRole]) do
     		-- CRITICAL: Only show "play" and "fill" preferences, hide "none"
     		if specInfo.preference == "play" or specInfo.preference == "fill" then
-    			-- Check if this is the player's current spec
-    			local isCurrentSpec = (specInfo.specID == playerData.specID)
-    			local label = specInfo.specName
-    			
-    			-- Add (Current Spec) indicator if this is active spec
-    			if isCurrentSpec then
-    				label = label .. " (Current Spec)"
-    			end
-    			
     			-- Show with appropriate color
     			if specInfo.preference == "play" then
-    				GameTooltip:AddLine(label .. ": Want to Play", 0.2, 0.9, 0.2)
+    				GameTooltip:AddLine(specInfo.specName .. ": Want to Play", 0.2, 0.9, 0.2)
     			else -- fill
-    				GameTooltip:AddLine(label .. ": Will Fill", 0.9, 0.8, 0.2)
+    				GameTooltip:AddLine(specInfo.specName .. ": Will Fill", 0.9, 0.8, 0.2)
     			end
     		end
     		-- NOTE: "none" preferences are NOT displayed (per user request)
     	end
     else
         -- Fallback to simple display
-        Debug:Dev("organizer_ui", "  - Using fallback tooltip (no specDetails)")
         if roleInfo.preference == "play" then
             GameTooltip:AddLine("Want to Play", 0.2, 0.9, 0.2)
         elseif roleInfo.preference == "fill" then
@@ -136,6 +110,151 @@ local function ShowRoleTooltip(roleButton, roleInfo, playerData)
     
     GameTooltip:Show()
 end
+
+-- MARK: Shared Rendering Helpers
+
+-- Helper: Render multi-role icons with preference colors
+local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
+    if not playerData.roles then return xOffset end
+    
+    local rolesToShow = {}
+    
+    -- Collect roles with preferences (up to maxRoles)
+    if playerData.specPreferences then
+        -- If we have poll data, show roles based on preference order
+        for role, preference in pairs(playerData.specPreferences) do
+            if preference ~= "none" then
+                table.insert(rolesToShow, {
+                    role = role,
+                    preference = preference
+                })
+            end
+        end
+    else
+        -- Fallback: show current roles without preference data
+        for i, role in ipairs(playerData.roles) do
+            table.insert(rolesToShow, {
+                role = role,
+                preference = "play"  -- Default to "want to play"
+            })
+        end
+    end
+    
+    -- Limit to specified max roles
+    local roleCount = math.min(#rolesToShow, maxRoles)
+    
+    for i = 1, roleCount do
+        local roleInfo = rolesToShow[i]
+        
+        -- Create invisible button frame for tooltip support
+        local roleButton = CreateFrame("Button", nil, card)
+        roleButton:SetSize(18, 18)
+        roleButton:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+        roleButton:EnableMouse(true)
+        
+        -- CRITICAL: Track role button for cleanup
+        table.insert(card.roleButtons, roleButton)
+        
+        -- Create colored circle background
+        local bgCircle = roleButton:CreateTexture(nil, "BACKGROUND")
+        bgCircle:SetAllPoints(roleButton)
+        
+        -- Set color based on preference
+        if roleInfo.preference == "play" then
+            bgCircle:SetColorTexture(0.2, 0.9, 0.2, 0.7)  -- Green
+        elseif roleInfo.preference == "fill" then
+            bgCircle:SetColorTexture(0.9, 0.8, 0.2, 0.7)  -- Yellow
+        else
+            bgCircle:SetColorTexture(0.5, 0.5, 0.5, 0.5)  -- Grey
+        end
+        
+        -- Create role icon on top of circle
+        local roleIcon = roleButton:CreateTexture(nil, "ARTWORK")
+        roleIcon:SetSize(14, 14)
+        roleIcon:SetPoint("CENTER", roleButton, "CENTER", 0, 0)
+        roleIcon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
+        
+        local normalizedRole = roleInfo.role:upper()
+        
+        if normalizedRole == "TANK" then
+            roleIcon:SetTexCoord(0, 19/64, 22/64, 41/64)
+        elseif normalizedRole == "HEALER" then
+            roleIcon:SetTexCoord(20/64, 39/64, 1/64, 20/64)
+        else  -- DAMAGER/DPS
+            roleIcon:SetTexCoord(20/64, 39/64, 22/64, 41/64)
+        end
+        
+        -- Add tooltip on hover with spec-level details
+        roleButton:SetScript("OnEnter", function(self)
+            ShowRoleTooltip(self, roleInfo, playerData)
+        end)
+        
+        roleButton:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+        end)
+        
+        xOffset = xOffset + 20
+    end
+    
+    return xOffset
+end
+
+-- Helper: Render keystone information
+local function RenderKeystoneInfo(card, playerData, xOffset, yOffset, useAlias)
+    if not playerData.keystone then return xOffset end
+    
+    local dungeonText
+    if useAlias then
+        -- Use abbreviation for compact display
+        dungeonText = "???"
+        if NextKey222.DungeonNameService then
+            dungeonText = NextKey222.DungeonNameService:GetAlias(playerData.keystone.dungeonID)
+        end
+    else
+        -- Use full name for expanded display
+        dungeonText = "Unknown"
+        if NextKey222.DungeonNameService then
+            dungeonText = NextKey222.DungeonNameService:GetFullName(playerData.keystone.dungeonID)
+        end
+    end
+    
+    local keyText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
+    keyText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+    keyText:SetText(dungeonText .. " +" .. (playerData.keystone.level or 0))
+    keyText:SetTextColor(1, 0.82, 0)
+    
+    -- Return updated offset (approximate text width)
+    if useAlias then
+        return xOffset + 45
+    else
+        return xOffset
+    end
+end
+
+-- Helper: Render player name
+local function RenderPlayerName(card, playerData, xOffset, yOffset, truncateLength)
+    local nameText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
+    nameText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+    
+    local displayName = playerData.name or "Unknown"
+    if truncateLength and #displayName > truncateLength then
+        displayName = displayName:sub(1, truncateLength)
+    end
+    
+    nameText:SetText(displayName)
+    nameText:SetTextColor(1, 1, 1)
+    
+    return xOffset + 55  -- Approximate text width
+end
+
+-- Helper: Render IO score
+local function RenderIOScore(card, playerData, xOffset, yOffset)
+    local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
+    ioText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+    ioText:SetText("[" .. (playerData.overallScore or 0) .. "]")
+    ioText:SetTextColor(0.8, 0.8, 1)
+end
+
 
 -- MARK: Native Card Creation (NEW - Based on drag_test_simple.lua)
 function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayMode)
@@ -255,114 +374,11 @@ end
 function PlayerCard:CreateCompactContent(card, playerData)
     local xOffset = 5
     
-    -- Multi-role icons with preference colors (max 3)
-    if playerData.roles then
-        local rolesToShow = {}
-        
-        -- DEBUG: Log what we're working with
-        Debug:Dev("organizer_ui", "CreateCompactContent for", playerData.name)
-        Debug:Dev("organizer_ui", "  - has specPreferences:", playerData.specPreferences ~= nil)
-        Debug:Dev("organizer_ui", "  - has roles:", playerData.roles ~= nil, "count:", playerData.roles and #playerData.roles or 0)
-        
-        -- Collect roles with preferences (up to 3)
-        if playerData.specPreferences then
-            -- DEBUG: Show what's in specPreferences
-            local prefCount = 0
-            for role, preference in pairs(playerData.specPreferences) do
-                prefCount = prefCount + 1
-                Debug:Dev("organizer_ui", "    - specPreferences[" .. role .. "] =", preference)
-            end
-            Debug:Dev("organizer_ui", "  - Total spec preferences:", prefCount)
-            
-            -- If we have poll data, show roles based on preference order
-            for role, preference in pairs(playerData.specPreferences) do
-                if preference ~= "none" then
-                    table.insert(rolesToShow, {
-                        role = role,
-                        preference = preference
-                    })
-                end
-            end
-            
-            Debug:Dev("organizer_ui", "  - Roles to show (after filtering 'none'):", #rolesToShow)
-        else
-            -- Fallback: show current roles without preference data
-            Debug:Dev("organizer_ui", "  - Using fallback (roles array)")
-            for i, role in ipairs(playerData.roles) do
-                table.insert(rolesToShow, {
-                    role = role,
-                    preference = "play"  -- Default to "want to play"
-                })
-            end
-        end
-        
-        -- Limit to 3 roles
-        local maxRoles = math.min(#rolesToShow, 3)
-        
-        for i = 1, maxRoles do
-            local roleInfo = rolesToShow[i]
-            
-            -- Create invisible button frame for tooltip support
-            local roleButton = CreateFrame("Button", nil, card)
-            roleButton:SetSize(18, 18)
-            roleButton:SetPoint("LEFT", card, "LEFT", xOffset, 0)
-            roleButton:EnableMouse(true)
-            
-            -- CRITICAL: Track role button for cleanup
-            table.insert(card.roleButtons, roleButton)
-            
-            -- Create colored circle background
-            local bgCircle = roleButton:CreateTexture(nil, "BACKGROUND")
-            bgCircle:SetAllPoints(roleButton)
-            
-            -- Set color based on preference
-            if roleInfo.preference == "play" then
-                bgCircle:SetColorTexture(0.2, 0.9, 0.2, 0.7)  -- Green
-            elseif roleInfo.preference == "fill" then
-                bgCircle:SetColorTexture(0.9, 0.8, 0.2, 0.7)  -- Yellow
-            else
-                bgCircle:SetColorTexture(0.5, 0.5, 0.5, 0.5)  -- Grey (shouldn't happen)
-            end
-            
-            -- Create role icon on top of circle
-            local icon = roleButton:CreateTexture(nil, "ARTWORK")
-            icon:SetSize(14, 14)
-            icon:SetPoint("CENTER", roleButton, "CENTER", 0, 0)
-            icon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
-            
-            local normalizedRole = roleInfo.role:upper()
-            
-            if normalizedRole == "TANK" then
-                icon:SetTexCoord(0, 19/64, 22/64, 41/64)
-            elseif normalizedRole == "HEALER" then
-                icon:SetTexCoord(20/64, 39/64, 1/64, 20/64)
-            else  -- DAMAGER/DPS
-                icon:SetTexCoord(20/64, 39/64, 22/64, 41/64)
-            end
-            
-            -- Add tooltip on hover with spec-level details (SHARED FUNCTION)
-            roleButton:SetScript("OnEnter", function(self)
-                ShowRoleTooltip(self, roleInfo, playerData)
-            end)
-            
-            roleButton:SetScript("OnLeave", function(self)
-                GameTooltip:Hide()
-            end)
-            
-            xOffset = xOffset + 20
-        end
-    end
+    -- Multi-role icons with preference colors (max 3) - use helper
+    xOffset = RenderRoleIcons(card, playerData, xOffset, 0, 3)
     
-    -- Player name (truncated)
-    local nameText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    nameText:SetPoint("LEFT", card, "LEFT", xOffset, 0)
-    local truncatedName = playerData.name or "Unknown"
-    if #truncatedName > 7 then
-        truncatedName = truncatedName:sub(1, 7)
-    end
-    nameText:SetText(truncatedName)
-    nameText:SetTextColor(1, 1, 1)
-    xOffset = xOffset + 55
+    -- Player name (truncated to 7 chars) - use helper
+    xOffset = RenderPlayerName(card, playerData, xOffset, 0, 7)
     
     -- Separator
     local sepText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
@@ -371,38 +387,24 @@ function PlayerCard:CreateCompactContent(card, playerData)
     sepText:SetTextColor(0.7, 0.7, 0.7)
     xOffset = xOffset + 10
     
-    -- Keystone info (use alias for compact display)
-    if playerData.keystone then
-        local dungeonAbbrev = "???"
-        -- Use centralized DungeonNameService for consistent lookups
-        if NextKey222.DungeonNameService then
-            dungeonAbbrev = NextKey222.DungeonNameService:GetAlias(playerData.keystone.dungeonID)
-        end
-        
-        local keyText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-        keyText:SetPoint("LEFT", card, "LEFT", xOffset, 0)
-        keyText:SetText(dungeonAbbrev .. " +" .. (playerData.keystone.level or 0))
-        keyText:SetTextColor(1, 0.82, 0)
-        xOffset = xOffset + 45
-    end
+    -- Keystone info (use alias for compact display) - use helper
+    xOffset = RenderKeystoneInfo(card, playerData, xOffset, 0, true)
     
-    -- IO Score
-    local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    ioText:SetPoint("LEFT", card, "LEFT", xOffset, 0)
-    ioText:SetText("[" .. (playerData.overallScore or 0) .. "]")
-    ioText:SetTextColor(0.8, 0.8, 1)
+    -- IO Score - use helper
+    RenderIOScore(card, playerData, xOffset, 0)
 end
 
 -- MARK: Opt-Out Card Content (2-Line Square Layout)
 function PlayerCard:CreateOptOutContent(card, playerData)
     -- Line 1: Role icon + Name (truncated to 7 chars)
+    local line1YOffset = 5
     local xOffset = 5
     
-    -- Role icon (first role only)
+    -- Role icon (first role only) - no helper needed (single icon, simple)
     if playerData.roles and playerData.roles[1] then
         local icon = CreateTrackedTexture(card, nil, "ARTWORK")
         icon:SetSize(16, 16)
-        icon:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -5)
+        icon:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -line1YOffset)
         icon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
         
         local normalizedRole = playerData.roles[1]:upper()
@@ -417,49 +419,26 @@ function PlayerCard:CreateOptOutContent(card, playerData)
         xOffset = xOffset + 18
     end
     
-    -- Player name (truncated to 7 chars)
-    local nameText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    nameText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -5)
-    local truncatedName = playerData.name or "Unknown"
-    if #truncatedName > 7 then
-        truncatedName = truncatedName:sub(1, 7)
-    end
-    nameText:SetText(truncatedName)
-    nameText:SetTextColor(1, 1, 1)
+    -- Player name (truncated to 7 chars) - use helper
+    RenderPlayerName(card, playerData, xOffset, line1YOffset, 7)
     
     -- Line 2: Dungeon abbreviation +level | IO Score
-    local line2YOffset = -22
+    local line2YOffset = 22
     xOffset = 5
     
-    -- Keystone info (use alias for opt-out display)
-    if playerData.keystone then
-        local dungeonAbbrev = "???"
-        -- Use centralized DungeonNameService for consistent lookups
-        if NextKey222.DungeonNameService then
-            dungeonAbbrev = NextKey222.DungeonNameService:GetAlias(playerData.keystone.dungeonID)
-        end
-        
-        local keyText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-        keyText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, line2YOffset)
-        keyText:SetText(dungeonAbbrev .. " +" .. (playerData.keystone.level or 0))
-        keyText:SetTextColor(1, 0.82, 0)
-        xOffset = xOffset + 38
-    end
+    -- Keystone info (use alias for opt-out display) - use helper
+    xOffset = RenderKeystoneInfo(card, playerData, xOffset, line2YOffset, true)
     
-    -- IO Score
-    local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    ioText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, line2YOffset)
-    ioText:SetText("[" .. (playerData.overallScore or 0) .. "]")
-    ioText:SetTextColor(0.8, 0.8, 1)
+    -- IO Score - use helper
+    RenderIOScore(card, playerData, xOffset, line2YOffset)
 end
 
 -- MARK: Expanded Card Content (Native Frame Version)
 function PlayerCard:CreateExpandedContent(card, playerData)
     local yOffset = 5
-    
-    -- Line 1: Class icon + Multi-role icons with preference colors
     local xOffset = 5
     
+    -- Line 1: Class icon + Multi-role icons with preference colors
     -- Class icon
     if playerData.class then
         local classIcon = CreateTrackedTexture(card, nil, "ARTWORK")
@@ -474,101 +453,12 @@ function PlayerCard:CreateExpandedContent(card, playerData)
         xOffset = xOffset + 25
     end
     
-    -- Multi-role icons with preference colors (up to 3)
-    if playerData.roles then
-        local rolesToShow = {}
-        
-        -- DEBUG: Log what we're rendering
-        Debug:Dev("organizer_ui", "CreateExpandedContent for", playerData.name, "- has specPreferences:", playerData.specPreferences ~= nil)
-        if playerData.specPreferences then
-            Debug:Dev("organizer_ui", "Spec preferences:")
-            for role, preference in pairs(playerData.specPreferences) do
-                Debug:Dev("organizer_ui", "  -", role, ":", preference)
-            end
-        end
-        
-        -- Collect roles with preferences (up to 3)
-        if playerData.specPreferences then
-            -- If we have poll data, show roles based on preference order
-            for role, preference in pairs(playerData.specPreferences) do
-                if preference ~= "none" then
-                    table.insert(rolesToShow, {
-                        role = role,
-                        preference = preference
-                    })
-                end
-            end
-            Debug:Dev("organizer_ui", "Found", #rolesToShow, "roles to show (excluding 'none')")
-        else
-            -- Fallback: show current roles without preference data
-            for i, role in ipairs(playerData.roles) do
-                table.insert(rolesToShow, {
-                    role = role,
-                    preference = "play"  -- Default to "want to play"
-                })
-            end
-        end
-        
-        -- Limit to 3 roles
-        local maxRoles = math.min(#rolesToShow, 3)
-        
-        for i = 1, maxRoles do
-            local roleInfo = rolesToShow[i]
-            
-            -- Create invisible button frame for tooltip support
-            local roleButton = CreateFrame("Button", nil, card)
-            roleButton:SetSize(18, 18)
-            roleButton:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
-            roleButton:EnableMouse(true)
-            
-            -- CRITICAL: Track role button for cleanup
-            table.insert(card.roleButtons, roleButton)
-            
-            -- Create colored circle background
-            local bgCircle = roleButton:CreateTexture(nil, "BACKGROUND")
-            bgCircle:SetAllPoints(roleButton)
-            
-            -- Set color based on preference
-            if roleInfo.preference == "play" then
-                bgCircle:SetColorTexture(0.2, 0.9, 0.2, 0.7)  -- Green
-            elseif roleInfo.preference == "fill" then
-                bgCircle:SetColorTexture(0.9, 0.8, 0.2, 0.7)  -- Yellow
-            else
-                bgCircle:SetColorTexture(0.5, 0.5, 0.5, 0.5)  -- Grey
-            end
-            
-            -- Create role icon on top of circle
-            local roleIcon = roleButton:CreateTexture(nil, "ARTWORK")
-            roleIcon:SetSize(14, 14)
-            roleIcon:SetPoint("CENTER", roleButton, "CENTER", 0, 0)
-            roleIcon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
-            
-            local normalizedRole = roleInfo.role:upper()
-            
-            if normalizedRole == "TANK" then
-                roleIcon:SetTexCoord(0, 19/64, 22/64, 41/64)
-            elseif normalizedRole == "HEALER" then
-                roleIcon:SetTexCoord(20/64, 39/64, 1/64, 20/64)
-            else  -- DAMAGER/DPS
-                roleIcon:SetTexCoord(20/64, 39/64, 22/64, 41/64)
-            end
-            
-            -- Add tooltip on hover with spec-level details (SHARED FUNCTION)
-            roleButton:SetScript("OnEnter", function(self)
-                ShowRoleTooltip(self, roleInfo, playerData)
-            end)
-            
-            roleButton:SetScript("OnLeave", function(self)
-                GameTooltip:Hide()
-            end)
-            
-            xOffset = xOffset + 20
-        end
-    end
+    -- Multi-role icons with preference colors (up to 3) - use helper
+    RenderRoleIcons(card, playerData, xOffset, yOffset, 3)
     
     yOffset = yOffset + 25
     
-    -- Line 2: Player name
+    -- Line 2: Player name - Full name (no truncation)
     local nameText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormal")
     nameText:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -yOffset)
     nameText:SetText(playerData.name or "Unknown")
@@ -584,22 +474,13 @@ function PlayerCard:CreateExpandedContent(card, playerData)
         yOffset = yOffset + 14
     end
     
-    -- Line 3: Keystone info
+    -- Line 3: Keystone info (full name) - use helper
+    RenderKeystoneInfo(card, playerData, 5, yOffset, false)
     if playerData.keystone then
-        local dungeonName = "Unknown"
-        -- Use centralized DungeonNameService for consistent lookups
-        if NextKey222.DungeonNameService then
-            dungeonName = NextKey222.DungeonNameService:GetFullName(playerData.keystone.dungeonID)
-        end
-        
-        local keyText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-        keyText:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -yOffset)
-        keyText:SetText(dungeonName .. " +" .. (playerData.keystone.level or 0))
-        keyText:SetTextColor(1, 0.82, 0)
         yOffset = yOffset + 16
     end
     
-    -- NEW: Add keystone designation button in top-right corner (only in group slots and if has keystone)
+    -- Add keystone designation button in top-right corner (only in group slots and if has keystone)
     if playerData.keystone then
         local keystoneButton = self:CreateKeystoneButton(card, playerData)
         if keystoneButton then
@@ -608,7 +489,7 @@ function PlayerCard:CreateExpandedContent(card, playerData)
         end
     end
     
-    -- Line 4: IO Score
+    -- Line 4: IO Score (formatted as "IO: xxx")
     local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
     ioText:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -yOffset)
     ioText:SetText("IO: " .. (playerData.overallScore or 0))

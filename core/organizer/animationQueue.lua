@@ -16,78 +16,58 @@ AnimationQueue.config = {
     interCardDelay = 0.1,         -- Pause between cards
 }
 
--- MARK: Queue State
-AnimationQueue.queue = {}          -- Array of animation tasks
-AnimationQueue.isRunning = false   -- Whether queue is actively processing
-AnimationQueue.currentTask = nil   -- Currently executing task
-AnimationQueue.isPaused = false    -- Pause state
-AnimationQueue.totalTasks = 0      -- Total tasks for progress tracking
-AnimationQueue.onQueueComplete = nil -- Completion callback
-
 -- MARK: Initialization
 function AnimationQueue:Initialize()
     return NextKey222.SafeRun(function()
-        self.queue = {}
-        self.isRunning = false
-        self.currentTask = nil
-        self.isPaused = false
-        self.totalTasks = 0
-        self.onQueueComplete = nil
         Debug:Dev("organizer", "Initialized AnimationQueue")
         return true
     end, "AnimationQueue:Initialize")
 end
 
--- MARK: Queue Management
-function AnimationQueue:Enqueue(task)
-    table.insert(self.queue, task)
-    Debug:Trace("organizer", "Enqueued animation task - Queue size:", #self.queue)
-    
-    -- Start processing if not already running
-    if not self.isRunning and not self.isPaused then
-        self:ProcessQueue()
-    end
-end
-
-function AnimationQueue:ProcessQueue()
-    if #self.queue == 0 then
-        self.isRunning = false
-        Debug:Dev("organizer", "Animation queue completed")
-        
-        -- Notify completion
-        if self.onQueueComplete then
-            self:onQueueComplete()
+-- MARK: Public API
+--- Executes a sequence of card animations (highlight + flight) in order
+-- @param assignments Array of {card, targetSlot, player} objects
+-- @param onComplete Callback function to execute when all animations finish
+function AnimationQueue:ExecuteSequence(assignments, onComplete)
+    return NextKey222.SafeRun(function()
+        if not assignments or #assignments == 0 then
+            Debug:Dev("organizer", "ExecuteSequence: No assignments to animate")
+            if onComplete then onComplete() end
+            return
         end
-        return
-    end
-    
-    self.isRunning = true
-    
-    -- Get next task
-    local task = table.remove(self.queue, 1)
-    self.currentTask = task
-    
-    Debug:Dev("organizer", "Processing animation task - Remaining:", #self.queue)
-    
-    -- Execute two-stage animation
-    self:ExecuteTwoStageAnimation(task)
-end
-
--- MARK: Two-Stage Animation
-function AnimationQueue:ExecuteTwoStageAnimation(task)
-    -- Stage 1: Highlight (green flash)
-    self:AnimateHighlight(task.card, function()
-        -- Stage 2: Fly to target
-        self:AnimateFlight(task.card, task.targetSlot, function()
-            -- Animation complete, process next
-            C_Timer.After(self.config.interCardDelay, function()
-                self:ProcessQueue()
+        
+        Debug:Dev("organizer", "ExecuteSequence: Starting animation sequence for", #assignments, "assignments")
+        
+        local currentIndex = 1
+        
+        local function ProcessNext()
+            if currentIndex > #assignments then
+                Debug:Dev("organizer", "ExecuteSequence: All animations completed")
+                if onComplete then onComplete() end
+                return
+            end
+            
+            local assignment = assignments[currentIndex]
+            Debug:Dev("organizer", "ExecuteSequence: Animating card", currentIndex, "/", #assignments)
+            
+            -- Execute two-stage animation (highlight → flight)
+            self:AnimateHighlight(assignment.card, function()
+                self:AnimateFlight(assignment.card, assignment.targetSlot, function()
+                    -- Move to next card after delay
+                    currentIndex = currentIndex + 1
+                    C_Timer.After(self.config.interCardDelay, ProcessNext)
+                end)
             end)
-        end)
-    end)
+        end
+        
+        -- Start the sequence
+        ProcessNext()
+        
+    end, "AnimationQueue:ExecuteSequence")
 end
 
--- MARK: Stage 1 - Highlight Animation
+-- MARK: Animation Functions
+--- Stage 1: Highlight Animation (green flash)
 function AnimationQueue:AnimateHighlight(card, onComplete)
     local flashCount = 0
     local maxFlashes = self.config.flashCount * 2 -- On/off cycle
@@ -121,7 +101,7 @@ function AnimationQueue:AnimateHighlight(card, onComplete)
     flash()
 end
 
--- MARK: Stage 2 - Flight Animation
+--- Stage 2: Flight Animation (card flying to slot)
 function AnimationQueue:AnimateFlight(card, targetSlot, onComplete)
     -- Store original position
     local startX, startY = card:GetCenter()
@@ -179,31 +159,4 @@ function AnimationQueue:AnimateFlight(card, targetSlot, onComplete)
     
     -- Start animation
     animateStep()
-end
-
--- MARK: Control Functions
-function AnimationQueue:Pause()
-    self.isPaused = true
-    Debug:Dev("organizer", "Animation queue paused")
-end
-
-function AnimationQueue:Resume()
-    self.isPaused = false
-    if not self.isRunning and #self.queue > 0 then
-        self:ProcessQueue()
-    end
-    Debug:Dev("organizer", "Animation queue resumed")
-end
-
-function AnimationQueue:Clear()
-    self.queue = {}
-    self.isRunning = false
-    self.currentTask = nil
-    Debug:Dev("organizer", "Animation queue cleared")
-end
-
-function AnimationQueue:GetProgress()
-    local remaining = #self.queue + (self.isRunning and 1 or 0)
-    local completed = self.totalTasks - remaining
-    return completed, self.totalTasks
 end
