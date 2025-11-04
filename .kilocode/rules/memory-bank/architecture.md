@@ -61,9 +61,14 @@ NextKey/
     teleport.lua               # Travel assistance UI
     lootWindow.lua             # Loot tracking interface
     organizer/                 # M+ Group Organizer UI
-      rosterBoard.lua          # Main board with bench and group slots
-      playerCard.lua           # Draggable player cards
-      surveyDialog.lua         # Poll/survey UI
+      rosterBoard.lua          # Main orchestrator (1,340 lines) - Delegates to modules
+      playerCard.lua           # Draggable player cards with keystone buttons
+      surveyDialog.lua         # Poll/survey UI (3-phase progressive)
+      modules/                 # Specialized module layer (Week 2 Simplification)
+        benchManager.lua       # Bench operations (462 lines)
+        slotManager.lua        # Slot creation/layout (411 lines)
+        cardMovement.lua       # Drag/drop validation (422 lines)
+        keystoneManager.lua    # Keystone designation system (215 lines)
   data/                        # Static seasonal data
     portals.lua                # Dungeon teleport data per season
     loot.lua                   # Seasonal loot definitions
@@ -124,7 +129,11 @@ NextKey/
 - `GroupSuggestions`: Intelligent group formation
 - `UI`: Main user interface
 - `FakePlayerService`: Testing data generation
-- `RosterBoard`: M+ Group Organizer main UI
+- `RosterBoard`: M+ Group Organizer main UI (orchestrator)
+- `BenchManager`: Bench operations module
+- `SlotManager`: Slot creation and layout module
+- `CardMovement`: Drag-and-drop validation module
+- `KeystoneManager`: Keystone designation system module
 
 ### 4. Data Flow Architecture
 

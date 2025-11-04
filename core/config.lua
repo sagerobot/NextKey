@@ -218,6 +218,15 @@ NextKey222.Defaults = {
             currentSeason = nil,
             dungeonScores = {},
             runCounts = {}
+        },
+        
+        -- M+ Organizer State Persistence (Week 3 Session 4)
+        organizerState = {
+            players = {},      -- Persisted player data (real players only, fake players excluded)
+            groups = {},       -- Group assignments
+            keystones = {},    -- Keystone designations
+            optOut = {},       -- Opt-out tracking {[playerID] = true}
+            lastPoll = nil,    -- Last poll metadata
         }
     },
 }

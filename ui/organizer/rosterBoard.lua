@@ -380,7 +380,18 @@ function RosterBoard:PopulateAllSections()
             self:PopulateBench(benchPlayers)
         end
         
-        self:PopulateOptOut({})
+        -- SESSION 4 FIX: Fetch and populate opt-out players from state
+        local optOutPlayerIDs = NextKey222.OrganizerState:GetOptOutPlayers()
+        local optOutPlayers = {}
+        for _, playerID in ipairs(optOutPlayerIDs) do
+            local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+            if playerData then
+                table.insert(optOutPlayers, playerData)
+            end
+        end
+        
+        Debug:Dev("organizer_ui", "Populating opt-out with", #optOutPlayers, "players")
+        self:PopulateOptOut(optOutPlayers)
         
     end, "RosterBoard:PopulateAllSections")
 end
@@ -415,6 +426,20 @@ function RosterBoard:CreateHeaderSection(nativeParent)
     pollButton.frame:Show()
     self.pollButton = pollButton
     self.headerWidgets.pollButton = pollButton
+    xOffset = xOffset + 150 + 5  -- Use actual button width
+    
+    -- SESSION 4: Clear Poll Button (next to Poll button)
+    local clearPollButton = AceGUI:Create("Button")
+    clearPollButton:SetText("Clear Poll")
+    clearPollButton:SetWidth(buttonWidth)
+    clearPollButton:SetCallback("OnClick", function()
+        self:OnClearPollClicked()
+    end)
+    clearPollButton.frame:SetParent(headerContainer)
+    clearPollButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
+    clearPollButton.frame:Show()
+    self.clearPollButton = clearPollButton
+    self.headerWidgets.clearPollButton = clearPollButton
     xOffset = xOffset + buttonWidth + 5
     
     -- Add Fake Raid Button (debug only - next to Poll button)
@@ -735,9 +760,10 @@ function RosterBoard:CompletePoll()
     -- Clear active poll
     self.activePoll = nil
     
-    -- NO REBUILD NEEDED - Cards are already updated in real-time as poll responses arrive
-    -- RebuildBenchAfterPoll was causing poll data to be lost and regenerated as defaults
-    Debug:Dev("organizer_ui", "Poll complete - cards already showing correct data from poll responses")
+    -- SESSION 3 FIX: Refresh cards to fetch poll data from OrganizerState
+    -- Cards now fetch from state, so we need to trigger UpdateCardContent() to show visual changes
+    Debug:Dev("organizer_ui", "Poll complete - refreshing cards to fetch poll data from state")
+    self:RefreshBenchCardsFromState()
 end
 
 function RosterBoard:OnAddFakeRaidClicked()
@@ -782,6 +808,49 @@ end
 function RosterBoard:OnAnnounceClicked()
     Debug:Dev("organizer_ui", "Announce clicked")
     Debug:User("Announcement system will be implemented in Phase 5")
+end
+
+-- MARK: Clear Poll Handler (SESSION 4)
+function RosterBoard:OnClearPollClicked()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "Clear Poll button clicked")
+        
+        -- Clear OrganizerState (both in-memory and persisted)
+        if NextKey222.OrganizerState and NextKey222.OrganizerState.ClearPersistedData then
+            NextKey222.OrganizerState:ClearPersistedData()
+        else
+            Debug:Error("OrganizerState not available - cannot clear poll data")
+            return
+        end
+        
+        -- Clear active poll
+        self.activePoll = nil
+        
+        -- Reset poll button
+        if self.pollButton then
+            self.pollButton:SetDisabled(false)
+            self.pollButton:SetText("Poll")
+        end
+        
+        -- Close and reopen the window to rebuild from scratch
+        -- This is the cleanest way to reset the entire UI
+        Debug:User("Poll data cleared - reopening organizer window")
+        
+        -- Store visibility state
+        local wasVisible = self:IsVisible()
+        
+        -- Close window
+        self:Hide()
+        
+        -- Small delay to ensure cleanup is complete
+        if wasVisible then
+            C_Timer.After(0.1, function()
+                self:Show()
+                Debug:User("Organizer reset complete - ready for new poll")
+            end)
+        end
+        
+    end, "RosterBoard:OnClearPollClicked")
 end
 
 -- MARK: Sorting Orchestrator
@@ -1337,4 +1406,165 @@ function RosterBoard:RefreshAllCards(isSpecChange)
         Debug:Dev("organizer_ui", "RefreshAllCards completed successfully")
         
     end, "RosterBoard:RefreshAllCards")
+end
+
+-- MARK: Refresh Bench Cards From State (SESSION 3: Poll Data Visual Update)
+--- Lightweight refresh that makes bench cards fetch fresh data from OrganizerState
+-- This is called after poll completion to update visual appearance (role icon colors)
+-- without rebuilding the entire bench
+function RosterBoard:RefreshBenchCardsFromState()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "RefreshBenchCardsFromState - updating all bench cards from state")
+        
+        if not self.benchCards then
+            Debug:Error("Cannot refresh bench cards - benchCards array not initialized")
+            return
+        end
+        
+        local refreshedCount = 0
+        for _, card in ipairs(self.benchCards) do
+            if card and NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
+                NextKey222.PlayerCard:UpdateCardContent(card, "compact")
+                refreshedCount = refreshedCount + 1
+            end
+        end
+        
+        Debug:Dev("organizer_ui", "Refreshed", refreshedCount, "bench cards from state")
+        
+    end, "RosterBoard:RefreshBenchCardsFromState")
+end
+
+-- MARK: Refresh Single Card By PlayerID (SESSION 3: Real-time Poll Updates)
+--- Refreshes a specific player's card after poll response received
+-- Searches bench, slots, and opt-out for the player's card and refreshes it
+function RosterBoard:RefreshSingleCardByPlayerID(playerID)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "RefreshSingleCardByPlayerID - searching for:", playerID)
+        
+        local cardFound = false
+        
+        -- Search bench cards
+        if self.benchCards then
+            for _, card in ipairs(self.benchCards) do
+                if card and card.playerID == playerID then
+                    NextKey222.PlayerCard:UpdateCardContent(card, "compact")
+                    Debug:Dev("organizer_ui", "Refreshed bench card for:", playerID)
+                    cardFound = true
+                    break
+                end
+            end
+        end
+        
+        -- Search slot cards if not found on bench
+        if not cardFound and self.groupSlots then
+            for groupIndex, slots in pairs(self.groupSlots) do
+                for slotIndex, slot in pairs(slots) do
+                    if slot.playerCard and slot.playerCard.playerID == playerID then
+                        NextKey222.PlayerCard:UpdateCardContent(slot.playerCard, "expanded")
+                        Debug:Dev("organizer_ui", "Refreshed slot card for:", playerID, "in group", groupIndex)
+                        cardFound = true
+                        break
+                    end
+                end
+                if cardFound then break end
+            end
+        end
+        
+        -- Search opt-out cards if not found yet
+        if not cardFound and self.optOutSection and self.optOutSection.playerCards then
+            for _, card in ipairs(self.optOutSection.playerCards) do
+                if card and card.playerID == playerID then
+                    NextKey222.PlayerCard:UpdateCardContent(card, "opt_out")
+                    Debug:Dev("organizer_ui", "Refreshed opt-out card for:", playerID)
+                    cardFound = true
+                    break
+                end
+            end
+        end
+        
+        if not cardFound then
+            Debug:Dev("organizer_ui", "Card not found for player:", playerID, "- may need rebuild")
+        end
+        
+    end, "RosterBoard:RefreshSingleCardByPlayerID")
+end
+
+-- MARK: Sync UI to State (SESSION 3: Handle Opt-Out/Alt Movement)
+--- Rebuilds bench and opt-out sections to match OrganizerState
+-- Called after poll responses that change player locations (opt-out, alt selection)
+function RosterBoard:SyncUIToState()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "SyncUIToState - rebuilding bench and opt-out from state")
+        
+        if not self.benchContainer or not self.optOutSection then
+            Debug:Error("Cannot sync UI - containers not initialized")
+            return
+        end
+        
+        -- Get current state
+        local benchPlayerIDs = NextKey222.OrganizerState:GetBenchPlayers()
+        local optOutPlayerIDs = NextKey222.OrganizerState:GetOptOutPlayers()
+        
+        -- Clear existing bench cards
+        for _, card in ipairs(self.benchCards) do
+            if card then
+                card:Hide()
+                card:SetParent(nil)
+                card:ClearAllPoints()
+            end
+        end
+        self.benchCards = {}
+        
+        -- Clear existing opt-out cards
+        if self.optOutSection.playerCards then
+            for _, card in ipairs(self.optOutSection.playerCards) do
+                if card then
+                    card:Hide()
+                    card:SetParent(nil)
+                    card:ClearAllPoints()
+                end
+            end
+        end
+        self.optOutSection.playerCards = {}
+        
+        -- Rebuild bench from state
+        for _, playerID in ipairs(benchPlayerIDs) do
+            local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+            if playerData then
+                local card = NextKey222.PlayerCard:CreateNativeCard(
+                    playerData,
+                    self.benchContainer,
+                    "bench",
+                    "compact"
+                )
+                if card then
+                    table.insert(self.benchCards, card)
+                end
+            end
+        end
+        
+        -- Rebuild opt-out from state
+        for _, playerID in ipairs(optOutPlayerIDs) do
+            local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+            if playerData then
+                local card = NextKey222.PlayerCard:CreateNativeCard(
+                    playerData,
+                    self.optOutSection.scrollChild,
+                    "opt_out",
+                    "opt_out"
+                )
+                if card then
+                    table.insert(self.optOutSection.playerCards, card)
+                end
+            end
+        end
+        
+        -- Re-layout sections
+        self:LayoutBench()
+        self:LayoutOptOut()
+        
+        Debug:Dev("organizer_ui", "Synced UI to state -", #self.benchCards, "bench,",
+                 #self.optOutSection.playerCards, "opt-out")
+        
+    end, "RosterBoard:SyncUIToState")
 end

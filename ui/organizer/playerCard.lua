@@ -256,7 +256,7 @@ local function RenderIOScore(card, playerData, xOffset, yOffset)
 end
 
 
--- MARK: Native Card Creation (NEW - Based on drag_test_simple.lua)
+-- MARK: Native Card Creation (STATE-DRIVEN - Session 3 Refactor)
 function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayMode)
     return NextKey222.SafeRun(function()
         if not playerData then
@@ -294,8 +294,9 @@ function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayM
         card:SetBackdropColor(classColor.r, classColor.g, classColor.b, 0.8)
         card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
         
-        -- Store metadata
-        card.playerData = playerData
+        -- Store metadata (SESSION 3: Only store playerID, not full data)
+        card.playerID = playerData.id  -- CRITICAL: Lightweight reference only
+        card.playerData = playerData   -- Keep for backward compatibility during migration
         card.location = location
         card.displayMode = displayMode
         card.isDragging = false
@@ -314,15 +315,26 @@ function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayM
         self:EnableNativeDragging(card)
         
         card:Show()
-        Debug:Dev("organizer_ui", "Created native", displayMode, "card for:", playerData.name)
+        Debug:Dev("organizer_ui", "Created native", displayMode, "card for:", playerData.name, "- playerID:", card.playerID)
         
         return card
         
     end, "PlayerCard:CreateNativeCard")
 end
 
--- MARK: Dynamic Content Update (NEW - Region Pooling)
+-- MARK: Dynamic Content Update (STATE-DRIVEN - Session 3 Refactor)
 function PlayerCard:UpdateCardContent(card, newDisplayMode)
+    -- CRITICAL: Fetch fresh data from OrganizerState on every render
+    if card.playerID and NextKey222.OrganizerState then
+        local freshData = NextKey222.OrganizerState:GetPlayer(card.playerID)
+        if freshData then
+            card.playerData = freshData  -- Update with latest state
+            Debug:Dev("organizer_ui", "Refreshed card data from state:", card.playerID)
+        else
+            Debug:Error("Card references player not in state:", card.playerID)
+        end
+    end
+    
     -- Store keystone button state if it exists
     local wasDesignated = false
     if card.keystoneButton and card.location and

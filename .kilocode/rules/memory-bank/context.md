@@ -1,53 +1,139 @@
 # NextKey Current Context
 
-## Current Work Status
-**Date**: November 2, 2025
-**Version**: 0.2.1
-**Current Phase**: M+ Group Organizer - Tooltip Bug Investigation
+## Current Status
+**Date**: November 4, 2025
+**Version**: 0.2.2
+**Current Phase**: Planning Week 3 Simplification - OrganizerState Module
+**Next Action**: Begin Session 1 implementation
+
+## Recent Completions
+
+### Week 2 Simplification (Nov 3-4) ✅
+- Split `rosterBoard.lua` into 5 specialized modules (540 lines saved, -26% size)
+- **New Modules**:
+  - `ui/organizer/modules/benchManager.lua` (462 lines) - Bench operations
+  - `ui/organizer/modules/slotManager.lua` (411 lines) - Slot creation/layout
+  - `ui/organizer/modules/cardMovement.lua` (422 lines) - Drag/drop validation
+  - `ui/organizer/modules/keystoneManager.lua` (215 lines) - **FULL IMPLEMENTATION** ✅
+- Modular architecture prevents data loss bugs
+- **Total simplification**: 917 lines saved across Week 1+2
+
+### M+ Organizer Progress ✅
+- Phase 0: Foundation COMPLETE
+- Phase 0.5: Integration COMPLETE
+- Phase 1: UI Framework COMPLETE (native frames)
+- Phase 2: Participant Survey COMPLETE (3-phase poll with spec preferences)
+- **Phase 3: Manual Mode 100% COMPLETE** ✅
+  - Drag-and-drop: COMPLETE
+  - Sequential sorting: COMPLETE (animationQueue + sorting algorithm)
+  - Keystone designation: COMPLETE (keystoneManager.lua fully implemented)
 
 ## Active Work
 
-### CRITICAL BUG: Default Spec Tooltips Not Displaying (UNRESOLVED)
-**Status**: Under active investigation
-**Priority**: HIGH
+### Week 3 Simplification: OrganizerState Module (PLANNED)
 
-**Problem**: 
-Player card role icon tooltips are showing fallback text ("Want to Play", "Will Fill") instead of spec-level breakdowns with spec names, even though `GenerateDefaultSpecPreferences()` is being called and should be generating `specDetails` data.
+**Decision Made**: November 4, 2025 - Chosen over Phase 5 Communication and Phase 4 Optimizer
 
-**Attempted Fixes (FAILED)**:
-1. Added `GenerateDefaultSpecPreferences()` to `rosterBoard.lua` GetBenchPlayers() for both fake and real players (lines 409-420, 473-481)
-2. Added case normalization in `playerCard.lua` tooltip lookups (lines 264-265, 519-520)
-3. Improved debug logging to trace key lookups and data availability
+**Timeline**: 10 days (5 implementation sessions)  
+**Risk Level**: 🔴 HIGH - Architectural refactor  
+**Expected Outcome**: ~200 lines saved + poll data loss bug prevention  
 
-**Investigation Needed**:
-- Verify `specDetails` is actually being set on playerData objects in GetBenchPlayers()
-- Check if data is being lost/overwritten somewhere in the data flow
-- Examine if the issue is in data generation vs data persistence vs data lookup
-- Enable debug logging and trace the actual data flow from generation to tooltip display
+**Core Problem Identified**:
+- Cards currently store authoritative data (`card.playerData`)
+- Rebuild operations can lose poll response data
+- Bug: Poll responses → `card.playerData` → rebuild bench → data LOST ❌
 
-**Files Involved**:
-- `ui/organizer/rosterBoard.lua` - GetBenchPlayers() generates player cards
-- `core/organizer/playerDataBuilder.lua` - GenerateDefaultSpecPreferences() creates spec data
-- `ui/organizer/playerCard.lua` - Tooltip rendering logic
+**Solution Architecture**:
+- Create centralized [`OrganizerState`](core/organizer/state.lua) module
+- Cards become "dumb" renderers (only store `playerID`)
+- All data lives in `OrganizerState.players[playerID]`
+- Rebuild operations cannot lose data (architecturally impossible) ✅
 
-**Next Steps**:
-1. Add comprehensive debug logging to trace playerData.specDetails through entire flow
-2. Verify data is present immediately after GenerateDefaultSpecPreferences() call
-3. Check if data survives transfer to card.playerData
-4. Confirm tooltip code is actually checking the right data structure
+**Implementation Sessions**:
+1. **Session 1** (Days 1-2): Create OrganizerState module (~300 lines)
+2. **Session 2** (Days 3-4): Migrate poll response flow (**FIXES THE BUG**)
+3. **Session 3** (Days 5-6): Migrate bench data flow
+4. **Session 4** (Days 7-8): Migrate group/keystone management
+5. **Session 5** (Days 9-10): Final cleanup & comprehensive testing
 
-### Recently Completed
-- M+ Group Organizer Poll System (3-phase survey with spec preferences)
-- Poll UI with smart defaults and 3-state selection system
-- Character data capture with full specialization metadata
-- Flexible role assignment algorithm with priority system (play=10, fill=5, none=0)
+**Documentation**: [`Documentation/FEATURES & PLANS/Implementation/M+_Organizer_Week_3_State_Module.md`](../../../Documentation/FEATURES%20&%20PLANS/Implementation/M+_Organizer_Week_3_State_Module.md)
 
-## Current Blockers
-**CRITICAL**: Tooltip bug preventing proper spec-level display of player preferences before poll is sent.
+**Why This Path**:
+- Prevents entire class of data loss bugs
+- Cleaner architecture for Phase 4 optimizer algorithms
+- Foundation for long-term maintainability
+- Higher value than quick fixes
+
+## What's Next?
+
+### Immediate: Week 3 Simplification Session 1
+**Action**: Create OrganizerState module skeleton
+**Files**: Create `core/organizer/state.lua`, modify `NextKey.toc`
+**Timeline**: 2 days
+**Complexity**: 🟡 MEDIUM (low risk - no integration yet)
+
+### After Week 3 Complete (~10 days)
+
+**Option A**: Phase 5 Communication (~3 hours)
+- Announce groups to Raid/Guild chat
+- Quick win to complete manual mode
+
+**Option B**: Phase 4 Optimizer Algorithms (~20+ hours)
+- NOW MUCH CLEANER thanks to OrganizerState
+- Three optimization modes
+- Algorithms read/write state directly
+
+**Option C**: Further simplification/polish
+
+## Blockers
+**NONE** - Week 3 planning complete, ready to begin Session 1
 
 ## Technical Notes
-- Poll system uses 3-state preference system (Want to Play, Will Fill, Not Playing)
-- Weighted scoring (10/5/0) for optimization algorithms
-- All poll UI components use texture-based rendering for modern WoW API compatibility
-- Default spec preferences should be generated using player's current spec from profile data
-- Role keys in specDetails MUST be uppercase (TANK, HEALER, DAMAGER) for consistent lookups
+
+### OrganizerState API (Session 1 Deliverable)
+```lua
+-- Player Management
+OrganizerState:GetPlayer(playerID)
+OrganizerState:SetPlayer(playerID, playerData)
+OrganizerState:UpdatePlayerFromPollResponse(playerID, response)
+
+-- Location Tracking
+OrganizerState:GetPlayerLocation(playerID)
+OrganizerState:MoveToBench(playerID)
+OrganizerState:MoveToSlot(playerID, groupIndex, slotIndex)
+
+-- Group Management
+OrganizerState:GetGroupAssignments(groupIndex)
+OrganizerState:GetSlotPlayer(groupIndex, slotIndex)
+
+-- Keystone Management
+OrganizerState:DesignateKeystone(groupIndex, playerID, keystone)
+OrganizerState:GetDesignatedKeystone(groupIndex)
+
+-- Poll Management
+OrganizerState:StartPoll(pollID)
+OrganizerState:UpdatePlayerFromPollResponse(playerID, response)
+```
+
+### Data Structure
+```lua
+OrganizerState = {
+    players = {},     -- {[playerID] = PlayerData} - SINGLE SOURCE OF TRUTH
+    groups = {},      -- {[groupIndex][slotIndex] = playerID}
+    keystones = {},   -- {[groupIndex] = {keystone, playerID}}
+    activePoll = nil, -- Current poll state
+    bench = {},       -- {[playerID] = true} (set for fast lookup)
+    optOut = {}       -- {[playerID] = true}
+}
+```
+
+### Critical Success Metric
+**Poll data persists through unlimited rebuilds** ✅
+
+After Session 2, this test MUST pass:
+```lua
+-- Complete poll → rebuild bench 10 times → verify poll data intact
+```
+
+Currently: **FAILS** (data lost on rebuild)  
+After Week 3: **PASSES** (data cannot be lost)

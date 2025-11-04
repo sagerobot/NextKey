@@ -16,164 +16,176 @@ function BenchManager:Initialize()
 end
 
 -- MARK: Data Retrieval
---- Get all players for bench (fake + real party members)
+--- Get all players for bench (STATE-DRIVEN - Session 3 Refactor)
 -- @param rosterBoard RosterBoard instance
 -- @return table Array of playerData objects
 function BenchManager:get_bench_players(rosterBoard)
     local allPlayers = {}
-    local seenPlayers = {}  -- Track which players we've already added
+    local seenPlayers = {}
     
-    -- STEP 1: Preserve existing bench cards with poll response data (CRITICAL FIX)
-    -- This prevents poll responses (specPreferences, surveyResponse) from being lost
-    if rosterBoard.benchCards then
-        Debug:Dev("organizer_ui", "Preserving", #rosterBoard.benchCards, "existing bench cards with poll data")
-        for _, card in ipairs(rosterBoard.benchCards) do
-            if card.playerData then
-                table.insert(allPlayers, card.playerData)  -- Reuse existing data
-                seenPlayers[card.playerData.id] = true  -- CRITICAL: Mark as seen to prevent duplicate processing
-                Debug:Dev("organizer_ui", "Preserved player data for:", card.playerData.id,
-                         "- has specPreferences:", card.playerData.specPreferences ~= nil,
-                         "- has specDetails:", card.playerData.specDetails ~= nil)
-            end
+    -- STEP 1: Get bench players from OrganizerState (SINGLE SOURCE OF TRUTH)
+    local benchPlayerIDs = NextKey222.OrganizerState:GetBenchPlayers()
+    
+    Debug:Dev("organizer_ui", "OrganizerState reports", #benchPlayerIDs, "bench players")
+    
+    -- STEP 2: Fetch full data for each player from state
+    for _, playerID in ipairs(benchPlayerIDs) do
+        local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+        
+        if playerData then
+            table.insert(allPlayers, playerData)
+            seenPlayers[playerID] = true
+            Debug:Dev("organizer_ui", "Fetched bench player from state:", playerID)
+        else
+            Debug:Error("Player in bench but no data in state:", playerID)
         end
     end
     
-    -- STEP 2: Add NEW fake players not already in bench
+    -- STEP 3: Add NEW players not yet in state (fake + real party)
+    -- This handles initial population before poll
+    
+    -- Add fake players not in state yet
     if NextKey222.FakePlayerService then
         local fakePlayers = NextKey222.FakePlayerService:GetAllPlayers()
         if fakePlayers then
-            Debug:Dev("organizer_ui", "Found", #fakePlayers, "fake players")
             for _, fakeData in ipairs(fakePlayers) do
-                -- Skip if already preserved from bench
-                if seenPlayers[fakeData.name] then
-                    Debug:Dev("organizer_ui", "Skipping", fakeData.name, "- already preserved from bench")
-                else
-                    -- Convert fake player format to expected card format
-                    local playerData = {
-                        id = fakeData.name,  -- Use full name with realm as ID
-                        name = fakeData.name:match("^([^%-]+)") or fakeData.name,  -- Short name
-                        class = fakeData.class,
-                        roles = {fakeData.role or "DAMAGER"},  -- Convert string to array
-                        keystone = fakeData.keystone,
-                        overallScore = fakeData.io or 0,  -- Rename io -> overallScore
-                        specName = fakeData.specName,  -- Preserve spec name
-                        utilities = {}
-                    }
+                if not seenPlayers[fakeData.name] then
+                    -- SESSION 4 FIX: Check if player has opted out before adding to bench
+                    local location = NextKey222.OrganizerState:GetPlayerLocation(fakeData.name)
                     
-                    -- Add utilities based on capabilities
-                    if fakeData.heroismCaster then
-                        table.insert(playerData.utilities, "heroism")
-                    end
-                    if fakeData.battleResCaster then
-                        table.insert(playerData.utilities, "battleRes")
-                    end
-                    
-                    -- CRITICAL FIX: Only generate defaults if player doesn't already have spec preferences
-                    -- (preserves poll response data if it exists)
-                    if not playerData.specPreferences or not next(playerData.specPreferences) then
-                    	if NextKey222.OrganizerPlayerDataBuilder and
-                    	   NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-                    		-- SafeRun returns the function's direct outputs: (specPreferences, specDetails)
-                    		local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fakeData.name)
-                    		
-                    		if success and specPrefs then
-                    			playerData.specPreferences = specPrefs
-                    			playerData.specDetails = specDetails
-                    			
-                    			Debug:Dev("organizer_ui", "Generated default spec preferences for fake player:", fakeData.name,
-                    			         "- has specPreferences:", specPrefs ~= nil,
-                    			         "- has specDetails:", specDetails ~= nil)
-                    		else
-                    			Debug:Error("Failed to generate default spec preferences for fake player:", fakeData.name)
-                    		end
-                    	end
+                    if location ~= "opt_out" then
+                        -- Build playerData and add to state
+                        local playerData = self:BuildPlayerDataFromFake(fakeData)
+                        NextKey222.OrganizerState:SetPlayer(fakeData.name, playerData)
+                        NextKey222.OrganizerState:MoveToBench(fakeData.name)
+                        
+                        table.insert(allPlayers, playerData)
+                        seenPlayers[fakeData.name] = true
                     else
-                    	Debug:Dev("organizer_ui", "Player", fakeData.name, "already has spec preferences - preserving")
+                        Debug:Dev("organizer_ui", "Skipping opted-out player:", fakeData.name)
                     end
-                    
-                    table.insert(allPlayers, playerData)
-                    seenPlayers[fakeData.name] = true  -- Mark as seen
                 end
             end
         end
     end
     
-    -- Add real party members (skip if already added as fake players)
+    -- Add real party members not in state yet
     if NextKey222.Addon and NextKey222.Addon.GetPartyMemberNames then
         local partyMembers = NextKey222.Addon:GetPartyMemberNames()
-        Debug:Dev("organizer_ui", "Found", #partyMembers, "party members")
-        
         for _, memberName in ipairs(partyMembers) do
-            -- Skip if already added as fake player
-            if seenPlayers[memberName] then
-                Debug:Dev("organizer_ui", "Skipping", memberName, "- already added as fake player")
-            else
-                -- Use BASE profile to get CURRENT spec's role
-                local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(memberName)
-                if profile then
-                    local playerData = {
-                        id = memberName,
-                        name = memberName:match("^([^%-]+)") or memberName,
-                        class = profile.class,
-                        -- CRITICAL: Use current spec's role, not multi-role array from CharacterStorage
-                        roles = {profile.role or "DAMAGER"},
-                        keystone = nil,  -- Will be populated below
-                        overallScore = profile.io or 0,
-                        specName = profile.specName,
-                        specID = profile.specID,
-                        utilities = {}
-                    }
-                    
-                    -- Get keystone from organizer profile
-                    local organizerProfile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetOrganizerProfile(memberName)
-                    if organizerProfile and organizerProfile.keystone then
-                        playerData.keystone = organizerProfile.keystone
+            if not seenPlayers[memberName] then
+                -- SESSION 4 FIX: Check if player has opted out before adding to bench
+                local location = NextKey222.OrganizerState:GetPlayerLocation(memberName)
+                
+                if location ~= "opt_out" then
+                    -- Build playerData and add to state
+                    local playerData = self:BuildPlayerDataFromParty(memberName)
+                    if playerData then
+                        NextKey222.OrganizerState:SetPlayer(memberName, playerData)
+                        NextKey222.OrganizerState:MoveToBench(memberName)
+                        
+                        table.insert(allPlayers, playerData)
+                        seenPlayers[memberName] = true
                     end
-                    
-                    -- Use capabilities from base profile for utilities
-                    if profile.capabilities then
-                        if profile.capabilities.heroism then
-                            table.insert(playerData.utilities, "heroism")
-                        end
-                        if profile.capabilities.battleRes then
-                            table.insert(playerData.utilities, "battleRes")
-                        end
-                    end
-                    
-                    -- CRITICAL FIX: Only generate defaults if player doesn't already have spec preferences
-                    -- (preserves poll response data if it exists)
-                    if not playerData.specPreferences or not next(playerData.specPreferences) then
-                    	if NextKey222.OrganizerPlayerDataBuilder and
-                    	   NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-                    		-- SafeRun returns the function's direct outputs: (specPreferences, specDetails)
-                    		local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(memberName)
-                    		
-                    		if success and specPrefs then
-                    			playerData.specPreferences = specPrefs
-                    			playerData.specDetails = specDetails
-                    			
-                    			Debug:Dev("organizer_ui", "Generated default spec preferences for real player:", memberName,
-                    			         "- has specPreferences:", specPrefs ~= nil,
-                    			         "- has specDetails:", specDetails ~= nil)
-                    		else
-                    			Debug:Error("Failed to generate default spec preferences for real player:", memberName)
-                    		end
-                    	end
-                    else
-                    	Debug:Dev("organizer_ui", "Player", memberName, "already has spec preferences - preserving")
-                    end
-                    
-                    Debug:Dev("organizer_ui", "Created player data for", memberName, "with current spec role:", profile.role, "specName:", profile.specName)
-                    
-                    table.insert(allPlayers, playerData)
-                    seenPlayers[memberName] = true  -- Mark as seen
+                else
+                    Debug:Dev("organizer_ui", "Skipping opted-out player:", memberName)
                 end
             end
         end
     end
     
-    Debug:Dev("organizer_ui", "GetBenchPlayers returning", #allPlayers, "total players")
+    Debug:Dev("organizer_ui", "Returning", #allPlayers, "bench players (state-driven)")
     return allPlayers
+end
+
+-- MARK: Player Data Builders
+--- Build player data from fake player service data
+-- @param fakeData Fake player service data
+-- @return table PlayerData object
+function BenchManager:BuildPlayerDataFromFake(fakeData)
+    local playerData = {
+        id = fakeData.name,
+        name = fakeData.name:match("^([^%-]+)") or fakeData.name,
+        class = fakeData.class,
+        roles = {fakeData.role or "DAMAGER"},
+        keystone = fakeData.keystone,
+        overallScore = fakeData.io or 0,
+        specName = fakeData.specName,
+        utilities = {}
+    }
+    
+    -- Add utilities
+    if fakeData.heroismCaster then
+        table.insert(playerData.utilities, "heroism")
+    end
+    if fakeData.battleResCaster then
+        table.insert(playerData.utilities, "battleRes")
+    end
+    
+    -- Generate default spec preferences if none exist
+    if NextKey222.OrganizerPlayerDataBuilder then
+        local success, specPrefs, specDetails =
+            NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fakeData.name)
+        if success and specPrefs then
+            playerData.specPreferences = specPrefs
+            playerData.specDetails = specDetails
+        end
+    end
+    
+    return playerData
+end
+
+--- Build player data from party member profile
+-- @param memberName Player name-realm
+-- @return table|nil PlayerData object or nil if profile unavailable
+function BenchManager:BuildPlayerDataFromParty(memberName)
+    local profile = NextKey222.ProfilesService and
+                   NextKey222.ProfilesService:GetProfile(memberName)
+    
+    if not profile then
+        return nil
+    end
+    
+    local playerData = {
+        id = memberName,
+        name = memberName:match("^([^%-]+)") or memberName,
+        class = profile.class,
+        roles = {profile.role or "DAMAGER"},
+        keystone = nil,
+        overallScore = profile.io or 0,
+        specName = profile.specName,
+        specID = profile.specID,
+        utilities = {}
+    }
+    
+    -- Get keystone
+    local orgProfile = NextKey222.ProfilesService and
+                      NextKey222.ProfilesService:GetOrganizerProfile(memberName)
+    if orgProfile and orgProfile.keystone then
+        playerData.keystone = orgProfile.keystone
+    end
+    
+    -- Add utilities
+    if profile.capabilities then
+        if profile.capabilities.heroism then
+            table.insert(playerData.utilities, "heroism")
+        end
+        if profile.capabilities.battleRes then
+            table.insert(playerData.utilities, "battleRes")
+        end
+    end
+    
+    -- Generate default spec preferences
+    if NextKey222.OrganizerPlayerDataBuilder then
+        local success, specPrefs, specDetails =
+            NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(memberName)
+        if success and specPrefs then
+            playerData.specPreferences = specPrefs
+            playerData.specDetails = specDetails
+        end
+    end
+    
+    return playerData
 end
 
 -- MARK: Individual Operations

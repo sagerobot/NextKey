@@ -849,6 +849,11 @@ function SurveyDialog:SubmitFinalResponse(optedIn)
                 NextKey222.ParticipantSurvey:ProcessResponse(currentPlayer, response)
             end
             
+            -- SESSION 3: Sync UI to state immediately (same as other responses)
+            if NextKey222.RosterBoard and NextKey222.RosterBoard.SyncUIToState then
+                NextKey222.RosterBoard:SyncUIToState()
+            end
+            
             -- Update poll progress
             if NextKey222.RosterBoard and NextKey222.RosterBoard.activePoll then
                 table.insert(NextKey222.RosterBoard.activePoll.responses, {

@@ -75,6 +75,7 @@ core\organizer\playerDataBuilder.lua
 core\organizer\validation.lua
 core\organizer\comms.lua
 core\organizer\survey.lua
+core\organizer\state.lua
 core\organizer\sorting.lua
 core\organizer\animationQueue.lua
 
