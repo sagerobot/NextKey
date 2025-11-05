@@ -401,6 +401,10 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
         self:ProcessOrganizerPollRequest(payload, sender)
     elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.ORG_POLL_RESPONSE then
         self:ProcessOrganizerPollResponse(payload, sender)
+    elseif payload.opcode == "ORG_ADDON_PING" then
+        self:ProcessAddonPing(payload, sender)
+    elseif payload.opcode == "ORG_ADDON_PONG" then
+        self:ProcessAddonPong(payload, sender)
     else
         NextKey222.Debug:Dev("comms", "Unknown opcode:", payload.opcode, "from", sender)
     end
@@ -1213,6 +1217,21 @@ function Communications:RegisterOrganizerHandlers()
     NextKey222.Debug:Dev("organizer", "Organizer communication handlers registered")
     -- Handlers are integrated into main ProcessMessage() function
     return true
+end
+
+-- MARK: Addon Discovery Handlers
+function Communications:ProcessAddonPing(payload, sender)
+    -- Forward to ParticipantSurvey module
+    if NextKey222.ParticipantSurvey then
+        NextKey222.ParticipantSurvey:OnAddonPing(payload, sender)
+    end
+end
+
+function Communications:ProcessAddonPong(payload, sender)
+    -- Forward to ParticipantSurvey module
+    if NextKey222.ParticipantSurvey then
+        NextKey222.ParticipantSurvey:OnAddonPong(payload, sender)
+    end
 end
 
 return Communications

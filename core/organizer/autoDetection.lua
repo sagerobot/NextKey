@@ -145,8 +145,8 @@ function AutoDetection:BuildPlayerDataFromAPIs(unit, fullName)
         -- Generate default spec preferences based on current spec
         -- This ensures tooltips work for auto-detected players
         if NextKey222.OrganizerPlayerDataBuilder and
-           NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-            local specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fullName)
+           NextKey222.OrganizerPlayerDataBuilder.GenerateSpecPreferences then
+            local specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(fullName, {randomize = false})
             playerData.specPreferences = specPrefs
             playerData.specDetails = specDetails
         end

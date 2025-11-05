@@ -14,6 +14,10 @@ NextKey222.RegisterModule("OrganizerComms", OrganizerComms)
 
 -- Organizer-specific opcodes
 local ORGANIZER_OPCODES = {
+    -- Discovery Protocol (NEW - Handshake System)
+    ADDON_PING = "ORG_ADDON_PING",     -- Organizer → All: "Who has addon?"
+    ADDON_PONG = "ORG_ADDON_PONG",     -- Participant → Organizer: "I do!"
+    
     -- Survey System
     POLL_REQUEST = "ORG_POLL_REQUEST",
     POLL_RESPONSE = "ORG_POLL_RESPONSE",

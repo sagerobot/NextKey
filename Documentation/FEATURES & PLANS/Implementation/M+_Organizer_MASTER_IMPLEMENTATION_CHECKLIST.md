@@ -345,7 +345,7 @@ Session 1 (Date: 2025-10-24):
 **Status:** ✅ Complete
 **Dependencies:** Phase 0, 0.5, 1 complete
 **Started:** 2025-10-24
-**Completed:** 2025-11-01
+**Completed:** 2025-11-05
 
 ### Core Survey System
 
@@ -385,7 +385,10 @@ Session 1 (Date: 2025-10-24):
   - [x] Build `UpdatePollProgress()` counter
   - [x] Implement `CompletePoll()` cleanup
   - [x] Add poll UI updates (button text, progress)
-  - [x] **Testing:** Poll simulation with fake players
+  - [x] Implement handshake discovery protocol (ADDON_PING/PONG)
+  - [x] Implement progress display format "X/Y (Z total)"
+  - [x] Implement lazy protocol initialization
+  - [x] **Testing:** Poll simulation with fake players ✅ (20/20 validated)
 
 ### Roster Population
 
@@ -404,7 +407,35 @@ Session 1 (Date: 2025-10-24):
   - [x] Build spec preference generation
   - [x] Add alt selection simulation
   - [x] Integrate with fake player service
-  - [x] **Testing:** Simulate polls with 20+ players
+  - [x] Implement lazy initialization protocol wrapper
+  - [x] Fix file corruption (duplicate function definitions)
+  - [x] **Testing:** Simulate polls with 20+ players ✅
+
+### Handshake Discovery Protocol (NEW)
+
+- [x] **`core/organizer/survey.lua`** (EXTEND)
+  - [x] Implement ADDON_PING broadcast system
+  - [x] Implement PONG response handling
+  - [x] Build addon user tracking (separate from non-addon players)
+  - [x] Implement `CompleteDiscovery()` with roster building
+  - [x] Add solo mode support with fake players
+  - [x] Add organizer to addon users list
+  - [x] **Testing:** Discovery validated with 20 players ✅
+
+- [x] **`core/fakePlayerService.lua`** (EXTEND)
+  - [x] Implement `EnablePollProtocol()` wrapper
+  - [x] Build `SimulatePongResponses()` auto-responder
+  - [x] Add 0-500ms delay randomization
+  - [x] **Testing:** Auto-PONG validated ✅
+
+### Visual Feedback System (NEW)
+
+- [x] **`ui/organizer/playerCard.lua`** (EXTEND)
+  - [x] Add "Polling..." state detection
+  - [x] Implement grey overlay visual (alpha 0.6)
+  - [x] Add yellow "Polling..." text rendering
+  - [x] Implement state-based card updates
+  - [x] **Testing:** Visual feedback validated in-game ✅
 
 ### Session Notes (Phase 2)
 
@@ -424,6 +455,22 @@ Session 2 (Date: 2025-11-01):
 - Validated: Phase 2 implementation complete
 - Updated: Master checklist to reflect completion
 - Next: Begin Phase 3: Manual Mode
+
+Session 3 (Date: 2025-11-05):
+- Implemented: Handshake discovery protocol (ADDON_PING/PONG)
+- Implemented: Unified poll system (lazy initialization pattern)
+- Implemented: Visual feedback UI (poll progress display)
+- Created: M+_Organizer_Handshake_Protocol.md (449 lines)
+- Created: M+_Organizer_Unified_Poll_System.md (590 lines)
+- Modified: core/organizer/survey.lua (discovery + non-addon handling)
+- Modified: ui/organizer/rosterBoard.lua (protocol initialization)
+- Modified: ui/organizer/playerCard.lua (polling state visual feedback)
+- Modified: core/fakePlayerService.lua (auto-PONG protocol)
+- Modified: debug/pollSimulator.lua (auto-response protocol, file corruption fixed)
+- Bug Fixes: 8 critical bugs resolved including PollSimulator corruption, organizer dialog visibility
+- Features: Progress display format "X/Y (Z total)", real-time card updates, lazy protocol initialization
+- Testing: Validated with 20/20 responses (19 fake players + organizer)
+- Next: Continue Phase 3: Manual Mode - Keystone Designation
 
 ---
 

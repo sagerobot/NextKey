@@ -90,12 +90,12 @@ local function generateSpecPreferences(playerData)
     -- CRITICAL FIX: Use OrganizerPlayerDataBuilder to generate REALISTIC POLL RESPONSE
     -- NOT default spec preferences (which are for pre-poll display only)
     if NextKey222.OrganizerPlayerDataBuilder and
-       NextKey222.OrganizerPlayerDataBuilder.GenerateRealisticPollResponse then
+       NextKey222.OrganizerPlayerDataBuilder.GenerateSpecPreferences then
         
         -- CRITICAL: playerData.name is ALREADY in "Name-Realm" format for fake players
         -- Don't append realm again or we get "01FP-Dalaran-Dalaran"
         local characterID = playerData.name
-        local success, specPrefs, specDets = NextKey222.OrganizerPlayerDataBuilder:GenerateRealisticPollResponse(characterID)
+        local success, specPrefs, specDets = NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(characterID, {randomize = true})
         
         if success and specPrefs and specDets then
             NextKey222.Debug:Dev("organizer", "Poll: Generated REALISTIC poll response for", characterID, "using OrganizerPlayerDataBuilder")
@@ -345,6 +345,79 @@ function PollSimulator:SimulatePoll(patternType, pollID)
         
         return true
     end, "PollSimulator:SimulatePoll")
+end
+
+-- MARK: Poll Protocol (Unified System - Lazy Initialization)
+
+--- Enable automatic poll response simulation
+-- Makes fake players respond to POLL_REQUEST messages automatically
+-- Uses lazy initialization to avoid module load order issues
+-- @return boolean Success status
+function PollSimulator:EnablePollProtocol()
+    if self.pollProtocolInitialized then
+        NextKey222.Debug:Dev("poll_sim", "Poll protocol already initialized")
+        return true  -- Already initialized
+    end
+    
+    if not NextKey222.ParticipantSurvey then
+        NextKey222.Debug:Error("PollSimulator:EnablePollProtocol - ParticipantSurvey not available")
+        return false
+    end
+    
+    NextKey222.Debug:Dev("poll_sim", "Enabling poll protocol - wrapping SendPollRequest method")
+    
+    -- Store original SendPollRequest method
+    self.originalSendPollRequest = NextKey222.ParticipantSurvey.SendPollRequest
+    
+    -- Wrap SendPollRequest to intercept and simulate fake player responses
+    NextKey222.ParticipantSurvey.SendPollRequest = function(survey, pollID)
+        -- Call original method (sends POLL_REQUEST to real players)
+        PollSimulator.originalSendPollRequest(survey, pollID)
+        
+        -- Simulate fake players responding to poll
+        PollSimulator:SimulatePollResponses(pollID, "instant")
+    end
+    
+    self.pollProtocolInitialized = true
+    NextKey222.Debug:Dev("poll_sim", "Poll protocol enabled - fake players will auto-respond to POLL_REQUESTs")
+    return true
+end
+
+--- Simulate poll responses from fake players
+-- @param pollID string Poll identifier
+-- @param patternType string Response pattern ("instant", "realistic")
+function PollSimulator:SimulatePollResponses(pollID, patternType)
+    local fakePlayers = NextKey222.FakePlayerService:GetAllPlayerNames()
+    
+    if #fakePlayers == 0 then
+        NextKey222.Debug:Dev("poll_sim", "No fake players - skipping poll response simulation")
+        return -- No fake players to simulate
+    end
+    
+    local pattern = RESPONSE_PATTERNS[patternType] or RESPONSE_PATTERNS.instant
+    
+    NextKey222.Debug:Dev("poll_sim", string.format("Simulating poll responses from %d fake players (pattern: %s)",
+        #fakePlayers, patternType))
+    
+    for i, playerName in ipairs(fakePlayers) do
+        local delay = math.random() * (pattern.maxDelay - pattern.minDelay) + pattern.minDelay
+        local responseType, useAlt = getRandomAltResponse(pattern)
+        
+        scheduleResponse(playerName, delay, responseType, useAlt, pollID)
+    end
+end
+
+--- Disable poll protocol (restore original methods)
+-- @return boolean Success status
+function PollSimulator:DisablePollProtocol()
+    if self.originalSendPollRequest and NextKey222.ParticipantSurvey then
+        NextKey222.ParticipantSurvey.SendPollRequest = self.originalSendPollRequest
+        self.originalSendPollRequest = nil
+        self.pollProtocolInitialized = false
+        NextKey222.Debug:Dev("poll_sim", "Poll protocol disabled - restored original SendPollRequest")
+        return true
+    end
+    return false
 end
 
 --- Simulates an instant poll (0-2 second responses)

@@ -160,7 +160,7 @@ function RosterBoard:CreateMainFrame()
         
         -- Create all sections as NATIVE frames with manual positioning
         print("[ORGANIZER DIAGNOSTIC] Creating header section...")
-        Debug:Dev("organizer_ui", "Creating header section...")
+        Debug:Dev("organizer_ui", "Creating header section (minimal spacer)...")
         self:CreateHeaderSection(nativeFrame)
         print("[ORGANIZER DIAGNOSTIC] Header section created")
         
@@ -168,6 +168,8 @@ function RosterBoard:CreateMainFrame()
         Debug:Dev("organizer_ui", "Creating active pool section...")
         self:CreateActivePoolSection(nativeFrame)
         print("[ORGANIZER DIAGNOSTIC] Active pool section created")
+        
+        -- ACTION BAR REMOVED: All controls now in header (row 2)
         
         print("[ORGANIZER DIAGNOSTIC] Creating opt-out section...")
         Debug:Dev("organizer_ui", "Creating opt-out section...")
@@ -327,7 +329,7 @@ function RosterBoard:CleanupNativeFrames()
     Debug:Dev("ui_contamination", "[ORGANIZER] CleanupNativeFrames completed - all references cleared")
 end
 
--- MARK: Layout Calculation
+-- MARK: Layout Calculation (Uses UIConfig constants)
 function RosterBoard:CalculateOptimalLayout()
     local benchPlayers = self:GetBenchPlayers() or {}
     local groupedPlayers = self:GetGroupedPlayers() or {}
@@ -336,15 +338,22 @@ function RosterBoard:CalculateOptimalLayout()
     -- Calculate needed groups (1-4 groups typically)
     local neededGroups = math.max(1, math.min(math.ceil(playerCount / 5), 4))
     
-    -- Dynamic sizing - COMPACT
-    local columnWidth = 180
-    local benchWidth = 200  -- Compact bench
-    local padding = 20
-    local headerHeight = 100
-    local groupHeight = 550
+    -- Use centralized UIConfig constants
+    local config = NextKey222.UIConfig.ORGANIZER
+    local columnWidth = config.COLUMN_WIDTH
+    local benchWidth = config.BENCH_WIDTH
+    local padding = config.PADDING
+    local headerHeight = config.HEADER_HEIGHT
+    local groupHeight = config.GROUP_HEIGHT
+    local optOutHeight = config.OPT_OUT_HEIGHT
+    local statusBarHeight = config.STATUS_BAR_HEIGHT
     
+    -- Calculate total height: Header + Groups + Gap + OptOut + Gap + Status
+    -- ACTION BAR REMOVED: All controls now in header
     local totalWidth = (columnWidth * neededGroups) + benchWidth + (padding * 3)
-    local totalHeight = headerHeight + groupHeight + 150  -- 150 for opt-out section
+    local totalHeight = headerHeight + groupHeight +
+                       config.GROUP_TO_OPTOUT_GAP + optOutHeight +
+                       config.OPTOUT_TO_BOTTOM_GAP + statusBarHeight
     
     Debug:Dev("organizer_ui", "Layout - Players:", playerCount, "Groups:", neededGroups, "Window:", totalWidth, "x", totalHeight)
     
@@ -353,7 +362,14 @@ function RosterBoard:CalculateOptimalLayout()
         columnWidth = columnWidth,
         benchWidth = benchWidth,
         totalWidth = totalWidth,
-        totalHeight = totalHeight
+        totalHeight = totalHeight,
+        headerHeight = headerHeight,
+        padding = padding,
+        slotHeight = config.SLOT_HEIGHT,
+        slotSpacing = config.SLOT_SPACING,
+        groupToOptOutGap = config.GROUP_TO_OPTOUT_GAP,
+        optOutHeight = optOutHeight,
+        statusBarHeight = statusBarHeight
     }
 end
 
@@ -396,248 +412,285 @@ function RosterBoard:PopulateAllSections()
     end, "RosterBoard:PopulateAllSections")
 end
 
--- MARK: Header Section (Native Container + AceGUI Widgets - Compact Flow)
+-- MARK: Header Section (Uses UIConfig constants)
 function RosterBoard:CreateHeaderSection(nativeParent)
-    -- Create native container for header
-    local headerContainer = CreateFrame("Frame", nil, nativeParent)
-    headerContainer:SetPoint("TOPLEFT", nativeParent, "TOPLEFT", 10, -10)
-    headerContainer:SetPoint("TOPRIGHT", nativeParent, "TOPRIGHT", -10, -10)
-    headerContainer:SetHeight(60)
-    headerContainer:Show()
-    
-    -- Calculate available width
-    local layout = self:CalculateOptimalLayout()
-    
-    -- Create AceGUI widgets with compact horizontal flow (no gaps)
-    local xOffset = 0
-    local buttonWidth = 120
-    local checkboxWidth = 60
-    local dropdownWidth = 110
-    
-    -- Poll Group Button (always visible) - WIDER to accommodate "Polling... (15/20)"
-    local pollButton = AceGUI:Create("Button")
-    pollButton:SetText("Poll")
-    pollButton:SetWidth(150)  -- Increased from 120 to 150 for double-digit counts
-    pollButton:SetCallback("OnClick", function()
-        self:OnPollGroupClicked()
-    end)
-    pollButton.frame:SetParent(headerContainer)
-    pollButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
-    pollButton.frame:Show()
-    self.pollButton = pollButton
-    self.headerWidgets.pollButton = pollButton
-    xOffset = xOffset + 150 + 5  -- Use actual button width
-    
-    -- SESSION 4: Clear Poll Button (next to Poll button)
-    local clearPollButton = AceGUI:Create("Button")
-    clearPollButton:SetText("Clear Poll")
-    clearPollButton:SetWidth(buttonWidth)
-    clearPollButton:SetCallback("OnClick", function()
-        self:OnClearPollClicked()
-    end)
-    clearPollButton.frame:SetParent(headerContainer)
-    clearPollButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
-    clearPollButton.frame:Show()
-    self.clearPollButton = clearPollButton
-    self.headerWidgets.clearPollButton = clearPollButton
-    xOffset = xOffset + buttonWidth + 5
-    
-    -- Add Fake Raid Button (debug only - next to Poll button)
-    if NextKey222.FakePlayerService and NextKey222.FakePlayerService:IsEnabled() then
-        local fakeRaidButton = AceGUI:Create("Button")
-        fakeRaidButton:SetText("Add Raid")
-        fakeRaidButton:SetWidth(buttonWidth)
-        fakeRaidButton:SetCallback("OnClick", function()
-            self:OnAddFakeRaidClicked()
-        end)
-        fakeRaidButton.frame:SetParent(headerContainer)
-        fakeRaidButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
-        fakeRaidButton.frame:Show()
-        self.fakeRaidButton = fakeRaidButton
-        self.headerWidgets.fakeRaidButton = fakeRaidButton
-        xOffset = xOffset + buttonWidth + 5
-    end
-    
-    -- Sort Button (organizer only)
-    local sortButton = AceGUI:Create("Button")
-    sortButton:SetText("Sort")
-    sortButton:SetWidth(buttonWidth)
-    sortButton:SetCallback("OnClick", function()
-        self:OnSortClicked()
-    end)
-    sortButton.frame:SetParent(headerContainer)
-    sortButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
-    sortButton.frame:Show()
-    self.sortButton = sortButton
-    self.headerWidgets.sortButton = sortButton
-    xOffset = xOffset + buttonWidth + 5
-    
-    -- Announce Button (always visible)
-    local announceButton = AceGUI:Create("Button")
-    announceButton:SetText("Announce")
-    announceButton:SetWidth(buttonWidth)
-    announceButton:SetCallback("OnClick", function()
-        self:OnAnnounceClicked()
-    end)
-    announceButton.frame:SetParent(headerContainer)
-    announceButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
-    announceButton.frame:Show()
-    self.announceButton = announceButton
-    self.headerWidgets.announceButton = announceButton
-    xOffset = xOffset + buttonWidth + 5
-    
-    -- Raid checkbox (always visible for compact layout)
-    local raidCheckbox = AceGUI:Create("CheckBox")
-    raidCheckbox:SetLabel("Raid")
-    raidCheckbox:SetValue(true)
-    raidCheckbox:SetCallback("OnValueChanged", function(widget, event, value)
-        self.announceToRaid = value
-    end)
-    raidCheckbox.frame:SetParent(headerContainer)
-    raidCheckbox.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, -5)
-    raidCheckbox.frame:Show()
-    self.headerWidgets.raidCheckbox = raidCheckbox
-    xOffset = xOffset + checkboxWidth + 5
-    
-    -- Guild checkbox (always visible for compact layout)
-    local guildCheckbox = AceGUI:Create("CheckBox")
-    guildCheckbox:SetLabel("Guild")
-    guildCheckbox:SetValue(false)
-    guildCheckbox:SetCallback("OnValueChanged", function(widget, event, value)
-        self.announceToGuild = value
-    end)
-    guildCheckbox.frame:SetParent(headerContainer)
-    guildCheckbox.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, -5)
-    guildCheckbox.frame:Show()
-    self.headerWidgets.guildCheckbox = guildCheckbox
-    xOffset = xOffset + checkboxWidth + 5
-    
-    -- Only show optimizer controls if window is wide enough (3+ groups)
-    if layout.groupColumns >= 3 then
-        -- Optimizer Dropdown
-        local optimizerDropdown = AceGUI:Create("Dropdown")
-        optimizerDropdown:SetLabel("Opt:")
-        optimizerDropdown:SetList({
-            mode1 = "Max Power",
-            mode2 = "Balanced",
-            mode3 = "Vault"
-        })
-        optimizerDropdown:SetValue("mode2")
-        optimizerDropdown:SetWidth(dropdownWidth)
-        optimizerDropdown:SetCallback("OnValueChanged", function(widget, event, value)
-            self.selectedOptimizerMode = value
-        end)
-        optimizerDropdown.frame:SetParent(headerContainer)
-        optimizerDropdown.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
-        optimizerDropdown.frame:Show()
-        self.optimizerDropdown = optimizerDropdown
-        self.headerWidgets.optimizerDropdown = optimizerDropdown
-        xOffset = xOffset + dropdownWidth + 5
+    return NextKey222.SafeRun(function()
+        -- Use centralized button size constants
+        local HEADER_BUTTON_SIZES = NextKey222.UIConfig.ORGANIZER.BUTTON_SIZES
         
-        -- Optimize Button
-        local optimizeButton = AceGUI:Create("Button")
-        optimizeButton:SetText("Run")
-        optimizeButton:SetWidth(60)
-        optimizeButton:SetCallback("OnClick", function()
-            self:OnOptimizeClicked()
+        local layout = self:CalculateOptimalLayout()
+        local availableWidth = layout.totalWidth - 40
+        local hasFakePlayers = NextKey222.FakePlayerService and NextKey222.FakePlayerService:IsEnabled()
+        
+        -- Create header container (90px height for 2 rows)
+        local headerContainer = CreateFrame("Frame", nil, nativeParent)
+        headerContainer:SetPoint("TOPLEFT", nativeParent, "TOPLEFT", 10, -10)
+        headerContainer:SetPoint("TOPRIGHT", nativeParent, "TOPRIGHT", -10, -10)
+        headerContainer:SetHeight(90)  -- 2 rows: Poll controls + Organize/Announce
+        headerContainer:Show()
+        
+        -- Row 1: Poll Controls
+        local pollLabel = headerContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pollLabel:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", 0, 0)
+        pollLabel:SetText("POLL CONTROLS")
+        pollLabel:SetTextColor(0.6, 0.6, 0.6, 1.0)
+        
+        local row1 = AceGUI:Create("SimpleGroup")
+        row1:SetLayout("Flow")
+        row1:SetFullWidth(true)
+        row1.frame:SetParent(headerContainer)
+        row1.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", 0, -18)
+        row1.frame:SetWidth(availableWidth)
+        row1.frame:SetHeight(30)
+        row1.frame:Show()
+        
+        -- Poll button
+        local pollButton = AceGUI:Create("Button")
+        pollButton:SetText("Poll Group")
+        pollButton:SetWidth(HEADER_BUTTON_SIZES.PRIMARY)
+        pollButton:SetCallback("OnClick", function() self:OnPollGroupClicked() end)
+        row1:AddChild(pollButton)
+        self.pollButton = pollButton
+        
+        -- End Poll button
+        local endPollButton = AceGUI:Create("Button")
+        endPollButton:SetText("End Poll")
+        endPollButton:SetWidth(HEADER_BUTTON_SIZES.PRIMARY)
+        endPollButton:SetCallback("OnClick", function() self:OnEndPollClicked() end)
+        row1:AddChild(endPollButton)
+        self.endPollButton = endPollButton
+        
+        -- Clear Poll button
+        local clearPollButton = AceGUI:Create("Button")
+        clearPollButton:SetText("Clear Poll")
+        clearPollButton:SetWidth(HEADER_BUTTON_SIZES.PRIMARY)
+        clearPollButton:SetCallback("OnClick", function() self:OnClearPollClicked() end)
+        row1:AddChild(clearPollButton)
+        self.clearPollButton = clearPollButton
+        
+        -- Debug button (if enabled)
+        if hasFakePlayers then
+            local fakeRaidButton = AceGUI:Create("Button")
+            fakeRaidButton:SetText("Add Raid")
+            fakeRaidButton:SetWidth(HEADER_BUTTON_SIZES.DEBUG)
+            fakeRaidButton:SetCallback("OnClick", function() self:OnAddFakeRaidClicked() end)
+            row1:AddChild(fakeRaidButton)
+            self.fakeRaidButton = fakeRaidButton
+        end
+        
+        -- Row 2: Organize/Announce Controls
+        local organizeLabel = headerContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        organizeLabel:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", 0, -48)
+        organizeLabel:SetText("GROUP CONTROLS")
+        organizeLabel:SetTextColor(0.6, 0.6, 0.6, 1.0)
+        
+        local row2 = AceGUI:Create("SimpleGroup")
+        row2:SetLayout("Flow")
+        row2:SetFullWidth(true)
+        row2.frame:SetParent(headerContainer)
+        row2.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", 0, -66)
+        row2.frame:SetWidth(availableWidth)
+        row2.frame:SetHeight(30)
+        row2.frame:Show()
+        
+        -- Organize dropdown
+        local organizeDropdown = AceGUI:Create("Dropdown")
+        organizeDropdown:SetLabel("")
+        organizeDropdown:SetList({
+            simple_sort = "Simple Sort",
+            max_power = "Max Power",
+            balanced = "Balanced",
+            vault = "Vault Focused"
+        })
+        organizeDropdown:SetValue("simple_sort")
+        organizeDropdown:SetWidth(HEADER_BUTTON_SIZES.DROPDOWN)
+        organizeDropdown:SetCallback("OnValueChanged", function(widget, event, value)
+            self.selectedOrganizeMode = value
         end)
-        optimizeButton.frame:SetParent(headerContainer)
-        optimizeButton.frame:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", xOffset, 0)
-        optimizeButton.frame:Show()
-        self.optimizeButton = optimizeButton
-        self.headerWidgets.optimizeButton = optimizeButton
-    end
-    
-    self.headerSection = headerContainer
+        row2:AddChild(organizeDropdown)
+        self.organizeDropdown = organizeDropdown
+        self.selectedOrganizeMode = "simple_sort"
+        
+        -- Organize button
+        local organizeButton = AceGUI:Create("Button")
+        organizeButton:SetText("Organize")
+        organizeButton:SetWidth(HEADER_BUTTON_SIZES.PRIMARY)
+        organizeButton:SetCallback("OnClick", function()
+            self:OnOrganizeClicked()
+        end)
+        row2:AddChild(organizeButton)
+        self.organizeButton = organizeButton
+        
+        -- Announce button
+        local announceButton = AceGUI:Create("Button")
+        announceButton:SetText("Announce")
+        announceButton:SetWidth(HEADER_BUTTON_SIZES.PRIMARY)
+        announceButton:SetCallback("OnClick", function()
+            self:OnAnnounceClicked()
+        end)
+        row2:AddChild(announceButton)
+        self.announceButton = announceButton
+        
+        -- Raid checkbox
+        local raidCheckbox = AceGUI:Create("CheckBox")
+        raidCheckbox:SetLabel("Raid")
+        raidCheckbox:SetValue(true)
+        raidCheckbox:SetWidth(HEADER_BUTTON_SIZES.CHECKBOX)
+        raidCheckbox:SetCallback("OnValueChanged", function(widget, event, value)
+            self.announceToRaid = value
+        end)
+        row2:AddChild(raidCheckbox)
+        
+        -- Guild checkbox
+        local guildCheckbox = AceGUI:Create("CheckBox")
+        guildCheckbox:SetLabel("Guild")
+        guildCheckbox:SetValue(false)
+        guildCheckbox:SetWidth(HEADER_BUTTON_SIZES.CHECKBOX)
+        guildCheckbox:SetCallback("OnValueChanged", function(widget, event, value)
+            self.announceToGuild = value
+        end)
+        row2:AddChild(guildCheckbox)
+        
+        self.headerSection = headerContainer
+        self.headerWidgets = {pollButton, endPollButton, clearPollButton, row1, organizeDropdown, organizeButton, announceButton, raidCheckbox, guildCheckbox, row2}
+        if hasFakePlayers then
+            table.insert(self.headerWidgets, self.fakeRaidButton)
+        end
+        
+        Debug:Dev("organizer_ui", "Created header section (90px, 2 rows)")
+        
+    end, "RosterBoard:CreateHeaderSection")
 end
+
+-- MARK: Obsolete Header Button Helpers (REMOVED)
+-- These functions are no longer needed as buttons are now contextual:
+-- - Poll/End/Clear buttons: Inline with bench title (created in benchManager)
+-- - Organize button: In bottom bar (created in CreateBottomBar)
+-- - Announce/checkboxes: In bottom bar (created in CreateBottomBar)
+-- - Debug buttons: In bottom bar (created in CreateBottomBar)
 
 -- MARK: Header Button Handlers
 function RosterBoard:OnPollGroupClicked()
     return NextKey222.SafeRun(function()
-        -- DEBUG MODE: If fake players exist, trigger poll simulation instead
+        -- Check if fake players are enabled (allows solo testing)
+        local hasFakePlayers = NextKey222.FakePlayerService and
+                               NextKey222.FakePlayerService:IsEnabled() and
+                               #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
+        
+        -- Validate we're in a group (or have fake players for testing)
+        local groupSize = GetNumGroupMembers()
+        if groupSize < 2 and not hasFakePlayers then
+            Debug:User("You must be in a group to poll members")
+            return
+        end
+        
+        -- Override groupSize when using fake players
+        if hasFakePlayers then
+            groupSize = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1  -- +1 for organizer
+        end
+        
+        -- LAZY INITIALIZATION: Enable fake player protocol FIRST if fake players exist
         local hasFakePlayers = NextKey222.FakePlayerService and
                                NextKey222.FakePlayerService:IsEnabled() and
                                #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
         
         if hasFakePlayers then
-        	Debug:User("DEBUG MODE: Triggering poll simulation with fake players")
-        	
-        	-- Generate unique poll ID
-        	local pollID = self:GeneratePollID()
-        	
-        	-- Store poll state
-        	self.activePoll = {
-        		id = pollID,
-        		startTime = GetTime(),
-        		responses = {},
-        		timeout = 60
-        	}
-        	
-        	-- Update UI to show polling
-        	self:ShowPollInProgress()
-        	
-        	-- CRITICAL FIX: Start timeout timer for debug mode too!
-        	self:StartPollTimeout()
-        	
-        	-- Trigger instant simulation
-        	if NextKey222.PollSimulator and NextKey222.PollSimulator:IsInitialized() then
-        		NextKey222.PollSimulator:SimulatePoll("instant", pollID)
-        		Debug:Dev("organizer", "Started instant poll simulation with ID:", pollID)
-        	else
-        		Debug:Error("PollSimulator not available")
-        	end
-        	
-        	-- Show organizer's own survey (ONLY in debug mode)
-        	if NextKey222.ParticipantSurvey then
-        		local pollRequest = {
-        			pollID = pollID,
-        			timeout = 60,
-        			organizerName = UnitName("player") .. "-" .. GetRealmName()
-        		}
-        		NextKey222.ParticipantSurvey:OnPollRequestReceived(pollRequest, pollRequest.organizerName)
-        	end
-        	
-        	return
-        end
-        
-        -- PRODUCTION MODE: Normal group polling
-        
-        -- Validate we're in a group
-        local groupSize = GetNumGroupMembers()
-        if groupSize < 2 then
-            Debug:User("You must be in a group to poll members")
-            return
+            -- Initialize fake player auto-response systems (lazy - only on first poll)
+            if NextKey222.FakePlayerService.EnablePollProtocol and
+               not NextKey222.FakePlayerService.pollProtocolInitialized then
+                NextKey222.FakePlayerService:EnablePollProtocol()
+                Debug:Dev("organizer", "Enabled FakePlayerService poll protocol")
+            end
+            
+            if NextKey222.PollSimulator and NextKey222.PollSimulator.EnablePollProtocol and
+               not NextKey222.PollSimulator.pollProtocolInitialized then
+                NextKey222.PollSimulator:EnablePollProtocol()
+                Debug:Dev("organizer", "Enabled PollSimulator poll protocol")
+            end
         end
         
         -- Generate unique poll ID
         local pollID = self:GeneratePollID()
         
-        -- Store poll state
+        -- Initialize poll state
         self.activePoll = {
             id = pollID,
             startTime = GetTime(),
             responses = {},
-            timeout = 60
+            addonUsers = {},
+            nonAddonUsers = {},
+            addonUserCount = 0,
+            totalMembers = groupSize,
+            timeout = 60,
+            discoveryComplete = false
         }
         
-        -- Send poll request to all members (including self)
-        if NextKey222.ParticipantSurvey then
-        	NextKey222.ParticipantSurvey:SendPollRequest(pollID)
-        	
-        	-- REMOVED: Duplicate organizer survey call (SendPollRequest already includes organizer)
-        	-- The organizer receives the poll via the RAID broadcast in SendPollRequest
-        end
+        Debug:Dev("organizer", string.format("Starting poll %s for %d members", pollID, groupSize))
         
-        -- Simultaneously trigger auto-detection
-        self:RunAutoDetection()
+        -- PHASE 1: Discovery Protocol
+        -- Send ADDON_PING to discover who has addon installed
+        Debug:Dev("organizer", "Starting addon discovery phase...")
+        NextKey222.ParticipantSurvey:SendAddonPing(pollID)
         
-        -- Start timeout timer
-        self:StartPollTimeout()
+        -- FakePlayerService will automatically respond with PONGs (if protocol enabled)
+        -- Real players will respond via OnAddonPing handler
         
-        -- Update UI
-        self:ShowPollInProgress()
+        -- Wait 3 seconds for PONG responses
+        C_Timer.After(3, function()
+            if not self.activePoll or self.activePoll.id ~= pollID then
+                Debug:Dev("organizer", "Poll cancelled or changed during discovery")
+                return
+            end
+            
+            -- PHASE 2: Complete Discovery
+            local success, addonUsers, nonAddonUsers = NextKey222.ParticipantSurvey:CompleteDiscovery()
+            
+            if not success then
+                Debug:Error("Discovery failed - aborting poll")
+                return
+            end
+            
+            self.activePoll.addonUsers = addonUsers
+            self.activePoll.nonAddonUsers = nonAddonUsers
+            self.activePoll.addonUserCount = #addonUsers
+            self.activePoll.discoveryComplete = true
+            
+            Debug:Dev("organizer", string.format("Discovery complete: %d addon users, %d non-addon users",
+                #addonUsers, #nonAddonUsers))
+            
+            -- PHASE 3: Send Poll Request (to addon users only)
+            if #addonUsers > 0 then
+                NextKey222.ParticipantSurvey:SendPollRequest(pollID)
+                -- PollSimulator will automatically respond for fake players
+                -- Real players will show survey dialog
+                
+                -- CRITICAL: Organizer must manually show themselves the survey dialog
+                -- (they don't receive their own RAID messages)
+                local organizerID = UnitName("player") .. "-" .. GetRealmName()
+                Debug:Dev("organizer", "Showing survey dialog for organizer (self)")
+                local pollMessage = {
+                    pollID = pollID,
+                    timeout = 60,
+                    organizerName = organizerID
+                }
+                NextKey222.ParticipantSurvey:ShowSurveyDialog(pollMessage)
+            else
+                Debug:User("No addon users found - cannot send poll")
+            end
+            
+            -- PHASE 4: Non-addon players already on bench (no poll needed for them)
+            -- They will use their current spec as default role preference
+            Debug:Dev("organizer", "Non-addon players detected:", #nonAddonUsers, "- using default roles")
+            
+            -- Start timeout timer
+            self:StartPollTimeout()
+            
+            -- Update UI
+            self:ShowPollInProgress()
+            self:UpdatePollProgress()
+        end)
         
-        Debug:Dev("organizer", "Started poll with ID:", pollID)
+        Debug:Dev("organizer", "Started poll with unified protocol - ID:", pollID)
         
     end, "RosterBoard:OnPollGroupClicked")
 end
@@ -683,19 +736,28 @@ function RosterBoard:ShowPollInProgress()
 	if self.pollButton then
 		self.pollButton:SetDisabled(true)
 		
-		-- Calculate total expected responses FIRST (before using it)
-		local totalMembers = GetNumGroupMembers()
-		
-		-- In debug mode with fake players, count fake players
+		-- In debug mode with fake players, use fake player count
 		local hasFakePlayers = NextKey222.FakePlayerService and
 		                       NextKey222.FakePlayerService:IsEnabled() and
 		                       #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
 		
 		if hasFakePlayers then
-			totalMembers = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1  -- +1 for organizer
+			-- Debug mode: simple format (no handshake needed)
+			local totalMembers = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1
+			self.pollButton:SetText("Polling... (0/" .. totalMembers .. ")")
+		else
+			-- Production mode: smart format with handshake data
+			if self.activePoll and self.activePoll.addonUserCount then
+				-- NEW FORMAT: "X/Y (Z total)"
+				local addonUsers = self.activePoll.addonUserCount
+				local totalMembers = self.activePoll.totalMembers
+				self.pollButton:SetText("Polling... (0/" .. addonUsers .. " (" .. totalMembers .. " total))")
+			else
+				-- Fallback during handshake phase
+				local totalMembers = GetNumGroupMembers()
+				self.pollButton:SetText("Discovering... (0/" .. totalMembers .. ")")
+			end
 		end
-		
-		self.pollButton:SetText("Polling... (0/" .. totalMembers .. ")")
 	end
 end
 
@@ -704,27 +766,47 @@ function RosterBoard:UpdatePollProgress()
         return
     end
     
-    -- Calculate total expected responses
-    local totalMembers = GetNumGroupMembers()
-    
-    -- In debug mode with fake players, count fake players
+    -- In debug mode with fake players, use simple format
     local hasFakePlayers = NextKey222.FakePlayerService and
                            NextKey222.FakePlayerService:IsEnabled() and
                            #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
     
-    if hasFakePlayers then
-        totalMembers = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1  -- +1 for organizer
-    end
-    
     local responses = #self.activePoll.responses
     
-    -- Update button text
-    self.pollButton:SetText("Polling... (" .. responses .. "/" .. totalMembers .. ")")
-    
-    -- Check if complete (all members responded, including organizer)
-    if responses >= totalMembers then
-        self:CompletePoll()
+    if hasFakePlayers then
+        -- Debug mode: simple format
+        local totalMembers = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1
+        self.pollButton:SetText("Polling... (" .. responses .. "/" .. totalMembers .. ")")
+        
+        -- Check if complete
+        if responses >= totalMembers then
+            self:CompletePoll()
+        end
+    else
+        -- Production mode: smart format "X/Y (Z total)"
+        if self.activePoll.addonUserCount then
+            local addonUsers = self.activePoll.addonUserCount
+            local totalMembers = self.activePoll.totalMembers
+            self.pollButton:SetText("Polling... (" .. responses .. "/" .. addonUsers .. " (" .. totalMembers .. " total))")
+            
+            -- Check if complete (all ADDON users responded)
+            if responses >= addonUsers then
+                self:CompletePoll()
+            end
+        else
+            -- Fallback (shouldn't happen in production)
+            local totalMembers = GetNumGroupMembers()
+            self.pollButton:SetText("Polling... (" .. responses .. "/" .. totalMembers .. ")")
+            
+            if responses >= totalMembers then
+                self:CompletePoll()
+            end
+        end
     end
+    
+    -- REAL-TIME VISUAL FEEDBACK: Refresh all bench cards to update "Polling..." states
+    -- This makes cards grey out when waiting and return to normal when they respond
+    self:RefreshBenchCardsFromState()
 end
 
 function RosterBoard:CompletePoll()
@@ -800,10 +882,9 @@ function RosterBoard:OnAddFakeRaidClicked()
     end, "RosterBoard:OnAddFakeRaidClicked")
 end
 
-function RosterBoard:OnOptimizeClicked()
-    Debug:Dev("organizer_ui", "Optimize clicked with mode:", self.selectedOptimizerMode)
-    Debug:User("Optimizer algorithms will be implemented in Phase 4")
-end
+-- MARK: OnOptimizeClicked (REMOVED - replaced by OnOrganizeClicked)
+-- This function is obsolete - organize mode is now selected via dropdown
+-- and executed via unified OnOrganizeClicked handler
 
 function RosterBoard:OnAnnounceClicked()
     Debug:Dev("organizer_ui", "Announce clicked")
@@ -811,6 +892,28 @@ function RosterBoard:OnAnnounceClicked()
 end
 
 -- MARK: Clear Poll Handler (SESSION 4)
+-- MARK: End Poll Handler (Immediately Complete Active Poll)
+function RosterBoard:OnEndPollClicked()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "End Poll button clicked")
+        
+        if not self.activePoll then
+            Debug:User("No active poll to end")
+            return
+        end
+        
+        -- Immediately complete the poll (even if not all responses received)
+        local totalResponses = #self.activePoll.responses
+        local totalMembers = self.activePoll.totalMembers or GetNumGroupMembers()
+        
+        Debug:User("Poll ended manually: " .. totalResponses .. "/" .. totalMembers .. " members responded")
+        
+        -- Call CompletePoll to handle cleanup
+        self:CompletePoll()
+        
+    end, "RosterBoard:OnEndPollClicked")
+end
+
 function RosterBoard:OnClearPollClicked()
     return NextKey222.SafeRun(function()
         Debug:Dev("organizer_ui", "Clear Poll button clicked")
@@ -853,8 +956,29 @@ function RosterBoard:OnClearPollClicked()
     end, "RosterBoard:OnClearPollClicked")
 end
 
--- MARK: Sorting Orchestrator
-function RosterBoard:OnSortClicked()
+-- MARK: Action Bar (REMOVED - moved to header)
+-- All organize/announce controls are now in the header section (row 2)
+
+-- MARK: Unified Organize Handler (replaces separate Sort and Optimize)
+function RosterBoard:OnOrganizeClicked()
+    return NextKey222.SafeRun(function()
+        local mode = self.selectedOrganizeMode or "simple_sort"
+        
+        Debug:Dev("organizer", "Organize clicked with mode:", mode)
+        
+        if mode == "simple_sort" then
+            -- Execute current sequential sort algorithm
+            self:ExecuteSimpleSort()
+        else
+            -- Phase 4: Execute optimizer algorithms
+            Debug:User("Optimizer mode '" .. mode .. "' will be implemented in Phase 4")
+        end
+        
+    end, "RosterBoard:OnOrganizeClicked")
+end
+
+-- MARK: Simple Sort Execution (renamed from OnSortClicked)
+function RosterBoard:ExecuteSimpleSort()
     return NextKey222.SafeRun(function()
         Debug:Dev("organizer", "Sort button clicked - starting sequential sort")
         
@@ -869,10 +993,10 @@ function RosterBoard:OnSortClicked()
             return
         end
         
-        -- Disable sort button during execution
-        if self.sortButton then
-            self.sortButton:SetDisabled(true)
-            self.sortButton:SetText("Sorting...")
+        -- Disable organize button during execution
+        if self.organizeButton then
+            self.organizeButton:SetDisabled(true)
+            self.organizeButton:SetText("Organizing...")
         end
         
         -- Get bench players
@@ -892,7 +1016,7 @@ function RosterBoard:OnSortClicked()
         
         if not assignmentPlan or #assignmentPlan == 0 then
             Debug:Error("Failed to generate assignment plan")
-            self:ResetSortButton()
+            self:ResetOrganizeButton()
             return
         end
         
@@ -925,7 +1049,7 @@ function RosterBoard:OnSortClicked()
         
         if #validAssignments == 0 then
             Debug:User("No valid assignments available - all slots may be occupied")
-            self:ResetSortButton()
+            self:ResetOrganizeButton()
             return
         end
         
@@ -942,8 +1066,8 @@ end
 function RosterBoard:OnSortComplete()
     Debug:Dev("organizer", "Sort animation sequence completed")
     
-    -- Re-enable sort button
-    self:ResetSortButton()
+    -- Re-enable organize button
+    self:ResetOrganizeButton()
     
     -- Refresh layout
     self:LayoutBench()
@@ -951,10 +1075,10 @@ function RosterBoard:OnSortComplete()
     Debug:User("Sorting complete!")
 end
 
-function RosterBoard:ResetSortButton()
-    if self.sortButton then
-        self.sortButton:SetDisabled(false)
-        self.sortButton:SetText("Sort")
+function RosterBoard:ResetOrganizeButton()
+    if self.organizeButton then
+        self.organizeButton:SetDisabled(false)
+        self.organizeButton:SetText("Organize")
     end
 end
 
@@ -1306,8 +1430,8 @@ local function RefreshSingleCard(card, displayMode, locationContext, isSpecChang
                 Debug:Dev("organizer_ui", "New spec NOT in poll preferences - invalidating poll response")
                 
                 if NextKey222.OrganizerPlayerDataBuilder and
-                   NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-                    local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
+                   NextKey222.OrganizerPlayerDataBuilder.GenerateSpecPreferences then
+                    local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(playerID, {randomize = false})
                     
                     if success and specPrefs then
                         card.playerData.specPreferences = specPrefs
@@ -1328,8 +1452,8 @@ local function RefreshSingleCard(card, displayMode, locationContext, isSpecChang
             Debug:Dev("organizer_ui", "No poll data - generating defaults for new spec")
             
             if NextKey222.OrganizerPlayerDataBuilder and
-               NextKey222.OrganizerPlayerDataBuilder.GenerateDefaultSpecPreferences then
-                local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
+               NextKey222.OrganizerPlayerDataBuilder.GenerateSpecPreferences then
+                local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(playerID, {randomize = false})
                 
                 if success and specPrefs then
                     card.playerData.specPreferences = specPrefs

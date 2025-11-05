@@ -137,6 +137,49 @@ local UIConfig = {
     -- MARK: Item Configuration (from ui/teleport.lua)
     ITEM = {
         HEARTHSTONE_ID = 6948            -- Standard Hearthstone item ID
+    },
+    
+    -- MARK: M+ Organizer Configuration
+    ORGANIZER = {
+        -- Window dimensions
+        COLUMN_WIDTH = 180,              -- Width of each group column
+        BENCH_WIDTH = 260,               -- Width of bench column
+        PADDING = 20,                    -- Padding between sections
+        
+        -- Section heights
+        HEADER_HEIGHT = 90,              -- Header section height (2-row layout: poll + organize)
+        GROUP_HEIGHT = 550,              -- Height of group/bench area
+        OPT_OUT_HEIGHT = 90,             -- Opt-out section height
+        STATUS_BAR_HEIGHT = 30,          -- Status bar height
+        
+        -- Spacing between sections
+        GROUP_TO_OPTOUT_GAP = 30,        -- Gap between groups/bench and opt-out section
+        OPTOUT_TO_BOTTOM_GAP = 20,       -- Gap between opt-out section and bottom of window
+        
+        -- Button sizes (consistent constants)
+        BUTTON_SIZES = {
+            PRIMARY = 110,               -- Standard action buttons
+            DROPDOWN = 130,              -- Dropdowns (need arrow space)
+            SECONDARY = 120,             -- Emphasized actions
+            CHECKBOX = 70,               -- Checkbox labels
+            DEBUG = 100                  -- Debug utilities
+        },
+        
+        -- Bench configuration
+        BENCH_TITLE_HEIGHT = 20,         -- Height of bench title bar
+        BENCH_SCROLL_GAP = 8,            -- Gap between title and scroll frame
+        BENCH_CARD_HEIGHT = 20,          -- Height of bench player cards
+        BENCH_CARD_SPACING = 3,          -- Spacing between bench cards
+        
+        -- Group slot configuration
+        SLOT_HEIGHT = 100,               -- Height of each group slot
+        SLOT_SPACING = 10,               -- Spacing between slots
+        
+        -- Header layout
+        HEADER_LABEL_HEIGHT = 16,        -- Section label height
+        HEADER_BUTTON_HEIGHT = 24,       -- Button row height
+        HEADER_ROW_GAP = 8,              -- Gap between rows
+        HEADER_SECTION_GAP = 4           -- Gap between label and buttons
     }
 }
 

@@ -561,7 +561,7 @@ function FakePlayerService:CreatePlayer(config)
         	role = specInfo and specInfo.role or "DAMAGER",
         	specID = specInfo and specInfo.specID or nil,
         	specName = specInfo and specInfo.specName or nil,
-        	specializations = specializationData,  -- NEW: Store all specs for GenerateDefaultSpecPreferences
+        	specializations = specializationData,  -- NEW: Store all specs for GenerateSpecPreferences
         	heroismCaster = capabilities.heroism,
         	battleResCaster = capabilities.battleRes
         }
@@ -1086,6 +1086,90 @@ end
 -- MARK: Module Initialization Check
 function FakePlayerService:IsInitialized()
     return isInitialized
+end
+
+-- MARK: Poll Protocol (Unified System - Lazy Initialization)
+
+--- Enable automatic PONG responses for poll protocol
+-- Makes fake players respond to ADDON_PING messages automatically
+-- Uses lazy initialization to avoid module load order issues
+-- @return boolean Success status
+function FakePlayerService:EnablePollProtocol()
+    if self.pollProtocolInitialized then
+        Debug:Dev("fake_players", "Poll protocol already initialized")
+        return true  -- Already initialized
+    end
+    
+    if not NextKey222.ParticipantSurvey then
+        Debug:Error("FakePlayerService:EnablePollProtocol - ParticipantSurvey not available")
+        return false
+    end
+    
+    Debug:Dev("fake_players", "Enabling poll protocol - wrapping SendAddonPing method")
+    
+    -- Store original SendAddonPing method
+    self.originalSendAddonPing = NextKey222.ParticipantSurvey.SendAddonPing
+    
+    -- Wrap SendAddonPing to intercept and simulate fake player PONGs
+    NextKey222.ParticipantSurvey.SendAddonPing = function(survey, pollID)
+        -- Call original method (sends PING to real players)
+        FakePlayerService.originalSendAddonPing(survey, pollID)
+        
+        -- Simulate fake players responding with PONGs
+        FakePlayerService:SimulatePongResponses(pollID)
+    end
+    
+    self.pollProtocolInitialized = true
+    Debug:Dev("fake_players", "Poll protocol enabled - fake players will auto-respond to PINGs")
+    return true
+end
+
+--- Simulate PONG responses from all fake players
+-- @param pollID string Poll identifier
+function FakePlayerService:SimulatePongResponses(pollID)
+    local fakePlayers = self:GetAllPlayerNames()
+    
+    if #fakePlayers == 0 then
+        Debug:Dev("fake_players", "No fake players - skipping PONG simulation")
+        return -- No fake players to simulate
+    end
+    
+    Debug:Dev("fake_players", string.format("Simulating PONGs from %d fake players", #fakePlayers))
+    
+    for _, playerName in ipairs(fakePlayers) do
+        -- Realistic network delay: 0-500ms
+        local delay = math.random(0, 500) / 1000
+        
+        C_Timer.After(delay, function()
+            NextKey222.SafeRun(function()
+                -- Build PONG message (identical structure to real player)
+                local pongMessage = {
+                    pollID = pollID,
+                    version = "0.2.2-fake"
+                }
+                
+                -- Send directly to ParticipantSurvey as if received over network
+                if NextKey222.ParticipantSurvey and NextKey222.ParticipantSurvey.OnAddonPong then
+                    NextKey222.ParticipantSurvey:OnAddonPong(pongMessage, playerName)
+                    Debug:Dev("fake_players", string.format("Simulated ADDON_PONG from %s (delay: %dms)", 
+                        playerName, delay * 1000))
+                end
+            end, "FakePlayerService:SimulatePongResponses:Timer")
+        end)
+    end
+end
+
+--- Disable poll protocol (restore original methods)
+-- @return boolean Success status
+function FakePlayerService:DisablePollProtocol()
+    if self.originalSendAddonPing and NextKey222.ParticipantSurvey then
+        NextKey222.ParticipantSurvey.SendAddonPing = self.originalSendAddonPing
+        self.originalSendAddonPing = nil
+        self.pollProtocolInitialized = false
+        Debug:Dev("fake_players", "Poll protocol disabled - restored original SendAddonPing")
+        return true
+    end
+    return false
 end
 
 -- MARK: Export

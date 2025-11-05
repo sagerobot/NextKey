@@ -21,92 +21,95 @@ end
 -- @param nativeParent Parent frame
 function SlotManager:create_active_pool_section(rosterBoard, nativeParent)
     return NextKey222.SafeRun(function()
-        print("[ORGANIZER DIAGNOSTIC] CreateActivePoolSection (FLAT) called")
-        print("[ORGANIZER DIAGNOSTIC] Parent frame strata:", nativeParent:GetFrameStrata(), "level:", nativeParent:GetFrameLevel())
-        
-        -- Create a pure native container frame
-        local poolContainer = CreateFrame("Frame", nil, nativeParent)
-        poolContainer:SetPoint("TOPLEFT", nativeParent, "TOPLEFT", 10, -90)  -- Below header
-        poolContainer:SetPoint("BOTTOMRIGHT", nativeParent, "BOTTOMRIGHT", -10, 120)  -- Above opt-out
-        poolContainer:Show()
-        print("[ORGANIZER DIAGNOSTIC] Pool container created - Strata:", poolContainer:GetFrameStrata(), "Level:", poolContainer:GetFrameLevel())
-        
-        Debug:Dev("organizer_ui", "Created pool container with flat architecture")
-        
+        local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
         local layout = rosterBoard:CalculateOptimalLayout()
-        print("[ORGANIZER DIAGNOSTIC] Layout - groups:", layout.groupColumns)
-        
-        -- Initialize arrays
+
+        local padding = layout.padding or config.PADDING or 20
+        local headerHeight = layout.headerHeight or config.HEADER_HEIGHT or 90
+        local groupHeight = config.GROUP_HEIGHT or 550
+        local columnWidth = layout.columnWidth or config.COLUMN_WIDTH or 180
+        local slotSpacing = layout.slotSpacing or config.SLOT_SPACING or 10
+        local titleHeight = config.HEADER_LABEL_HEIGHT or 16
+        local titleGap = config.HEADER_SECTION_GAP or 4
+        local slotHorizontalPadding = 12
+
+        local poolContainer = CreateFrame("Frame", nil, nativeParent)
+        poolContainer:SetPoint("TOPLEFT", nativeParent, "TOPLEFT", padding, -headerHeight)
+        poolContainer:SetPoint("TOPRIGHT", nativeParent, "TOPRIGHT", -padding, -headerHeight)
+        poolContainer:SetHeight(groupHeight)
+        poolContainer:Show()
+
+        Debug:Dev("organizer_ui", "Created active pool container", poolContainer:GetName() or "anonymous")
+
         rosterBoard.groupBackgrounds = {}
         rosterBoard.groupSlots = {}
         rosterBoard.groupTitles = {}
         rosterBoard.groupKeystones = {}
         rosterBoard.allInteractiveFrames = {}
-        
-        -- Create visual backgrounds and interactive slots (all as siblings)
-        local columnWidth = 170
-        local columnSpacing = 10
-        
+        rosterBoard.activePoolSection = poolContainer
+
+        local roles = {"TANK", "HEALER", "DAMAGER", "DAMAGER", "DAMAGER"}
+        local roleLabels = {"Tank", "Healer", "DPS", "DPS", "DPS"}
+        local slotCount = #roles
+
+        local verticalStart = slotSpacing + titleHeight + titleGap
+        local availableHeight = groupHeight - verticalStart - slotSpacing
+        local slotHeight = math.floor((availableHeight - ((slotCount - 1) * slotSpacing)) / slotCount)
+        if slotHeight < 80 then
+            slotHeight = 80
+        end
+
         for groupIndex = 1, layout.groupColumns do
-            local groupXOffset = (groupIndex - 1) * (columnWidth + columnSpacing)
-            
-            print("[ORGANIZER DIAGNOSTIC] Creating group", groupIndex, "at xOffset:", groupXOffset)
-            
-            -- Create visual background texture (non-interactive)
-            local bgTexture = poolContainer:CreateTexture(nil, "BACKGROUND")
+            local groupFrame = CreateFrame("Frame", nil, poolContainer)
+            groupFrame:SetPoint("TOPLEFT", poolContainer, "TOPLEFT", (groupIndex - 1) * columnWidth, 0)
+            groupFrame:SetSize(columnWidth, groupHeight)
+
+            local bgTexture = groupFrame:CreateTexture(nil, "BACKGROUND")
             bgTexture:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Background")
-            bgTexture:SetPoint("TOPLEFT", poolContainer, "TOPLEFT", groupXOffset, 0)
-            bgTexture:SetSize(columnWidth, 550)
-            bgTexture:SetDrawLayer("BACKGROUND", -5)  -- Way back
+            bgTexture:SetAllPoints()
+            bgTexture:SetDrawLayer("BACKGROUND", -5)
             rosterBoard.groupBackgrounds[groupIndex] = bgTexture
-            
-            -- Create title label (sibling of slots)
-            local titleLabel = poolContainer:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-            titleLabel:SetPoint("TOPLEFT", poolContainer, "TOPLEFT", groupXOffset + (columnWidth / 2), -10)
+
+            local titleLabel = groupFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+            titleLabel:SetPoint("TOP", groupFrame, "TOP", 0, -slotSpacing)
             titleLabel:SetJustifyH("CENTER")
             titleLabel:SetText("M+ Grp. " .. groupIndex)
-            titleLabel:SetDrawLayer("ARTWORK", 5)  -- Above backgrounds, below slots
-            rosterBoard.groupTitles[groupIndex] = titleLabel  -- Store for later updates
-            
-            -- Initialize keystone data
+            rosterBoard.groupTitles[groupIndex] = titleLabel
+
             rosterBoard.groupKeystones[groupIndex] = {keystone = nil, playerID = nil}
-            
-            -- Create role slots as direct children of poolContainer (NOT nested)
             rosterBoard.groupSlots[groupIndex] = {}
-            local roles = {"TANK", "HEALER", "DAMAGER", "DAMAGER", "DAMAGER"}
-            local roleLabels = {"Tank", "Healer", "DPS", "DPS", "DPS"}
-            
+
+            local titleLabelHeight = math.ceil(titleLabel:GetStringHeight() or titleHeight)
+            local slotTopOffset = slotSpacing + titleLabelHeight + titleGap
+            local slotWidth = columnWidth - (slotHorizontalPadding * 2)
+
             for slotIndex, role in ipairs(roles) do
-                local slotYOffset = 35 + ((slotIndex - 1) * 98)  -- Title space + (slot height + spacing)
-                
+                local offset = slotTopOffset + ((slotIndex - 1) * (slotHeight + slotSpacing))
                 local slot = self:create_flat_role_slot(
-                    poolContainer,
+                    groupFrame,
                     groupIndex,
                     role,
                     roleLabels[slotIndex],
                     slotIndex,
-                    groupXOffset + 10,  -- X: column offset + padding
-                    -slotYOffset         -- Y: negative for downward positioning
+                    slotHorizontalPadding,
+                    -offset,
+                    slotWidth,
+                    slotHeight
                 )
-                
+
+                slot.innerPadding = 6
                 rosterBoard.groupSlots[groupIndex][slotIndex] = slot
-                table.insert(rosterBoard.allInteractiveFrames, slot)  -- Strong reference
-                
-                print("[ORGANIZER DIAGNOSTIC] Created slot", groupIndex, slotIndex, roleLabels[slotIndex], "at:", groupXOffset + 10, -slotYOffset)
+                table.insert(rosterBoard.allInteractiveFrames, slot)
             end
         end
-        
-        print("[ORGANIZER DIAGNOSTIC] Created", #rosterBoard.groupSlots, "groups with", #rosterBoard.allInteractiveFrames, "total slots")
-        
-        -- Create bench (also as sibling) - DELEGATE TO BENCHMANAGER
-        local benchXOffset = layout.groupColumns * (columnWidth + columnSpacing)
+
+        local benchXOffset = (layout.groupColumns * columnWidth) + padding
         local benchColumn = NextKey222.BenchManager:create_native_bench_column(rosterBoard, layout.benchWidth, poolContainer)
+        benchColumn:ClearAllPoints()
         benchColumn:SetPoint("TOPLEFT", poolContainer, "TOPLEFT", benchXOffset, 0)
-        
-        rosterBoard.activePoolSection = poolContainer
-        
-        Debug:Dev("organizer_ui", "Active pool section created with flat architecture")
-        
+        benchColumn:SetPoint("BOTTOMRIGHT", poolContainer, "BOTTOMLEFT", benchXOffset + layout.benchWidth, 0)
+
+        Debug:Dev("organizer_ui", "Active pool section created for", layout.groupColumns, "groups")
     end, "SlotManager:create_active_pool_section")
 end
 
@@ -115,11 +118,18 @@ end
 -- @param nativeParent Parent frame
 function SlotManager:create_opt_out_section(rosterBoard, nativeParent)
     return NextKey222.SafeRun(function()
-        -- Create pure native opt-out frame
+        local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+        local layout = rosterBoard:CalculateOptimalLayout()
+        local padding = layout.padding or config.PADDING or 20
+        local gap = layout.groupToOptOutGap or config.GROUP_TO_OPTOUT_GAP or 20
+        local optOutHeight = layout.optOutHeight or config.OPT_OUT_HEIGHT or 90
+
+        local anchorParent = rosterBoard.activePoolSection or nativeParent
+
         local optOut = CreateFrame("Frame", nil, nativeParent, "BackdropTemplate")
-        optOut:SetPoint("BOTTOMLEFT", nativeParent, "BOTTOMLEFT", 10, 15)
-        optOut:SetPoint("BOTTOMRIGHT", nativeParent, "BOTTOMRIGHT", -10, 15)
-        optOut:SetHeight(95)
+        optOut:SetPoint("TOPLEFT", anchorParent, "BOTTOMLEFT", 0, -gap)
+        optOut:SetPoint("TOPRIGHT", anchorParent, "BOTTOMRIGHT", 0, -gap)
+        optOut:SetHeight(optOutHeight)
         optOut:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
             edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -133,10 +143,12 @@ function SlotManager:create_opt_out_section(rosterBoard, nativeParent)
         titleLabel:SetPoint("TOP", 0, -10)
         titleLabel:SetText("Not Playing")
         
-        -- Create native scroll frame inside (HORIZONTAL scrolling)
+        local innerPadding = math.max(12, math.floor(padding * 0.6))
+        local scrollbarPadding = 18
+
         local scrollFrame = CreateFrame("ScrollFrame", nil, optOut, "UIPanelScrollFrameTemplate")
-        scrollFrame:SetPoint("TOPLEFT", 10, -30)
-        scrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
+        scrollFrame:SetPoint("TOPLEFT", optOut, "TOPLEFT", innerPadding, -34)
+        scrollFrame:SetPoint("BOTTOMRIGHT", optOut, "BOTTOMRIGHT", -(innerPadding + scrollbarPadding), innerPadding)
         scrollFrame:Show()
         
         -- Enable mouse wheel for horizontal scrolling
@@ -149,7 +161,7 @@ function SlotManager:create_opt_out_section(rosterBoard, nativeParent)
         end)
         
         local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-        scrollChild:SetSize(1, 30)  -- Start with minimal width, height for single row
+        scrollChild:SetSize(1, optOutHeight - (innerPadding * 2))
         scrollFrame:SetScrollChild(scrollChild)
         scrollChild:Show()
         
@@ -158,10 +170,11 @@ function SlotManager:create_opt_out_section(rosterBoard, nativeParent)
         optOut.scrollChild = scrollChild
         optOut.playerCards = {}
         optOut.frame = optOut  -- For compatibility
+        optOut.innerPadding = innerPadding
         
         rosterBoard.optOutSection = optOut
         
-        Debug:Dev("organizer_ui", "Created FULLY NATIVE opt-out section with horizontal scrolling")
+        Debug:Dev("organizer_ui", "Created opt-out section with width", optOut:GetWidth())
         
     end, "SlotManager:create_opt_out_section")
 end
@@ -176,11 +189,12 @@ end
 -- @param xPos X position
 -- @param yPos Y position
 -- @return frame Slot frame
-function SlotManager:create_flat_role_slot(parentContainer, groupIndex, role, roleLabel, slotIndex, xPos, yPos)
-    -- Create slot frame as direct child of poolContainer (NOT nested in column)
+function SlotManager:create_flat_role_slot(parentContainer, groupIndex, role, roleLabel, slotIndex, xPos, yPos, width, height)
+    local organizerConfig = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+
     local slot = CreateFrame("Frame", nil, parentContainer, "BackdropTemplate")
-    slot:SetSize(150, 95)
     slot:SetPoint("TOPLEFT", parentContainer, "TOPLEFT", xPos, yPos)
+    slot:SetSize(width or 150, height or organizerConfig.SLOT_HEIGHT or 96)
     slot:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
@@ -188,33 +202,38 @@ function SlotManager:create_flat_role_slot(parentContainer, groupIndex, role, ro
         insets = {left = 2, right = 2, top = 2, bottom = 2}
     })
     slot:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
-    
-    -- Role-colored border
-    local borderColor = {r=0.5, g=0.5, b=0.5}
+
+    local borderColor = {r = 0.5, g = 0.5, b = 0.5}
     if role == "TANK" then
-        borderColor = {r=0.2, g=0.5, b=1.0}
+        borderColor = {r = 0.2, g = 0.5, b = 1.0}
     elseif role == "HEALER" then
-        borderColor = {r=0.1, g=0.9, b=0.1}
+        borderColor = {r = 0.1, g = 0.9, b = 0.1}
     elseif role == "DAMAGER" then
-        borderColor = {r=0.9, g=0.1, b=0.1}
+        borderColor = {r = 0.9, g = 0.1, b = 0.1}
     end
     slot:SetBackdropBorderColor(borderColor.r, borderColor.g, borderColor.b, 1.0)
-    
-    -- Empty label
+
     local emptyLabel = slot:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     emptyLabel:SetPoint("CENTER")
     emptyLabel:SetText(roleLabel)
     emptyLabel:SetTextColor(0.7, 0.7, 0.7)
-    
-    -- Enable mouse for drop detection (CRITICAL)
+
     slot:EnableMouse(true)
-    slot:SetFrameLevel(parentContainer:GetFrameLevel() + 50)  -- WAY above parent
+    slot:SetFrameLevel(parentContainer:GetFrameLevel() + 20)
     slot:Show()
-    
-    print("[SLOT DIAGNOSTIC]", roleLabel, "Level:", slot:GetFrameLevel(), "Parent level:", parentContainer:GetFrameLevel())
-    Debug:Dev("organizer_ui", "Created FLAT slot:", groupIndex, slotIndex, roleLabel, "Strata:", slot:GetFrameStrata(), "Level:", slot:GetFrameLevel())
-    
-    -- Store metadata
+
+    Debug:Dev(
+        "organizer_ui",
+        "Created slot",
+        groupIndex,
+        slotIndex,
+        roleLabel,
+        "size",
+        slot:GetWidth(),
+        "x",
+        slot:GetHeight()
+    )
+
     slot.groupIndex = groupIndex
     slot.role = role
     slot.roleLabel = roleLabel
@@ -222,8 +241,8 @@ function SlotManager:create_flat_role_slot(parentContainer, groupIndex, role, ro
     slot.playerCard = nil
     slot.emptyLabel = emptyLabel
     slot.isEmpty = true
-    slot.frame = slot  -- For compatibility
-    
+    slot.frame = slot
+
     return slot
 end
 
@@ -240,11 +259,15 @@ function SlotManager:place_card_in_slot(card, slot)
             slot.emptyLabel:Hide()
         end
         
+        local innerPadding = slot.innerPadding or 6
+        local targetWidth = slot:GetWidth() - (innerPadding * 2)
+        local targetHeight = slot:GetHeight() - (innerPadding * 2)
+
         -- Update card size and position for expanded mode
-        card:SetSize(145, 90)  -- Expanded
         card:SetParent(slot)
         card:ClearAllPoints()
-        card:SetPoint("CENTER", slot, "CENTER", 0, 0)
+        card:SetSize(targetWidth, targetHeight)
+        card:SetPoint("TOPLEFT", slot, "TOPLEFT", innerPadding, -innerPadding)
         
         -- Update card metadata
         card.location = {
@@ -298,7 +321,7 @@ function SlotManager:place_card_in_opt_out(rosterBoard, card)
         end
         
         -- Use opt_out mode (2-line square layout)
-        card:SetSize(90, 40)  -- Opt-out size (square-ish for 2-line)
+        card:SetSize(96, 40)
         card:SetParent(rosterBoard.optOutSection.scrollChild)
         
         -- Update metadata
@@ -370,25 +393,27 @@ function SlotManager:layout_opt_out(rosterBoard)
         return
     end
     
-    local xOffset = 0
-    local spacing = 5
-    local cardWidth = 90  -- Opt-out width (square-ish)
-    local cardHeight = 40  -- Opt-out height (2-line)
+    local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+    local spacing = config.BENCH_CARD_SPACING or 6
+    local cardWidth = 96
+    local cardHeight = 40
+    local innerPadding = rosterBoard.optOutSection.innerPadding or 12
     
     Debug:Dev("organizer_ui", "Laying out", #rosterBoard.optOutSection.playerCards, "opt-out cards horizontally")
     
+    local xOffset = 0
     for i, card in ipairs(rosterBoard.optOutSection.playerCards) do
         card:ClearAllPoints()
-        card:SetPoint("TOPLEFT", rosterBoard.optOutSection.scrollChild, "TOPLEFT", xOffset, 0)
-        card:SetSize(cardWidth, cardHeight)
         card:SetParent(rosterBoard.optOutSection.scrollChild)
+        card:SetPoint("TOPLEFT", rosterBoard.optOutSection.scrollChild, "TOPLEFT", xOffset, -innerPadding / 2)
+        card:SetSize(cardWidth, cardHeight)
         card:Show()
         xOffset = xOffset + cardWidth + spacing
     end
     
     -- Update scroll child width for horizontal scrolling
     rosterBoard.optOutSection.scrollChild:SetWidth(math.max(xOffset, 1))
-    rosterBoard.optOutSection.scrollChild:SetHeight(cardHeight + 10)
+    rosterBoard.optOutSection.scrollChild:SetHeight(cardHeight + innerPadding)
     
     Debug:Dev("organizer_ui", "Opt-out layout complete, total width:", xOffset)
 end

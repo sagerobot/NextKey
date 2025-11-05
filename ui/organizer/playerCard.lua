@@ -267,7 +267,7 @@ function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayM
         -- Determine size based on mode
         local width, height
         if displayMode == "compact" then
-            width, height = 180, 20
+            width, height = 200, 20  -- Widened from 180 to match bench width
         elseif displayMode == "opt_out" then
             width, height = 90, 40  -- Square-ish for 2-line layout
         else
@@ -313,6 +313,9 @@ function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayM
         
         -- Enable dragging
         self:EnableNativeDragging(card)
+        
+        -- Enable right-click for manual preference setting (organizer only)
+        self:EnableRightClickPreferences(card)
         
         card:Show()
         Debug:Dev("organizer_ui", "Created native", displayMode, "card for:", playerData.name, "- playerID:", card.playerID)
@@ -384,6 +387,50 @@ end
 
 -- MARK: Compact Card Content (Native Frame Version - Region Tracked)
 function PlayerCard:CreateCompactContent(card, playerData)
+    -- Check if awaiting poll response (has addon, poll active, no response yet)
+    local isAwaitingPollResponse = false
+    if NextKey222.RosterBoard and NextKey222.RosterBoard.activePoll then
+        -- Check if this player is in addon users list
+        local addonUsers = NextKey222.RosterBoard.activePoll.addonUsers or {}
+        local isAddonUser = false
+        for _, playerID in ipairs(addonUsers) do
+            if playerID == playerData.id then
+                isAddonUser = true
+                break
+            end
+        end
+        
+        -- Check if they've responded
+        local hasResponded = false
+        if isAddonUser then
+            for _, response in ipairs(NextKey222.RosterBoard.activePoll.responses) do
+                if response.sender == playerData.id then
+                    hasResponded = true
+                    break
+                end
+            end
+            
+            isAwaitingPollResponse = not hasResponded
+        end
+    end
+    
+    -- Apply greyed-out visual state if awaiting response
+    if isAwaitingPollResponse then
+        -- Dim the card
+        card:SetAlpha(0.6)
+        
+        -- Show "Polling..." text centered
+        local pollingText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormal")
+        pollingText:SetPoint("CENTER", card, "CENTER", 0, 0)
+        pollingText:SetText("Polling...")
+        pollingText:SetTextColor(1, 1, 0.5)  -- Yellow
+        
+        return  -- Skip normal content rendering
+    else
+        -- Ensure full opacity for normal state
+        card:SetAlpha(1.0)
+    end
+    
     local xOffset = 5
     
     -- Multi-role icons with preference colors (max 3) - use helper
@@ -641,6 +688,94 @@ function PlayerCard:EnableNativeDragging(card)
     end)
     
     Debug:Dev("organizer_ui", "Enabled native dragging for:", card.playerData.name)
+end
+
+-- MARK: Right-Click Preference Setting
+function PlayerCard:EnableRightClickPreferences(card)
+    -- Only enable for organizers
+    if not self:IsOrganizerView() then
+        return
+    end
+    
+    card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    
+    -- Store the original OnClick handler if it exists
+    local originalOnClick = card:GetScript("OnClick")
+    
+    card:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            -- Check if card is currently polling (awaiting response)
+            local isAwaitingPollResponse = false
+            if NextKey222.RosterBoard and NextKey222.RosterBoard.activePoll then
+                -- Check if this player is in addon users list
+                local addonUsers = NextKey222.RosterBoard.activePoll.addonUsers or {}
+                local isAddonUser = false
+                for _, playerID in ipairs(addonUsers) do
+                    if playerID == card.playerData.id then
+                        isAddonUser = true
+                        break
+                    end
+                end
+                
+                -- Check if they've responded
+                local hasResponded = false
+                if isAddonUser then
+                    for _, response in ipairs(NextKey222.RosterBoard.activePoll.responses) do
+                        if response.sender == card.playerData.id then
+                            hasResponded = true
+                            break
+                        end
+                    end
+                    
+                    isAwaitingPollResponse = not hasResponded
+                end
+            end
+            
+            -- Only allow manual preference setting if NOT currently polling
+            if isAwaitingPollResponse then
+                Debug:User("Cannot set preferences while player is responding to poll")
+                return
+            end
+            
+            -- Show manual preference dialog for this player
+            NextKey222.PlayerCard:ShowManualPreferenceDialog(card.playerData)
+        elseif originalOnClick then
+            -- Call original click handler for left clicks
+            originalOnClick(self, button)
+        end
+    end)
+    
+    Debug:Dev("organizer_ui", "Enabled right-click preferences for:", card.playerData.name)
+end
+
+-- MARK: Manual Preference Dialog
+function PlayerCard:ShowManualPreferenceDialog(playerData)
+    return NextKey222.SafeRun(function()
+        if not playerData then
+            Debug:Error("Cannot show manual preference dialog: playerData is nil")
+            return
+        end
+        
+        Debug:Dev("organizer_ui", "Showing manual preference dialog for:", playerData.name)
+        
+        -- Create a fake poll message for the survey dialog
+        local pollMessage = {
+            pollID = "manual-" .. tostring(GetTime()),
+            organizerName = UnitName("player") .. "-" .. GetRealmName(),
+            timeout = 300,  -- Longer timeout for manual entry
+            isManualEntry = true,  -- Flag to identify manual entries
+            targetPlayerID = playerData.id,
+            targetPlayerName = playerData.name
+        }
+        
+        -- Show the survey dialog for this specific player
+        if NextKey222.SurveyDialog and NextKey222.SurveyDialog.ShowManualEntry then
+            NextKey222.SurveyDialog:ShowManualEntry(pollMessage, playerData)
+        else
+            Debug:Error("SurveyDialog.ShowManualEntry not available")
+        end
+        
+    end, "PlayerCard:ShowManualPreferenceDialog")
 end
 
 -- MARK: View Detection

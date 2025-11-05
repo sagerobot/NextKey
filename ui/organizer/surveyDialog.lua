@@ -40,6 +40,30 @@ function SurveyDialog:Show(pollData)
     end, "SurveyDialog:Show")
 end
 
+-- MARK: Manual Entry Point (Right-Click on Cards)
+function SurveyDialog:ShowManualEntry(pollData, playerData)
+    return NextKey222.SafeRun(function()
+        self.pollData = pollData
+        self.responseData = { phase1 = nil, phase2 = nil, phase3 = nil }
+        self.isManualEntry = true
+        self.targetPlayerData = playerData
+        
+        -- For manual entry, skip directly to Phase 3 (spec selection)
+        -- Use the target player's character ID
+        Debug:Dev("organizer", "Manual entry for player:", playerData.name)
+        
+        -- Set up response data to skip phases 1 and 2
+        self.responseData.phase1 = { participation = "yes", timestamp = GetTime() }
+        self.responseData.phase2 = {
+            selectedCharacterID = playerData.id,
+            characterData = playerData
+        }
+        
+        -- Show Phase 3 with the player's character
+        self:ShowPhase3(playerData.id)
+    end, "SurveyDialog:ShowManualEntry")
+end
+
 -- MARK: Phase 1 - Participation Question
 function SurveyDialog:ShowPhase1()
     return NextKey222.SafeRun(function()
@@ -447,15 +471,56 @@ function SurveyDialog:ShowPhase3(characterID)
         
         local cfg = UIConfig.POLL_WINDOW
         
-        -- Get character data to determine available specs
-        local charData = NextKey222.CharacterStorage:GetCharacter(characterID)
-        if not charData then
-            Debug:Error("Phase 3 - Character data not found:", characterID)
-            return
-        end
+        -- Get character data and available specs based on entry mode
+        local charData = nil
+        local availableSpecs = {}
         
-        -- Get available specializations (with spec IDs and icons)
-        local availableSpecs = NextKey222.CharacterStorage:GetAvailableSpecializations(characterID)
+        if self.isManualEntry then
+            -- Manual entry: Generate specs from player's class (no CharacterStorage lookup)
+            local playerData = self.targetPlayerData
+            if not playerData or not playerData.class then
+                Debug:Error("Phase 3 - No class data for manual entry:", characterID)
+                return
+            end
+            
+            -- Get class ID from class token
+            local classID = nil
+            local numClasses = GetNumClasses()
+            for i = 1, numClasses do
+                local className, classToken = GetClassInfo(i)
+                if classToken == playerData.class then
+                    classID = i
+                    break
+                end
+            end
+            
+            if not classID then
+                Debug:Error("Phase 3 - Could not find classID for class:", playerData.class)
+                return
+            end
+            
+            -- Query ALL specializations for this class
+            local numSpecs = GetNumSpecializationsForClassID(classID)
+            for i = 1, numSpecs do
+                local specID, specName, _, iconTexture, role = GetSpecializationInfoForClassID(classID, i)
+                if specID then
+                    table.insert(availableSpecs, {
+                        specID = specID,
+                        specName = specName,
+                        role = role,
+                        iconTexture = iconTexture
+                    })
+                end
+            end
+        else
+            -- Normal poll: Use CharacterStorage
+            charData = NextKey222.CharacterStorage:GetCharacter(characterID)
+            if not charData then
+                Debug:Error("Phase 3 - Character data not found:", characterID)
+                return
+            end
+            availableSpecs = NextKey222.CharacterStorage:GetAvailableSpecializations(characterID)
+        end
         
         Debug:Dev("organizer", "Character has", #availableSpecs, "available specializations")
         
@@ -521,21 +586,36 @@ function SurveyDialog:ShowPhase3(characterID)
         local yOffset = -75
         for i, specInfo in ipairs(availableSpecs) do
             -- Default state logic:
+            -- - Manual entry: Load from existing specPreferences if available
             -- - Current character + current spec: "play" (green)
             -- - Current character + other specs: "none" (grey)
             -- - Alt character + last played spec: "play" (green)
             -- - Alt character + other specs: "none" (grey)
             local defaultState = "none"
             
-            if isCurrentChar then
-                -- Current character: green for active spec only
-                if specInfo.specID == currentSpecID then
-                    defaultState = "play"
+            if self.isManualEntry then
+                -- Manual entry: Pre-populate from existing player preferences
+                local playerData = self.targetPlayerData
+                if playerData and playerData.specPreferences then
+                    -- Get the preference for this spec's role
+                    local normalizedRole = specInfo.role:upper()
+                    local rolePreference = playerData.specPreferences[normalizedRole]
+                    if rolePreference and rolePreference ~= "none" then
+                        defaultState = rolePreference  -- "play" or "fill"
+                        Debug:Dev("organizer", "Pre-populated spec", specInfo.specName, "with existing preference:", defaultState)
+                    end
                 end
-            else
-                -- Alt character: green for last played spec
-                if charData.specName and specInfo.specName == charData.specName then
-                    defaultState = "play"
+            elseif not self.isManualEntry then
+                if isCurrentChar then
+                    -- Current character: green for active spec only
+                    if specInfo.specID == currentSpecID then
+                        defaultState = "play"
+                    end
+                elseif charData and charData.specName then
+                    -- Alt character: green for last played spec
+                    if specInfo.specName == charData.specName then
+                        defaultState = "play"
+                    end
                 end
             end
             
@@ -549,20 +629,22 @@ function SurveyDialog:ShowPhase3(characterID)
         -- Button container at bottom
         local buttonY = yOffset - 20
         
-        -- Back button
-        local backButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-        backButton:SetSize(80, 24)
-        backButton:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 15, 15)
-        backButton:SetText("← Back")
-        backButton:SetScript("OnClick", function()
-            -- Go back to Phase 2 (alt selection) or Phase 1 if current character
-            local currentChar = UnitName("player") .. "-" .. GetRealmName()
-            if characterID == currentChar then
-                self:ShowPhase1()
-            else
-                self:ShowPhase2()
-            end
-        end)
+        -- Back button (only for normal polls, not manual entry)
+        if not self.isManualEntry then
+            local backButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+            backButton:SetSize(80, 24)
+            backButton:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 15, 15)
+            backButton:SetText("← Back")
+            backButton:SetScript("OnClick", function()
+                -- Go back to Phase 2 (alt selection) or Phase 1 if current character
+                local currentChar = UnitName("player") .. "-" .. GetRealmName()
+                if characterID == currentChar then
+                    self:ShowPhase1()
+                else
+                    self:ShowPhase2()
+                end
+            end)
+        end
         
         -- Submit button
         local submitButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
@@ -572,6 +654,11 @@ function SurveyDialog:ShowPhase3(characterID)
         submitButton:SetScript("OnClick", function()
             self:OnPhase3SubmitClicked(frame, characterID)
         end)
+        
+        -- Update title if this is a manual entry
+        if self.isManualEntry and self.targetPlayerData then
+            title:SetText("Set Preferences for " .. self.targetPlayerData.name)
+        end
         
         frame:Show()
         self.activeDialog = frame
@@ -815,7 +902,13 @@ function SurveyDialog:OnPhase3SubmitClicked(frame, characterID)
         }
         
         -- Submit final response
-        self:SubmitFinalResponse(true)
+        if self.isManualEntry then
+            -- Manual entry: process directly without sending over network
+            self:SubmitManualResponse(true)
+        else
+            -- Normal poll: send response
+            self:SubmitFinalResponse(true)
+        end
         
         -- Close dialog
         self:CloseDialog()
@@ -874,6 +967,59 @@ function SurveyDialog:SubmitFinalResponse(optedIn)
         
         Debug:Dev("organizer", "Submitted final response - opted in:", optedIn)
     end, "SurveyDialog:SubmitFinalResponse")
+end
+
+-- MARK: Submit Manual Response (Right-Click Entry)
+function SurveyDialog:SubmitManualResponse(optedIn)
+    return NextKey222.SafeRun(function()
+        local response = {
+            pollID = self.pollData.pollID,
+            optedIn = optedIn,
+            timestamp = GetTime(),
+            isManualEntry = true  -- Flag to identify manual entries
+        }
+        
+        if optedIn and self.responseData.phase2 and self.responseData.phase3 then
+            response.selectedCharacter = self.responseData.phase2.selectedCharacterID
+            response.characterData = self.responseData.phase2.characterData
+            response.specPreferences = self.responseData.phase3.specPreferences
+            response.specDetails = self.responseData.phase3.specDetails
+        end
+        
+        -- Get the target player ID (the player we're setting preferences for)
+        local targetPlayerID = self.targetPlayerData and self.targetPlayerData.id or response.selectedCharacter
+        
+        -- Process manually entered response directly (as organizer)
+        if NextKey222.ParticipantSurvey then
+            NextKey222.ParticipantSurvey:ProcessResponse(targetPlayerID, response)
+        end
+        
+        -- Update OrganizerState directly
+        if NextKey222.OrganizerState then
+            NextKey222.OrganizerState:UpdatePlayerFromPollResponse(targetPlayerID, response)
+        end
+        
+        -- Sync UI to show changes
+        if NextKey222.RosterBoard and NextKey222.RosterBoard.SyncUIToState then
+            NextKey222.RosterBoard:SyncUIToState()
+        end
+        
+        -- Save state (with database check)
+        if NextKey222.OrganizerState and NextKey222.OrganizerState.SaveToPersistence then
+            local success = NextKey222.OrganizerState:SaveToPersistence()
+            if not success then
+                Debug:Dev("organizer", "State save failed but data is in memory - will persist on reload")
+            end
+        end
+        
+        Debug:User("Manually set preferences for " .. (self.targetPlayerData and self.targetPlayerData.name or "player"))
+        Debug:Dev("organizer", "Submitted manual response for:", targetPlayerID)
+        
+        -- Clear manual entry flags
+        self.isManualEntry = false
+        self.targetPlayerData = nil
+        
+    end, "SurveyDialog:SubmitManualResponse")
 end
 
 -- MARK: Utility Functions

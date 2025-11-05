@@ -125,7 +125,7 @@ function BenchManager:BuildPlayerDataFromFake(fakeData)
     -- Generate default spec preferences if none exist
     if NextKey222.OrganizerPlayerDataBuilder then
         local success, specPrefs, specDetails =
-            NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(fakeData.name)
+            NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(fakeData.name, {randomize = false})
         if success and specPrefs then
             playerData.specPreferences = specPrefs
             playerData.specDetails = specDetails
@@ -178,7 +178,7 @@ function BenchManager:BuildPlayerDataFromParty(memberName)
     -- Generate default spec preferences
     if NextKey222.OrganizerPlayerDataBuilder then
         local success, specPrefs, specDetails =
-            NextKey222.OrganizerPlayerDataBuilder:GenerateDefaultSpecPreferences(memberName)
+            NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(memberName, {randomize = false})
         if success and specPrefs then
             playerData.specPreferences = specPrefs
             playerData.specDetails = specDetails
@@ -313,37 +313,55 @@ function BenchManager:layout_bench(rosterBoard)
         return
     end
     
-    local yOffset = 0
-    local spacing = 3
+    local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+    local spacing = config.BENCH_CARD_SPACING or 3
+    local cardHeight = config.BENCH_CARD_HEIGHT or 20
+    local cardWidth = rosterBoard.benchCardWidth or ((config.BENCH_WIDTH or 220) - 24)
+    local innerPadding = rosterBoard.benchContainerPadding or (config.BENCH_SCROLL_GAP or 8)
+    local yOffset = innerPadding
     
     Debug:Dev("organizer_ui", "Laying out", #rosterBoard.benchCards, "bench cards")
     
     for i, card in ipairs(rosterBoard.benchCards) do
         card:ClearAllPoints()
-        card:SetPoint("TOP", rosterBoard.benchContainer, "TOP", 0, -yOffset)
-        card:SetSize(180, 20)  -- Compact: 180px wide, 20px tall
-        card:SetParent(rosterBoard.benchContainer)  -- Ensure correct parent
+        card:SetPoint("TOPLEFT", rosterBoard.benchContainer, "TOPLEFT", 0, -yOffset)
+        card:SetSize(cardWidth, cardHeight)
+        card:SetParent(rosterBoard.benchContainer)
         card:Show()
-        yOffset = yOffset + 20 + spacing
+        yOffset = yOffset + cardHeight + spacing
     end
     
-    -- Update scroll child height
-    rosterBoard.benchContainer:SetHeight(math.max(yOffset, 1))
+    local totalCards = #rosterBoard.benchCards
+    local totalHeight
+    if totalCards > 0 then
+        totalHeight = innerPadding + (totalCards * cardHeight) + ((totalCards - 1) * spacing) + innerPadding
+    else
+        totalHeight = innerPadding * 2
+    end
+
+    rosterBoard.benchContainer:SetHeight(math.max(totalHeight, 1))
+    rosterBoard.benchContainer:SetWidth(cardWidth)
     
     Debug:Dev("organizer_ui", "Bench layout complete")
 end
 
 -- MARK: UI Creation
---- Create native bench column with scroll frame
+--- Create native bench column with scroll frame and inline controls
 -- @param rosterBoard RosterBoard instance
 -- @param width Column width
 -- @param parentFrame Parent frame
 -- @return frame Bench column frame
 function BenchManager:create_native_bench_column(rosterBoard, width, parentFrame)
     return NextKey222.SafeRun(function()
+        local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+        local groupHeight = config.GROUP_HEIGHT or 550
+        local innerPadding = config.BENCH_SCROLL_GAP or 8
+        local titleHeight = config.BENCH_TITLE_HEIGHT or 20
+        local scrollbarPadding = 18
+
         -- Create pure native bench frame
         local bench = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
-        bench:SetSize(width, 540)
+        bench:SetSize(width, groupHeight)
         bench:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
             edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -352,19 +370,27 @@ function BenchManager:create_native_bench_column(rosterBoard, width, parentFrame
         })
         bench:Show()
         
-        -- Title label
-        local titleLabel = bench:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        titleLabel:SetPoint("TOP", 0, -10)
-        titleLabel:SetText("Roster")
+        -- PHASE 2 FIX: Simplified title bar (NO inline buttons - eliminates empty space)
+        -- Create title bar container
+        local titleBar = CreateFrame("Frame", nil, bench)
+        titleBar:SetPoint("TOPLEFT", 10, -10)
+        titleBar:SetPoint("TOPRIGHT", -10, -10)
+        titleBar:SetHeight(titleHeight)
+        titleBar:Show()
         
-        -- Create native scroll frame inside
+        -- Title label (centered for clean look)
+        local titleLabel = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        titleLabel:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
+        titleLabel:SetText("BENCH")
+        
+        -- PHASE 2 FIX: Anchor scroll frame to title bar bottom (not hardcoded offset)
         local scrollFrame = CreateFrame("ScrollFrame", nil, bench, "UIPanelScrollFrameTemplate")
-        scrollFrame:SetPoint("TOPLEFT", 10, -30)
-        scrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
+        scrollFrame:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, -innerPadding)
+        scrollFrame:SetPoint("BOTTOMRIGHT", bench, "BOTTOMRIGHT", -(innerPadding + scrollbarPadding), innerPadding)
         scrollFrame:Show()
         
         local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-        scrollChild:SetSize(180, 1)  -- Compact width
+        scrollChild:SetSize(width - (innerPadding * 2) - scrollbarPadding, 1)
         scrollFrame:SetScrollChild(scrollChild)
         scrollChild:Show()
         
@@ -375,8 +401,10 @@ function BenchManager:create_native_bench_column(rosterBoard, width, parentFrame
         rosterBoard.benchContainer = scrollChild
         rosterBoard.benchScrollFrame = scrollFrame
         rosterBoard.benchCards = {}
+        rosterBoard.benchCardWidth = width - (innerPadding * 2) - scrollbarPadding
+        rosterBoard.benchContainerPadding = innerPadding
         
-        Debug:Dev("organizer_ui", "Created FULLY NATIVE bench column")
+        Debug:Dev("organizer_ui", "Created FULLY NATIVE bench column with inline controls")
         
         return bench
     end, "BenchManager:create_native_bench_column")

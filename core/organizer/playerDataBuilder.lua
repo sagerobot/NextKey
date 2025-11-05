@@ -152,17 +152,6 @@ function PlayerDataBuilder:GenerateSpecPreferences(playerID, options)
     end, "PlayerDataBuilder:GenerateSpecPreferences")
 end
 
---- Generate default spec preferences (DEPRECATED - use GenerateSpecPreferences with randomize=false)
--- @deprecated Use GenerateSpecPreferences(playerID, {randomize = false}) instead
-function PlayerDataBuilder:GenerateDefaultSpecPreferences(playerID)
-    return self:GenerateSpecPreferences(playerID, {randomize = false})
-end
-
---- Generate realistic poll response (DEPRECATED - use GenerateSpecPreferences with randomize=true)
--- @deprecated Use GenerateSpecPreferences(playerID, {randomize = true}) instead
-function PlayerDataBuilder:GenerateRealisticPollResponse(playerID)
-    return self:GenerateSpecPreferences(playerID, {randomize = true})
-end
 
 --- Initialize Player Data Builder module
 -- @return boolean True if initialization successful
@@ -355,7 +344,7 @@ function PlayerDataBuilder:AssemblePlayerObject(profile, preferences, roles, key
         
         -- Generate default spec preferences if not already set (no poll response yet)
         if not playerData.specPreferences or next(playerData.specPreferences) == nil then
-            local defaultSpecPrefs, defaultSpecDetails = self:GenerateDefaultSpecPreferences(playerID)
+            local defaultSpecPrefs, defaultSpecDetails = self:GenerateSpecPreferences(playerID, {randomize = false})
             playerData.specPreferences = defaultSpecPrefs
             playerData.specDetails = defaultSpecDetails
             

@@ -406,9 +406,21 @@ end
 -- @usage OrganizerState:AssignToGroup("PlayerName-Realm", 1, 2)
 function OrganizerState:AssignToGroup(playerID, groupIndex, slotIndex)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "AssignToGroup called:", playerID, groupIndex, slotIndex, "- not yet implemented")
-        return false
+        if not playerID or not groupIndex or not slotIndex then
+            Debug:Error("AssignToGroup called with missing arguments")
+            return false
+        end
+        
+        -- Initialize group if needed
+        if not self.groups[groupIndex] then
+            self.groups[groupIndex] = {}
+        end
+        
+        -- Assign to slot
+        self.groups[groupIndex][slotIndex] = playerID
+        
+        Debug:Dev("organizer_state", "AssignToGroup:", playerID, "to group", groupIndex, "slot", slotIndex)
+        return true
     end, "OrganizerState:AssignToGroup")
 end
 
@@ -418,9 +430,24 @@ end
 -- @usage OrganizerState:UnassignFromGroup("PlayerName-Realm")
 function OrganizerState:UnassignFromGroup(playerID)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "UnassignFromGroup called for:", playerID, "- not yet implemented")
-        return false
+        if not playerID then
+            return false
+        end
+        
+        local wasInGroup = false
+        
+        -- Remove from all group slots
+        for groupIndex, slots in pairs(self.groups) do
+            for slotIndex, assignedPlayerID in pairs(slots) do
+                if assignedPlayerID == playerID then
+                    self.groups[groupIndex][slotIndex] = nil
+                    wasInGroup = true
+                end
+            end
+        end
+        
+        Debug:Dev("organizer_state", "UnassignFromGroup:", playerID, "- was in group:", wasInGroup)
+        return wasInGroup
     end, "OrganizerState:UnassignFromGroup")
 end
 
@@ -430,9 +457,12 @@ end
 -- @usage local assignments = OrganizerState:GetGroupAssignments(1)
 function OrganizerState:GetGroupAssignments(groupIndex)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "GetGroupAssignments called for group:", groupIndex, "- not yet implemented")
-        return {}
+        if not groupIndex then
+            return {}
+        end
+        
+        Debug:Dev("organizer_state", "GetGroupAssignments: group", groupIndex)
+        return self.groups[groupIndex] or {}
     end, "OrganizerState:GetGroupAssignments")
 end
 
@@ -443,9 +473,17 @@ end
 -- @usage local playerID = OrganizerState:GetSlotPlayer(1, 2)
 function OrganizerState:GetSlotPlayer(groupIndex, slotIndex)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "GetSlotPlayer called:", groupIndex, slotIndex, "- not yet implemented")
-        return nil
+        if not groupIndex or not slotIndex then
+            return nil
+        end
+        
+        if not self.groups[groupIndex] then
+            return nil
+        end
+        
+        local playerID = self.groups[groupIndex][slotIndex]
+        Debug:Dev("organizer_state", "GetSlotPlayer: group", groupIndex, "slot", slotIndex, "->", playerID)
+        return playerID
     end, "OrganizerState:GetSlotPlayer")
 end
 
@@ -456,9 +494,17 @@ end
 -- @usage if OrganizerState:IsSlotEmpty(1, 2) then ... end
 function OrganizerState:IsSlotEmpty(groupIndex, slotIndex)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "IsSlotEmpty called:", groupIndex, slotIndex, "- not yet implemented")
-        return true
+        if not groupIndex or not slotIndex then
+            return true
+        end
+        
+        if not self.groups[groupIndex] then
+            return true
+        end
+        
+        local isEmpty = self.groups[groupIndex][slotIndex] == nil
+        Debug:Dev("organizer_state", "IsSlotEmpty: group", groupIndex, "slot", slotIndex, "->", isEmpty)
+        return isEmpty
     end, "OrganizerState:IsSlotEmpty")
 end
 
@@ -471,9 +517,19 @@ end
 -- @usage OrganizerState:DesignateKeystone(1, "PlayerName-Realm", keystoneData)
 function OrganizerState:DesignateKeystone(groupIndex, playerID, keystone)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "DesignateKeystone called:", groupIndex, playerID, "- not yet implemented")
-        return false
+        if not groupIndex or not playerID or not keystone then
+            Debug:Error("DesignateKeystone called with missing arguments")
+            return false
+        end
+        
+        -- Store keystone designation
+        self.keystones[groupIndex] = {
+            keystone = keystone,
+            playerID = playerID
+        }
+        
+        Debug:Dev("organizer_state", "DesignateKeystone: group", groupIndex, "keystone from", playerID)
+        return true
     end, "OrganizerState:DesignateKeystone")
 end
 
@@ -483,9 +539,15 @@ end
 -- @usage OrganizerState:ClearKeystone(1)
 function OrganizerState:ClearKeystone(groupIndex)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "ClearKeystone called for group:", groupIndex, "- not yet implemented")
-        return false
+        if not groupIndex then
+            return false
+        end
+        
+        local hadKeystone = self.keystones[groupIndex] ~= nil
+        self.keystones[groupIndex] = nil
+        
+        Debug:Dev("organizer_state", "ClearKeystone: group", groupIndex, "- had keystone:", hadKeystone)
+        return hadKeystone
     end, "OrganizerState:ClearKeystone")
 end
 
@@ -495,9 +557,13 @@ end
 -- @usage local keystoneData = OrganizerState:GetDesignatedKeystone(1)
 function OrganizerState:GetDesignatedKeystone(groupIndex)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "GetDesignatedKeystone called for group:", groupIndex, "- not yet implemented")
-        return nil
+        if not groupIndex then
+            return nil
+        end
+        
+        local keystoneData = self.keystones[groupIndex]
+        Debug:Dev("organizer_state", "GetDesignatedKeystone: group", groupIndex, "->", keystoneData ~= nil)
+        return keystoneData
     end, "OrganizerState:GetDesignatedKeystone")
 end
 
@@ -507,9 +573,15 @@ end
 -- @usage local ownerID = OrganizerState:GetKeystoneOwner(1)
 function OrganizerState:GetKeystoneOwner(groupIndex)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "GetKeystoneOwner called for group:", groupIndex, "- not yet implemented")
-        return nil
+        if not groupIndex then
+            return nil
+        end
+        
+        local keystoneData = self.keystones[groupIndex]
+        local ownerID = keystoneData and keystoneData.playerID or nil
+        
+        Debug:Dev("organizer_state", "GetKeystoneOwner: group", groupIndex, "->", ownerID)
+        return ownerID
     end, "OrganizerState:GetKeystoneOwner")
 end
 
@@ -520,9 +592,26 @@ end
 -- @usage OrganizerState:StartPoll("1234567890-5678")
 function OrganizerState:StartPoll(pollID)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "StartPoll called:", pollID, "- not yet implemented")
-        return false
+        if not pollID then
+            Debug:Error("StartPoll called with nil pollID")
+            return false
+        end
+        
+        -- Warn if poll already active
+        if self.activePoll then
+            Debug:Dev("organizer_state", "StartPoll: Warning - overwriting active poll", self.activePoll.id)
+        end
+        
+        -- Initialize poll state
+        self.activePoll = {
+            id = pollID,
+            startTime = GetTime(),
+            responses = {},
+            timeout = 60
+        }
+        
+        Debug:Dev("organizer_state", "StartPoll:", pollID)
+        return true
     end, "OrganizerState:StartPoll")
 end
 
@@ -533,9 +622,32 @@ end
 -- @usage OrganizerState:AddPollResponse("PlayerName-Realm", responseData)
 function OrganizerState:AddPollResponse(playerID, response)
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "AddPollResponse called for:", playerID, "- not yet implemented")
-        return false
+        if not playerID or not response then
+            Debug:Error("AddPollResponse called with missing arguments")
+            return false
+        end
+        
+        if not self.activePoll then
+            Debug:Error("AddPollResponse called but no active poll")
+            return false
+        end
+        
+        -- Store response in active poll
+        self.activePoll.responses[playerID] = {
+            response = response,
+            timestamp = GetTime()
+        }
+        
+        -- CRITICAL: Update player data to prevent data loss
+        self:UpdatePlayerFromPollResponse(playerID, response)
+        
+        local responseCount = 0
+        for _ in pairs(self.activePoll.responses) do
+            responseCount = responseCount + 1
+        end
+        
+        Debug:Dev("organizer_state", "AddPollResponse:", playerID, "- total responses:", responseCount)
+        return true
     end, "OrganizerState:AddPollResponse")
 end
 
@@ -544,9 +656,23 @@ end
 -- @usage local responses = OrganizerState:GetPollResponses()
 function OrganizerState:GetPollResponses()
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "GetPollResponses called - not yet implemented")
-        return {}
+        if not self.activePoll then
+            Debug:Dev("organizer_state", "GetPollResponses: No active poll")
+            return {}
+        end
+        
+        local responses = {}
+        
+        for playerID, data in pairs(self.activePoll.responses) do
+            table.insert(responses, {
+                playerID = playerID,
+                response = data.response,
+                timestamp = data.timestamp
+            })
+        end
+        
+        Debug:Dev("organizer_state", "GetPollResponses: returning", #responses, "responses")
+        return responses
     end, "OrganizerState:GetPollResponses")
 end
 
@@ -555,9 +681,16 @@ end
 -- @usage OrganizerState:CompletePoll()
 function OrganizerState:CompletePoll()
     return NextKey222.SafeRun(function()
-        -- TODO: Implement in Session 2
-        Debug:Dev("organizer_state", "CompletePoll called - not yet implemented")
-        return false
+        local wasActive = self.activePoll ~= nil
+        
+        if wasActive then
+            Debug:Dev("organizer_state", "CompletePoll: Completing poll", self.activePoll.id)
+        end
+        
+        self.activePoll = nil
+        
+        Debug:Dev("organizer_state", "CompletePoll: was active:", wasActive)
+        return wasActive
     end, "OrganizerState:CompletePoll")
 end
 
