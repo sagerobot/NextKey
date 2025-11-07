@@ -232,6 +232,19 @@ function CardMovement:place_card_in_bench(rosterBoard, card)
             end
         end
         
+        -- BUG FIX: Update state before moving card to bench
+        -- This ensures OrganizerState knows this player is on bench
+        if card.playerData and card.playerData.id then
+            NextKey222.OrganizerState:MoveToBench(card.playerData.id)
+            
+            -- CRITICAL: Fetch fresh data from state to ensure roles array is present
+            local freshData = NextKey222.OrganizerState:GetPlayer(card.playerData.id)
+            if freshData then
+                card.playerData = freshData
+                Debug:Dev("organizer_ui", "Refreshed card data from state before bench placement")
+            end
+        end
+        
         -- Update card size for compact mode
         card:SetSize(180, 20)  -- Compact size
         card:SetParent(rosterBoard.benchContainer)
@@ -255,6 +268,11 @@ function CardMovement:place_card_in_bench(rosterBoard, card)
         NextKey222.BenchManager:layout_bench(rosterBoard)
         
         Debug:Dev("organizer_ui", "Card placed in bench successfully")
+        
+        -- Update Recall All button state
+        if NextKey222.BenchManager and NextKey222.BenchManager.update_recall_button_state then
+            NextKey222.BenchManager:update_recall_button_state(rosterBoard)
+        end
         
     end, "CardMovement:place_card_in_bench")
 end

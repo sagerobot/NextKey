@@ -14,6 +14,7 @@ RosterBoard.headerSection = nil
 RosterBoard.activePoolSection = nil
 RosterBoard.optOutSection = nil
 RosterBoard.viewMode = nil -- "ORGANIZER" or "PARTICIPANT"
+RosterBoard.manualGroupCount = nil  -- nil = auto, number = manual override
 
 -- Poll state
 RosterBoard.activePoll = nil
@@ -335,23 +336,35 @@ function RosterBoard:CalculateOptimalLayout()
     local groupedPlayers = self:GetGroupedPlayers() or {}
     local playerCount = #benchPlayers + #groupedPlayers
     
-    -- Calculate needed groups (1-4 groups typically)
-    local neededGroups = math.max(1, math.min(math.ceil(playerCount / 5), 4))
+    -- USE MANUAL COUNT IF SET, otherwise auto-calculate
+    local neededGroups
+    if self.manualGroupCount then
+        neededGroups = self.manualGroupCount
+    else
+        -- ROUND DOWN to only create groups when there are enough players to fill them
+        -- 1-5 players = 1 group, 6-10 = 1 group, 11-15 = 2 groups, etc.
+        -- Exception: always have at least 1 group, never more than 8
+        neededGroups = math.max(1, math.min(math.floor(playerCount / 5), 8))
+    end
     
     -- Use centralized UIConfig constants
     local config = NextKey222.UIConfig.ORGANIZER
     local columnWidth = config.COLUMN_WIDTH
     local benchWidth = config.BENCH_WIDTH
     local padding = config.PADDING
+    local benchLeftGap = config.BENCH_LEFT_GAP or 30
+    local benchRightGap = config.BENCH_RIGHT_GAP or 30
     local headerHeight = config.HEADER_HEIGHT
     local groupHeight = config.GROUP_HEIGHT
     local optOutHeight = config.OPT_OUT_HEIGHT
     local statusBarHeight = config.STATUS_BAR_HEIGHT
+    local headerToGroupsGap = config.HEADER_TO_GROUPS_GAP or 20
     
-    -- Calculate total height: Header + Groups + Gap + OptOut + Gap + Status
+    -- Calculate total width: Left padding + Groups + Bench left gap + Bench + Bench right gap
+    -- Calculate total height: Header + Gap + Groups + Gap + OptOut + Gap + Status
     -- ACTION BAR REMOVED: All controls now in header
-    local totalWidth = (columnWidth * neededGroups) + benchWidth + (padding * 3)
-    local totalHeight = headerHeight + groupHeight +
+    local totalWidth = padding + (columnWidth * neededGroups) + benchLeftGap + benchWidth + benchRightGap
+    local totalHeight = headerHeight + headerToGroupsGap + groupHeight +
                        config.GROUP_TO_OPTOUT_GAP + optOutHeight +
                        config.OPTOUT_TO_BOTTOM_GAP + statusBarHeight
     
@@ -429,11 +442,12 @@ function RosterBoard:CreateHeaderSection(nativeParent)
         headerContainer:SetHeight(90)  -- 2 rows: Poll controls + Organize/Announce
         headerContainer:Show()
         
-        -- Row 1: Poll Controls
+        -- Row 1: Poll Controls with dynamic progress text
         local pollLabel = headerContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         pollLabel:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", 0, 0)
         pollLabel:SetText("POLL CONTROLS")
         pollLabel:SetTextColor(0.6, 0.6, 0.6, 1.0)
+        self.pollLabel = pollLabel  -- Store reference for dynamic updates
         
         local row1 = AceGUI:Create("SimpleGroup")
         row1:SetLayout("Flow")
@@ -635,59 +649,97 @@ function RosterBoard:OnPollGroupClicked()
         -- FakePlayerService will automatically respond with PONGs (if protocol enabled)
         -- Real players will respond via OnAddonPing handler
         
-        -- Wait 3 seconds for PONG responses
-        C_Timer.After(3, function()
-            if not self.activePoll or self.activePoll.id ~= pollID then
-                Debug:Dev("organizer", "Poll cancelled or changed during discovery")
-                return
-            end
-            
-            -- PHASE 2: Complete Discovery
-            local success, addonUsers, nonAddonUsers = NextKey222.ParticipantSurvey:CompleteDiscovery()
-            
-            if not success then
-                Debug:Error("Discovery failed - aborting poll")
-                return
-            end
-            
-            self.activePoll.addonUsers = addonUsers
-            self.activePoll.nonAddonUsers = nonAddonUsers
-            self.activePoll.addonUserCount = #addonUsers
-            self.activePoll.discoveryComplete = true
-            
-            Debug:Dev("organizer", string.format("Discovery complete: %d addon users, %d non-addon users",
-                #addonUsers, #nonAddonUsers))
-            
-            -- PHASE 3: Send Poll Request (to addon users only)
-            if #addonUsers > 0 then
-                NextKey222.ParticipantSurvey:SendPollRequest(pollID)
-                -- PollSimulator will automatically respond for fake players
-                -- Real players will show survey dialog
-                
-                -- CRITICAL: Organizer must manually show themselves the survey dialog
-                -- (they don't receive their own RAID messages)
-                local organizerID = UnitName("player") .. "-" .. GetRealmName()
-                Debug:Dev("organizer", "Showing survey dialog for organizer (self)")
-                local pollMessage = {
-                    pollID = pollID,
-                    timeout = 60,
-                    organizerName = organizerID
-                }
-                NextKey222.ParticipantSurvey:ShowSurveyDialog(pollMessage)
-            else
-                Debug:User("No addon users found - cannot send poll")
-            end
-            
-            -- PHASE 4: Non-addon players already on bench (no poll needed for them)
-            -- They will use their current spec as default role preference
-            Debug:Dev("organizer", "Non-addon players detected:", #nonAddonUsers, "- using default roles")
-            
-            -- Start timeout timer
-            self:StartPollTimeout()
-            
-            -- Update UI
-            self:ShowPollInProgress()
-            self:UpdatePollProgress()
+        -- Early completion system for discovery phase
+        local discoveryStartTime = GetTime()
+        local expectedPongs = self.activePoll.totalMembers - 1  -- Organizer doesn't PONG themselves
+        local discoveryTicker  -- Declare before NewTicker so it's accessible in callback
+        
+        Debug:Dev("organizer", string.format(
+        	"Discovery phase started - expecting %d PONGs from %d total members",
+        	expectedPongs, self.activePoll.totalMembers
+        ))
+        
+        -- Periodic check for early completion (every 0.1 seconds)
+        discoveryTicker = C_Timer.NewTicker(0.1, function()
+        	-- Validate poll still active
+        	if not self.activePoll or self.activePoll.id ~= pollID then
+        		discoveryTicker:Cancel()
+        		Debug:Dev("organizer", "Discovery cancelled - poll no longer active")
+        		return
+        	end
+        	
+        	-- Count current PONGs received
+        	local pongCount = 0
+        	if self.activePoll.addonUsers then
+        		for _ in pairs(self.activePoll.addonUsers) do
+        			pongCount = pongCount + 1
+        		end
+        	end
+        	
+        	-- Calculate elapsed time
+        	local elapsed = GetTime() - discoveryStartTime
+        	
+        	-- Check completion conditions
+        	local allPongsReceived = (pongCount >= expectedPongs)
+        	local timeoutReached = (elapsed >= 3)
+        	
+        	-- Complete if all PONGs received OR timeout reached
+        	if allPongsReceived or timeoutReached then
+        		discoveryTicker:Cancel()
+        		
+        		Debug:Dev("organizer", string.format(
+        			"Discovery %s: %d/%d PONGs received in %.2fs",
+        			allPongsReceived and "COMPLETE" or "TIMEOUT",
+        			pongCount, expectedPongs, elapsed
+        		))
+        		
+        		-- PHASE 2: Complete Discovery
+        		local success, addonUsers, nonAddonUsers = NextKey222.ParticipantSurvey:CompleteDiscovery()
+        		
+        		if not success then
+        			Debug:Error("Discovery failed - aborting poll")
+        			return
+        		end
+        		
+        		self.activePoll.addonUsers = addonUsers
+        		self.activePoll.nonAddonUsers = nonAddonUsers
+        		self.activePoll.addonUserCount = #addonUsers
+        		self.activePoll.discoveryComplete = true
+        		
+        		Debug:Dev("organizer", string.format("Discovery complete: %d addon users, %d non-addon users",
+        			#addonUsers, #nonAddonUsers))
+        		
+        		-- PHASE 3: Send Poll Request (to addon users only)
+        		if #addonUsers > 0 then
+        			NextKey222.ParticipantSurvey:SendPollRequest(pollID)
+        			-- PollSimulator will automatically respond for fake players
+        			-- Real players will show survey dialog
+        			
+        			-- CRITICAL: Organizer must manually show themselves the survey dialog
+        			-- (they don't receive their own RAID messages)
+        			local organizerID = UnitName("player") .. "-" .. GetRealmName()
+        			Debug:Dev("organizer", "Showing survey dialog for organizer (self)")
+        			local pollMessage = {
+        				pollID = pollID,
+        				timeout = 60,
+        				organizerName = organizerID
+        			}
+        			NextKey222.ParticipantSurvey:ShowSurveyDialog(pollMessage)
+        		else
+        			Debug:User("No addon users found - cannot send poll")
+        		end
+        		
+        		-- PHASE 4: Non-addon players already on bench (no poll needed for them)
+        		-- They will use their current spec as default role preference
+        		Debug:Dev("organizer", "Non-addon players detected:", #nonAddonUsers, "- using default roles")
+        		
+        		-- Start timeout timer
+        		self:StartPollTimeout()
+        		
+        		-- Update UI
+        		self:ShowPollInProgress()
+        		self:UpdatePollProgress()
+        	end
         end)
         
         Debug:Dev("organizer", "Started poll with unified protocol - ID:", pollID)
@@ -732,74 +784,109 @@ function RosterBoard:OnPollTimeout()
 end
 
 function RosterBoard:ShowPollInProgress()
-	-- Disable poll button
+	-- Disable poll button and set to grey "Polling" state
 	if self.pollButton then
 		self.pollButton:SetDisabled(true)
-		
-		-- In debug mode with fake players, use fake player count
+		self.pollButton:SetText("Polling")
+	end
+	
+	-- Disable organize button during poll
+	if self.organizeButton then
+		self.organizeButton:SetDisabled(true)
+		-- Set tooltip explaining why it's disabled
+		self.organizeButton.frame:SetScript("OnEnter", function(frame)
+			GameTooltip:SetOwner(frame, "ANCHOR_TOP")
+			GameTooltip:SetText("Organize Disabled", 1, 1, 1)
+			GameTooltip:AddLine("Wait for the spec preference poll to complete or end it early with 'End Poll'.", nil, nil, nil, true)
+			GameTooltip:Show()
+		end)
+		self.organizeButton.frame:SetScript("OnLeave", function()
+			GameTooltip:Hide()
+		end)
+	end
+	
+	-- Update poll label with descriptive progress
+	if self.pollLabel then
 		local hasFakePlayers = NextKey222.FakePlayerService and
 		                       NextKey222.FakePlayerService:IsEnabled() and
 		                       #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
 		
 		if hasFakePlayers then
-			-- Debug mode: simple format (no handshake needed)
+			-- Debug mode: descriptive format
 			local totalMembers = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1
-			self.pollButton:SetText("Polling... (0/" .. totalMembers .. ")")
+			self.pollLabel:SetText("POLL CONTROLS - Waiting for responses: 0/" .. totalMembers .. " members")
 		else
-			-- Production mode: smart format with handshake data
+			-- Production mode: descriptive format with handshake data
 			if self.activePoll and self.activePoll.addonUserCount then
-				-- NEW FORMAT: "X/Y (Z total)"
 				local addonUsers = self.activePoll.addonUserCount
 				local totalMembers = self.activePoll.totalMembers
-				self.pollButton:SetText("Polling... (0/" .. addonUsers .. " (" .. totalMembers .. " total))")
+				self.pollLabel:SetText("POLL CONTROLS - Waiting for responses: 0/" .. addonUsers .. " addon users (" .. totalMembers .. " total members)")
 			else
 				-- Fallback during handshake phase
 				local totalMembers = GetNumGroupMembers()
-				self.pollButton:SetText("Discovering... (0/" .. totalMembers .. ")")
+				self.pollLabel:SetText("POLL CONTROLS - Discovering addon users: 0/" .. totalMembers .. " members checked")
 			end
 		end
 	end
 end
 
 function RosterBoard:UpdatePollProgress()
-    if not self.activePoll or not self.pollButton then
+    if not self.activePoll then
         return
     end
     
-    -- In debug mode with fake players, use simple format
-    local hasFakePlayers = NextKey222.FakePlayerService and
-                           NextKey222.FakePlayerService:IsEnabled() and
-                           #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
-    
-    local responses = #self.activePoll.responses
-    
-    if hasFakePlayers then
-        -- Debug mode: simple format
-        local totalMembers = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1
-        self.pollButton:SetText("Polling... (" .. responses .. "/" .. totalMembers .. ")")
+    -- Update poll label with descriptive progress (button stays grey "Polling")
+    if self.pollLabel then
+        local hasFakePlayers = NextKey222.FakePlayerService and
+                               NextKey222.FakePlayerService:IsEnabled() and
+                               #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
         
-        -- Check if complete
-        if responses >= totalMembers then
-            self:CompletePoll()
-        end
-    else
-        -- Production mode: smart format "X/Y (Z total)"
-        if self.activePoll.addonUserCount then
-            local addonUsers = self.activePoll.addonUserCount
-            local totalMembers = self.activePoll.totalMembers
-            self.pollButton:SetText("Polling... (" .. responses .. "/" .. addonUsers .. " (" .. totalMembers .. " total))")
+        local responses = #self.activePoll.responses
+        
+        if hasFakePlayers then
+            -- Debug mode: descriptive format
+            local totalMembers = #NextKey222.FakePlayerService:GetAllPlayerNames() + 1
+            local remaining = totalMembers - responses
+            if remaining > 0 then
+                self.pollLabel:SetText("POLL CONTROLS - Responses received: " .. responses .. "/" .. totalMembers .. " (" .. remaining .. " waiting)")
+            else
+                self.pollLabel:SetText("POLL CONTROLS - All responses received: " .. responses .. "/" .. totalMembers)
+            end
             
-            -- Check if complete (all ADDON users responded)
-            if responses >= addonUsers then
+            -- Check if complete
+            if responses >= totalMembers then
                 self:CompletePoll()
             end
         else
-            -- Fallback (shouldn't happen in production)
-            local totalMembers = GetNumGroupMembers()
-            self.pollButton:SetText("Polling... (" .. responses .. "/" .. totalMembers .. ")")
-            
-            if responses >= totalMembers then
-                self:CompletePoll()
+            -- Production mode: descriptive format with handshake data
+            if self.activePoll.addonUserCount then
+                local addonUsers = self.activePoll.addonUserCount
+                local totalMembers = self.activePoll.totalMembers
+                local remaining = addonUsers - responses
+                
+                if remaining > 0 then
+                    self.pollLabel:SetText("POLL CONTROLS - Responses received: " .. responses .. "/" .. addonUsers .. " addon users (" .. remaining .. " waiting, " .. totalMembers .. " total members)")
+                else
+                    self.pollLabel:SetText("POLL CONTROLS - All responses received: " .. responses .. "/" .. addonUsers .. " addon users (" .. totalMembers .. " total members)")
+                end
+                
+                -- Check if complete (all ADDON users responded)
+                if responses >= addonUsers then
+                    self:CompletePoll()
+                end
+            else
+                -- Fallback (shouldn't happen in production)
+                local totalMembers = GetNumGroupMembers()
+                local remaining = totalMembers - responses
+                if remaining > 0 then
+                    self.pollLabel:SetText("POLL CONTROLS - Responses received: " .. responses .. "/" .. totalMembers .. " (" .. remaining .. " waiting)")
+                else
+                    self.pollLabel:SetText("POLL CONTROLS - All responses received: " .. responses .. "/" .. totalMembers)
+                end
+                
+                if responses >= totalMembers then
+                    self:CompletePoll()
+                end
             end
         end
     end
@@ -818,10 +905,21 @@ function RosterBoard:CompletePoll()
         self.pollTimeoutTimer = nil
     end
     
-    -- Re-enable poll button
+    -- Re-enable poll button and reset label
     if self.pollButton then
         self.pollButton:SetDisabled(false)
-        self.pollButton:SetText("Poll")
+        self.pollButton:SetText("Poll Group")
+    end
+    
+    if self.pollLabel then
+        self.pollLabel:SetText("POLL CONTROLS")
+    end
+    
+    -- Re-enable organize button and clear tooltip
+    if self.organizeButton then
+        self.organizeButton:SetDisabled(false)
+        self.organizeButton.frame:SetScript("OnEnter", nil)
+        self.organizeButton.frame:SetScript("OnLeave", nil)
     end
     
     -- Show completion message
@@ -929,10 +1027,21 @@ function RosterBoard:OnClearPollClicked()
         -- Clear active poll
         self.activePoll = nil
         
-        -- Reset poll button
+        -- Reset poll button and label
         if self.pollButton then
             self.pollButton:SetDisabled(false)
-            self.pollButton:SetText("Poll")
+            self.pollButton:SetText("Poll Group")
+        end
+        
+        if self.pollLabel then
+            self.pollLabel:SetText("POLL CONTROLS")
+        end
+        
+        -- Re-enable organize button and clear tooltip
+        if self.organizeButton then
+            self.organizeButton:SetDisabled(false)
+            self.organizeButton.frame:SetScript("OnEnter", nil)
+            self.organizeButton.frame:SetScript("OnLeave", nil)
         end
         
         -- Close and reopen the window to rebuild from scratch
@@ -1055,8 +1164,8 @@ function RosterBoard:ExecuteSimpleSort()
         
         Debug:User("Starting sort animation for", #validAssignments, "players")
         
-        -- Execute animation sequence with simplified API
-        NextKey222.AnimationQueue:ExecuteSequence(validAssignments, function()
+        -- Execute ROLE WAVE animation sequence (fast thematic animation)
+        NextKey222.AnimationQueue:ExecuteRoleWaveSequence(validAssignments, function()
             self:OnSortComplete()
         end)
         
@@ -1296,6 +1405,25 @@ end
 
 function RosterBoard:IsVisible()
     return self.mainFrame and self.mainFrame:IsVisible()
+end
+
+-- MARK: Rebuild Main Frame (Preserve Players)
+function RosterBoard:RebuildMainFrame()
+    return NextKey222.SafeRun(function()
+        -- Store visibility state
+        local wasVisible = self:IsVisible()
+        
+        -- Close current window (triggers cleanup)
+        self:Hide()
+        
+        -- Small delay to ensure cleanup completes
+        C_Timer.After(0.1, function()
+            if wasVisible then
+                self:Show()  -- Recreates with new manualGroupCount
+            end
+        end)
+        
+    end, "RosterBoard:RebuildMainFrame")
 end
 
 -- MARK: Keystone Designation (Delegates to KeystoneManager)
@@ -1686,6 +1814,11 @@ function RosterBoard:SyncUIToState()
         -- Re-layout sections
         self:LayoutBench()
         self:LayoutOptOut()
+        
+        -- Update Return All button state
+        if NextKey222.SlotManager and NextKey222.SlotManager.update_return_button_state then
+            NextKey222.SlotManager:update_return_button_state(self)
+        end
         
         Debug:Dev("organizer_ui", "Synced UI to state -", #self.benchCards, "bench,",
                  #self.optOutSection.playerCards, "opt-out")

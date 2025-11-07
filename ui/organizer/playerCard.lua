@@ -115,7 +115,20 @@ end
 
 -- Helper: Render multi-role icons with preference colors
 local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
-    if not playerData.roles then return xOffset end
+    if not playerData.roles then
+        Debug:Dev("organizer_ui", "RenderRoleIcons: playerData.roles is nil for", playerData.name)
+        return xOffset
+    end
+    
+    if #playerData.roles == 0 then
+        Debug:Dev("organizer_ui", "RenderRoleIcons: playerData.roles is empty array for", playerData.name)
+        return xOffset
+    end
+    
+    -- BUG FIX: Initialize roleButtons array if not present
+    if not card.roleButtons then
+        card.roleButtons = {}
+    end
     
     local rolesToShow = {}
     
@@ -130,6 +143,17 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
                 })
             end
         end
+        
+        -- BUG FIX: If specPreferences exists but ALL are "none", fall back to roles array
+        if #rolesToShow == 0 and playerData.roles then
+            Debug:Dev("organizer_ui", "All specPreferences are 'none' - using roles array fallback for", playerData.name)
+            for i, role in ipairs(playerData.roles) do
+                table.insert(rolesToShow, {
+                    role = role,
+                    preference = "play"  -- Default to "want to play"
+                })
+            end
+        end
     else
         -- Fallback: show current roles without preference data
         for i, role in ipairs(playerData.roles) do
@@ -139,6 +163,8 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
             })
         end
     end
+    
+    Debug:Dev("organizer_ui", "RenderRoleIcons: rolesToShow count =", #rolesToShow, "for", playerData.name)
     
     -- Limit to specified max roles
     local roleCount = math.min(#rolesToShow, maxRoles)

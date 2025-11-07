@@ -316,7 +316,9 @@ function BenchManager:layout_bench(rosterBoard)
     local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
     local spacing = config.BENCH_CARD_SPACING or 3
     local cardHeight = config.BENCH_CARD_HEIGHT or 20
-    local cardWidth = rosterBoard.benchCardWidth or ((config.BENCH_WIDTH or 220) - 24)
+    local horizontalPadding = config.BENCH_HORIZONTAL_PADDING or 10
+    local scrollbarPadding = config.BENCH_SCROLLBAR_PADDING or 18
+    local cardWidth = rosterBoard.benchCardWidth or ((config.BENCH_WIDTH or 260) - (horizontalPadding * 2) - scrollbarPadding)
     local innerPadding = rosterBoard.benchContainerPadding or (config.BENCH_SCROLL_GAP or 8)
     local yOffset = innerPadding
     
@@ -357,7 +359,8 @@ function BenchManager:create_native_bench_column(rosterBoard, width, parentFrame
         local groupHeight = config.GROUP_HEIGHT or 550
         local innerPadding = config.BENCH_SCROLL_GAP or 8
         local titleHeight = config.BENCH_TITLE_HEIGHT or 20
-        local scrollbarPadding = 18
+        local horizontalPadding = config.BENCH_HORIZONTAL_PADDING or 10
+        local scrollbarPadding = config.BENCH_SCROLLBAR_PADDING or 18
 
         -- Create pure native bench frame
         local bench = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
@@ -370,27 +373,51 @@ function BenchManager:create_native_bench_column(rosterBoard, width, parentFrame
         })
         bench:Show()
         
-        -- PHASE 2 FIX: Simplified title bar (NO inline buttons - eliminates empty space)
+        -- PHASE 2 FIX: Simplified title bar with Recall All button
         -- Create title bar container
         local titleBar = CreateFrame("Frame", nil, bench)
-        titleBar:SetPoint("TOPLEFT", 10, -10)
-        titleBar:SetPoint("TOPRIGHT", -10, -10)
+        titleBar:SetPoint("TOPLEFT", horizontalPadding, -horizontalPadding)
+        titleBar:SetPoint("TOPRIGHT", -horizontalPadding, -horizontalPadding)
         titleBar:SetHeight(titleHeight)
         titleBar:Show()
         
-        -- Title label (centered for clean look)
+        -- Title label (left-aligned to make room for button)
         local titleLabel = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        titleLabel:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
+        titleLabel:SetPoint("LEFT", titleBar, "LEFT", 0, 0)
         titleLabel:SetText("BENCH")
+        
+        -- Recall All button (right-aligned, small)
+        local recallButton = CreateFrame("Button", nil, titleBar, "UIPanelButtonTemplate")
+        recallButton:SetSize(60, 16)
+        recallButton:SetPoint("RIGHT", titleBar, "RIGHT", 0, 0)
+        recallButton:SetText("Recall All")
+        recallButton:SetNormalFontObject("GameFontNormalSmall")
+        recallButton:SetEnabled(false)  -- Start disabled
+        recallButton:SetScript("OnClick", function()
+            self:recall_all_cards(rosterBoard)
+        end)
+        recallButton:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText("Recall All Players", 1, 1, 1)
+            GameTooltip:AddLine("Move all players from M+ groups back to the bench", nil, nil, nil, true)
+            GameTooltip:Show()
+        end)
+        recallButton:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+        
+        -- Store reference for enable/disable control
+        bench.recallButton = recallButton
+        rosterBoard.benchRecallButton = recallButton
         
         -- PHASE 2 FIX: Anchor scroll frame to title bar bottom (not hardcoded offset)
         local scrollFrame = CreateFrame("ScrollFrame", nil, bench, "UIPanelScrollFrameTemplate")
         scrollFrame:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, -innerPadding)
-        scrollFrame:SetPoint("BOTTOMRIGHT", bench, "BOTTOMRIGHT", -(innerPadding + scrollbarPadding), innerPadding)
+        scrollFrame:SetPoint("BOTTOMRIGHT", bench, "BOTTOMRIGHT", -(horizontalPadding + scrollbarPadding), horizontalPadding)
         scrollFrame:Show()
         
         local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-        scrollChild:SetSize(width - (innerPadding * 2) - scrollbarPadding, 1)
+        scrollChild:SetSize(width - (horizontalPadding * 2) - scrollbarPadding, 1)
         scrollFrame:SetScrollChild(scrollChild)
         scrollChild:Show()
         
@@ -401,7 +428,7 @@ function BenchManager:create_native_bench_column(rosterBoard, width, parentFrame
         rosterBoard.benchContainer = scrollChild
         rosterBoard.benchScrollFrame = scrollFrame
         rosterBoard.benchCards = {}
-        rosterBoard.benchCardWidth = width - (innerPadding * 2) - scrollbarPadding
+        rosterBoard.benchCardWidth = width - (horizontalPadding * 2) - scrollbarPadding
         rosterBoard.benchContainerPadding = innerPadding
         
         Debug:Dev("organizer_ui", "Created FULLY NATIVE bench column with inline controls")
@@ -446,6 +473,99 @@ function BenchManager:check_and_resize_window(rosterBoard)
             rosterBoard:CreateMainFrame()
         end
     end
+end
+
+-- MARK: Button State Management
+--- Update the enabled/disabled state of the Recall All button
+-- @param rosterBoard RosterBoard instance
+function BenchManager:update_recall_button_state(rosterBoard)
+    if not rosterBoard.benchRecallButton then return end
+    
+    local hasSlottedCards = false
+    
+    if rosterBoard.groupSlots then
+        for _, slots in pairs(rosterBoard.groupSlots) do
+            for _, slot in pairs(slots) do
+                if not slot.isEmpty then
+                    hasSlottedCards = true
+                    break
+                end
+            end
+            if hasSlottedCards then break end
+        end
+    end
+    
+    rosterBoard.benchRecallButton:SetEnabled(hasSlottedCards)
+    Debug:Dev("organizer_ui", "Recall button state:", hasSlottedCards and "ENABLED" or "DISABLED")
+end
+
+-- MARK: Recall All Cards
+--- Recalls all player cards from M+ group slots back to the bench with animation
+-- @param rosterBoard RosterBoard instance
+function BenchManager:recall_all_cards(rosterBoard)
+    return NextKey222.SafeRun(function()
+        if not rosterBoard.groupSlots then return end
+        
+        -- Disable button during animation
+        if rosterBoard.benchRecallButton then
+            rosterBoard.benchRecallButton:SetEnabled(false)
+        end
+        
+        -- Collect cards by group
+        local cardsByGroup = {}
+        local totalCards = 0
+        
+        for groupIndex, slots in pairs(rosterBoard.groupSlots) do
+            cardsByGroup[groupIndex] = {}
+            
+            for slotIndex, slot in pairs(slots) do
+                if not slot.isEmpty and slot.playerCard then
+                    local card = slot.playerCard
+                    table.insert(cardsByGroup[groupIndex], card)
+                    totalCards = totalCards + 1
+                    
+                    -- Clear keystone if designated
+                    if NextKey222.KeystoneManager:is_keystone_designated(
+                        rosterBoard, groupIndex, card.playerData.id) then
+                        NextKey222.KeystoneManager:clear_group_keystone(
+                            rosterBoard, groupIndex)
+                        Debug:Dev("organizer", "Cleared keystone for:", card.playerData.name)
+                    end
+                    
+                    -- Clear slot state (will be restored if animation fails)
+                    slot.playerCard = nil
+                    slot.isEmpty = true
+                    if slot.emptyLabel then
+                        slot.emptyLabel:Show()
+                    end
+                end
+            end
+        end
+        
+        if totalCards == 0 then
+            Debug:User("No cards to recall")
+            if rosterBoard.benchRecallButton then
+                rosterBoard.benchRecallButton:SetEnabled(false)
+            end
+            return
+        end
+        
+        Debug:User("Recalling " .. totalCards .. " players to bench...")
+        
+        -- Execute animated recall sequence
+        NextKey222.AnimationQueue:ExecuteRecallSequence(cardsByGroup, function()
+            -- Re-layout bench after all animations complete
+            self:layout_bench(rosterBoard)
+            
+            -- Re-enable button (will check if any cards remain in slots)
+            if rosterBoard.benchRecallButton then
+                self:update_recall_button_state(rosterBoard)
+            end
+            
+            Debug:User("Recall complete!")
+        end)
+        
+    end, "BenchManager:recall_all_cards")
 end
 
 -- MARK: Rebuild (DEPRECATED - Will be removed in Week 3)

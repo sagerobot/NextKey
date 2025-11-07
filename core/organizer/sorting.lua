@@ -70,8 +70,8 @@ local function collect_players_by_role_preference(players, role)
 end
 
 -- MARK: Main Sorting Function
---- Calculates sequential assignment plan using role-priority round-robin distribution
---- Enhanced with flexible role assignment based on spec preferences
+--- Calculates sequential assignment plan using global priority sorting
+--- Ensures "want to play" is prioritized over "fill" across ALL roles
 -- @param benchPlayers Array of player data objects from bench
 -- @param numGroups Number of groups to distribute players into
 -- @return Array of assignment objects: {player, groupIndex, slotIndex, role, assignedFromPreference}
@@ -89,91 +89,86 @@ function OrganizerSorting:CalculateSequentialAssignment(benchPlayers, numGroups)
         
         Debug:Dev("organizer", "Calculating sequential assignment for", #benchPlayers, "players into", numGroups, "groups")
         
-        -- Track assigned players to prevent double assignment
-        local assignedPlayers = {}
+        -- Build role candidate lists (sorted by priority within role)
+        -- allowDPSOnlyFlex = false: Don't assign DPS-only players to Tank/Healer
+        local tankCandidates = collect_players_by_role_preference(benchPlayers, "TANK", false)
+        local healerCandidates = collect_players_by_role_preference(benchPlayers, "HEALER", false)
+        local dpsCandidates = collect_players_by_role_preference(benchPlayers, "DAMAGER", true)
         
-        -- Build assignment plan (sequential order with flexible role assignment)
+        Debug:Dev("organizer", "Role candidates - Tank:", #tankCandidates, "Healer:", #healerCandidates, "DPS:", #dpsCandidates)
+        Debug:Dev("organizer", "Enhanced priority: DPS-only players excluded from Tank/Healer flex")
+        
+        -- Track assigned players AND slots to prevent double assignment
+        local assignedPlayers = {}
+        local assignedSlots = {}  -- {[groupIndex][slotIndex] = true}
         local assignmentPlan = {}
         
-        -- Phase 1: Assign tanks (1 per group, round-robin with flexibility)
-        local tankCandidates = collect_players_by_role_preference(benchPlayers, "TANK")
-        local tankIndex = 1
-        
-        Debug:Dev("organizer", "Tank assignment - Found", #tankCandidates, "candidates (play + fill)")
-        
-        for groupIndex = 1, numGroups do
-            if tankIndex <= #tankCandidates then
-                local candidate = tankCandidates[tankIndex]
-                
-                table.insert(assignmentPlan, {
-                    player = candidate.player,
-                    groupIndex = groupIndex,
-                    slotIndex = 1, -- Tank slot
-                    role = "TANK",
-                    assignedFromPreference = candidate.preference -- Track if "fill" or "play"
-                })
-                
-                assignedPlayers[candidate.player.id] = true
-                Debug:Dev("organizer", "  - Assigned", candidate.player.name, "to Tank (preference:", candidate.preference, ")")
-                tankIndex = tankIndex + 1
-            end
-        end
-        
-        -- Phase 2: Assign healers (1 per group, round-robin with flexibility, excluding assigned tanks)
-        local healerCandidates = collect_players_by_role_preference(benchPlayers, "HEALER")
-        local healerIndex = 1
-        
-        Debug:Dev("organizer", "Healer assignment - Found", #healerCandidates, "candidates (play + fill)")
-        
-        for groupIndex = 1, numGroups do
-            -- Skip already assigned players (tanks)
-            while healerIndex <= #healerCandidates and
-                  assignedPlayers[healerCandidates[healerIndex].player.id] do
-                Debug:Dev("organizer", "  - Skipping", healerCandidates[healerIndex].player.name, "(already assigned to tank)")
-                healerIndex = healerIndex + 1
+        -- Helper function to assign next available player for a role
+        local function assign_next_for_role(candidates, candidateIndex, role, groupIndex, slotIndex)
+            -- Check if slot is already filled
+            if assignedSlots[groupIndex] and assignedSlots[groupIndex][slotIndex] then
+                return candidateIndex  -- Slot occupied, skip assignment
             end
             
-            if healerIndex <= #healerCandidates then
-                local candidate = healerCandidates[healerIndex]
+            -- Skip already assigned players
+            while candidateIndex <= #candidates and
+                  assignedPlayers[candidates[candidateIndex].player.id] do
+                candidateIndex = candidateIndex + 1
+            end
+            
+            if candidateIndex <= #candidates then
+                local candidate = candidates[candidateIndex]
                 
                 table.insert(assignmentPlan, {
                     player = candidate.player,
                     groupIndex = groupIndex,
-                    slotIndex = 2, -- Healer slot
-                    role = "HEALER",
+                    slotIndex = slotIndex,
+                    role = role,
                     assignedFromPreference = candidate.preference
                 })
                 
                 assignedPlayers[candidate.player.id] = true
-                Debug:Dev("organizer", "  - Assigned", candidate.player.name, "to Healer (preference:", candidate.preference, ")")
-                healerIndex = healerIndex + 1
-            end
-        end
-        
-        -- Phase 3: Assign DPS (3 per group, round-robin - all unassigned players)
-        local dpsPlayers = {}
-        for _, player in ipairs(benchPlayers) do
-            if not assignedPlayers[player.id] then
-                table.insert(dpsPlayers, player)
-            end
-        end
-        
-        Debug:Dev("organizer", "DPS assignment - Found", #dpsPlayers, "unassigned players")
-        
-        local dpsIndex = 1
-        for dpsSlotNumber = 1, 3 do -- For each DPS slot (3, 4, 5)
-            for groupIndex = 1, numGroups do
-                if dpsIndex <= #dpsPlayers then
-                    table.insert(assignmentPlan, {
-                        player = dpsPlayers[dpsIndex],
-                        groupIndex = groupIndex,
-                        slotIndex = 2 + dpsSlotNumber, -- DPS slots 3, 4, 5
-                        role = "DAMAGER",
-                        assignedFromPreference = "play" -- Default for DPS
-                    })
-                    Debug:Dev("organizer", "  - Assigned", dpsPlayers[dpsIndex].name, "to DPS slot", dpsSlotNumber)
-                    dpsIndex = dpsIndex + 1
+                
+                -- Mark slot as occupied
+                if not assignedSlots[groupIndex] then
+                    assignedSlots[groupIndex] = {}
                 end
+                assignedSlots[groupIndex][slotIndex] = true
+                
+                Debug:Dev("organizer", "  - Assigned", candidate.player.name, "to", role, "(preference:", candidate.preference, ")")
+                
+                return candidateIndex + 1
+            end
+            
+            return candidateIndex
+        end
+        
+        -- Role-by-role assignment strategy
+        -- Fill each role completely (play → fill) before moving to next role
+        -- This ensures flex players fill high-priority roles first
+        
+        Debug:Dev("organizer", "Role-by-role assignment: Tank → Healer → DPS")
+        
+        -- Phase 1: Fill ALL Tank slots (play preferences first, then fill)
+        Debug:Dev("organizer", "Phase 1: Assigning all Tank slots")
+        local tankIdx = 1
+        for groupIndex = 1, numGroups do
+            tankIdx = assign_next_for_role(tankCandidates, tankIdx, "TANK", groupIndex, 1)
+        end
+        
+        -- Phase 2: Fill ALL Healer slots (play preferences first, then fill)
+        Debug:Dev("organizer", "Phase 2: Assigning all Healer slots")
+        local healerIdx = 1
+        for groupIndex = 1, numGroups do
+            healerIdx = assign_next_for_role(healerCandidates, healerIdx, "HEALER", groupIndex, 2)
+        end
+        
+        -- Phase 3: Fill ALL DPS slots (play preferences first, then fill)
+        Debug:Dev("organizer", "Phase 3: Assigning all DPS slots")
+        local dpsIdx = 1
+        for dpsSlotNumber = 1, 3 do
+            for groupIndex = 1, numGroups do
+                dpsIdx = assign_next_for_role(dpsCandidates, dpsIdx, "DAMAGER", groupIndex, 2 + dpsSlotNumber)
             end
         end
         

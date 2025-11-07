@@ -26,6 +26,7 @@ function SlotManager:create_active_pool_section(rosterBoard, nativeParent)
 
         local padding = layout.padding or config.PADDING or 20
         local headerHeight = layout.headerHeight or config.HEADER_HEIGHT or 90
+        local headerToGroupsGap = config.HEADER_TO_GROUPS_GAP or 20
         local groupHeight = config.GROUP_HEIGHT or 550
         local columnWidth = layout.columnWidth or config.COLUMN_WIDTH or 180
         local slotSpacing = layout.slotSpacing or config.SLOT_SPACING or 10
@@ -34,8 +35,8 @@ function SlotManager:create_active_pool_section(rosterBoard, nativeParent)
         local slotHorizontalPadding = 12
 
         local poolContainer = CreateFrame("Frame", nil, nativeParent)
-        poolContainer:SetPoint("TOPLEFT", nativeParent, "TOPLEFT", padding, -headerHeight)
-        poolContainer:SetPoint("TOPRIGHT", nativeParent, "TOPRIGHT", -padding, -headerHeight)
+        poolContainer:SetPoint("TOPLEFT", nativeParent, "TOPLEFT", padding, -(headerHeight + headerToGroupsGap))
+        poolContainer:SetPoint("TOPRIGHT", nativeParent, "TOPRIGHT", -padding, -(headerHeight + headerToGroupsGap))
         poolContainer:SetHeight(groupHeight)
         poolContainer:Show()
 
@@ -75,6 +76,11 @@ function SlotManager:create_active_pool_section(rosterBoard, nativeParent)
             titleLabel:SetJustifyH("CENTER")
             titleLabel:SetText("M+ Grp. " .. groupIndex)
             rosterBoard.groupTitles[groupIndex] = titleLabel
+            
+            -- Add group control buttons if this is the last group
+            if groupIndex == layout.groupColumns then
+                self:add_group_control_buttons(groupFrame, groupIndex, layout.groupColumns, rosterBoard)
+            end
 
             rosterBoard.groupKeystones[groupIndex] = {keystone = nil, playerID = nil}
             rosterBoard.groupSlots[groupIndex] = {}
@@ -103,7 +109,8 @@ function SlotManager:create_active_pool_section(rosterBoard, nativeParent)
             end
         end
 
-        local benchXOffset = (layout.groupColumns * columnWidth) + padding
+        local benchLeftGap = config.BENCH_LEFT_GAP or 30
+        local benchXOffset = (layout.groupColumns * columnWidth) + benchLeftGap
         local benchColumn = NextKey222.BenchManager:create_native_bench_column(rosterBoard, layout.benchWidth, poolContainer)
         benchColumn:ClearAllPoints()
         benchColumn:SetPoint("TOPLEFT", poolContainer, "TOPLEFT", benchXOffset, 0)
@@ -138,10 +145,40 @@ function SlotManager:create_opt_out_section(rosterBoard, nativeParent)
         })
         optOut:Show()
         
-        -- Title label
-        local titleLabel = optOut:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        titleLabel:SetPoint("TOP", 0, -10)
+        -- Title bar container (similar to bench)
+        local titleBar = CreateFrame("Frame", nil, optOut)
+        titleBar:SetPoint("TOPLEFT", 10, -10)
+        titleBar:SetPoint("TOPRIGHT", -10, -10)
+        titleBar:SetHeight(20)
+        titleBar:Show()
+        
+        -- Title label (left-aligned to make room for button)
+        local titleLabel = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        titleLabel:SetPoint("LEFT", titleBar, "LEFT", 0, 0)
         titleLabel:SetText("Not Playing")
+        
+        -- Return All button (right-aligned, small)
+        local returnButton = CreateFrame("Button", nil, titleBar, "UIPanelButtonTemplate")
+        returnButton:SetSize(60, 16)
+        returnButton:SetPoint("RIGHT", titleBar, "RIGHT", 0, 0)
+        returnButton:SetText("Return All")
+        returnButton:SetNormalFontObject("GameFontNormalSmall")
+        returnButton:SetEnabled(false)  -- Start disabled
+        returnButton:SetScript("OnClick", function()
+            self:return_all_opt_out_cards(rosterBoard)
+        end)
+        returnButton:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText("Return All Players", 1, 1, 1)
+            GameTooltip:AddLine("Move all opt-out players back to the bench", nil, nil, nil, true)
+            GameTooltip:Show()
+        end)
+        returnButton:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+        
+        -- Store reference for enable/disable control
+        optOut.returnButton = returnButton
         
         local innerPadding = math.max(12, math.floor(padding * 0.6))
         local scrollbarPadding = 18
@@ -292,6 +329,11 @@ function SlotManager:place_card_in_slot(card, slot)
         
         Debug:Dev("organizer_ui", "Card placed in slot successfully")
         
+        -- Update Recall All button state
+        if NextKey222.BenchManager and NextKey222.BenchManager.update_recall_button_state then
+            NextKey222.BenchManager:update_recall_button_state(NextKey222.RosterBoard)
+        end
+        
     end, "SlotManager:place_card_in_slot")
 end
 
@@ -342,6 +384,9 @@ function SlotManager:place_card_in_opt_out(rosterBoard, card)
         -- Re-layout opt-out section horizontally
         self:layout_opt_out(rosterBoard)
         
+        -- Update Return All button state
+        self:update_return_button_state(rosterBoard)
+        
         Debug:Dev("organizer_ui", "Card placed in opt-out successfully")
         
     end, "SlotManager:place_card_in_opt_out")
@@ -382,6 +427,9 @@ function SlotManager:populate_opt_out(rosterBoard, players)
     -- Layout horizontally
     self:layout_opt_out(rosterBoard)
     
+    -- Update Return All button state
+    self:update_return_button_state(rosterBoard)
+    
     Debug:Dev("organizer_ui", "Populated opt-out with", #players, "players")
 end
 
@@ -391,6 +439,106 @@ end
 function SlotManager:layout_opt_out(rosterBoard)
     if not rosterBoard.optOutSection or not rosterBoard.optOutSection.scrollChild or not rosterBoard.optOutSection.playerCards then
         return
+    end
+    
+    -- MARK: Opt-Out Button Management
+    --- Update the enabled/disabled state of the Return All button
+    -- @param rosterBoard RosterBoard instance
+    function SlotManager:update_return_button_state(rosterBoard)
+        if not rosterBoard.optOutSection or not rosterBoard.optOutSection.returnButton then
+            return
+        end
+        
+        local hasOptOutCards = rosterBoard.optOutSection.playerCards and
+                              #rosterBoard.optOutSection.playerCards > 0
+        
+        rosterBoard.optOutSection.returnButton:SetEnabled(hasOptOutCards)
+        Debug:Dev("organizer_ui", "Return button state:", hasOptOutCards and "ENABLED" or "DISABLED")
+    end
+    
+    --- Return all opt-out player cards back to the bench
+    -- @param rosterBoard RosterBoard instance
+    function SlotManager:return_all_opt_out_cards(rosterBoard)
+        return NextKey222.SafeRun(function()
+            if not rosterBoard.optOutSection or not rosterBoard.optOutSection.playerCards then
+                return
+            end
+            
+            local cards = rosterBoard.optOutSection.playerCards
+            local totalCards = #cards
+            
+            if totalCards == 0 then
+                Debug:User("No opt-out players to return")
+                return
+            end
+            
+            -- Disable button during operation
+            if rosterBoard.optOutSection.returnButton then
+                rosterBoard.optOutSection.returnButton:SetEnabled(false)
+            end
+            
+            Debug:User("Returning " .. totalCards .. " opt-out players to bench...")
+            
+            -- Move each card back to bench
+            for i = #cards, 1, -1 do
+                local card = cards[i]
+                
+                if card and card.playerData then
+                    -- Update state in OrganizerState
+                    NextKey222.OrganizerState:MoveToBench(card.playerData.id)
+                    
+                    -- CRITICAL: Refresh card data from state before moving
+                    -- This ensures role icons and preferences are up-to-date
+                    local freshPlayerData = NextKey222.OrganizerState:GetPlayer(card.playerData.id)
+                    if freshPlayerData then
+                        -- BUG FIX: roles field reconstruction
+                        -- OrganizerState may not preserve the roles array, so rebuild it
+                        if not freshPlayerData.roles or #freshPlayerData.roles == 0 then
+                            -- Try to get roles from multiple sources
+                            if freshPlayerData.role then
+                                -- Use singular role field if present
+                                freshPlayerData.roles = {freshPlayerData.role}
+                            else
+                                -- Fallback: Get current role from profile
+                                local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(card.playerData.id)
+                                if profile and profile.role then
+                                    freshPlayerData.roles = {profile.role}
+                                else
+                                    -- Last resort: preserve existing roles or use default
+                                    freshPlayerData.roles = card.playerData.roles or {"DAMAGER"}
+                                end
+                            end
+                        end
+                        
+                        card.playerData = freshPlayerData
+                    end
+                    
+                    -- Move card to bench visually
+                    if NextKey222.CardMovement and NextKey222.CardMovement.place_card_in_bench then
+                        NextKey222.CardMovement:place_card_in_bench(rosterBoard, card)
+                    end
+                    
+                    Debug:Dev("organizer_ui", "Returned player to bench:", card.playerData.name)
+                end
+                
+                -- Remove from opt-out array
+                table.remove(cards, i)
+            end
+            
+            -- Re-layout opt-out section (should be empty now)
+            self:layout_opt_out(rosterBoard)
+            
+            -- Re-layout bench with returned cards
+            if NextKey222.BenchManager and NextKey222.BenchManager.layout_bench then
+                NextKey222.BenchManager:layout_bench(rosterBoard)
+            end
+            
+            -- Update button state (should be disabled now)
+            self:update_return_button_state(rosterBoard)
+            
+            Debug:User("Return complete!")
+            
+        end, "SlotManager:return_all_opt_out_cards")
     end
     
     local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
@@ -416,6 +564,153 @@ function SlotManager:layout_opt_out(rosterBoard)
     rosterBoard.optOutSection.scrollChild:SetHeight(cardHeight + innerPadding)
     
     Debug:Dev("organizer_ui", "Opt-out layout complete, total width:", xOffset)
+end
+
+-- MARK: Group Control Buttons (Add/Remove)
+--- Add control buttons to group title bar (only on last group)
+-- @param groupFrame Parent group frame
+-- @param groupIndex Current group index
+-- @param totalGroups Total number of groups
+-- @param rosterBoard RosterBoard instance
+function SlotManager:add_group_control_buttons(groupFrame, groupIndex, totalGroups, rosterBoard)
+    local config = NextKey222.UIConfig.ORGANIZER
+    local buttonSize = config.GROUP_BUTTON_SIZE or 20
+    local spacing = config.GROUP_BUTTON_SPACING or 3
+    local margin = config.GROUP_BUTTON_RIGHT_MARGIN or 2
+    
+    -- Remove Group button [-]
+    local removeButton = CreateFrame("Button", nil, groupFrame)
+    removeButton:SetSize(buttonSize, buttonSize)
+    removeButton:SetPoint("TOPRIGHT", groupFrame, "TOPRIGHT", -(buttonSize + spacing + margin), -4)
+    
+    -- Button background/border (using WoW's built-in minimize button texture)
+    removeButton:SetNormalTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Up")
+    removeButton:SetPushedTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Down")
+    removeButton:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highlight", "ADD")
+    
+    -- Click handler
+    removeButton:SetScript("OnClick", function()
+        self:on_remove_group_clicked(groupIndex, rosterBoard)
+    end)
+    
+    -- Tooltip
+    removeButton:SetScript("OnEnter", function(btn)
+        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+        GameTooltip:SetText("Remove Group " .. groupIndex, 1, 1, 1)
+        GameTooltip:AddLine("Moves players to bench", 0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+    end)
+    removeButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    
+    -- Hide if only 1 group
+    if totalGroups <= 1 then
+        removeButton:Hide()
+    end
+    
+    -- Add Group button [+]
+    local addButton = CreateFrame("Button", nil, groupFrame)
+    addButton:SetSize(buttonSize, buttonSize)
+    addButton:SetPoint("TOPRIGHT", groupFrame, "TOPRIGHT", -margin, -4)
+    
+    -- Button background/border (using WoW's built-in plus button texture)
+    addButton:SetNormalTexture("Interface\\Buttons\\UI-PlusButton-Up")
+    addButton:SetPushedTexture("Interface\\Buttons\\UI-PlusButton-Down")
+    addButton:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Highlight", "ADD")
+    
+    -- Click handler
+    addButton:SetScript("OnClick", function()
+        self:on_add_group_clicked(groupIndex, rosterBoard)
+    end)
+    
+    -- Tooltip
+    addButton:SetScript("OnEnter", function(btn)
+        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+        GameTooltip:SetText("Add Group " .. (groupIndex + 1), 1, 1, 1)
+        GameTooltip:AddLine("Creates new empty group", 0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+    end)
+    addButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    
+    -- Disable if at max (8 groups = 40 players max)
+    if totalGroups >= 8 then
+        addButton:Disable()
+        addButton:SetAlpha(0.5)
+    end
+    
+    -- Store references for cleanup
+    table.insert(rosterBoard.allInteractiveFrames, removeButton)
+    table.insert(rosterBoard.allInteractiveFrames, addButton)
+end
+
+--- Handle add group button click
+-- @param currentGroupIndex Index of group with the button
+-- @param rosterBoard RosterBoard instance
+function SlotManager:on_add_group_clicked(currentGroupIndex, rosterBoard)
+    return NextKey222.SafeRun(function()
+        -- Validate max limit (8 groups = 40 players)
+        local currentCount = #rosterBoard.groupSlots
+        if currentCount >= 8 then
+            Debug:User("Maximum 8 groups allowed")
+            return
+        end
+        
+        Debug:Dev("organizer", "Adding group " .. (currentCount + 1))
+        
+        -- Set manual group count override
+        rosterBoard.manualGroupCount = currentCount + 1
+        
+        -- Rebuild entire UI with new layout
+        rosterBoard:RebuildMainFrame()
+        
+        Debug:User("Added group " .. (currentCount + 1))
+        
+    end, "SlotManager:on_add_group_clicked")
+end
+
+--- Handle remove group button click
+-- @param groupIndex Index of group to remove
+-- @param rosterBoard RosterBoard instance
+function SlotManager:on_remove_group_clicked(groupIndex, rosterBoard)
+    return NextKey222.SafeRun(function()
+        -- Validate min limit
+        local currentCount = #rosterBoard.groupSlots
+        if currentCount <= 1 then
+            Debug:User("Must have at least 1 group")
+            return
+        end
+        
+        Debug:Dev("organizer", "Removing group " .. groupIndex)
+        
+        -- Check if this group has players
+        local hasPlayers = false
+        if rosterBoard.groupSlots[groupIndex] then
+            for _, slot in pairs(rosterBoard.groupSlots[groupIndex]) do
+                if slot.playerCard then
+                    hasPlayers = true
+                    break
+                end
+            end
+        end
+        
+        -- Move players to bench if needed
+        if hasPlayers then
+            for _, slot in pairs(rosterBoard.groupSlots[groupIndex]) do
+                if slot.playerCard and slot.playerCard.playerID then
+                    NextKey222.OrganizerState:MoveToBench(slot.playerCard.playerID)
+                end
+            end
+            Debug:User("Moved players from group " .. groupIndex .. " to bench")
+        end
+        
+        -- Set manual group count override
+        rosterBoard.manualGroupCount = currentCount - 1
+        
+        -- Rebuild entire UI with new layout
+        rosterBoard:RebuildMainFrame()
+        
+        Debug:User("Removed group " .. groupIndex)
+        
+    end, "SlotManager:on_remove_group_clicked")
 end
 
 -- MARK: Group Data

@@ -144,7 +144,9 @@ local UIConfig = {
         -- Window dimensions
         COLUMN_WIDTH = 180,              -- Width of each group column
         BENCH_WIDTH = 260,               -- Width of bench column
-        PADDING = 20,                    -- Padding between sections
+        PADDING = 20,                    -- Padding at window edges (left/right)
+        BENCH_LEFT_GAP = 10,             -- Gap between M+ groups and bench (left side of bench)
+        BENCH_RIGHT_GAP = 54,            -- Gap between bench and right window edge
         
         -- Section heights
         HEADER_HEIGHT = 90,              -- Header section height (2-row layout: poll + organize)
@@ -153,23 +155,26 @@ local UIConfig = {
         STATUS_BAR_HEIGHT = 30,          -- Status bar height
         
         -- Spacing between sections
-        GROUP_TO_OPTOUT_GAP = 30,        -- Gap between groups/bench and opt-out section
-        OPTOUT_TO_BOTTOM_GAP = 20,       -- Gap between opt-out section and bottom of window
+        HEADER_TO_GROUPS_GAP = 20,       -- Gap between header controls and M+ groups/bench area
+        GROUP_TO_OPTOUT_GAP = 5,        -- Gap between groups/bench and opt-out section (increased for better spacing)
+        OPTOUT_TO_BOTTOM_GAP = 40,       -- Gap between opt-out section and bottom of window (increased to prevent close button overlap)
         
         -- Button sizes (consistent constants)
         BUTTON_SIZES = {
-            PRIMARY = 110,               -- Standard action buttons
-            DROPDOWN = 130,              -- Dropdowns (need arrow space)
+            PRIMARY = 100,               -- Standard action buttons
+            DROPDOWN = 120,              -- Dropdowns (need arrow space)
             SECONDARY = 120,             -- Emphasized actions
-            CHECKBOX = 70,               -- Checkbox labels
+            CHECKBOX = 58,               -- Checkbox labels
             DEBUG = 100                  -- Debug utilities
         },
         
         -- Bench configuration
-        BENCH_TITLE_HEIGHT = 20,         -- Height of bench title bar
+        BENCH_TITLE_HEIGHT = 10,         -- Height of bench title bar
         BENCH_SCROLL_GAP = 8,            -- Gap between title and scroll frame
         BENCH_CARD_HEIGHT = 20,          -- Height of bench player cards
         BENCH_CARD_SPACING = 3,          -- Spacing between bench cards
+        BENCH_HORIZONTAL_PADDING = 10,   -- Left/right padding inside bench frame
+        BENCH_SCROLLBAR_PADDING = 18,    -- Extra padding for scrollbar
         
         -- Group slot configuration
         SLOT_HEIGHT = 100,               -- Height of each group slot
@@ -179,7 +184,12 @@ local UIConfig = {
         HEADER_LABEL_HEIGHT = 16,        -- Section label height
         HEADER_BUTTON_HEIGHT = 24,       -- Button row height
         HEADER_ROW_GAP = 8,              -- Gap between rows
-        HEADER_SECTION_GAP = 4           -- Gap between label and buttons
+        HEADER_SECTION_GAP = 4,          -- Gap between label and buttons
+        
+        -- Group title bar button config (add/remove groups)
+        GROUP_BUTTON_SIZE = 20,          -- Small icon buttons
+        GROUP_BUTTON_SPACING = 3,        -- Gap between [-] and [+]
+        GROUP_BUTTON_RIGHT_MARGIN = 2    -- Distance from right edge
     }
 }
 

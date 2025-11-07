@@ -67,10 +67,28 @@ function OrganizerState:SetPlayer(playerID, playerData)
         -- Ensure playerData has ID
         playerData.id = playerID
         
+        -- BUG FIX: Normalize roles field to always be an array
+        -- This prevents role icons from vanishing when cards are moved
+        if playerData.role and (not playerData.roles or #playerData.roles == 0) then
+            -- Convert singular role to array
+            playerData.roles = {playerData.role}
+            Debug:Dev("organizer_state", "Normalized singular role to array:", playerData.role)
+        elseif not playerData.roles or #playerData.roles == 0 then
+            -- No roles at all - try to get from profile
+            local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(playerID)
+            if profile and profile.role then
+                playerData.roles = {profile.role}
+                Debug:Dev("organizer_state", "Set roles from profile:", profile.role)
+            else
+                playerData.roles = {"DAMAGER"}  -- Safe default
+                Debug:Dev("organizer_state", "Applied default role: DAMAGER")
+            end
+        end
+        
         -- Store in players table
         self.players[playerID] = playerData
         
-        Debug:Dev("organizer_state", "SetPlayer:", playerID, "- stored in state")
+        Debug:Dev("organizer_state", "SetPlayer:", playerID, "- stored with roles:", playerData.roles and table.concat(playerData.roles, ",") or "NONE")
     end, "OrganizerState:SetPlayer")
 end
 
