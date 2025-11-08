@@ -529,61 +529,24 @@ function Events:OnGroupInviteConfirmation(name)
         NextKey222.Debug:Error("EVENTS: PUG Helper not available for group invite")
     end
     
-    -- NEW: Auto-show travel window for PUG context when invite popup appears
+    -- NOTE:
+    -- Previous behavior auto-showed the teleport window here on every invite confirmation.
+    -- This caused unexpected UI popups and conflicted with the design that the main UI
+    -- and travel window should only appear when explicitly requested (/nk or explicit triggers).
+    --
+    -- New behavior:
+    -- - PUGHelper.OnMPlusAccepted (and related logic) is responsible for showing the teleport
+    --   window when appropriate based on primary invite locking.
+    -- - We do NOT auto-toggle any main or teleport UI directly from this low-level event.
     if NextKey222.PUGHelper and NextKey222.PUGHelper:IsEnabled() then
-        NextKey222.Debug:User("EVENTS: PUG Helper enabled - checking for application match")
-        local matchedApp = NextKey222.PUGHelper:MatchInviteToApplication(name)
-        
-        -- CRITICAL FIX: Always show travel assistant, even if no match found
-        -- Use matched application data if available, otherwise show generic travel options
-        C_Timer.After(0.5, function()
-            if matchedApp then
-                NextKey222.Debug:User("EVENTS: Matched invite to application: " .. (matchedApp.name or "Unknown"))
-                NextKey222.Debug:User("EVENTS: Dungeon ID: " .. (matchedApp.dungeonID or "nil") .. ", Key Level: " .. (matchedApp.keyLevel or "nil"))
-                
-                NextKey222.Debug:User("EVENTS: Triggering teleport window for matched PUG invite")
-                if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
-                    -- Create fake keystone info for PUG context with matched data
-                    local fakeKeyInfo = {
-                        dungeonID = matchedApp.dungeonID,
-                        level = matchedApp.keyLevel or 0,
-                        ownerName = "PUG Group",
-                        source = "dungeon_portal",
-                    }
-                    
-                    NextKey222.Debug:User("EVENTS: Setting teleport target for PUG context")
-                    -- Set teleport target and show window
-                    NextKey222.Addon:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
-                    
-                    -- CRITICAL: Set PUG context before showing window
-                    NextKey222.Debug:User("EVENTS: Setting PUG mode context for teleport window")
-                    NextKey222.Addon:SetTeleportWindowContext({ mode = "PUG" })
-                    
-                    NextKey222.Addon:ToggleTeleportWindow()
-                    
-                    NextKey222.Debug:User("EVENTS: Travel window shown for PUG invite: " .. (matchedApp.name or "Unknown"))
-                else
-                    NextKey222.Debug:Error("EVENTS: Cannot show teleport window - Addon or ToggleTeleportWindow not available")
-                end
-            else
-                -- FALLBACK: Show generic travel window even without matched application
-                NextKey222.Debug:User("EVENTS: No matching application for invite from " .. name .. " - showing generic travel window")
-                
-                if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
-                    -- Set PUG context without specific dungeon (shows all travel options)
-                    NextKey222.Debug:User("EVENTS: Setting generic PUG mode context for teleport window")
-                    NextKey222.Addon:SetTeleportWindowContext({ mode = "PUG" })
-                    
-                    NextKey222.Addon:ToggleTeleportWindow()
-                    
-                    NextKey222.Debug:User("EVENTS: Generic travel window shown for unmatched PUG invite from: " .. name)
-                else
-                    NextKey222.Debug:Error("EVENTS: Cannot show teleport window - Addon or ToggleTeleportWindow not available")
-                end
-            end
-        end)
+        local matched_app = NextKey222.PUGHelper:MatchInviteToApplication(name)
+        if matched_app then
+            NextKey222.Debug:Dev("events", "Matched group invite confirmation to tracked application: " .. (matched_app.name or "Unknown"))
+        else
+            NextKey222.Debug:Dev("events", "No tracked application match for group invite confirmation from: " .. tostring(name))
+        end
     else
-        NextKey222.Debug:User("EVENTS: PUG Helper not enabled - skipping auto travel window")
+        NextKey222.Debug:Dev("events", "PUG Helper not enabled - skipping invite-based UI behavior")
     end
     
     NextKey222.Performance:StopProfile("OnGroupInviteConfirmation")

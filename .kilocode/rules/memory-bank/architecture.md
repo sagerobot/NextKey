@@ -2,382 +2,451 @@
 
 ## System Architecture
 
-NextKey follows the **Details! Damage Meter architectural patterns** for enterprise-grade WoW addon development. This is a hierarchical, modular architecture with strict error handling and performance monitoring.
+NextKey follows the Details! Damage Meter architectural patterns for enterprise-grade WoW addon development. This is a hierarchical, modular architecture with strict error handling, centralized debugging, and performance monitoring.
+
+All significant systems are organized under the `NextKey222` namespace, initialized and orchestrated via a single consolidated boot sequence.
 
 ## Core Architecture Principles
 
-1. **NextKey222 Namespace**: All modules organized under `NextKey222` hierarchy
-2. **Module Registration**: Every component must register with `NextKey222.RegisterModule()`
-3. **Error Resilience**: All critical operations use `NextKey222.SafeRun()` wrapper
-4. **Performance Monitoring**: Critical paths profiled with `NextKey222.Performance`
-5. **Centralized Debug**: Professional debug system via `NextKey222.Debug`
+1. NextKey222 Namespace: All modules organized under `NextKey222`.
+2. Module Registration: Every component registers with `NextKey222.RegisterModule()`.
+3. Error Resilience: All critical operations use `NextKey222.SafeRun()` wrapper.
+4. Performance Monitoring: Critical paths may use `NextKey222.Performance` profiling.
+5. Centralized Debug: `NextKey222.Debug` is the only debug/log facility.
 
 ## File Structure & Load Order
 
-### Critical Load Order (from [`NextKey.toc`](../../../NextKey.toc))
-```
-1. embeds.xml                     # Ace3 libraries (LibStub, AceAddon, etc.)
-2. core/config.lua                # Configuration defaults (MUST load before boot)
-3. core/debugService.lua          # Debug system (MUST load before boot)
-4. core/debugUI.lua               # Debug UI (MUST load before boot)
-5. boot.lua                       # Single consolidated initialization
-6. core/slashCommands.lua         # Slash command handlers
-7. ui/components.lua              # UI component system
-8. data/portals.lua               # Season dungeon data
-9. data/loot.lua                  # Season loot definitions
-10. [Core Modules]                # Keystones, profiles, comms, etc.
-11. [UI Modules]                  # Main UI, teleport, dungeon cards, PUG UI components
-12. [Options]                     # AceConfig options panels
-13. [Debug Modules]               # Test suites and validation tools
-```
+Critical load order (from [`NextKey.toc`](NextKey.toc:1)):
 
-### Module Organization
+1. embeds.xml                      — Ace3 libraries (LibStub, AceAddon, etc.)
+2. core/config.lua                 — Configuration defaults (MUST load before boot)
+3. core/debugService.lua           — Debug system (MUST load before boot)
+4. core/debugUI.lua                — Debug UI (MUST load before boot)
+5. boot.lua                        — Consolidated initialization (single entry point)
+6. core/slashCommands.lua          — Slash command handlers
+7. ui/components.lua               — UI component system
+8. data/portals.lua                — Season dungeon data
+9. data/loot.lua                   — Season loot definitions
+10. data/hearthstones.lua          — Hearthstone metadata
+11. Dungeon name helpers:
+    - core/dungeonNameService.lua
+    - core/dungeonNameMatcher.lua
+    - core/activityToDungeonMap.lua
+12. Core Modules:
+    - core/constants.lua
+    - core/ids.lua
+    - core/uiConfig.lua
+    - core/configurationContext.lua
+    - core/tooltip.lua
+    - core/theme.lua
+    - core/uiScale.lua
+    - core/responsive.lua
+    - core/performance.lua
+    - ui/performanceOptimizer.lua
+    - events/performanceHandlers.lua
+    - core/validation.lua
+    - core/fakePlayerService.lua
+    - core/profiles.lua
+    - core/playerIOData.lua
+    - core/adapters/debug.lua
+    - core/adapters/blizzard.lua
+    - core/adapters/libopenraid.lua
+    - core/adapters/raiderio.lua
+    - core/utils.lua
+    - core/season.lua
+    - core/libopenraid.lua
+    - core/ioCalculator.lua
+    - core/groupSuggestions.lua
+    - core/keystones.lua
+    - core/raiderio.lua
+    - core/scoring.lua
+    - core/comms.lua
+    - core/dungeonCards.lua
+13. Organizer Modules:
+    - core/characterStorage.lua
+    - core/types/player.lua
+    - core/organizer/autoDetection.lua
+    - core/organizer/playerDataBuilder.lua
+    - core/organizer/validation.lua
+    - core/organizer/comms.lua
+    - core/organizer/survey.lua
+    - core/organizer/state.lua       — OrganizerState (single source of truth)
+    - core/organizer/sorting.lua
+    - core/organizer/animationQueue.lua
+14. PUG Helper:
+    - core/pugHelper.lua
+    - core/pugHelper_state.lua
+    - core/pugHelper_applications.lua
+    - core/pugHelper_detection.lua
+15. Events:
+    - events/handlers.lua
+16. Debug:
+    - debug/init.lua
+    - debug/tools.lua
+    - debug/*tests.lua (various targeted tools/tests)
+17. UI:
+    - ui/main.lua
+    - ui/teleport.lua
+    - ui/dungeonCards.lua
+    - ui/lootWindow.lua
+    - ui/hearthstoneSelector.lua
+18. Organizer UI:
+    - ui/organizer/dragManager.lua
+    - ui/organizer/playerCard.lua
+    - ui/organizer/modules/benchManager.lua
+    - ui/organizer/modules/slotManager.lua
+    - ui/organizer/modules/cardMovement.lua
+    - ui/organizer/modules/keystoneManager.lua
+    - ui/organizer/rosterBoard.lua
+    - ui/organizer/surveyDialog.lua
+19. PUG Helper UI:
+    - ui/pugInviteNotification.lua
+    - ui/pugTravelAssistant.lua
+    - ui/pugApplicationTracker.lua
+20. Options:
+    - options/main.lua
 
-```
-NextKey/
-  boot.lua                     # Consolidated initialization (single entry point)
-  core/                        # Core business logic
-    config.lua                 # Settings management (AceDB schema)
-    debugService.lua           # Debug routing
-    debugUI.lua                # Debug configuration UI
-    keystones.lua              # Keystone detection/management
-    comms.lua                  # Inter-player messaging
-    profiles.lua               # Profile aggregation service
-    ioCalculator.lua           # IO score calculations
-    groupSuggestions.lua       # Intelligent grouping logic
-    raiderio.lua               # RaiderIO integration
-    season.lua                 # Season data handling
-    dungeonCards.lua           # Shared card model + loot tracking persistence
-    pugHelper.lua              # PUG system orchestrator
-    adapters/                  # Data source adapters
-      blizzard.lua             # Blizzard API adapter
-      raiderio.lua             # RaiderIO adapter
-      libopenraid.lua          # LibOpenRaid adapter
-      debug.lua                # Fake player adapter
-  ui/                          # User interface (Ace3 + component factory)
-    components.lua             # Component factory
-    main.lua                   # Main window & controls
-    dungeonCards.lua           # Dungeon card presentation
-    teleport.lua               # Travel assistance UI
-    lootWindow.lua             # Loot tracking interface
-    organizer/                 # M+ Group Organizer UI
-      rosterBoard.lua          # Main orchestrator (1,340 lines) - Delegates to modules
-      playerCard.lua           # Draggable player cards with keystone buttons
-      surveyDialog.lua         # Poll/survey UI (3-phase progressive)
-      modules/                 # Specialized module layer (Week 2 Simplification)
-        benchManager.lua       # Bench operations (462 lines)
-        slotManager.lua        # Slot creation/layout (411 lines)
-        cardMovement.lua       # Drag/drop validation (422 lines)
-        keystoneManager.lua    # Keystone designation system (215 lines)
-  data/                        # Static seasonal data
-    portals.lua                # Dungeon teleport data per season
-    loot.lua                   # Seasonal loot definitions
-  events/                      # Event handlers
-    handlers.lua               # WoW event processing
-    performanceHandlers.lua    # Throttled performance-sensitive events
-  options/                     # Configuration UI
-    main.lua                   # AceConfig options
-  debug/                       # Debug utilities and regression suites
-    init.lua                   # Debug initialization
-    tools.lua                  # Debug helpers
-    performanceTest.lua        # Performance regression suite
-```
+This load order ensures config, debug, and boot systems are ready before higher-level modules.
+
+## Module Organization
+
+Top-level structure:
+
+- boot.lua — Consolidated initialization (single entry point)
+- core/ — Core business logic and services
+- ui/ — UI systems and components
+- data/ — Static seasonal data
+- events/ — Event handlers
+- options/ — Configuration UI
+- debug/ — Debug utilities and visual test tools
+
+Key module groups:
+
+- Core systems:
+  - `core/config.lua` — AceDB defaults and schema (`NextKey222.Defaults`).
+  - `core/debugService.lua` / `core/debugUI.lua` — Debug system and UI.
+  - `core/performance.lua` — Performance helpers.
+  - `core/utils.lua` — Common helpers.
+  - `core/constants.lua`, `core/ids.lua`, `core/uiConfig.lua` — Shared constants/config.
+
+- Data adapters:
+  - `core/adapters/blizzard.lua`
+  - `core/adapters/raiderio.lua`
+  - `core/adapters/libopenraid.lua`
+  - `core/adapters/debug.lua` — Fake players.
+
+- Profiles & scoring:
+  - `core/profiles.lua`
+  - `core/playerIOData.lua`
+  - `core/ioCalculator.lua`
+  - `core/scoring.lua`
+
+- Keystone & dungeon model:
+  - `core/keystones.lua`
+  - `core/dungeonCards.lua`
+  - `data/portals.lua`
+  - `data/loot.lua`
+  - `data/hearthstones.lua`
+  - `core/dungeonNameService.lua`
+  - `core/dungeonNameMatcher.lua`
+  - `core/activityToDungeonMap.lua`
+
+- Communications:
+  - `core/comms.lua` — Central AceComm router, IO sharing, TELEPORT_SELECT, organizer routing.
+  - `core/libopenraid.lua` — LibOpenRaid integration.
+
+- Organizer:
+  - `core/organizer/state.lua` — OrganizerState (authoritative state).
+  - `core/organizer/comms.lua` — OrganizerComms on top of Communications.
+  - `core/organizer/playerDataBuilder.lua`
+  - `core/organizer/validation.lua`
+  - `core/organizer/survey.lua` — Participant survey / poll handling.
+  - `core/organizer/autoDetection.lua`
+  - `core/organizer/sorting.lua`
+  - `core/organizer/animationQueue.lua`
+  - UI: `ui/organizer/*.lua` modules (dragManager, playerCard, benchManager, slotManager, cardMovement, keystoneManager, rosterBoard, surveyDialog).
+
+- PUG Helper:
+  - `core/pugHelper.lua` — PUG Helper orchestrator.
+  - `core/pugHelper_state.lua` — PUG state machine + primary invite lock.
+  - `core/pugHelper_applications.lua` — LFG applications tracking, throttling, first-accepted-wins.
+  - `core/pugHelper_detection.lua` — Group type detection (PUG/GUILD/PREMADE/SOLO).
+  - UI helpers:
+    - `ui/pugInviteNotification.lua`
+    - `ui/pugTravelAssistant.lua`
+    - `ui/pugApplicationTracker.lua` (debug/visual).
+
+- Teleport & shared UI:
+  - `ui/teleport.lua` — Unified teleport window (normal + PUG modes).
+  - `ui/components.lua` — Component factory.
+  - `ui/main.lua`, `ui/dungeonCards.lua`, `ui/lootWindow.lua`, `ui/hearthstoneSelector.lua`.
 
 ## Key Components
 
-### 1. Boot System ([`boot.lua`](../../../boot.lua))
+### 1. Boot System ([`boot.lua`](boot.lua:1))
 
-**Single-file initialization** following industry standards:
-- Initializes `NextKey222` namespace
-- Sets up module registry
-- Provides `SafeRun()` error wrapper
-- Implements phased startup system
-- Registers with AceAddon-3.0
+Single-file initialization:
 
-**Initialization Phases**:
-1. **PreInit**: Basic setup, constants, namespaces
-2. **Init**: Core systems, database (AceDB)
-3. **PostInit**: Module initialization
-4. **Enable**: Event registration, UI creation
-5. **Finalize**: Final setup, announce ready
+- Initializes `NextKey222` namespace and `_G.NextKey`.
+- Sets up early `NextKey222.RegisterModule` and `NextKey222.SafeRun`.
+- Creates phased startup system:
 
-### 2. Debug System ([`core/debugService.lua`](../../../core/debugService.lua))
+  Phases:
+  - PreInit — Basic setup.
+  - Init — DB, adapters, core systems.
+  - PostInit — UI, comms, organizer, PUG helper.
+  - Enable — Event registration.
+  - Finalize — Character data capture and final readiness.
 
-**Professional 5-level debug system**:
-- **Level 0 (NONE)**: Production/silent
-- **Level 1 (ERROR)**: Critical errors only (always shown)
-- **Level 2 (USER)**: User-facing messages
-- **Level 3 (DEV)**: Development logging
-- **Level 4 (TRACE)**: Ultra-verbose tracing
+- Calls into modules via registered phase handlers; all critical init wrapped in SafeRun.
+- Integrates with AceAddon-3.0 lifecycle (`NextKey:OnInitialize()`).
 
-**Key Features**:
-- 23 organized categories in 5 logical groups
-- UI-based configuration (`/nk config` → Debug System)
-- Compile-time stripping when `DEV_MODE = false`
+### 2. Debug System ([`core/debugService.lua`](core/debugService.lua:1), [`core/debugUI.lua`](core/debugUI.lua:1))
 
-**Critical Rule**: **NEVER use `print()` - ALWAYS use `Debug:Error/User/Dev/Trace()`**
+- Levels: NONE, ERROR, USER, DEV, TRACE.
+- Category-based logging; UI-configurable.
+- Mandatory:
+  - No `print()` — always use `NextKey222.Debug`.
+- Used across all systems (boot, comms, organizer, PUG, teleport).
 
-### 3. Module Registry System
+### 3. Communications Core ([`core/comms.lua`](core/comms.lua:413))
 
-**All modules MUST register** using this pattern - see individual module files for implementation.
+Responsibilities:
 
-**Key Modules**:
-- `Keystones`: Keystone detection and management
-- `Communications`: Inter-player messaging (AceComm-3.0)
-- `ProfilesService`: Centralized player data
-- `IOCalculator`: Score calculations (MythicPlanner.com algorithm)
-- `GroupSuggestions`: Intelligent group formation
-- `UI`: Main user interface
-- `FakePlayerService`: Testing data generation
-- `RosterBoard`: M+ Group Organizer main UI (orchestrator)
-- `BenchManager`: Bench operations module
-- `SlotManager`: Slot creation and layout module
-- `CardMovement`: Drag-and-drop validation module
-- `KeystoneManager`: Keystone designation system module
+- Registers AceComm prefix (`COMM_PREFIX`).
+- Serializes/deserializes messages via AceSerializer.
+- Throttling & batching for group-size-scaled load.
+- IO sharing:
+  - `PLAYER_IO_UPDATE`, `REQUEST_PLAYER_IO`.
+  - `playerIOCache` with validation and cleanup.
+- Handles:
+  - `SYNC`, preferences, legacy dungeon scores.
+  - Guild keystone share (`KEYSTONE_REQUEST` / `KEYSTONE_SHARE`).
+- TELEPORT_SELECT:
+  - Special opcode:
+    - Ignores own messages.
+    - Validates `key` (dungeonID, level).
+    - Calls `NextKey:SetTeleportTargetKey(k, { source = "remote_select", broadcast = false, receivedFrom = sender })`.
+    - Ensures teleport window visible/updated as needed.
+- Organizer integration:
+  - Routes organizer opcodes (ORG_*), poll requests/responses, organizer data exchange.
+  - Delegates poll handling to survey and organizer UI modules.
 
-### 4. Data Flow Architecture
+### 4. OrganizerState & Organizer Stack
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Data Sources                             │
-├─────────────────────────────────────────────────────────────┤
-│  Blizzard API  │  RaiderIO  │  LibOpenRaid  │  Fake Players │
-└────────┬────────────┬────────────┬─────────────┬────────────┘
-         │            │            │             │
-         ▼            ▼            ▼             ▼
-    ┌────────────────────────────────────────────────┐
-    │           Adapter Layer                        │
-    │  BlizzardAdapter  RaiderIOAdapter              │
-    │  LibOpenRaidAdapter  DebugAdapter              │
-    └────────────────┬───────────────────────────────┘
-                     │
-                     ▼
-          ┌──────────────────────┐
-          │  ProfilesService     │  ← Centralized profile building
-          │  (Unified Profiles)  │
-          └──────────┬───────────┘
-                     │
-         ┌───────────┴──────────────────────┐
-         ▼                                   ▼
-    ┌─────────────┐                  ┌─────────────┐
-    │ IOCalculator│                  │  UI System  │
-    │ (Scoring)   │                  │  (Display)  │
-    └──────┬──────┘                  └──────┬──────┘
-           │                                │
-           └────────────┬───────────────────┘
-                        ▼
-              ┌──────────────────┐
-              │ Group Suggestions│ / M+ Group Organizer
-              │ (Intelligence)   │
-              └──────────────────┘
-```
+#### OrganizerState ([`core/organizer/state.lua`](core/organizer/state.lua:1))
 
-### 5. Communication System ([`core/comms.lua`](../../../core/comms.lua))
+Single source of truth for organizer:
 
-**Protocol**: AceComm-3.0 with custom opcodes
-- **Prefix**: `NKEY1` (versioned)
-- **Channels**: PARTY, RAID, GUILD, WHISPER
-- **Throttling**: 2 seconds between messages per player
-- **Serialization**: AceSerializer-3.0
+- Tracks:
+  - `players`, `bench`, `optOut`, `groups`, `keystones`, `activePoll`.
+- APIs:
+  - Get/Set/Update/Remove players.
+  - Location moves: bench, opt-out, specific slots.
+  - Keystone designation per group.
+  - Poll lifecycle & responses, persisted state.
+- Persistence:
+  - Saves only real players to SavedVariables.
+  - Restores state on load, rehydrating bench/groups/keystones/opt-out.
+- All organizer UI (roster board, cards, etc.) read from OrganizerState; cards are views only.
 
-**Message Types**: `SYNC`, `PLAYER_IO_UPDATE`, `REQUEST_PLAYER_IO`, `PREFERENCE`, `KEYSTONE_REQUEST/SHARE`
+#### Organizer Communications ([`core/organizer/comms.lua`](core/organizer/comms.lua:1))
 
-**Data Sharing**: Keystones via LibOpenRaid (primary), IO scores via custom communication, preferences via AceComm-3.0
+- Defines organizer opcodes (ORG_ADDON_PING/PONG, ORG_POLL_REQUEST/RESPONSE, ORG_ROSTER_FULL/DELTA, etc.).
+- Uses main Communications module for actual send/receive.
+- Provides helpers like `SendPollRequest`, `SendPollResponse`, `QueueRosterUpdate`.
 
-### 6. Profile System ([`core/profiles.lua`](../../../core/profiles.lua))
+#### Survey & UI
 
-**Centralized profile building** with adapter pattern:
-- **Data Sources**: Blizzard API → LibOpenRaid → RaiderIO → Fake Players
-- **Caching**: 5-minute TTL with event-driven invalidation
-- **Profile Contract**: Standardized `PlayerProfile` format
-- **Event Invalidation**: Auto-refresh on spec changes, roster updates
+- `core/organizer/survey.lua` + `ui/organizer/surveyDialog.lua`:
+  - Poll creation, polling UI, participant responses.
+- `ui/organizer/rosterBoard.lua` & modules:
+  - RosterBoard uses OrganizerState for deterministic layouts.
+  - `benchManager`, `slotManager`, `cardMovement`, `keystoneManager`:
+    - Encapsulate layout and drag/drop/keystone designation.
+  - Animation & UX handled via `animationQueue.lua`.
 
-### 7. IO Calculator ([`core/ioCalculator.lua`](../../../core/ioCalculator.lua))
+### 5. Teleport System ([`ui/teleport.lua`](ui/teleport.lua:1), `core/keystones.lua`, `core/comms.lua`)
 
-**MythicPlanner.com algorithm implementation**:
-- Formula: `Rating = BaseLevel + (PT * 37.5) - (overtime_penalty)`
-- PT = `Min[(TLimit - TRun) / TLimit, 0.40]`
-- Overtime penalty: -15 points if over time
+Core rules:
 
-### 8. UI System ([`ui/main.lua`](../../../ui/main.lua))
+- Single entry: `NextKey:SetTeleportTargetKey(keyInfo, opts)` (implemented on the Addon).
+- Leader-only broadcast:
+  - When `opts.broadcast = true` and caller is leader/in group:
+    - Communications sends `TELEPORT_SELECT` with minimal key.
+- Receiver:
+  - `Communications:ProcessMessage()`:
+    - On TELEPORT_SELECT:
+      - Applies via SetTeleportTargetKey (no re-broadcast).
+      - Ensures teleport window shown/updated.
 
-**Dual-view interface**:
-1. **Keystone View**: Ranked list of party keystones with IO gains
-2. **Dungeon View**: Personal scores and preferences per dungeon
+UI behavior:
 
-**Features**: Pure AceGUI-3.0 widget system, dynamic compact mode, real-time IO gain tooltips
+- `ui/teleport.lua`:
+  - Builds unified teleport window:
+    - Keystone destination card(s).
+    - Configurable hearthstone card.
+    - In PUG mode with `dungeonComplete = true`, adds Leave Group card.
+  - Supports:
+    - Normal mode (leader-selected keystone).
+    - PUG mode (PUG Helper context + optional Leave Group).
+  - Uses UIConfig and UIComponents for consistent look and secure buttons.
 
-### 9. UI Components Factory System ([`ui/components.lua`](../../../ui/components.lua))
+### 6. PUG Helper Stack
 
-**Factory pattern for consistent UI creation**:
-- `Components:CreateBackdrop()`, `CreateButton()`, `CreateFrame()`, `CreateLabel()`, `CreateIcon()`
-- Type constants for all component types
-- 4 color schemes (DARK, STANDARD, LIGHT, TRANSPARENT)
-- Component pooling for performance optimization
+PUG mode is an integrated system that drives decisions and travel without separate bespoke teleports.
 
-### 10. Loot Targeting System ([`ui/lootWindow.lua`](../../../ui/lootWindow.lua) + [`data/loot.lua`](../../../data/loot.lua))
+- `core/pugHelper.lua`:
+  - Wires events to state/applications/detection helpers.
+  - Provides PUG-specific entry points.
 
-**Season-aware loot tracking**:
-- Featured items (always visible, protected)
-- Dropdown items (quick toggles)
-- Manual input (custom item IDs)
-- Run counter tracking (+7 and higher completions)
-- Persistence via `db.char.lootTracking`
+- `core/pugHelper_state.lua`:
+  - State machine:
+    - `IDLE` → `TRACKING` → `INVITE_RECEIVED` → `IN_GROUP` → `RUN_COMPLETE` → `IDLE`.
+  - Primary invite lock:
+    - `primaryInvite` + `activeInviteID` enforce first-accepted-wins.
+  - Reset/cleanup helpers.
+
+- `core/pugHelper_applications.lua`:
+  - Throttled handling of `C_LFGList` updates.
+  - Caches search result info, parses key levels, tracks status history.
+  - On accepted invite:
+    - Uses primaryInvite lock.
+    - Calls `OnMPlusAccepted(appData)` to:
+      - Map activity/group names to dungeon IDs.
+      - Set PUG-mode teleport target via `SetTeleportTargetKey` (broadcast = false).
+      - Open teleport window in PUG mode (unified UI).
+
+- `core/pugHelper_detection.lua`:
+  - Determines group type: `PUG`, `GUILD`, `PREMADE`, `SOLO`.
+  - Uses:
+    - LFG active entry.
+    - PUGHelper markers.
+    - Guild membership proportion.
+
+- UI integrations:
+  - `ui/pugInviteNotification.lua` — Enhanced invite notice.
+  - `ui/pugTravelAssistant.lua` — Uses shared teleport window for PUG travel.
+  - `ui/pugApplicationTracker.lua` — Debug/visual tool; SafeRun-wrapped to avoid AceGUI errors.
+
+### 7. Loot Targeting System ([`ui/lootWindow.lua`](ui/lootWindow.lua:1), [`data/loot.lua`](data/loot.lua:1))
+
+- Season-aware definitions based on `data/loot.lua`.
+- Tracks targeted items, run counts, persistence via AceDB.
+- Integrated with dungeon cards and main UI (loot-focused workflows).
 
 ## Critical Implementation Patterns
 
-### 1. Module Registration (MANDATORY)
-All modules must register with `NextKey222.RegisterModule()` and implement `Initialize()` function.
+### Module Registration
 
-### 2. Error Handling (MANDATORY)
-All critical operations MUST use `NextKey222.SafeRun()` wrapper.
+All modules must:
 
-### 3. Debug Usage (MANDATORY)
-Always use `Debug:Error/User/Dev/Trace()` - NEVER `print()`.
+- Attach to `NextKey222` namespace.
+- Register via `NextKey222.RegisterModule("Name", ModuleTable)`.
+- Provide `Initialize()` when they have startup behavior.
 
-### 4. Performance Profiling
-Use `NextKey222.Performance:StartProfile()` / `StopProfile()` for expensive operations.
+### Error Handling
+
+- Wrap critical code in `NextKey222.SafeRun(function() ... end, "Context")`.
+- No unguarded calls in comms, file I/O-like logic, or UI construction.
+
+### Debug Usage
+
+- Always use:
+  - `Debug:Error(...)`
+  - `Debug:User(category, ...)` or `Debug:User(...)`
+  - `Debug:Dev(category, ...)`
+  - `Debug:Trace(category, ...)`
+- Never use `print()`.
+
+### Performance Profiling
+
+- Use `NextKey222.Performance:StartProfile(name)` / `StopProfile(name)` for expensive paths when enabled.
 
 ## Data Persistence
 
-### SavedVariables Structure ([`NextKeyDB`](../../../NextKey.toc:7))
-```lua
-NextKeyDB = {
-    global = {
-        leaderSettings = { ... },
-        ui = { ... },
-        communications = { ... },
-        debug = { ... },
-        performance = { ... }
-    },
-    char = {
-        liveRuns = {},           # Run history
-        preferences = {},        # Dungeon preferences
-        targetedItems = {},      # Loot targets
-        dungeonRunCounts = {},   # Loot tracking
-        mythicPlus = { activeSeason, seasons = {...} }
-    }
-}
-```
+SavedVariables structure (from [`NextKey.toc`](NextKey.toc:7)):
 
-## External Dependencies
-
-### Hard Dependencies
-- **RaiderIO**: Primary score data source (addon must be installed)
-- **Ace3 Framework**: Core addon functionality (AceAddon, AceComm, AceDB, AceConfig, AceGUI, AceSerializer)
-
-### Optional Dependencies
-- **LibOpenRaid**: Alternative/supplemental score source
-- **LibStub**: Library loading system (embedded)
+- `NextKeyDB.global`:
+  - leaderSettings, ui, communications, debug, performance, etc.
+- `NextKeyDB.char`:
+  - liveRuns, preferences, targetedItems, dungeonRunCounts, mythicPlus seasons.
+  - Organizer-specific:
+    - `organizerState` (filtered real players, groups, keystones, opt-out, poll metadata).
 
 ## Integration Points
 
-### WoW API Integration
-- **C_MythicPlus**: Keystone detection, score tracking
-- **C_ChallengeMode**: Dungeon information, completion data
-- **C_PlayerInfo**: Player rating summaries
-- **C_Container**: Bag scanning for keystones
-- **C_GuildInfo**: Guild roster access
-
-### RaiderIO Integration
-Profile access, score coloring, dungeon data retrieval.
-
-### LibOpenRaid Integration
-Keystone sharing, player information, guild coordination.
+- Blizzard APIs:
+  - `C_MythicPlus`, `C_ChallengeMode`, `C_PlayerInfo`, `C_Container`, `C_GuildInfo`, `C_LFGList`, etc.
+- RaiderIO:
+  - Used via adapter for scores and dungeon data.
+- LibOpenRaid:
+  - Guild/party keystone sharing (where available).
 
 ## Performance Characteristics
 
-### Target Metrics
-- **Initialization**: <2 seconds addon load time
-- **UI Response**: <100ms for all interactions
-- **Communication Sync**: <1 second for full party
-- **Memory Baseline**: <10MB at startup
-- **Memory Peak**: <50MB during heavy usage
-- **Combat Impact**: Zero frame rate effect
+Targets:
 
-### Optimization Strategies
-- **Profile caching**: 5-minute TTL with event invalidation
-- **Message throttling**: 2-second minimum between messages
-- **Lazy loading**: UI created on-demand
-- **Batch updates**: Group UI changes together
-- **Table pools**: Reuse tables where possible
+- Initialization: < 2 seconds.
+- UI interactions: < 100ms.
+- Memory baseline: < 10MB.
+- Heavy usage peak: < 50MB.
+- No meaningful FPS impact.
+
+Strategies:
+
+- On-demand UI creation.
+- Caching with TTL and event-based invalidation.
+- Message throttling and batching.
+- Table reuse where appropriate.
 
 ## Critical Paths
 
-### 1. Keystone Detection Path
-User has keystone → Bag scan/Blizzard API → LibOpenRaid check → RaiderIO fallback → Store in cache → Notify UI → Render display
+1. Keystone Detection:
+   - Scan + APIs → Profiles → IOCalculator → UI rendering.
 
-### 2. Score Calculation Path
-Request scores → ProfilesService → Adapters (priority order) → IOCalculator → Cache result → Display in UI/tooltips
+2. IO / Comms:
+   - Request/Share IO → Validate → Cache → UI updates.
 
-### 3. Communication Path
-Event trigger → Serialize data → AceComm send → Party receives → Deserialize → Validate → Store in cache → Update UI
+3. Teleport Sync:
+   - Leader SetTeleportTargetKey(broadcast=true) → TELEPORT_SELECT → receivers SetTeleportTargetKey(remote_select) → teleport window update.
 
-### 4. UI Render Path
-User opens /nk → Collect keystones → Get party profiles → Calculate IO ranges → Sort by mode → Render cards → Display
+4. Organizer:
+   - Poll → OrganizerComms → OrganizerState → RosterBoard (views) → persisted state.
 
-## Error Handling Strategy
+5. PUG Helper:
+   - LFG apps → trackedApplications → primary invite lock → PUG detection → PUG context → Teleport window.
 
-### Error Recovery Layers
-1. **Function Level**: `NextKey222.SafeRun()` wraps critical operations
-2. **Module Level**: Each module's `Initialize()` handles startup errors
-3. **Event Level**: Event handlers isolated with pcall
-4. **Communication Level**: Message validation prevents corrupt data
-5. **UI Level**: Graceful degradation when data unavailable
+## Naming Conventions
 
-### Fallback Mechanisms
-- **Score Data**: RaiderIO → LibOpenRaid → Blizzard API → Default 0
-- **Keystones**: Blizzard API → LibOpenRaid → Bag scan → Manual entry
-- **Profiles**: ProfilesService → Individual adapters → Minimal profile
-- **Communication**: AceComm → Manual sync → Solo mode
-
-## Season Management
-
-### Season Data Location
-- [`data/portals.lua`](../../../data/portals.lua) — travel/teleport metadata
-- [`data/loot.lua`](../../../data/loot.lua) — featured/dropdown loot definitions (season keyed)
-
-### Season Updates (Critical Process)
-1. Add new season blocks to `portals.lua` **and** `loot.lua`
-2. Update `activeSeasonKey` in both files
-3. Update ID mappings in [`core/utils.lua`](../../../core/utils.lua)
-4. Test dungeon detection and loot lookup thoroughly
-
-## Naming Conventions (STRICTLY ENFORCED)
-
-- **Functions**: `snake_case` - `process_keystone_data()`, `update_player_score()`
-- **Variables**: `snake_case` - `player_data`, `keystone_list`
-- **Modules**: `PascalCase` - `Keystones`, `IOCalculator`
-- **Constants**: `UPPER_SNAKE_CASE` - `COMM_PREFIX`, `MAX_KEY_LEVEL`
-- **Private functions**: Underscore prefix - `_validate_input()`
-- **Event handlers**: Start with "On" - `OnKeystoneUpdate()`
+- Functions: snake_case
+- Variables: snake_case
+- Modules: PascalCase (e.g., OrganizerState, PUGHelper)
+- Constants: UPPER_SNAKE_CASE
+- Private functions: `_prefix`
+- Event handlers: `OnEventName`
 
 ## Code Organization (MARK Comments)
 
-All files use `-- MARK:` comments for VS Code navigation:
-```lua
--- MARK: Module Definition
--- MARK: Public Interface  
--- MARK: Private Implementation
--- MARK: Event Handlers
-```
+Use:
 
-## Key Design Decisions
+- `-- MARK: Module Definition`
+- `-- MARK: Public Interface`
+- `-- MARK: Private Implementation`
+- `-- MARK: Event Handlers`
 
-### Why Single boot.lua?
-- **Industry Standard**: All major WoW addons use single init file
-- **Simplified Architecture**: Easier to understand and maintain
-- **Better Performance**: Fewer file loads
-- **Clear Dependencies**: Linear initialization flow
+for navigation and consistency.
 
-### Why ProfilesService?
-- **Single Source of Truth**: All profile data flows through one service
-- **Consistent Caching**: Unified cache management
-- **Adapter Pattern**: Easy to add new data sources
-- **Performance**: Reduces redundant API calls
+## Design Rationale
 
-### Why Debug System?
-- **Professional Quality**: Enterprise-grade debugging
-- **Performance**: Zero overhead when disabled
-- **User Experience**: Clean output without debug spam
-- **Maintainability**: Categorized, filterable logging
+- Single boot.lua:
+  - Linear, predictable initialization.
+  - Matches industry-standard WoW addon architecture.
+- OrganizerState:
+  - Central, durable truth for organizer; eliminates UI-driven data sources.
+- Teleport Single-Source API:
+  - Prevents divergence between local selection and sync.
+  - TELEPORT_SELECT has one meaning and path.
+- PUG Helper Composition:
+  - Clear separation of state/applications/detection/UI.
+  - Uses shared teleport UI to avoid fragmentation.

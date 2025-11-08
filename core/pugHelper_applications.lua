@@ -258,26 +258,82 @@ function PUGHelper:OnApplicationStatusChanged(resultID, newStatus, oldStatus)
 
         -- Check if application was accepted (invited status)
         if newStatus == "invited" then
-            Debug:Dev("pughelper", "Application accepted! Triggering OnMPlusAccepted for: " .. (appData.name or "Unknown"))
-            -- Trigger teleport window
-            self:OnMPlusAccepted(appData)
+            -- First-accepted-wins:
+            -- If no primary invite yet, lock this one and drive teleport.
+            -- If a primary already exists, ignore this as a secondary (no retarget).
+            if not self.primaryInvite and not self.activeInviteID then
+                self:SetPrimaryInvite(appData)
+                Debug:Dev("pughelper", "Application invited and locked as primary: " .. (appData.name or "Unknown"))
+                self:TransitionToState(PUGHelper.STATE.INVITE_RECEIVED, "first_invite_locked")
+                self:OnMPlusAccepted(appData)
+            else
+                Debug:Dev("pughelper", "Secondary invited application ignored (primary locked): " .. (appData.name or "Unknown"))
+            end
         end
         
         -- Transition to IN_GROUP when invite is accepted
         if newStatus == "inviteaccepted" then
             Debug:Dev("pughelper", "Invite accepted - transitioning to IN_GROUP state")
-            -- Mark this group as PUG so detection persists through loading screens
-            if self.MarkGroupAsPUG then
-                self:MarkGroupAsPUG()
+
+            -- CRITICAL FIX: Set primary invite if not already set
+            -- This handles cases where status skips "invited" and goes straight to "inviteaccepted"
+            if not self.primaryInvite and not self.activeInviteID then
+                self:SetPrimaryInvite(appData)
+                Debug:Dev("pughelper", "Primary invite set on inviteaccepted (missed invited status): " .. (appData.name or "Unknown"))
+                self:OnMPlusAccepted(appData)
             end
-            self:TransitionToState(PUGHelper.STATE.IN_GROUP, "invite_accepted")
+
+            -- Only treat as our tracked PUG if it matches the primary invite (or if no primary set)
+            if (self.activeInviteID and appID == self.activeInviteID) or not self.activeInviteID then
+                if self.MarkGroupAsPUG then
+                    self:MarkGroupAsPUG()
+                end
+                self:TransitionToState(PUGHelper.STATE.IN_GROUP, "invite_accepted")
+                self:ClearPrimaryInvite("inviteaccepted")
+            else
+                Debug:Dev("pughelper", "Inviteaccepted for non-primary application - ignoring for PUGHelper state")
+            end
         end
 
-        -- PERFORMANCE FIX: Batch UI updates to prevent excessive refreshes
+        -- PERFORMANCE FIX + primary invite unlock handling
         local shouldUpdateUI = false
-        if newStatus == "declined" or newStatus == "cancelled" or newStatus == "failed" or newStatus == "declined_full" or newStatus == "invitedeclined" then
+        local is_terminal_failure = (
+            newStatus == "declined"
+            or newStatus == "cancelled"
+            or newStatus == "failed"
+            or newStatus == "declined_full"
+            or newStatus == "invitedeclined"
+        )
+
+        if is_terminal_failure then
+            -- If this was the primary invite, unlock and immediately allow another invited app to become primary.
+            if self.activeInviteID and appID == self.activeInviteID then
+                self:ClearPrimaryInvite("primary_terminal_status_" .. tostring(newStatus))
+
+                -- Promote the earliest remaining invited application (if any) to new primary.
+                local nextPrimary = nil
+                for _, candidate in pairs(self.trackedApplications) do
+                    if candidate.status == "invited" then
+                        if not nextPrimary or (candidate.appliedAt or 0) < (nextPrimary.appliedAt or 0) then
+                            nextPrimary = candidate
+                        end
+                    end
+                end
+
+                if nextPrimary then
+                    self:SetPrimaryInvite(nextPrimary)
+                    Debug:Dev("pughelper", "Promoting secondary invited application to new primary after decline: " .. (nextPrimary.name or "Unknown"))
+                    -- Drive teleport for the new primary immediately.
+                    self:OnMPlusAccepted(nextPrimary)
+                    -- Ensure state reflects that we have an active invite again.
+                    if self:GetState() ~= PUGHelper.STATE.INVITE_RECEIVED then
+                        self:TransitionToState(PUGHelper.STATE.INVITE_RECEIVED, "secondary_invite_promoted")
+                    end
+                end
+            end
+
             self.trackedApplications[appID] = nil
-            Debug:Dev("pughelper", "Removed application: " .. appData.name)
+            Debug:Dev("pughelper", "Removed application: " .. (appData.name or ("AppID " .. appID)))
             shouldUpdateUI = true
 
             if not next(self.trackedApplications) and self:GetState() == PUGHelper.STATE.TRACKING then
@@ -307,6 +363,14 @@ function PUGHelper:OnMPlusAccepted(appData)
     end
  
     Debug:Dev("pughelper", "OnMPlusAccepted called for: " .. (appData.name or "Unknown"))
+
+    -- Respect primary invite lock:
+    -- Only the current primary (if any) may drive teleport targeting.
+    if self.primaryInvite and self.activeInviteID and appData.id ~= self.activeInviteID then
+        Debug:Dev("pughelper", "OnMPlusAccepted: app is not primary (" .. tostring(appData.id) ..
+            " != " .. tostring(self.activeInviteID) .. "), ignoring teleport update")
+        return
+    end
     
     local NextKey = NextKey222.Addon
     if not NextKey or not NextKey.SetTeleportWindowContext or not NextKey.ToggleTeleportWindow then

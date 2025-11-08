@@ -31,6 +31,57 @@ local Communications = {
 NextKey222.Communications = Communications
 NextKey222.RegisterModule("Communications", Communications)
 
+-- MARK: Teleport Selection Broadcast (Leader → Party)
+-- Broadcasts the currently selected teleport key from the leader so all clients
+-- can align their teleport window with the leader's choice.
+-- Single-source-of-truth: all flows MUST call NextKey:SetTeleportTargetKey(key, { broadcast = true })
+-- from the leader; this helper only serializes and sends the message.
+function Communications:BroadcastTeleportSelection(key)
+    -- Validate keystone data
+    if not key or not key.dungeonID or not key.level then
+        NextKey222.Debug:Dev("teleport", "BroadcastTeleportSelection: invalid key payload")
+        return
+    end
+
+    -- Only group leader (or solo, for testing) may broadcast selection
+    if not NextKey or not NextKey.IsLeaderOrSolo or not NextKey:IsLeaderOrSolo() then
+        NextKey222.Debug:Dev("teleport", "BroadcastTeleportSelection: caller is not leader/solo - blocked")
+        return
+    end
+
+    -- Require an actual group context for network broadcast
+    if not IsInGroup() and not IsInRaid() then
+        NextKey222.Debug:Dev("teleport", "BroadcastTeleportSelection: not in group/raid - no broadcast")
+        return
+    end
+
+    -- Lightweight Details-style usage of existing prefix (no extra throttling needed)
+    local channel = IsInRaid() and "RAID" or "PARTY"
+
+    local payload = {
+        opcode = "TELEPORT_SELECT",
+        version = NextKey.version or "1.0.0",
+        timestamp = GetTime(),
+        sender = NextKey.playerFullName or (UnitName("player") .. "-" .. GetRealmName()),
+        key = {
+            dungeonID = key.dungeonID,
+            level = key.level,
+            ownerName = key.ownerName,
+            ownerShort = key.ownerShort,
+            class = key.class,
+            io = key.io,
+            source = key.source or "leader_select",
+        }
+    }
+
+    local serialized = AceSerializer:Serialize(payload)
+    NextKey:SendCommMessage(NextKey222.Constants.COMM_PREFIX, serialized, channel)
+
+    NextKey222.Debug:Dev("teleport",
+        string.format("BroadcastTeleportSelection → %s (dungeonID=%s, level=%s)",
+            channel, tostring(key.dungeonID), tostring(key.level)))
+end
+
 
 
 -- MARK: Message Serialization
@@ -363,26 +414,67 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
     if prefix ~= NextKey222.Constants.COMM_PREFIX then
         return
     end
-    
+
     if sender == NextKey.playerFullName then
         return
     end
-    
+
     local payload = self:ParseSyncPayload(message)
     if not payload then
         NextKey222.Debug:Dev("comms", "Failed to parse message from", sender)
         return
     end
-    
-    -- Process dungeon scores from other players
+
+    -- Handle leader-selected teleport sync (TELEPORT_SELECT)
+    if payload.opcode == "TELEPORT_SELECT" and type(payload.key) == "table" then
+        local my_name = NextKey.playerFullName or (UnitName("player") .. "-" .. GetRealmName())
+
+        -- Ignore echoes of our own broadcast
+        if sender == my_name then
+            return
+        end
+
+        -- Defensive validation of received key payload
+        local k = payload.key
+        if not k.dungeonID or not k.level then
+            NextKey222.Debug:Dev("teleport", "TELEPORT_SELECT: invalid key from", sender)
+            return
+        end
+
+        NextKey222.Debug:Dev("teleport", "Received TELEPORT_SELECT from", sender,
+            "dungeonID=", k.dungeonID, "level=", k.level)
+
+        -- Apply remote selection using the single-source API without rebroadcast
+        if NextKey and NextKey.SetTeleportTargetKey then
+            NextKey:SetTeleportTargetKey(k, {
+                source = "remote_select",
+                broadcast = false,
+                receivedFrom = sender
+            })
+        end
+
+        -- Ensure teleport UI reflects the synced selection:
+        -- - If window is not visible, open it to show the chosen key
+        -- - If already visible, the teleport module's Refresh logic will display updated data
+        if NextKey and NextKey.ToggleTeleportWindow then
+            local window = NextKey.teleportWindow and NextKey.teleportWindow.frame
+            if not window or not window:IsShown() then
+                NextKey:ToggleTeleportWindow()
+            end
+        end
+
+        return
+    end
+
+    -- Process dungeon scores from other players (legacy path)
     if payload.opcode == NextKey222.Constants.COMM_OPCODES.DUNGEON_SCORES then
         if NextKey222.IOCalculator and payload.dungeonScores then
             NextKey222.IOCalculator:ReceivePlayerDungeonScores(payload.sender, payload.dungeonScores)
         end
         return
     end
-    
-    -- Handle different message types
+
+    -- Handle standard message types
     if payload.opcode == NextKey222.Constants.COMM_OPCODES.SYNC then
         self:ProcessSync(payload, sender)
     elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.PREFERENCE_UPDATE then

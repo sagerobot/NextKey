@@ -9,13 +9,21 @@ NextKey222.RegisterModule("DungeonNameMatcher", DungeonNameMatcher)
 
 -- MARK: Private Implementation
 
--- Common abbreviation patterns for TWW Season 1 dungeons
+-- Common abbreviation patterns for TWW Season 3 dungeons
 local ABBREVIATION_PATTERNS = {
-    -- The War Within dungeons
-    ["ara"] = true, ["kara"] = true, ["ara-kara"] = true,
+    -- TWW Season 3 dungeons
+    ["priory"] = true, ["psf"] = true, ["sacred flame"] = true, ["priory of the sacred flame"] = true,
+    ["dawnbreaker"] = true, ["db"] = true, ["dawn"] = true, ["the dawnbreaker"] = true,
+    ["eco"] = true, ["eco-dome"] = true, ["aldani"] = true, ["eco-dome aldani"] = true,
+    ["taza"] = true, ["tazavesh"] = true, ["streets"] = true, ["tazavesh streets"] = true,
+    ["ara"] = true, ["kara"] = true, ["ara-kara"] = true, ["city of echoes"] = true,
+    ["gambit"] = true, ["tazavesh gambit"] = true, ["so'leah"] = true,
+    ["flood"] = true, ["floodgate"] = true, ["opf"] = true, ["operation floodgate"] = true, ["operation: floodgate"] = true,
+    ["halls"] = true, ["hoa"] = true, ["atonement"] = true, ["halls of atonement"] = true,
+    
+    -- Legacy Season 1 patterns (still valid if these dungeons return)
     ["city of threads"] = true, ["cot"] = true, ["threads"] = true,
     ["stonevault"] = true, ["sv"] = true, ["vault"] = true,
-    ["dawnbreaker"] = true, ["db"] = true, ["dawn"] = true,
     ["mists"] = true, ["tirna scithe"] = true, ["mists of tirna scithe"] = true,
     ["necrotic wake"] = true, ["nw"] = true, ["wake"] = true,
     ["siege of boralus"] = true, ["sob"] = true, ["boralus"] = true,

@@ -40,6 +40,10 @@ PUGHelper.VALID_TRANSITIONS = {
 
 local currentState = PUGHelper.STATE.IDLE
 
+-- Primary invite lock for first-accepted-wins behavior
+PUGHelper.primaryInvite = nil        -- table: locked primary application data
+PUGHelper.activeInviteID = nil      -- string: appData.id of primary invite
+
 function PUGHelper:GetState()
     return currentState
 end
@@ -106,6 +110,9 @@ function PUGHelper:OnStateChanged(oldState, newState, context)
         self.trackedApplications = {}
         self.currentInvite = nil
         self.currentGroupInfo = nil
+        self.primaryInvite = nil
+        self.activeInviteID = nil
+        Debug:Dev("pughelper", "PUG Helper state -> IDLE (state cleared)")
     end
 end
 
@@ -125,8 +132,43 @@ function PUGHelper:ResetState()
     self.trackedApplications = {}
     self.currentInvite = nil
     self.currentGroupInfo = nil
+    self.primaryInvite = nil
+    self.activeInviteID = nil
 
     currentState = PUGHelper.STATE.IDLE
 
-    Debug:Dev("pughelper", "PUG Helper state reset to IDLE")
+    Debug:Dev("pughelper", "PUG Helper state reset to IDLE (including primary invite)")
+end
+
+-- MARK: Primary Invite Lock Helpers
+
+function PUGHelper:SetPrimaryInvite(app_data)
+    if not app_data or not app_data.id then
+        return
+    end
+
+    -- First-accepted-wins: if already locked, do nothing
+    if self.primaryInvite and self.activeInviteID then
+        Debug:Dev("pughelper", "SetPrimaryInvite called but primary already locked to: " .. tostring(self.activeInviteID))
+        return
+    end
+
+    self.primaryInvite = app_data
+    self.activeInviteID = app_data.id
+
+    Debug:Dev("pughelper", "primary_invite_locked id=" .. tostring(app_data.id) .. " name=" .. tostring(app_data.name))
+end
+
+function PUGHelper:ClearPrimaryInvite(reason)
+    if self.primaryInvite or self.activeInviteID then
+        Debug:Dev("pughelper", "primary_invite_cleared reason=" .. tostring(reason or "unknown") ..
+            " id=" .. tostring(self.activeInviteID or (self.primaryInvite and self.primaryInvite.id)))
+    end
+
+    self.primaryInvite = nil
+    self.activeInviteID = nil
+end
+
+function PUGHelper:GetPrimaryInvite()
+    return self.primaryInvite
 end

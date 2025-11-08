@@ -1,179 +1,165 @@
 # NextKey Current Context
 
 ## Current Status
-**Date**: November 8, 2025
-**Version**: 0.2.2
-**Current Phase**: Week 3 Simplification - OrganizerState Module (100% Complete ✅)
-**Next Action**: In-game validation testing OR proceed to Phase 4 Optimizer Algorithms
+**Date**: November 8, 2025  
+**Version**: 0.2.2  
+**Current Phase**: Week 3 Simplification Complete — OrganizerState, Teleport Sync, PUG Mode Hardening  
+**Authoritative Note**: This file is the canonical snapshot of the current system state for AI and future contributors.
 
 ## Recent Completions
 
-### Handshake Protocol & Unified Poll System (Nov 5) ✅
-- **COMPLETE**: Phase 2 handshake discovery protocol implementation
-- **COMPLETE**: Unified poll system with lazy initialization
-- **Files Modified**:
-  - `core/organizer/survey.lua` - Discovery + non-addon handling
-  - `ui/organizer/rosterBoard.lua` - Protocol initialization
-  - `ui/organizer/playerCard.lua` - Visual feedback ("Polling..." state)
-  - `core/fakePlayerService.lua` - Auto-PONG protocol
-  - `debug/pollSimulator.lua` - Auto-response protocol (file corruption fixed)
-- **Features Delivered**:
-  - ADDON_PING/PONG discovery protocol
-  - Progress display format: "X/Y (Z total)" (responses/addon-users/total)
-  - Real-time visual feedback with card state updates
-  - Lazy initialization pattern for fake player protocols
-  - Solo testing support with 20/20 validation
-- **Bug Fixes**: 8 critical bugs resolved including:
-  - Solo group validation
-  - Return value unpacking from SafeRun()
-  - Discovery roster building
-  - Communications module routing
-  - PollSimulator file corruption
-  - Organizer survey dialog visibility
-- **Testing**: Validated with 20/20 responses (19 fake players + organizer)
+### 1. OrganizerState — Single Source of Truth ✅
+- Implemented [`OrganizerState`](core/organizer/state.lua:1) as the central state module for the M+ Group Organizer.
+- Responsibilities:
+  - Stores players, bench, opt-out, groups, designated keystones, and active poll state.
+  - Provides safe, debugged APIs for:
+    - Adding/updating/removing players
+    - Moving players between bench/opt-out/group slots
+    - Managing designated keystones
+    - Managing poll lifecycle and responses
+  - Persists only real players (filters fake/simulated) via SavedVariables.
+- Impact:
+  - Organizer UI (roster board, cards, etc.) now treats cards as views keyed by playerID.
+  - Eliminates prior data loss and inconsistent state across rebuilds and interactions.
 
-### Week 2 Simplification (Nov 3-4) ✅
-- Split `rosterBoard.lua` into 5 specialized modules (540 lines saved, -26% size)
-- **New Modules**:
-  - `ui/organizer/modules/benchManager.lua` (462 lines) - Bench operations
-  - `ui/organizer/modules/slotManager.lua` (411 lines) - Slot creation/layout
-  - `ui/organizer/modules/cardMovement.lua` (422 lines) - Drag/drop validation
-  - `ui/organizer/modules/keystoneManager.lua` (215 lines) - **FULL IMPLEMENTATION** ✅
-- Modular architecture prevents data loss bugs
-- **Total simplification**: 917 lines saved across Week 1+2
+### 2. Handshake Protocol & Unified Poll System ✅
+- Organizer/participant discovery and poll flows standardized through Communications:
+  - `ORG_ADDON_PING` / `ORG_ADDON_PONG` for addon presence discovery.
+  - `ORG_POLL_REQUEST` / `ORG_POLL_RESPONSE` for structured poll exchange.
+  - Routed via [`Communications:ProcessMessage()`](core/comms.lua:413).
+- Poll responses are:
+  - Stored in OrganizerState (no more silent loss).
+  - Used to populate spec preferences, roles, and metadata for organizer UI.
+- Result:
+  - Deterministic, debuggable handshake/poll pipeline suitable for real groups and simulations.
 
-### M+ Organizer Progress ✅
-- Phase 0: Foundation COMPLETE
-- Phase 0.5: Integration COMPLETE
-- Phase 1: UI Framework COMPLETE (native frames)
-- **Phase 2: Participant Survey 100% COMPLETE** ✅ (Nov 5)
-  - 3-phase progressive poll with spec preferences
-  - Handshake discovery protocol (ADDON_PING/PONG)
-  - Visual feedback UI with real-time updates
-  - Unified poll system with lazy initialization
-- **Phase 3: Manual Mode 100% COMPLETE** ✅
-  - Drag-and-drop: COMPLETE
-  - Sequential sorting: COMPLETE (animationQueue + sorting algorithm)
-  - Keystone designation: COMPLETE (keystoneManager.lua fully implemented)
+### 3. Teleport Selection Sync (Leader-Synced) ✅
 
-## Active Work
+Goal: When the leader selects a key (manually or via future optimizer), all addon users see the same teleport target and, if appropriate, the teleport window opens.
 
-### Week 3 Simplification: OrganizerState Module (100% COMPLETE ✅)
+Key rules:
+1. Single-source API:
+   - Canonical entry point: [`NextKey:SetTeleportTargetKey(keyInfo, opts)`](core/keystones.lua:1078)
+   - All flows that should sync must call:
+     - `SetTeleportTargetKey(keyInfo, { broadcast = true })` from the leader.
 
-**Decision Made**: November 4, 2025 - Chosen over Phase 5 Communication and Phase 4 Optimizer
-**Status**: ✅ COMPLETE - All 5 sessions done (Nov 8, 2025)
-**Progress**: 100% complete (all 5 sessions done)
+2. TELEPORT_SELECT broadcast:
+   - Implemented via Communications on top of the existing AceComm channel:
+     - Payload: `opcode = "TELEPORT_SELECT"`, with minimal `key` data (dungeonID, level, etc.).
+     - Sent only when:
+       - Caller is leader or solo-intent per project rules.
+       - Group context is valid (party/raid).
+   - Thin helper; authoritative logic remains inside `SetTeleportTargetKey`.
 
-**Timeline**: 10 days (5 implementation sessions)
-**Risk Level**: 🔴 HIGH - Architectural refactor
-**Actual Line Savings**: ~114 lines saved so far (target: ~200 lines)
+3. TELEPORT_SELECT receive path:
+   - Handled in [`Communications:ProcessMessage()`](core/comms.lua:413):
+     - Ignores messages from local player (no echo).
+     - Validates key payload.
+     - Calls:
+       - `NextKey:SetTeleportTargetKey(k, { source = "remote_select", broadcast = false, receivedFrom = sender })`
+         - Ensures single-source API is used on all clients.
+         - Prevents re-broadcast loops.
+     - UI behavior:
+       - If teleport window is not open and ToggleTeleportWindow exists:
+         - Opens the teleport window to show the synchronized key.
+       - If already open:
+         - Teleport UI refresh logic reflects the new target.
 
-**Core Problem**: ✅ **SOLVED**
-- Cards previously stored authoritative data (`card.playerData`)
-- Rebuild operations could lose poll response data
-- **BUG FIXED**: Poll data now persists in OrganizerState
-- Cards are now "dumb" renderers fetching from state
+Result:
+- TELEPORT_SELECT is now:
+  - Leader-only group announcement.
+  - Single, well-defined meaning: “This is the key we are running now.”
+  - Integrated with teleport window auto-open so all addon users see the chosen key.
 
-**Solution Architecture**: ✅ **IMPLEMENTED**
-- Created centralized [`OrganizerState`](core/organizer/state.lua) module (807 lines)
-- Cards only store `playerID` and fetch data from state on render
-- All data lives in `OrganizerState.players[playerID]`
-- Rebuild operations cannot lose data (architecturally impossible) ✅
+### 4. Organizer Communications & Data Flows ✅
+- Organizer-specific comms standardized via:
+  - [`core/organizer/comms.lua`](core/organizer/comms.lua:1) (OrganizerComms)
+  - Core comms router in [`core/comms.lua`](core/comms.lua:413)
+- Responsibilities:
+  - Organizer discovery (PING/PONG)
+  - Poll requests/responses
+  - Roster state snapshots and deltas
+  - Keystone designation updates
+  - Optimizer status messages (planned/partial)
+- All organizer messages:
+  - Use shared `COMM_PREFIX`.
+  - Are validated and routed centrally.
+  - Respect throttling and batching rules.
 
-**Implementation Sessions**:
-1. ✅ **Session 1** (COMPLETE): OrganizerState module created (958 lines)
-2. ✅ **Session 2** (COMPLETE): Poll response flow migrated - **BUG FIXED**
-3. ✅ **Session 3** (COMPLETE): Bench data flow migrated (~114 lines saved)
-4. ✅ **Session 4** (COMPLETE): State persistence with fake player filtering
-5. ✅ **Session 5** (COMPLETE): All 13 group/keystone/poll functions fully implemented
+### 5. PUG Mode Architecture & Hardening (Implementation Complete, Validation Active) ✅/🧪
 
-**Documentation**: [`Documentation/FEATURES & PLANS/Implementation/M+_Organizer_Week_3_State_Module.md`](../../../Documentation/FEATURES%20&%20PLANS/Implementation/M+_Organizer_Week_3_State_Module.md)
+PUG Mode is now a composed, stateful system:
 
-**Why This Path** (when resumed):
-- Prevents entire class of data loss bugs
-- Cleaner architecture for Phase 4 optimizer algorithms
-- Foundation for long-term maintainability
-- Higher value than quick fixes
+Components:
+- Orchestrator:
+  - [`core/pugHelper.lua`](core/pugHelper.lua:1) — main entry, wires event handlers and helpers.
+- State Machine:
+  - [`core/pugHelper_state.lua`](core/pugHelper_state.lua:1)
+    - Defines states: `IDLE`, `TRACKING`, `INVITE_RECEIVED`, `IN_GROUP`, `RUN_COMPLETE`.
+    - Enforces valid transitions with detailed debug.
+    - Manages primary invite lock (first-accepted-wins) via `primaryInvite` + `activeInviteID`.
+- LFG Applications:
+  - [`core/pugHelper_applications.lua`](core/pugHelper_applications.lua:1)
+    - Throttled processing of `C_LFGList` events.
+    - Caches search results and maps them to applications.
+    - Tracks status history, drives:
+      - First-accepted-wins logic
+      - Teleport targeting via `OnMPlusAccepted`.
+- Group Detection:
+  - [`core/pugHelper_detection.lua`](core/pugHelper_detection.lua:1)
+    - Detects `PUG`, `GUILD`, `PREMADE`, `SOLO` using:
+      - Active LFG entry
+      - PUGHelper markers
+      - Guild composition.
+- UI Helpers:
+  - [`ui/pugInviteNotification.lua`](ui/pugInviteNotification.lua:1)
+  - [`ui/pugTravelAssistant.lua`](ui/pugTravelAssistant.lua:1)
+  - [`ui/pugApplicationTracker.lua`](ui/pugApplicationTracker.lua:1) (debug/visualization)
+- Teleport Integration:
+  - PUG flows do NOT invent separate teleport UIs:
+    - They use `NextKey:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })` and
+      `NextKey:SetTeleportWindowContext({ mode = "PUG", ... })` to drive the shared teleport window.
+    - After M+ completion in a PUG:
+      - Teleport window can auto-open in PUG mode with a Leave Group card.
 
-## What's Next?
+Status:
+- Architecture and implementation are in place.
+- Hardening/validation is ongoing using real and simulated PUG runs.
 
-### Immediate Next Steps
+## Architectural Impact
 
-**Option A**: In-Game Validation Testing (~2 hours)
-- Test all OrganizerState functions in-game
-- Verify group assignment/unassignment works correctly
-- Verify keystone designation/clearing works correctly
-- Test state persistence after `/reload`
-- **Status**: Week 3 Session 5 complete, ready for validation
-- **Benefit**: Confirms architectural foundation works correctly before Phase 4
+- Single sources of truth:
+  - Organizer: OrganizerState for all organizer data.
+  - Teleport: SetTeleportTargetKey for all key/teleport selections and TELEPORT_SELECT integration.
+  - PUG: PUGHelper stack for PUG detection, LFG tracking, and PUG-mode teleport behavior.
+- Communications:
+  - All major flows route through [`core/comms.lua`](core/comms.lua:413) with strict validation, throttling, and debug.
+- UI Integration:
+  - Teleport window (`ui/teleport.lua`) is the unified travel surface:
+    - Normal mode: leader-selected keystone teleports.
+    - PUG mode: targeted travel and optional Leave Group step.
 
-**Option B**: Phase 5 Communication (~3 hours)
-- Announce groups to Raid/Guild chat
-- Quick win to complete manual mode
-- **Benefit**: Delivers immediate user value
+## Next Steps (Authoritative)
 
-**Option C**: Phase 4 Optimizer Algorithms (~20+ hours)
-- Three optimization modes (Max Power, Balanced, Vault)
-- Complex algorithmic work
-- **Consideration**: May be cleaner with OrganizerState first
+1. OrganizerState & Organizer Validation
+   - Validate:
+     - Poll → OrganizerState → UI pipeline in real groups.
+     - Persistence and reload behavior for organizer data.
 
-**Option D**: In-game validation of handshake protocol
-- Test with real players (non-fake)
-- Verify ADDON_PING/PONG discovery in production
-- Validate visual feedback across different scenarios
+2. Teleport Sync Validation
+   - 5-man:
+     - Leader selects key via main UI → all addon users receive TELEPORT_SELECT → teleport window shows correct key.
+     - Non-leader selections do not broadcast.
+   - Raid:
+     - Raid leader behavior mirrors 5-man semantics.
 
-**Recommended**: Option B (Phase 4 Optimizer Algorithms) - Week 3 complete, foundation ready. Can do validation testing while building Phase 4, or validate first for extra confidence.
+3. PUG Mode End-to-End Validation
+   - LFG applications detected and tracked (throttled).
+   - First-accepted-wins invite handling stable.
+   - PUG group correctly classified.
+   - Teleport window opens in PUG mode with appropriate key/portal or generic PUG context.
+   - Leave Group flow on dungeon completion behaves correctly.
 
-## Blockers
-**NONE** - All systems operational, handshake protocol complete
-
-## Technical Notes
-
-### OrganizerState API (Session 1 Deliverable)
-```lua
--- Player Management
-OrganizerState:GetPlayer(playerID)
-OrganizerState:SetPlayer(playerID, playerData)
-OrganizerState:UpdatePlayerFromPollResponse(playerID, response)
-
--- Location Tracking
-OrganizerState:GetPlayerLocation(playerID)
-OrganizerState:MoveToBench(playerID)
-OrganizerState:MoveToSlot(playerID, groupIndex, slotIndex)
-
--- Group Management
-OrganizerState:GetGroupAssignments(groupIndex)
-OrganizerState:GetSlotPlayer(groupIndex, slotIndex)
-
--- Keystone Management
-OrganizerState:DesignateKeystone(groupIndex, playerID, keystone)
-OrganizerState:GetDesignatedKeystone(groupIndex)
-
--- Poll Management
-OrganizerState:StartPoll(pollID)
-OrganizerState:UpdatePlayerFromPollResponse(playerID, response)
-```
-
-### Data Structure
-```lua
-OrganizerState = {
-    players = {},     -- {[playerID] = PlayerData} - SINGLE SOURCE OF TRUTH
-    groups = {},      -- {[groupIndex][slotIndex] = playerID}
-    keystones = {},   -- {[groupIndex] = {keystone, playerID}}
-    activePoll = nil, -- Current poll state
-    bench = {},       -- {[playerID] = true} (set for fast lookup)
-    optOut = {}       -- {[playerID] = true}
-}
-```
-
-### Critical Success Metric
-**Poll data persists through unlimited rebuilds** ✅ **PASSING**
-
-Test: Complete poll → rebuild bench 10 times → verify poll data intact
-**Status**: ✅ **PASSES** (as of Session 3 completion)
-
-**Remaining Work** (Post-Week 3):
-- ✅ Session 5: All functions implemented (100% complete)
-- [ ] In-game validation testing (optional before Phase 4)
-- [ ] Git commit and tag for Session 5
-- [ ] Proceed to Phase 4: Optimizer Algorithms
+4. Loot Targeting System Reconfirmation
+   - Re-verify loot system correctness and UX within the current architecture.
+   - Ensure future updates are recorded in the Memory Bank and CHANGELOG.

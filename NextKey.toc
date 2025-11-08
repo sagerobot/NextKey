@@ -2,7 +2,7 @@
 ## Title: NextKey
 ## Notes: Intelligently ranks Mythic+ keys for your group.
 ## Author: Gemini & User
-## Version: 0.2.1
+## Version: 0.2.2
 ## X-Category: Dungeons
 ## SavedVariables: NextKeyDB
 ## OptionalDeps: RaiderIO
@@ -81,18 +81,26 @@ core\organizer\state.lua
 core\organizer\sorting.lua
 core\organizer\animationQueue.lua
 
-# Organizer UI Components - Survey Dialog
+# Organizer UI
+ui\organizer\rosterBoard.lua
+ui\organizer\playerCard.lua
 ui\organizer\surveyDialog.lua
+ui\organizer\modules\benchManager.lua
+ui\organizer\modules\slotManager.lua
+ui\organizer\modules\cardMovement.lua
+ui\organizer\modules\keystoneManager.lua
+ui\organizer\dragManager.lua
 
 # PUG Helper
 core\pugHelper.lua
-
-# Performance Monitor (debug tool)
-debug\performanceMonitor.lua
-debug\performanceTest.lua
 core\pugHelper_state.lua
 core\pugHelper_applications.lua
 core\pugHelper_detection.lua
+
+# PUG Helper UI
+ui\pugInviteNotification.lua
+ui\pugTravelAssistant.lua
+ui\pugApplicationTracker.lua
 
 # Events
 events\handlers.lua
@@ -117,33 +125,3 @@ debug\test_card_movement.lua
 debug\test_priority_sorting.lua
 debug\test_lfg_apis.lua
 debug\pugHelper_testUI.lua
-
-# UI Components
-ui\main.lua
-ui\teleport.lua
-ui\dungeonCards.lua
-ui\lootWindow.lua
-ui\hearthstoneSelector.lua
-
-# Organizer UI Components - CRITICAL: DragManager MUST load before playerCard
-ui\organizer\dragManager.lua
-ui\organizer\playerCard.lua
-
-# Organizer UI Modules (NEW - load before rosterBoard.lua)
-ui\organizer\modules\benchManager.lua
-ui\organizer\modules\slotManager.lua
-ui\organizer\modules\cardMovement.lua
-ui\organizer\modules\keystoneManager.lua
-
-# Organizer Main Board (uses modules above)
-ui\organizer\rosterBoard.lua
-
-# PUG Helper UI Components
-ui\pugInviteNotification.lua
-ui\pugTravelAssistant.lua
-ui\pugApplicationTracker.lua
-
-# Options
-options\main.lua
-
-# Core functionality only - all tests removed

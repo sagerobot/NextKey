@@ -1,5 +1,24 @@
 # NextKey Changelog
 
+## [0.2.3] - 2025-11-08
+### Fixed
+- **PUG Mode Critical Fixes** - Two P1 blockers addressed for PUG Helper stability
+  - Fixed primary invite lock not being set when LFG status skips "invited" and goes directly to "inviteaccepted"
+  - Added Season 3 dungeon abbreviations to DungeonNameMatcher (Priory, Eco-Dome, Operation: Floodgate, etc.)
+  - Enhanced first-accepted-wins guarantee for multiple simultaneous PUG invites
+  - Improved dungeon detection fallback chain reliability
+
+### Technical
+- Updated `core/pugHelper_applications.lua` with primary lock failsafe on "inviteaccepted" status (lines 275-284)
+- Updated `core/dungeonNameMatcher.lua` with comprehensive Season 3 abbreviation patterns
+- Added detailed debug logging for missed "invited" status scenarios
+- Created comprehensive validation plan and testing protocol documentation
+
+### Documentation
+- Added `Documentation/DEBUG/PUG_MODE_VALIDATION_PLAN.md` - Systematic testing protocol
+- Added `Documentation/DEBUG/PUG_MODE_CRITICAL_FIXES_2025-11-08.md` - Fix details and validation steps
+- Updated `Documentation/FIXES/PUG_MODE_FIXES_2025-11-08.md` - AceGUI and auto-open fixes
+
 ## [0.2.2] - 2025-11-02
 ### Fixed
 - **M+ Group Organizer Tooltip System** - Complete fix for post-poll tooltip issues

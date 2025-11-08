@@ -1101,11 +1101,16 @@ function NextKey:SetTeleportTargetKey(key, opts)
         NextKey222.Debug:User("SetTeleportTargetKey: Cleared teleport target")
     end
 
-    if opts.broadcast and self:IsLeaderOrSolo() then
-        -- Broadcast teleport selection to party/raid
-        NextKey222.Debug:Dev("keystones", "Teleport target selected:", key and (key.ownerName .. " - " .. self:GetDungeonName(key.dungeonID)) or "none")
+    -- When leader (or solo) chooses a key and broadcast=true, share the selection via addon comms
+    if opts.broadcast and self:IsLeaderOrSolo() and key and key.dungeonID and key.level then
+        if NextKey222.Communications and NextKey222.Communications.BroadcastTeleportSelection then
+            NextKey222.Communications:BroadcastTeleportSelection(self.teleportTargetKey)
+        else
+            NextKey222.Debug:Dev("keystones", "BroadcastTeleportSelection not available; teleport selection not synced")
+        end
     end
 
+    -- Always update the local teleport window with the latest selection
     if type(self.RefreshTeleportWindow) == "function" then
         self:RefreshTeleportWindow()
     end

@@ -3,13 +3,16 @@
 ## Project Identity
 **Name**: NextKey
 **Type**: World of Warcraft Addon
-**Version**: 0.2.1
+**Version**: 0.2.2
 **Game Version**: Retail (11.0.2+)
 **Primary Language**: Lua
-**Current Phase**: M+ Group Organizer Implementation
+**Current Phase**: Week 3 Simplification Complete — OrganizerState, Teleport Sync, PUG Mode Hardening
 
 ## Core Purpose
-NextKey is a Mythic+ keystone optimization addon that helps groups intelligently select the best dungeon run next by analyzing party keystones, player scores, and loot preferences in under 30 seconds. It also features a robust M+ Group Organizer for forming and managing groups.
+NextKey is a Mythic+ keystone optimization addon that helps groups intelligently select the best dungeon run next by analyzing party keystones, player scores, and loot preferences in under 30 seconds. It also features:
+- A robust M+ Group Organizer for forming and managing multi-group raid-style teams
+- A unified teleport system with leader-synced key selection
+- A hardened PUG Helper flow for LFG-based groups
 
 ## Target Users
 - Mythic+ premade groups optimizing key selection
@@ -17,11 +20,17 @@ NextKey is a Mythic+ keystone optimization addon that helps groups intelligently
 - Raid leaders organizing M+ groups
 - Score pushers improving Mythic+ ratings
 - Loot-focused players farming specific items
+- Players using LFG/PUG flows who need clean, guided travel and decision support
 
 ## Operating Modes
-1. **Premade Group Mode** (Default): Full functionality with automatic key sharing, score syncing, complex sorting
-2. **PUG Mode**: Simplified travel assistance for group finder groups
-3. **M+ Group Organizer**: Advanced UI for raid-style M+ group formation
+1. **Premade Group Mode** (Default)
+   - Full functionality with automatic key sharing, score syncing, advanced sorting
+2. **PUG Mode**
+   - Simplified, hardened travel and decision assistance for group finder groups
+   - Uses a dedicated PUG Helper stack with stateful tracking and PUG-aware teleport UI
+3. **M+ Group Organizer**
+   - Raid-style multi-group organizer backed by OrganizerState as a single source of truth
+   - Handshake + poll driven data collection and synchronized roster layout
 
 ## Key Success Metrics
 - **Decision Time**: Groups select next key in <30 seconds
@@ -30,28 +39,36 @@ NextKey is a Mythic+ keystone optimization addon that helps groups intelligently
 - **User Experience**: Intuitive for new players, powerful for experts
 
 ## Core Value Proposition
-Transforms group key selection from a time-consuming decision process into an instant, data-driven recommendation that maximizes IO gain and respects player preferences.
+Transforms group key selection from a time-consuming decision process into an instant, data-driven recommendation that:
+- Maximizes IO gain for the group
+- Respects player preferences and loot targets
+- Supports both premade and PUG/LFG environments with minimal friction
 
 ## Development Philosophy
 - **User-First**: Every feature solves a real user problem
 - **Performance**: Never impact gameplay experience
 - **Reliability**: Comprehensive error handling and graceful degradation
-- **Maintainability**: Clean architecture following industry best practices (Details! Damage Meter patterns)
+- **Maintainability**: Clean architecture following Details! Damage Meter patterns
 - **Professional Quality**: Enterprise-grade debugging, performance monitoring, modular design
-- **Component-Driven**: Established factory pattern for consistent UI creation
+- **Component-Driven**: Factory-based UI and centralized state (OrganizerState) for deterministic behavior
 
-## Recent Completion: M+ Group Organizer UI
-The M+ Group Organizer UI has been implemented, featuring a complete visual redesign with:
+## Recent Completion: M+ Group Organizer & Sync Systems
+The M+ Group Organizer and supporting systems have been implemented and hardened, including:
+- OrganizerState as the single source of truth for organizer players/bench/groups/keystones/polls
 - Compact, single-line, draggable player cards for the bench
-- Visually distinct group slots with role-colored borders
-- Class-colored backgrounds for player cards
-- Card expansion on drop with more detailed information
+- Visually distinct group slots with role-colored borders and class-colored cards
+- Card expansion on drop with detailed information
 - Role validation and "bounce-back" logic for invalid placements
 - Modern WoW API compatibility (texture-based UI components)
+- Organizer-specific handshake and poll flows built on top of Communications
 
-**Current Phase**: M+ Group Organizer UI complete.
-
-## Current Focus
-- Validating the M+ Group Organizer UI in a live environment
-- Verifying drag-and-drop functionality, role validation, and visual fidelity
-- Queued: Loot targeting system validation and PUG mode repairs
+## Current Phase
+- Week 3 Simplification complete:
+  - OrganizerState module fully wired into organizer UI
+  - Unified handshake/poll system implemented
+  - Teleport selection sync (TELEPORT_SELECT) hardened with single-source SetTeleportTargetKey API
+  - PUG Helper architecture implemented (state, applications, detection, invite/travel UIs) and integrated with teleport window
+- Active Focus:
+  - Validate organizer flows and TELEPORT_SELECT behavior in real groups
+  - Validate PUG Mode behavior end-to-end using the hardened PUG Helper stack
+  - Reconfirm Loot Targeting System correctness under the current architecture
