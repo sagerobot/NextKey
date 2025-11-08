@@ -35,6 +35,8 @@ data\hearthstones.lua
 
 # Dungeon Name Service (must load after data\portals.lua)
 core\dungeonNameService.lua
+core\dungeonNameMatcher.lua
+core\activityToDungeonMap.lua
 
 # Core Modules
 core\constants.lua
@@ -90,6 +92,7 @@ debug\performanceMonitor.lua
 debug\performanceTest.lua
 core\pugHelper_state.lua
 core\pugHelper_applications.lua
+core\pugHelper_detection.lua
 
 # Events
 events\handlers.lua
@@ -112,6 +115,8 @@ debug\spec_change_test.lua
 debug\check_card_state.lua
 debug\test_card_movement.lua
 debug\test_priority_sorting.lua
+debug\test_lfg_apis.lua
+debug\pugHelper_testUI.lua
 
 # UI Components
 ui\main.lua
@@ -136,7 +141,6 @@ ui\organizer\rosterBoard.lua
 # PUG Helper UI Components
 ui\pugInviteNotification.lua
 ui\pugTravelAssistant.lua
-ui\pugGetawayUI.lua
 ui\pugApplicationTracker.lua
 
 # Options

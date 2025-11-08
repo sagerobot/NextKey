@@ -123,6 +123,7 @@ NextKey222.Defaults = {
             showHearthstone = false,
             compactMode = false,
             selectedHearthstoneID = 6948,  -- Default to standard Hearthstone
+            autoShowAfterCompletion = true,  -- Auto-show teleport window after M+ completion
         },
         
         -- UI preferences

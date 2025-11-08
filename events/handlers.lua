@@ -35,6 +35,10 @@ function Events:RegisterCoreEvents()
     end)
     
     -- PUG Helper events
+    NextKey:RegisterEvent("LFG_LIST_SEARCH_RESULTS_UPDATED", function()
+        self:OnLFGSearchResultsUpdated()
+    end)
+    
     NextKey:RegisterEvent("LFG_LIST_APPLICATION_STATUS_UPDATED", function(_, resultID, newStatus, oldStatus)
         self:OnLFGApplicationStatusChanged(resultID, newStatus, oldStatus)
     end)
@@ -441,6 +445,14 @@ function Events:OnGroupLeft()
     NextKey222.Performance:StartProfile("OnGroupLeft")
     NextKey222.Debug:Dev("events", "Player left group")
     
+    -- Reset PUG Helper state when leaving group
+    if NextKey222.PUGHelper and NextKey222.PUGHelper.TransitionToState then
+        if NextKey222.PUGHelper:GetState() == NextKey222.PUGHelper.STATE.IN_GROUP then
+            NextKey222.Debug:Dev("events", "Resetting PUG Helper to IDLE after leaving group")
+            NextKey222.PUGHelper:TransitionToState(NextKey222.PUGHelper.STATE.IDLE, "left_group")
+        end
+    end
+    
     -- Clear party-only keystones and refresh
     if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
         NextKey.SafeRun(NextKey222.UI.RefreshResults, "Refresh UI on group leave", NextKey222.UI)
@@ -472,6 +484,17 @@ function Events:OnChatMsgAddon(prefix, message, distribution, sender)
 end
 
 -- MARK: PUG Helper Event Handlers
+function Events:OnLFGSearchResultsUpdated()
+    NextKey222.Performance:StartProfile("OnLFGSearchResultsUpdated")
+    
+    -- Forward to PUG Helper to cache search results
+    if NextKey222.PUGHelper and NextKey222.PUGHelper.CacheSearchResults then
+        NextKey.SafeRun(NextKey222.PUGHelper.CacheSearchResults, "PUG Helper cache search results", NextKey222.PUGHelper)
+    end
+    
+    NextKey222.Performance:StopProfile("OnLFGSearchResultsUpdated")
+end
+
 function Events:OnLFGApplicationListUpdated()
     NextKey222.Performance:StartProfile("OnLFGApplicationListUpdated")
     
@@ -609,13 +632,23 @@ function Events:OnChallengeModeCompleted(mapID, level)
         NextKey.SafeRun(NextKey222.PUGHelper.OnChallengeModeCompleted, "PUG Helper challenge mode completed", NextKey222.PUGHelper, mapID, level)
     end
     
-    -- Auto-show teleport window after M+ completion
-    if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
-        NextKey222.Debug:User("Auto-showing teleport window after M+ completion")
-        -- Show teleport window after a short delay to ensure completion processing is done
-        C_Timer.After(1.0, function()
-            NextKey222.Addon:ToggleTeleportWindow()
-        end)
+    -- Auto-show teleport window after M+ completion (if enabled)
+    local db = NextKey222.Addon and NextKey222.Addon.db
+    local autoShowEnabled = db and db.global and db.global.teleport and db.global.teleport.autoShowAfterCompletion
+    
+    if autoShowEnabled ~= false then  -- Default to true if not set
+        if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
+            NextKey222.Debug:User("Auto-showing teleport window after M+ completion")
+            -- Show teleport window after a short delay to ensure completion processing is done
+            C_Timer.After(1.5, function()
+                -- Verify window isn't already showing before toggling
+                if not NextKey222.Addon.teleportWindow or not NextKey222.Addon.teleportWindow.frame:IsShown() then
+                    NextKey222.Addon:ToggleTeleportWindow()
+                end
+            end)
+        end
+    else
+        NextKey222.Debug:Dev("teleport", "Auto-show teleport window disabled by user configuration")
     end
     
     NextKey222.Performance:StopProfile("OnChallengeModeCompleted")

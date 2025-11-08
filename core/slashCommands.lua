@@ -90,6 +90,18 @@ end
 -- This table defines all available commands and their help text
 -- Makes it easy to add new commands and keep help synchronized
 local Commands = {
+    -- Teleport window commands
+    {
+        cmd = {"tp", "teleport"},
+        desc = "Open the Teleport window (Hearthstone + next key). Context-aware; debug mode adds simulated views.",
+        handler = "TeleportCommands"
+    },
+    -- Teleport window commands
+    {
+        cmd = {"tp", "teleport"},
+        desc = "Open the Teleport window (Hearthstone + next key). Context-aware; debug mode adds simulated views.",
+        handler = "TeleportCommands"
+    },
     -- Main commands
     {
         cmd = {"", "show"},
@@ -384,9 +396,9 @@ local PUGCommands = {
        desc = "Test PUG UI components: /nk pug testui <invite|travel|getaway>",
        usage = "/nk pug testui <invite|travel|getaway>",
        details = {
-           "  invite - Test invite notification UI",
-           "  travel - Test travel assistant UI",
-           "  getaway - Test getaway UI"
+           "  invite - (reserved)",
+           "  travel - (reserved)",
+           "  getaway - Show sample getaway UI without a real dungeon"
        },
        handler = "TestPUGUI"
    },
@@ -549,7 +561,102 @@ local VisualCommands = {
 
 -- MARK: - Command Handlers
 
+-- Initialize SlashCommands table first
 local SlashCommands = {}
+
+-- MARK: - Teleport Window Command Handlers
+
+function SlashCommands:TeleportCommands(sub_cmd, args)
+    local addon = NextKey222.Addon
+    local Debug = NextKey222.Debug
+
+    if not addon or not addon.ToggleTeleportWindow then
+        if Debug and Debug.Error then
+            Debug:Error("Teleport window not available")
+        end
+        return
+    end
+
+    -- Router passes: handler(SlashCommands, subCmd, fullArgsTable)
+    local main = sub_cmd or ""
+    main = string.lower(main)
+
+    -- Primary user path: `/nk tp` or `/nk teleport`
+    if main == "" then
+        if Debug and Debug.User then
+            Debug:User("Opening Teleport window")
+        end
+        addon:ToggleTeleportWindow()
+        return
+    end
+
+    -- Debug-only simulated modes: `/nk tp debug <premade|pug|postrun>`
+    if main == "debug" then
+        local is_debug_mode = addon.db
+            and addon.db.global
+            and addon.db.global.debug
+            and addon.db.global.debug.enabled
+
+        if not is_debug_mode then
+            if Debug and Debug.User then
+                Debug:User("Teleport debug views require Debug Mode enabled in /nk config")
+            end
+            addon:ToggleTeleportWindow()
+            return
+        end
+
+        local mode_arg = args and args[2] and string.lower(args[2]) or ""
+
+        if mode_arg == "premade" then
+            if Debug and Debug.User then
+                Debug:User("Teleport: Simulating premade context")
+            end
+            if addon.SetTeleportWindowContext then
+                addon:SetTeleportWindowContext({ mode = "DEBUG_PREMADE" })
+            end
+            addon:ToggleTeleportWindow()
+            return
+        elseif mode_arg == "pug" then
+            if Debug and Debug.User then
+                Debug:User("Teleport: Simulating PUG context")
+            end
+            if addon.SetTeleportWindowContext then
+                addon:SetTeleportWindowContext({ mode = "PUG" })
+            end
+            addon:ToggleTeleportWindow()
+            return
+        elseif mode_arg == "postrun" or mode_arg == "post_run" then
+            if Debug and Debug.User then
+                Debug:User("Teleport: Simulating post-run context")
+            end
+            if addon.SetTeleportWindowContext then
+                addon:SetTeleportWindowContext({ mode = "DEBUG_POST_RUN" })
+            end
+            addon:ToggleTeleportWindow()
+            return
+        end
+
+        if Debug and Debug.User then
+            Debug:User("Usage: /nk tp debug &lt;premade|pug|postrun&gt;")
+        end
+        return
+    end
+
+    -- Fallback: unknown teleport subcommand
+    if Debug and Debug.User then
+        Debug:User("Unknown teleport command.")
+        Debug:User("Usage:")
+        Debug:User("  /nk tp                 - Open Teleport window (normal behavior)")
+        Debug:User("  /nk teleport           - Same as /nk tp")
+        if addon.db and addon.db.global and addon.db.global.debug and addon.db.global.debug.enabled then
+            Debug:User("  /nk tp debug premade   - Simulate premade view")
+            Debug:User("  /nk tp debug pug       - Simulate PUG view")
+            Debug:User("  /nk tp debug postrun   - Simulate post-run view")
+        end
+    end
+
+    addon:ToggleTeleportWindow()
+end
 
 -- Main window commands
 function SlashCommands:ShowMainWindow()
@@ -1115,8 +1222,36 @@ function SlashCommands:ResetPUGHelper()
 end
 
 function SlashCommands:TestPUGUI(uiType)
-   NextKey222.Debug:User("PUG UI testing functionality has been removed")
-   NextKey222.Debug:User("Use the basic PUG Helper commands for testing")
+    if not uiType or uiType == "" then
+        NextKey222.Debug:User("Usage: /nk pug testui <getaway>")
+        return
+    end
+
+    uiType = string.lower(uiType)
+
+    if uiType == "getaway" then
+        if not NextKey222.PUGGetawayUI or not NextKey222.PUGGetawayUI.Show then
+            NextKey222.Debug:Error("PUG Getaway UI module not available")
+            return
+        end
+
+        local now = GetTime()
+        local fakeInfo = {
+            name = "Test Dungeon (Getaway Demo)",
+            dungeonID = 9999,
+            keyLevel = 10,
+            joinedAt = now - 1800,
+            completedAt = now,
+            completedMapID = 9999,
+            completedLevel = 10
+        }
+
+        NextKey222.Debug:User("Showing PUG Getaway UI test window (no real dungeon required)")
+        NextKey222.PUGGetawayUI:Show(fakeInfo)
+        return
+    end
+
+    NextKey222.Debug:User("Usage: /nk pug testui <getaway>")
 end
 
 function SlashCommands:SetTestScenario(scenarioType, scenarioName)
@@ -1158,7 +1293,7 @@ function SlashCommands:ApplicationTrackerCommands(action)
        NextKey222.Debug:User("  show - Show the application tracker window")
        NextKey222.Debug:User("  hide - Hide the application tracker window")
        NextKey222.Debug:User("  toggle - Toggle the application tracker window")
-       NextKey222.Debug:User("  enable - Force-enable the application tracker")
+       NextKey222.Debug:User("  enable - Force-enable the application tracker feature")
    end
 end
 

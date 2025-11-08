@@ -514,6 +514,19 @@ local function UpdateTeleportWindowContent(window)
             itemType = hearthstone.type
         })
     end
+    
+    -- Add Leave Group option if teleport window is in PUG mode AND dungeon is complete
+    local context = addon:GetTeleportWindowContext()
+    if context and context.mode == "PUG" and context.dungeonComplete then
+        NextKey222.Debug:Dev("teleport", "Adding Leave Group option (dungeon complete)")
+        table.insert(entries, {
+            kind = "leavegroup",
+            icon = "Interface\\Icons\\Ability_Rogue_FeignDeath",
+            displayName = "Leave Group",
+            detailText = "Exit the PUG group",
+            subText = ""
+        })
+    end
 
     -- Clear any existing cards
     if window.cards then
@@ -602,9 +615,9 @@ local function UpdateTeleportWindowContent(window)
                         GameTooltip:Hide()
                         if card.highlightOff then card.highlightOff() end
                     end)
-                else
+                elseif entry.kind == "keystone" then
                     card.frame.keystoneData = entry.data
-                    if entry.data.spellID and playerKnowsSpell(entry.data.spellID) then
+                    if entry.data and entry.data.spellID and playerKnowsSpell(entry.data.spellID) then
                         configureSpellButton(card.frame, entry.data.spellID)
                     else
                         disableSecureButton(card.frame)
@@ -619,6 +632,29 @@ local function UpdateTeleportWindowContent(window)
                     card.frame:SetScript("OnEnter", function()
                         if card.highlightOn then card.highlightOn() end
                         showKeystoneTooltip(card.frame)
+                    end)
+                    card.frame:SetScript("OnLeave", function()
+                        GameTooltip:Hide()
+                        if card.highlightOff then card.highlightOff() end
+                    end)
+                elseif entry.kind == "leavegroup" then
+                    -- Leave Group button - non-secure, just a regular click
+                    card.frame:SetAttribute("type", nil)  -- Clear secure attributes
+                    card.frame:SetScript("OnClick", function()
+                        NextKey222.Debug:User("Leave Group button clicked")
+                        if IsInGroup() then
+                            LeaveParty()
+                            NextKey222.Debug:User("Left the group")
+                        else
+                            NextKey222.Debug:User("Not in a group")
+                        end
+                    end)
+                    card.frame:SetScript("OnEnter", function()
+                        if card.highlightOn then card.highlightOn() end
+                        GameTooltip:SetOwner(card.frame, "ANCHOR_RIGHT")
+                        GameTooltip:SetText("Leave Group")
+                        GameTooltip:AddLine("Click to exit the PUG group", 1, 1, 1)
+                        GameTooltip:Show()
                     end)
                     card.frame:SetScript("OnLeave", function()
                         GameTooltip:Hide()

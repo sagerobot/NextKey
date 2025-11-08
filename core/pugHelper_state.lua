@@ -17,11 +17,13 @@ PUGHelper.STATE = {
 
 PUGHelper.VALID_TRANSITIONS = {
     [PUGHelper.STATE.IDLE] = {
-        [PUGHelper.STATE.TRACKING] = true
+        [PUGHelper.STATE.TRACKING] = true,
+        [PUGHelper.STATE.RUN_COMPLETE] = true  -- Allow manual join completion
     },
     [PUGHelper.STATE.TRACKING] = {
         [PUGHelper.STATE.IDLE] = true,
-        [PUGHelper.STATE.INVITE_RECEIVED] = true
+        [PUGHelper.STATE.INVITE_RECEIVED] = true,
+        [PUGHelper.STATE.RUN_COMPLETE] = true  -- Allow manual join completion
     },
     [PUGHelper.STATE.INVITE_RECEIVED] = {
         [PUGHelper.STATE.TRACKING] = true,

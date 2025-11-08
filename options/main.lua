@@ -1318,6 +1318,22 @@ function addon:SetupOptions()
                         end,
                         order = 2,
                     },
+                    autoShowAfterCompletion = {
+                        type = "toggle",
+                        name = "Auto-Show After M+ Completion",
+                        desc = "Automatically show the teleport window after completing a Mythic+ dungeon.",
+                        width = "full",
+                        get = function()
+                            local val = addon.db.global.teleport.autoShowAfterCompletion
+                            return val ~= false  -- Default to true if not set
+                        end,
+                        set = function(_, value)
+                            addon.db.global.teleport.autoShowAfterCompletion = value
+                            local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
+                            if reg then reg:NotifyChange("NextKey") end
+                        end,
+                        order = 3,
+                    },
                 },
             },
             pugHelper = {

@@ -196,22 +196,48 @@ end
 function PUGHelper:OnChallengeModeCompleted(mapID, level)
     if not self:IsEnabled() then return end
     
-    if self.currentGroupInfo then
-        self.currentGroupInfo.completedAt = time()
-        self.currentGroupInfo.completedMapID = mapID
-        self.currentGroupInfo.completedLevel = level
-        
-        self:TransitionToState(self.STATE.RUN_COMPLETE, "dungeon_completed")
-        
-        if pugConfig.getawayUI then
-            self:ShowGetawayUI(self.currentGroupInfo)
-        end
-        
-        self.getawayTimer = C_Timer.NewTimer(PUGHelper.GETAWAY_TIMEOUT, function()
-            self:HideGetawayUI()
-            self:TransitionToState(self.STATE.IDLE, "getaway_timeout")
-        end)
+    Debug:Dev("pughelper", "OnChallengeModeCompleted: mapID=" .. tostring(mapID) .. ", level=" .. tostring(level))
+    
+    -- Check if this is a PUG group before showing Leave Group option
+    local groupType = "SOLO"
+    if self.DetectGroupType then
+        groupType = self:DetectGroupType()
     end
+    
+    if groupType ~= "PUG" then
+        Debug:Dev("pughelper", "Not a PUG group, skipping Leave Group window")
+        return
+    end
+    
+    Debug:Dev("pughelper", "Showing teleport window with Leave Group option for completed PUG dungeon")
+    
+    local NextKey = NextKey222.Addon
+    if not NextKey or not NextKey.SetTeleportWindowContext or not NextKey.ToggleTeleportWindow then
+        Debug:Dev("pughelper", "OnChallengeModeCompleted: NextKey teleport APIs not available")
+        return
+    end
+    
+    -- Set teleport target with completed dungeon info
+    local fakeKeyInfo = {
+        dungeonID = mapID,
+        level = level,
+        ownerName = (self.currentGroupInfo and self.currentGroupInfo.leader) or "Completed Run",
+    }
+    
+    NextKey:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
+    NextKey:SetTeleportWindowContext({
+        mode = "PUG",
+        dungeonComplete = true -- Flag to show Leave Group button
+    })
+    
+    -- Show teleport window
+    C_Timer.After(0.5, function()
+        NextKey222.SafeRun(function()
+            if not NextKey.teleportWindow or not NextKey.teleportWindow.frame or not NextKey.teleportWindow.frame:IsShown() then
+                NextKey:ToggleTeleportWindow()
+            end
+        end, "PUGHelper:ShowTeleportOnDungeonComplete")
+    end)
 end
 
 -- MARK: UI Methods
@@ -228,17 +254,6 @@ function PUGHelper:ShowTravelAssistant(groupInfo)
     end
 end
 
-function PUGHelper:ShowGetawayUI(groupInfo)
-    if NextKey222.PUGGetawayUI then
-        NextKey222.PUGGetawayUI:Show(groupInfo)
-    end
-end
-
-function PUGHelper:HideGetawayUI()
-    if NextKey222.PUGGetawayUI then
-        NextKey222.PUGGetawayUI:Hide()
-    end
-end
 
 function PUGHelper:HandleInviteTimeout()
     self.currentInvite = nil
@@ -250,13 +265,27 @@ end
 -- Get dungeon information for a given dungeon ID
 function PUGHelper:GetDungeonInfo(dungeonID)
     if not dungeonID then
+        Debug:Dev("pughelper", "GetDungeonInfo called with nil dungeonID")
         return nil
     end
     
-    -- Try to get dungeon name from DungeonNameService
     local dungeonName = nil
-    if NextKey222.DungeonNameService and NextKey222.DungeonNameService.GetDungeonName then
+    
+    -- Try C_ChallengeMode API first (most reliable)
+    if C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+        local name = C_ChallengeMode.GetMapUIInfo(dungeonID)
+        if name then
+            dungeonName = name
+            Debug:Dev("pughelper", "Found dungeon name via C_ChallengeMode: " .. name)
+        end
+    end
+    
+    -- Try DungeonNameService
+    if not dungeonName and NextKey222.DungeonNameService and NextKey222.DungeonNameService.GetDungeonName then
         dungeonName = NextKey222.DungeonNameService:GetDungeonName(dungeonID)
+        if dungeonName then
+            Debug:Dev("pughelper", "Found dungeon name via DungeonNameService: " .. dungeonName)
+        end
     end
     
     -- Fallback to portal data if available
@@ -266,8 +295,13 @@ function PUGHelper:GetDungeonInfo(dungeonID)
             local dungeons = NextKey222.PortalData[activeSeason].dungeons
             if dungeons and dungeons[dungeonID] then
                 dungeonName = dungeons[dungeonID].name
+                Debug:Dev("pughelper", "Found dungeon name via PortalData: " .. dungeonName)
             end
         end
+    end
+    
+    if not dungeonName then
+        Debug:Dev("pughelper", "Could not find dungeon name for ID: " .. tostring(dungeonID))
     end
     
     -- Return dungeon info structure

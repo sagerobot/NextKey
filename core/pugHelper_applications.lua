@@ -9,6 +9,54 @@ end
 
 PUGHelper.trackedApplications = {}
 
+-- MARK: Search Result Cache
+-- Maps searchResultID -> dungeon info (from LFG_LIST_SEARCH_RESULTS_UPDATED)
+-- This cache is rebuilt every time search results update
+local SearchResultCache = {}
+
+-- MARK: Search Result Caching
+-- Called when LFG_LIST_SEARCH_RESULTS_UPDATED fires
+-- Caches dungeon names for all visible search results
+function PUGHelper:CacheSearchResults()
+    -- Wipe old cache
+    wipe(SearchResultCache)
+    
+    -- Get current search results
+    local searchResults = C_LFGList.GetSearchResults()
+    if not searchResults then
+        Debug:Dev("pughelper", "No search results available for caching")
+        return
+    end
+    
+    Debug:Dev("pughelper", "Caching search results: " .. #searchResults .. " entries")
+    
+    for i = 1, #searchResults do
+        local resultID = searchResults[i]
+        local resultInfo = C_LFGList.GetSearchResultInfo(resultID)
+        
+        if resultInfo and resultInfo.activityIDs and type(resultInfo.activityIDs) == "table" then
+            local firstActivityID = resultInfo.activityIDs[1]
+            
+            if firstActivityID then
+                -- Try to get dungeon name from activity info
+                local activityInfo = C_LFGList.GetActivityInfoTable(firstActivityID)
+                if activityInfo and activityInfo.fullName then
+                    SearchResultCache[resultID] = {
+                        dungeonName = activityInfo.fullName,
+                        activityID = firstActivityID,
+                        groupName = resultInfo.name
+                    }
+                    Debug:Dev("pughelper", "  Cached [" .. resultID .. "] = " .. activityInfo.fullName .. " (activityID: " .. firstActivityID .. ")")
+                end
+            end
+        end
+    end
+    
+    local count = 0
+    for _ in pairs(SearchResultCache) do count = count + 1 end
+    Debug:Dev("pughelper", "Search result cache updated: " .. count .. " dungeons cached")
+end
+
 function PUGHelper:GetApplicationsAsArray()
     local applications = {}
 
@@ -34,87 +82,122 @@ local cachedApplications = {}
 
 function PUGHelper:OnApplicationListUpdated()
     local now = GetTime()
-    
-    -- PERFORMANCE FIX: Immediate throttling to prevent excessive processing
+
+    -- PERFORMANCE: Throttle processing; avoid log spam here
     if now - lastLFGUpdate < LFG_UPDATE_THROTTLE then
         if not pendingLFGUpdate then
             pendingLFGUpdate = true
-            Debug:Dev("pughelper", "LFG application update throttled - scheduling delayed processing")
-            
             C_Timer.NewTimer(LFG_UPDATE_THROTTLE, function()
-                self:ProcessLFGUpdate()
+                self:ProcessLFGUpdate("throttled")
                 pendingLFGUpdate = false
             end)
-        else
-            Debug:Dev("pughelper", "LFG application update throttled - already pending")
         end
         return
     end
-    
-    self:ProcessLFGUpdate()
+
+    self:ProcessLFGUpdate("immediate")
     lastLFGUpdate = now
 end
 
-function PUGHelper:ProcessLFGUpdate()
-    Debug:User("PUG Helper: Application refresh detected via hook.")
+function PUGHelper:ProcessLFGUpdate(source)
+    -- Keep this very light; only a single optional trace
+    if source == "immediate" then
+        Debug:Dev("pughelper", "ProcessLFGUpdate (immediate)")
+    end
 
     if not self:IsEnabled() then
-        Debug:User("PUG Helper: PUG Helper is disabled - ignoring applications.")
+        return
+    end
+    
+    -- Stop processing LFG updates if already in a group
+    if self:GetState() == PUGHelper.STATE.IN_GROUP then
         return
     end
 
-    Debug:User("PUG Helper: Processing LFG applications...")
+    local currentResults = C_LFGList.GetApplications() or {}
 
     -- PERFORMANCE FIX: Compare with cache to avoid unnecessary processing
-    local currentResults = C_LFGList.GetApplications()
-    local resultsHash = table.concat(currentResults, ",")
+    local currentResults = C_LFGList.GetApplications() or {}
+    local resultsHash = ""
+    if #currentResults > 0 then
+        resultsHash = table.concat(currentResults, ",")
+    end
     
     if resultsHash == cachedApplications.hash then
-        Debug:Dev("pughelper", "LFG applications unchanged - skipping processing")
         return
     end
 
     self.trackedApplications = {}
 
-    Debug:User("PUG Helper: Found " .. #currentResults .. " LFG applications")
-
     for i = 1, #currentResults do
         local resultID = currentResults[i]
-        local searchResultInfo = C_LFGList.GetSearchResultInfo(resultID)
-
-        if searchResultInfo then
+        
+        -- C_LFGList.GetSearchResultInfo works with both search result IDs AND application IDs
+        -- Just use it directly - no need for GetApplicationInfo
+        local info = C_LFGList.GetSearchResultInfo(resultID)
+        
+        if info then
+            -- Try to get dungeon info from search result cache FIRST (reliable!)
+            local cachedInfo = SearchResultCache[resultID]
+            local dungeonName = nil
+            local firstActivityID = nil
+            
+            if cachedInfo then
+                -- We have cached data from when the user browsed the LFG list!
+                dungeonName = cachedInfo.dungeonName
+                firstActivityID = cachedInfo.activityID
+                Debug:Dev("pughelper", "Using cached dungeon info for " .. resultID .. ": " .. dungeonName)
+            else
+                -- Fallback: try to extract from activityIDs table (may not work reliably)
+                Debug:Dev("pughelper", "No cached data for " .. resultID .. ", attempting fallback")
+                if info.activityIDs and type(info.activityIDs) == "table" then
+                    firstActivityID = info.activityIDs[1]
+                    if firstActivityID then
+                        local activityInfo = C_LFGList.GetActivityInfoTable(firstActivityID)
+                        if activityInfo then
+                            dungeonName = activityInfo.fullName
+                        end
+                    end
+                end
+                
+                -- Last resort: use group name
+                if not dungeonName then
+                    dungeonName = info.name
+                end
+            end
+            
+            Debug:Dev("pughelper", "Processing application " .. resultID .. ": dungeonName=" .. tostring(dungeonName) .. ", activityID=" .. tostring(firstActivityID))
+            
             local appData = {
                 id = tostring(resultID),
-                name = searchResultInfo.name,
-                leader = searchResultInfo.leaderName,
-                dungeonID = searchResultInfo.activityID,
+                name = dungeonName or info.name, -- Use cached dungeon name if available
+                leader = info.leaderName,
+                dungeonID = firstActivityID,
                 keyLevel = 0,
-                activityID = searchResultInfo.activityID,
-                comment = searchResultInfo.comment or "",
-                voiceChat = searchResultInfo.voiceChat,
-                iLevel = searchResultInfo.requiredItemLevel,
-                honorLevel = searchResultInfo.requiredHonorLevel,
+                activityID = firstActivityID,
+                comment = info.comment or "",
+                voiceChat = info.voiceChat,
+                iLevel = info.requiredItemLevel,
+                honorLevel = info.requiredHonorLevel,
                 appliedAt = time(),
                 status = "pending",
                 statusHistory = {
-                    {status = "pending", timestamp = time()}
+                    { status = "pending", timestamp = time() }
                 }
             }
 
-            local keyLevel = string.match(appData.name, "(%d+)")
+            -- Parse key level from group name (e.g., "Mists +10" or "NW 10")
+            local keyLevel = appData.name and string.match(appData.name, "%+?(%d+)")
             if keyLevel then
                 appData.keyLevel = tonumber(keyLevel)
+                Debug:Dev("pughelper", "  Parsed key level: " .. appData.keyLevel)
             end
+            
+            Debug:Dev("pughelper", "  Stored application: activityID=" .. tostring(appData.activityID) .. ", dungeonID=" .. tostring(appData.dungeonID) .. ", keyLevel=" .. tostring(appData.keyLevel))
 
             self.trackedApplications[appData.id] = appData
-
-            Debug:Dev("pughelper", "Application #" .. i .. " - Leader: " .. (appData.leader or "Unknown") ..
-                  ", Dungeon: " .. (appData.name or "Unknown") ..
-                  ", Key Level: +" .. (appData.keyLevel or "?"))
-
-            Debug:User("PUG Helper: Tracking application: " .. appData.name .. " (ID: " .. appData.id .. ")")
         else
-            Debug:Error("PUG Helper: Could not get search result info for resultID: " .. tostring(resultID))
+            Debug:Dev("pughelper", "  No search result info for application " .. resultID)
         end
     end
 
@@ -123,32 +206,29 @@ function PUGHelper:ProcessLFGUpdate()
         hash = resultsHash,
         timestamp = GetTime()
     }
-
+ 
     local appCount = 0
-    for _ in pairs(self.trackedApplications) do appCount = appCount + 1 end
-    Debug:User("PUG Helper: Total applications tracked: " .. appCount)
-
-    if next(self.trackedApplications) and self:GetState() == PUGHelper.STATE.TRACKING then
-        Debug:User("PUG Helper: No state change needed - already tracking applications")
-    elseif next(self.trackedApplications) and self:GetState() == PUGHelper.STATE.IDLE then
-        Debug:User("PUG Helper: Transitioning from IDLE to TRACKING - found applications")
+    for _ in pairs(self.trackedApplications) do
+        appCount = appCount + 1
+    end
+    Debug:Dev("pughelper", "Total applications tracked: " .. appCount)
+ 
+    -- State transitions
+    if appCount > 0 and self:GetState() == PUGHelper.STATE.IDLE then
+        Debug:Dev("pughelper", "Transition IDLE -> TRACKING (applications_detected)")
         self:TransitionToState(PUGHelper.STATE.TRACKING, "applications_detected")
-
-        if NextKey222.PUGApplicationTracker then
-            Debug:User("PUG Helper: Calling AutoShowIfNeeded on application tracker")
-            NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
-        else
-            Debug:Error("PUG Helper: PUGApplicationTracker not available!")
-        end
-    elseif not next(self.trackedApplications) and self:GetState() == PUGHelper.STATE.TRACKING then
-        Debug:User("PUG Helper: Transitioning from TRACKING to IDLE - no applications")
+    elseif appCount == 0 and self:GetState() == PUGHelper.STATE.TRACKING then
+        Debug:Dev("pughelper", "Transition TRACKING -> IDLE (no_applications)")
         self:TransitionToState(PUGHelper.STATE.IDLE, "no_applications")
-
-        if NextKey222.PUGApplicationTracker then
-            NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
-        end
-    else
-        Debug:Dev("pughelper", "No state change needed - Current state: " .. self:GetState() .. ", Applications: " .. appCount)
+    end
+ 
+    -- Notify debug-only tracker with current applications
+    if NextKey222.PUGApplicationTracker and NextKey222.PUGApplicationTracker.OnApplicationsUpdated then
+        NextKey222.SafeRun(function()
+            local apps = self:GetApplicationsAsArray()
+            Debug:Dev("pughelper", "Calling PUGApplicationTracker:OnApplicationsUpdated with " .. #apps .. " apps")
+            NextKey222.PUGApplicationTracker:OnApplicationsUpdated(apps)
+        end, "PUGApplicationTracker:OnApplicationsUpdated")
     end
 end
 
@@ -156,8 +236,14 @@ function PUGHelper:OnApplicationStatusChanged(resultID, newStatus, oldStatus)
     if not self:IsEnabled() then
         return
     end
+    
+    -- Stop processing if already in a group
+    if self:GetState() == PUGHelper.STATE.IN_GROUP then
+        return
+    end
 
-    Debug:Dev("pughelper", "Application status changed: " .. resultID .. " from " .. (oldStatus or "nil") .. " to " .. (newStatus or "nil"))
+    -- Single concise dev trace per status event
+    Debug:Dev("pughelper", "Application " .. tostring(resultID) .. " status: " .. (oldStatus or "nil") .. " -> " .. (newStatus or "nil"))
 
     local appID = tostring(resultID)
     local appData = self.trackedApplications[appID]
@@ -170,9 +256,26 @@ function PUGHelper:OnApplicationStatusChanged(resultID, newStatus, oldStatus)
             timestamp = time()
         })
 
+        -- Check if application was accepted (invited status)
+        if newStatus == "invited" then
+            Debug:Dev("pughelper", "Application accepted! Triggering OnMPlusAccepted for: " .. (appData.name or "Unknown"))
+            -- Trigger teleport window
+            self:OnMPlusAccepted(appData)
+        end
+        
+        -- Transition to IN_GROUP when invite is accepted
+        if newStatus == "inviteaccepted" then
+            Debug:Dev("pughelper", "Invite accepted - transitioning to IN_GROUP state")
+            -- Mark this group as PUG so detection persists through loading screens
+            if self.MarkGroupAsPUG then
+                self:MarkGroupAsPUG()
+            end
+            self:TransitionToState(PUGHelper.STATE.IN_GROUP, "invite_accepted")
+        end
+
         -- PERFORMANCE FIX: Batch UI updates to prevent excessive refreshes
         local shouldUpdateUI = false
-        if newStatus == "declined" or newStatus == "cancelled" or newStatus == "failed" then
+        if newStatus == "declined" or newStatus == "cancelled" or newStatus == "failed" or newStatus == "declined_full" or newStatus == "invitedeclined" then
             self.trackedApplications[appID] = nil
             Debug:Dev("pughelper", "Removed application: " .. appData.name)
             shouldUpdateUI = true
@@ -184,15 +287,84 @@ function PUGHelper:OnApplicationStatusChanged(resultID, newStatus, oldStatus)
             shouldUpdateUI = true
         end
 
-        -- PERFORMANCE FIX: Throttle UI updates
-        if shouldUpdateUI and NextKey222.PUGApplicationTracker then
+        -- PERFORMANCE FIX: Throttle debug UI updates
+        if shouldUpdateUI and NextKey222.PUGApplicationTracker and NextKey222.PUGApplicationTracker.OnApplicationsUpdated then
             C_Timer.After(0.1, function()
-                NextKey222.PUGApplicationTracker:AutoShowIfNeeded()
+                NextKey222.SafeRun(function()
+                    NextKey222.PUGApplicationTracker:OnApplicationsUpdated(self:GetApplicationsAsArray())
+                end, "PUGApplicationTracker:OnApplicationsUpdated(throttled)")
             end)
         end
     end
 end
 
+-- Called when an application transitions into a successful M+ state.
+-- Uses tracked application data to drive teleport behavior.
+function PUGHelper:OnMPlusAccepted(appData)
+    if not appData then
+        Debug:Dev("pughelper", "OnMPlusAccepted: No appData provided")
+        return
+    end
+ 
+    Debug:Dev("pughelper", "OnMPlusAccepted called for: " .. (appData.name or "Unknown"))
+    
+    local NextKey = NextKey222.Addon
+    if not NextKey or not NextKey.SetTeleportWindowContext or not NextKey.ToggleTeleportWindow then
+        Debug:Dev("pughelper", "OnMPlusAccepted: NextKey teleport APIs not available")
+        return
+    end
+ 
+    -- Try to get challenge map ID from the activity ID first (most reliable!)
+    local dungeonID = nil
+    if appData.activityID and NextKey222.ActivityToDungeonMap then
+        dungeonID = NextKey222.ActivityToDungeonMap:GetMapIDFromActivityID(appData.activityID)
+        Debug:Dev("pughelper", "ActivityToDungeonMap lookup for activityID " .. tostring(appData.activityID) .. ": " .. tostring(dungeonID))
+    end
+    
+    -- Fallback: Try to extract dungeon ID from the group name using DungeonNameMatcher
+    if not dungeonID and appData.name and NextKey222.DungeonNameMatcher then
+        dungeonID = NextKey222.DungeonNameMatcher:ParseGroupName(appData.name)
+        Debug:Dev("pughelper", "DungeonNameMatcher lookup for '" .. appData.name .. "': " .. tostring(dungeonID))
+    end
+    
+    if dungeonID then
+        -- We found a dungeon ID! Set it as the teleport target
+        Debug:Dev("pughelper", "OnMPlusAccepted: Found dungeonID=" .. dungeonID .. " from name '" .. appData.name .. "'")
+        
+        local fakeKeyInfo = {
+            dungeonID = dungeonID,
+            level = appData.keyLevel or 0,
+            ownerName = appData.leader or "PUG Group",
+        }
+        
+        -- Set teleport target with the matched dungeon
+        NextKey:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
+        NextKey:SetTeleportWindowContext({ mode = "PUG" })
+    else
+        -- Couldn't determine dungeon - show all portals
+        Debug:Dev("pughelper", "OnMPlusAccepted: Could not determine dungeonID from '" .. (appData.name or "nil") .. "' - showing all portals")
+        
+        NextKey:SetTeleportWindowContext({
+            mode = "PUG",
+            groupName = appData.name,
+            leader = appData.leader,
+            keyLevel = appData.keyLevel
+        })
+    end
+ 
+    -- Show teleport window shortly after acceptance if not already visible
+    C_Timer.After(0.7, function()
+        NextKey222.SafeRun(function()
+            if not NextKey.teleportWindow or not NextKey.teleportWindow.frame or not NextKey.teleportWindow.frame:IsShown() then
+                Debug:Dev("pughelper", "OnMPlusAccepted: showing teleport window")
+                NextKey:ToggleTeleportWindow()
+            else
+                Debug:Dev("pughelper", "OnMPlusAccepted: teleport window already visible")
+            end
+        end, "PUGHelper:ShowTeleportOnMPlusAccepted")
+    end)
+end
+ 
 function PUGHelper:MatchInviteToApplication(inviteName)
     Debug:Dev("pughelper", "Matching invite to applications: " .. inviteName)
 
