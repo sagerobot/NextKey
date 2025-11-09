@@ -48,8 +48,6 @@ core\theme.lua
 core\uiScale.lua
 core\responsive.lua
 core\performance.lua
-ui\performanceOptimizer.lua
-events\performanceHandlers.lua
 core\validation.lua
 core\fakePlayerService.lua
 core\profiles.lua

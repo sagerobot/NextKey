@@ -17,6 +17,10 @@ local DEBUG_CATEGORY_GROUPS = DebugService:GetCategoryGroups()
 -- Track expanded/collapsed state for each group
 DebugUI.expandedGroups = {}
 
+-- Live update timer for statistics
+DebugUI.updateTimer = nil
+DebugUI.updateInterval = 1.0  -- Update every 1 second
+
 -- Debug presets (make accessible for testing)
 DebugUI.DEBUG_PRESETS = {
     ["minimal"] = {
@@ -61,6 +65,32 @@ function DebugUI:RefreshOptions()
     local reg = LibStub("AceConfigRegistry-3.0", true)
     if reg then
         reg:NotifyChange("NextKey")
+    end
+end
+
+-- Start live statistics updates
+function DebugUI:StartLiveUpdates()
+    if self.updateTimer then
+        return  -- Already running
+    end
+    
+    self.updateTimer = C_Timer.NewTicker(self.updateInterval, function()
+        -- Only refresh if the debug panel is actually open
+        local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
+        if AceConfigDialog and AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames["NextKey"] then
+            self:RefreshOptions()
+        else
+            -- Panel is closed, stop the timer
+            self:StopLiveUpdates()
+        end
+    end)
+end
+
+-- Stop live statistics updates
+function DebugUI:StopLiveUpdates()
+    if self.updateTimer then
+        self.updateTimer:Cancel()
+        self.updateTimer = nil
     end
 end
 
@@ -309,10 +339,10 @@ function DebugUI:CreateMainTabArgs()
     end
     
     -- Simple status (after Quick Actions, so order starts at 30)
+    -- Always show status, even when debug mode is off
     args.statusHeader = {
         type = "header",
         name = "Current Status",
-        hidden = function() return not DebugService.enabled end,
         order = 30
     }
     
@@ -321,32 +351,41 @@ function DebugUI:CreateMainTabArgs()
         name = function()
             local stats = DebugService:GetStatistics()
             local levelIcon = DebugService.enabled and "|TInterface\\RAIDFRAME\\ReadyCheck-Ready:16|t" or "|TInterface\\RAIDFRAME\\ReadyCheck-NotReady:16|t"
-            return string.format(
-                "%s Debug %s | %d/%d categories enabled | %d messages logged",
-                levelIcon,
-                DebugService.enabled and "|cFF00FF00ON|r" or "|cFFFF4444OFF|r",
-                stats.enabledCategories,
-                stats.totalCategories,
-                stats.totalMessages
-            )
+            
+            -- Show categories count only when debug mode is ON
+            if DebugService.enabled then
+                return string.format(
+                    "%s Debug %s | %d/%d categories enabled | %d messages logged",
+                    levelIcon,
+                    "|cFF00FF00ON|r",
+                    stats.enabledCategories,
+                    stats.totalCategories,
+                    stats.totalMessages
+                )
+            else
+                return string.format(
+                    "%s Debug %s | %d messages logged",
+                    levelIcon,
+                    "|cFFFF4444OFF|r",
+                    stats.totalMessages
+                )
+            end
         end,
         fontSize = "medium",
-        hidden = function() return not DebugService.enabled end,
         order = 31
     }
     
-    -- Statistics section
+    -- Statistics section - always show
     args.statisticsHeader = {
         type = "header",
         name = "Debug Statistics",
-        hidden = function() return not DebugService.enabled end,
         order = 40
     }
     
     local statsArgs = self:CreateSimplifiedStatisticsArgs()
     for k, v in pairs(statsArgs) do
         v.order = v.order + 40
-        v.hidden = function() return not DebugService.enabled end
+        -- Don't hide statistics when debug mode is off
         args[k] = v
     end
     
@@ -389,7 +428,7 @@ function DebugUI:CreateCategoryGroupTabArgs(groupName, groupData)
     for categoryName, categoryData in pairs(groupData.categories) do
         args[categoryName] = {
             type = "toggle",
-            name = categoryData.name,
+            name = categoryData.name .. " |cFF888888[" .. categoryName .. "]|r",
             desc = categoryData.description,
             get = function() return DebugService.categories[categoryName] end,
             set = function(_, value)
@@ -530,7 +569,7 @@ function DebugUI:CreateCategoryGroupsArgs()
 
             args[key] = {
                 type = "toggle",
-                name = categoryData.name,
+                name = categoryData.name .. " |cFF888888[" .. categoryName .. "]|r",
                 desc = categoryData.description,
                 get = function() return DebugService.categories[categoryName] end,
                 set = function(_, value)
@@ -750,22 +789,44 @@ function DebugUI:CreateSimplifiedStatisticsArgs()
                 local uptimeIcon = "|TInterface\\ICONS\\INV_Misc_PocketWatch_01:12|t"
                 local messageIcon = "|TInterface\\ICONS\\INV_Inscription_Scroll:12|t"
                 local categoryIcon = "|TInterface\\ICONS\\INV_Misc_Book_09:12|t"
+                
+                -- Convert KB to MB for easier reading
+                local memoryKB = stats.memoryUsage
+                local memoryMB = memoryKB / 1024
+                
+                -- Determine memory status color based on expected ranges
+                -- Expected: Baseline <10MB (~10,240 KB), Peak <50MB (~51,200 KB)
+                local memoryColor
+                if memoryKB < 10240 then
+                    memoryColor = "|cFF00FF00"  -- Green: Good (baseline)
+                elseif memoryKB < 51200 then
+                    memoryColor = "|cFFFFFF00"  -- Yellow: Normal (peak usage)
+                else
+                    memoryColor = "|cFFFF4444"  -- Red: High (investigate)
+                end
 
                 return string.format(
                     "%s |cFF00FF00Total Messages: %d|r\n" ..
                     "  |cFFFF4444Errors: %d|r |cFFFFFF00User: %d|r |cFF888888Dev: %d|r |cFF444444Trace: %d|r\n" ..
                     "%s |cFF00FFFFEnabled Categories: %d/%d|r\n" ..
-                    "%s |cFFFFFF00Memory Usage: %s KB|r\n" ..
+                    "%s %sMemory Usage: %.1f MB|r |cFF888888(%.0f KB)|r\n" ..
                     "%s |cFFFFA500Uptime: %s|r",
                     messageIcon, stats.totalMessages,
                     stats.errorCount, stats.userCount, stats.devCount, stats.traceCount,
                     categoryIcon, stats.enabledCategories, stats.totalCategories,
-                    memoryIcon, tostring(stats.memoryUsage),
+                    memoryIcon, memoryColor, memoryMB, memoryKB,
                     uptimeIcon, self:FormatUptime(stats.uptime)
                 )
             end,
             fontSize = "medium",
             order = 1
+        },
+        
+        memoryInfo = {
+            type = "description",
+            name = "|cFF888888Expected Memory Usage: Baseline <10 MB, Peak <50 MB during heavy usage|r",
+            fontSize = "small",
+            order = 1.5
         },
 
         performanceMetrics = {
@@ -948,6 +1009,9 @@ function DebugUI:RebuildDebugOptions()
     
     -- Notify AceConfig that the options table changed
     AceConfigRegistry:NotifyChange("NextKey")
+    
+    -- Start live updates when the debug panel is opened
+    self:StartLiveUpdates()
 end
 
 -- Register module

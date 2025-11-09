@@ -789,7 +789,17 @@ function Communications:ProcessExpensiveOperations()
     -- Clean up old cache entries
     self:CleanupOldCacheEntries()
     
-    NextKey222.Debug:Dev("comms", "Processed expensive operations")
+    -- Log cache cleanup statistics if any work was done
+    local cacheCount = 0
+    for _ in pairs(self.playerIOCache) do
+        cacheCount = cacheCount + 1
+    end
+    
+    NextKey222.Debug:Dev("comms", string.format(
+        "Cache maintenance completed - %d entries cached, %d cleaned",
+        cacheCount,
+        cleaned or 0
+    ))
 end
 
 function Communications:CleanupOldCacheEntries()

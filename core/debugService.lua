@@ -182,6 +182,40 @@ local DebugService = {
 
 -- MARK: - Private Helpers
 
+-- Debug channel for Elephant logging compatibility
+local DEBUG_CHANNEL_NAME = "NextKeyDebug"
+local debugChannelID = nil
+local debugChannelInitialized = false
+
+-- Initialize debug channel (called once on first debug message)
+local function initializeDebugChannel()
+    if debugChannelInitialized then
+        return debugChannelID ~= nil
+    end
+    
+    debugChannelInitialized = true
+    
+    -- Try to join or create the debug channel
+    local channelList = {GetChannelList()}
+    for i = 1, #channelList, 3 do
+        local id, name = channelList[i], channelList[i + 1]
+        if name == DEBUG_CHANNEL_NAME then
+            debugChannelID = id
+            return true
+        end
+    end
+    
+    -- Channel doesn't exist, try to create it
+    local id = JoinTemporaryChannel(DEBUG_CHANNEL_NAME)
+    if id and id > 0 then
+        debugChannelID = id
+        return true
+    end
+    
+    -- Failed to create channel
+    return false
+end
+
 -- Format and print message with level prefix
 local function formatMessage(level, category, ...)
     local prefix
@@ -358,8 +392,17 @@ function DebugService:Print(level, category, ...)
             (debugPerformanceStats.averageFormatTime + formatTime) / 2
     end
     
-    -- Print message
-    print(message)
+    -- Print message to both chat and debug channel (for Elephant addon compatibility)
+    DEFAULT_CHAT_FRAME:AddMessage(message)
+    
+    -- Also send to debug channel if initialized (for Elephant logging)
+    if initializeDebugChannel() and debugChannelID then
+        -- Strip color codes for channel message (they don't work in channels)
+        local plainMessage = message:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "")
+        
+        -- Send to channel (wrapped in pcall for safety)
+        pcall(SendChatMessage, plainMessage, "CHANNEL", nil, debugChannelID)
+    end
 end
 
 -- ERROR level - Critical errors (always shown)

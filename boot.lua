@@ -378,18 +378,6 @@ NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
         NextKey222.Debug:Dev("startup", "Responsive Layout System not available - Phase 7 features disabled")
     end
     
-    -- Phase 7: Initialize Performance Optimization System (must be before UI)
-    if NextKey222.Performance then
-        if NextKey222.Performance.Initialize then
-            NextKey222.Debug:Dev("startup", "Initializing Performance Optimization System")
-            NextKey.SafeRun(function() NextKey222.Performance:Initialize() end, "Initialize Performance Optimization System")
-        else
-            NextKey222.Debug:Error("Performance Optimization System missing Initialize function")
-        end
-    else
-        NextKey222.Debug:Dev("startup", "Performance Optimization System not available - Phase 7 features disabled")
-    end
-    
     -- Phase 7: Initialize Validation System (must be before UI)
     if NextKey222.Validation then
         if NextKey222.Validation.Initialize then

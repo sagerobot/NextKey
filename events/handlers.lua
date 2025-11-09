@@ -392,19 +392,22 @@ function Events:ProcessRosterUpdate()
         if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
             -- Add extra notice for IO Gain Potential mode
             if NextKey222.UI.IsPartySensitiveSortMode and NextKey222.UI:IsPartySensitiveSortMode() then
-                NextKey222.Debug:Dev("events", "Party change affects IO Gain Potential calculations - full refresh needed")
+                NextKey222.Debug:Dev("events", "Party change affects IO Gain Potential calculations - will check if refresh needed")
             end
             
-            NextKey222.Debug:Dev("events", "Refreshing UI due to party change")
+            NextKey222.Debug:Dev("events", "Checking if UI refresh needed due to party change")
             NextKey.SafeRun(function()
-                NextKey222.UI:RefreshResults()
+                -- Use RenderResults() instead of RefreshResults() to allow render-skipping
+                -- This prevents wasteful refreshes when nothing actually changed
+                NextKey222.UI:RenderResults()
             end, "Auto refresh UI on group change")
         end
         
         -- Refresh RosterBoard if visible (party changes affect player list)
         if NextKey222.RosterBoard and NextKey222.RosterBoard.IsVisible and NextKey222.RosterBoard:IsVisible() then
-            NextKey222.Debug:Dev("events", "Refreshing RosterBoard due to party change")
+            NextKey222.Debug:Dev("events", "Checking if RosterBoard refresh needed due to party change")
             NextKey.SafeRun(function()
+                -- RosterBoard should also check if actual changes occurred before rebuilding
                 NextKey222.RosterBoard:PopulateAllSections()
             end, "Auto refresh RosterBoard on group change")
         end

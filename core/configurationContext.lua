@@ -41,26 +41,26 @@ ConfigurationContext.context = {
 -- Merges base configuration with context-specific overrides
 
 ConfigurationContext.baseConfig = {
-    -- Window configuration
+    -- Window configuration - all values now read from UIConfig
     window = {
         base = {
-            width = 570,
-            height = 645
+            width = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.WIDTH or 600 end,
+            height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.BASE_HEIGHT or 645 end
         },
         viewModes = {
             keystones = {
-                height = 645,
+                height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.PLAYER_VIEW_HEIGHT or 645 end,
                 showKeystoneControls = true,
                 showDebugControls = false
             },
             dungeons = {
-                height = 775,
+                height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.DUNGEON_VIEW_HEIGHT or 760 end,
                 showKeystoneControls = false,
                 showDebugControls = false
             }
         },
         debug = {
-            height = 675,
+            height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.PLAYER_VIEW_HEIGHT_DEBUG or 675 end,
             showDebugControls = true
         },
         compact = {
@@ -259,15 +259,16 @@ function ConfigurationContext:GetWindowConfig()
     local windowConfig = self.baseConfig.window
     local viewConfig = windowConfig.viewModes[self.context.viewMode] or windowConfig.viewModes.keystones
     
-    -- Start with base dimensions
+    -- Start with base dimensions - call functions to get current UIConfig values
     local config = {
-        width = windowConfig.base.width,
-        height = viewConfig.height
+        width = type(windowConfig.base.width) == "function" and windowConfig.base.width() or windowConfig.base.width,
+        height = type(viewConfig.height) == "function" and viewConfig.height() or viewConfig.height
     }
     
     -- Apply debug mode height adjustment
     if self:ShouldShowDebugControls() then
-        config.height = windowConfig.debug.height
+        local debugHeight = windowConfig.debug.height
+        config.height = type(debugHeight) == "function" and debugHeight() or debugHeight
     end
     
     return config

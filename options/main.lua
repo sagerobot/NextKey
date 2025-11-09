@@ -1212,6 +1212,7 @@ function NextKey222.SetupOptions()
                         name = "Fake Player Tools",
                         desc = "Developer tools for generating and managing fake players for testing",
                         order = 300,
+                        hidden = function() return not (NextKey222.Debug and NextKey222.Debug.enabled) end,
                         args = (function()
                             local devTools = create_developer_tools_group()
                             local generationArgs = {}
@@ -1246,6 +1247,21 @@ function NextKey222.SetupOptions()
     if success then
         if Debug then
             Debug:Dev("startup", "Options table registered successfully")
+        end
+        
+        -- Hook into AceConfigDialog to start live updates when debug panel is opened
+        local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
+        if AceConfigDialog then
+            -- Wrap the Open function to start live updates
+            local originalOpen = AceConfigDialog.Open
+            AceConfigDialog.Open = function(self, appName, ...)
+                originalOpen(self, appName, ...)
+                
+                -- Start live updates when NextKey config is opened
+                if appName == "NextKey" and NextKey222.DebugUI and NextKey222.DebugUI.StartLiveUpdates then
+                    NextKey222.DebugUI:StartLiveUpdates()
+                end
+            end
         end
     else
         if Debug then

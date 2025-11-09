@@ -780,6 +780,11 @@ function SlashCommands:ShowConfig()
     local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
     if AceConfigDialog then
         AceConfigDialog:Open("NextKey")
+        
+        -- Start live updates for debug statistics when config is opened
+        if NextKey222.DebugUI and NextKey222.DebugUI.StartLiveUpdates then
+            NextKey222.DebugUI:StartLiveUpdates()
+        end
     else
         NextKey222.Debug:Error("Config interface not available")
     end

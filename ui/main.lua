@@ -588,7 +588,7 @@ function UI:CreateMainFrame()
         isDebugMode = self:ShouldShowDebugControls()
     }) or NextKey222.UIConfig.WINDOW.BASE_HEIGHT
     frame:SetHeight(initialHeight)
-    frame:EnableResize(true)
+    frame:EnableResize(false)
     
     -- CRITICAL: Hide frame immediately after creation to prevent scroll bar showing on load
     frame:Hide()
@@ -673,7 +673,7 @@ function UI:CreateMainFrame()
 
     local header = NextKey222.UIComponents:CreateText("body", nil, {
         text = "Choose a sort mode; results area below.",
-        width = nil -- Full width
+        width = 580 -- Window width (600) minus padding
     })
     frame:AddChild(header)
 
@@ -794,6 +794,7 @@ function UI:CreateMainFrame()
     -- Add M+ Organizer button
     local organizerBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
         text = "Open Organizer",
+        size = {160, 25}, -- Increased width to fit full text
         onClick = function()
             if NextKey222.RosterBoard then
                 NextKey222.RosterBoard:Show()
@@ -808,6 +809,7 @@ function UI:CreateMainFrame()
     -- Add view toggle button to controls (this approach works reliably)
     local toggleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
         text = "Switch to Dungeons View",  -- Initial text - starts in Keystone View
+        size = {200, 25}, -- Increased width to fit full text
         onClick = function()
             self:ToggleViewMode()
         end
@@ -1985,13 +1987,16 @@ function UI:RenderResults()
     
     -- PERFORMANCE: Skip render if nothing changed since last render
     -- BUT: Don't skip if this is the first render (no previous hash exists)
+    -- This prevents wasteful re-renders when GROUP_ROSTER_UPDATE fires but nothing changed
     if self.lastRenderedKeystoneHash and
        self.lastRenderedKeystoneHash == currentKeystoneHash and
        self.lastRenderedSortMode == mode then
         -- Silently skip - no need for debug spam
-        Debug:Dev("ui_contamination", "[MAIN UI] Skipping render - no changes detected")
+        Debug:Dev("keystones", "Skipping render - no keystone or sort changes detected")
         return
     end
+    
+    Debug:Dev("keystones", "Rendering - changes detected or first render")
     
     -- Store current state for next comparison
     self.lastRenderedKeystoneHash = currentKeystoneHash
@@ -2688,6 +2693,9 @@ function UI:ToggleViewMode()
         self:UpdateKeystoneControlsVisibility()
         -- Use centralized dungeon view height
         self:ApplyWindowHeight()
+        -- Clear render tracking to force a re-render when switching views
+        self.lastRenderedKeystoneHash = nil
+        self.lastRenderedSortMode = nil
         self:RenderDungeonCards()
     else
         self.viewMode = "keystones"
@@ -2706,6 +2714,9 @@ function UI:ToggleViewMode()
         self:UpdateKeystoneControlsVisibility()
         -- Use centralized keystone view height
         self:ApplyWindowHeight()
+        -- Clear render tracking to force a re-render when switching views
+        self.lastRenderedKeystoneHash = nil
+        self.lastRenderedSortMode = nil
         self:RenderResults()
     end
 end
@@ -3937,11 +3948,13 @@ function UI:Initialize()
         layout = "Flow"
     })
     
-    -- Register only GROUP_ROSTER_UPDATE - ProfilesService handles spec changes
+    -- Register only GROUP_ROSTER_UPDATE for UI mode switching (6+ = Roster Board)
+    -- NOTE: events/handlers.lua already handles roster updates and UI refresh
+    -- We ONLY need to check if UI mode should switch (keystone optimizer vs roster board)
     rosterChangeFrame.frame:RegisterEvent("GROUP_ROSTER_UPDATE")
     rosterChangeFrame.frame:SetScript("OnEvent", function(self, event, ...)
         if event == "GROUP_ROSTER_UPDATE" then
-            Debug:Dev("ui", "GROUP_ROSTER_UPDATE event received")
+            Debug:Dev("ui", "GROUP_ROSTER_UPDATE event received - checking UI mode")
             
             -- Check for UI mode switching (6+ players = Roster Board)
             UI:OnGroupRosterUpdate()
@@ -3951,13 +3964,8 @@ function UI:Initialize()
                 UI.configContext:SynchronizeWithUI(UI)
             end
             
-            -- Refresh for group changes
-            C_Timer.After(0.2, function()
-                if NextKey222.UI and NextKey222.UI.RefreshResults then
-                    NextKey222.UI:RefreshResults()
-                    Debug:Dev("ui", "UI refreshed after group roster change")
-                end
-            end)
+            -- NOTE: DO NOT refresh here - events/handlers.lua already does this
+            -- Duplicate refreshes cause wasteful processing when nothing changed
         end
     end)
     
