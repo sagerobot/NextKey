@@ -21,31 +21,81 @@ DebugUI.expandedGroups = {}
 DebugUI.updateTimer = nil
 DebugUI.updateInterval = 1.0  -- Update every 1 second
 
--- Debug presets (make accessible for testing)
+-- Debug presets (category-based for targeted bug reporting)
 DebugUI.DEBUG_PRESETS = {
-    ["minimal"] = {
-        description = "Minimal debugging - errors only",
-        level = 1, -- ERROR only
-        groups = {},
-        categories = {}
+    ["ui_issues"] = {
+        name = "UI Issues",
+        description = "Debug UI bugs, visual glitches, tooltip problems",
+        categories = {
+            ui = true,
+            components = true,
+            tooltip = true,
+            ui_contamination = true
+        }
     },
-    ["standard"] = {
-        description = "Standard debugging - errors and user messages",
-        level = 2, -- ERROR + USER
-        groups = {},
-        categories = {}
+    
+    ["organizer_issues"] = {
+        name = "Organizer Issues",
+        description = "Debug M+ Organizer bugs, drag/drop, roster sync",
+        categories = {
+            organizer = true,
+            organizer_ui = true,
+            org_sync = true,
+            dragmanager = true,
+            communications = true
+        }
     },
-    ["verbose"] = {
-        description = "Verbose debugging - errors, user, and dev messages",
-        level = 3, -- ERROR + USER + DEV
-        groups = {},
-        categories = {}
+    
+    ["keystone_scoring_issues"] = {
+        name = "Keystone & Scoring Issues",
+        description = "Debug wrong IO scores, missing keystones, calculations",
+        categories = {
+            keystones = true,
+            IOCalculator = true,
+            raiderio = true,
+            blizzard = true,
+            profiles = true
+        }
     },
-    ["full"] = {
-        description = "Full debugging - all message types",
-        level = 4, -- ERROR + USER + DEV + TRACE
-        groups = {},
-        categories = {}
+    
+    ["pug_helper_issues"] = {
+        name = "PUG Helper Issues",
+        description = "Debug PUG Helper, invites, workflow problems",
+        categories = {
+            pughelper = true,
+            events = true
+        }
+    },
+    
+    ["sync_communication_issues"] = {
+        name = "Sync & Communication Issues",
+        description = "Debug addon sync, missing party data, network problems",
+        categories = {
+            communications = true,
+            comms = true,
+            libopenraid = true
+        }
+    },
+    
+    ["loot_tracking_issues"] = {
+        name = "Loot Tracking Issues",
+        description = "Debug loot window, item tracking, run counts",
+        categories = {
+            lootwindow = true,
+            ui = true,
+            database = true
+        }
+    },
+    
+    ["teleport_issues"] = {
+        name = "Teleport Issues",
+        description = "Debug teleport, hearthstone selection, portal problems",
+        categories = {
+            teleport = true,
+            hearthstoneSelector = true,
+            season = true,
+            communications = true
+        }
     }
 }
 
@@ -254,6 +304,47 @@ function DebugUI:CreateMainTabArgs()
         fontSize = "medium",
         hidden = function() return DebugService.enabled end,
         order = 2
+    }
+    
+    -- Debug Profiles Section
+    args.profilesHeader = {
+        type = "header",
+        name = "Debug Profiles",
+        hidden = function() return not DebugService.enabled end,
+        order = 5
+    }
+    
+    args.profilesDesc = {
+        type = "description",
+        name = "Quick category presets for common bug types. Select a profile to enable only the categories needed for that specific issue.",
+        fontSize = "small",
+        hidden = function() return not DebugService.enabled end,
+        order = 6
+    }
+    
+    args.profileSelector = {
+        type = "select",
+        name = "Apply Profile",
+        desc = "Quickly apply category sets for specific bug types (for beta testers and bug reporters)",
+        values = {
+            [""] = "Select a profile...",
+            ["ui_issues"] = "UI Issues (UI bugs, tooltips, visual glitches)",
+            ["organizer_issues"] = "Organizer Issues (M+ Organizer, drag/drop, sync)",
+            ["keystone_scoring_issues"] = "Keystone & Scoring Issues (Wrong IO, missing keys)",
+            ["pug_helper_issues"] = "PUG Helper Issues (Invites, workflow problems)",
+            ["sync_communication_issues"] = "Sync & Communication Issues (Party sync, network)",
+            ["loot_tracking_issues"] = "Loot Tracking Issues (Loot window, item tracking)",
+            ["teleport_issues"] = "Teleport Issues (Teleport, hearthstone, portals)"
+        },
+        get = function() return "" end,
+        set = function(_, value)
+            if value and value ~= "" then
+                self:ApplyPreset(value)
+            end
+        end,
+        width = "full",
+        hidden = function() return not DebugService.enabled end,
+        order = 7
     }
     
     -- Quick actions
@@ -691,14 +782,17 @@ function DebugUI:CreatePresetsArgs()
     -- Preset selector
     args.presetSelector = {
         type = "select",
-        name = "Debug Presets",
-        desc = "Quickly apply common debug configurations",
+        name = "Debug Profiles",
+        desc = "Quickly apply category sets for specific bug types (for beta testers and bug reporters)",
         values = {
-            [""] = "Select a preset...",
-            ["minimal"] = "Minimal (ERROR only)",
-            ["standard"] = "Standard (ERROR + USER)",
-            ["verbose"] = "Verbose (ERROR + USER + DEV)",
-            ["full"] = "Full (ERROR + USER + DEV + TRACE)"
+            [""] = "Select a profile...",
+            ["ui_issues"] = "UI Issues (UI bugs, tooltips, visual glitches)",
+            ["organizer_issues"] = "Organizer Issues (M+ Organizer, drag/drop, sync)",
+            ["keystone_scoring_issues"] = "Keystone & Scoring Issues (Wrong IO, missing keys)",
+            ["pug_helper_issues"] = "PUG Helper Issues (Invites, workflow problems)",
+            ["sync_communication_issues"] = "Sync & Communication Issues (Party sync, network)",
+            ["loot_tracking_issues"] = "Loot Tracking Issues (Loot window, item tracking)",
+            ["teleport_issues"] = "Teleport Issues (Teleport, hearthstone, portals)"
         },
         get = function() return "" end,
         set = function(_, value)
@@ -928,7 +1022,8 @@ function DebugUI:ApplyPreset(presetName)
         end
     end
 
-    DebugService:User("|TInterface\\ICONS\\INV_Misc_Wrench_01:16|t Applied preset: |cFFFFFF00" .. presetName .. "|r - " .. preset.description)
+    local profileName = preset.name or presetName
+    DebugService:User("|TInterface\\ICONS\\INV_Misc_Wrench_01:16|t Applied profile: |cFFFFFF00" .. profileName .. "|r - " .. preset.description)
     self:RefreshOptions()
 end
 
