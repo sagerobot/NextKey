@@ -278,6 +278,19 @@ local TestCommands = {
         handler = "GenerateRealistic"
     },
     {
+        cmd = {"custom"},
+        desc = "Create custom fake player: /nk test custom <name> <class> [specID] [io]",
+        usage = "/nk test custom <name> <class> [specID] [io]",
+        details = {
+            "  name - Player name (no realm needed)",
+            "  class - WARRIOR, PALADIN, HUNTER, etc.",
+            "  specID - Optional: Specific spec ID (e.g., 1468 for Preservation)",
+            "  io - Optional: Total IO score",
+            "  For full customization, use /nk config → Debug System → Fake Player Tools"
+        },
+        handler = "CreateCustomPlayer"
+    },
+    {
         cmd = {"mixed"},
         desc = "Generate custom mix: /nk test mixed X Y Z",
         usage = "/nk test mixed <nextkey> <raiderio> <none>",
@@ -968,6 +981,79 @@ function SlashCommands:ShowTestHelp()
                 NextKey222.Debug:User(detail)
             end
         end
+    end
+    NextKey222.Debug:User(" ")
+    NextKey222.Debug:User("For GUI-based custom player creation:")
+    NextKey222.Debug:User("  /nk config → Debug System → Fake Player Tools → Custom Player Builder")
+end
+
+function SlashCommands:CreateCustomPlayer(args)
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
+        NextKey222.Debug:User("FakePlayerService not available")
+        return
+    end
+    
+    -- Parse arguments
+    local name = args[1]
+    local class = args[2]
+    local specID = tonumber(args[3])
+    local io = tonumber(args[4])
+    
+    if not name or not class then
+        NextKey222.Debug:User("Usage: /nk test custom <name> <class> [specID] [io]")
+        NextKey222.Debug:User("Example: /nk test custom Ryuzaki EVOKER 1468 3200")
+        NextKey222.Debug:User(" ")
+        NextKey222.Debug:User("For full customization with dropdowns and preview:")
+        NextKey222.Debug:User("  /nk config → Debug System → Fake Player Tools → Custom Player Builder")
+        return
+    end
+    
+    -- Validate name against Blizzard's official WoW character naming rules
+    local baseName = name:match("^([^%-]+)") or name
+    
+    -- Rule 1: Length (2-12 characters)
+    if #baseName < 2 or #baseName > 12 then
+        NextKey222.Debug:Error("Player name must be 2-12 characters")
+        return
+    end
+    
+    -- Rule 2 & 3: Letters only (accented supported), no numbers/symbols
+    if not baseName:match("^%a+$") then
+        NextKey222.Debug:Error("Player name can only contain letters (no spaces, numbers, or symbols)")
+        return
+    end
+    
+    -- Rule 4: No mixed capitals (e.g., "TaNk")
+    local isAllLower = baseName == baseName:lower()
+    local isAllUpper = baseName == baseName:upper()
+    local isProperCase = baseName:sub(1, 1) == baseName:sub(1, 1):upper() and baseName:sub(2) == baseName:sub(2):lower()
+    
+    if not (isAllLower or isAllUpper or isProperCase) then
+        NextKey222.Debug:Error("Name cannot have mixed capitals (use 'Tank', 'TANK', or 'tank', not 'TaNk')")
+        return
+    end
+    
+    -- Build config
+    local config = {
+        name = name,
+        class = string.upper(class),
+        specID = specID,
+        io = io,
+    }
+    
+    -- Create player
+    local playerName = NextKey222.FakePlayerService:CreatePlayer(config)
+    
+    if playerName then
+        NextKey222.Debug:User(string.format("Created custom player: %s (%s)",
+            playerName, config.class))
+        
+        -- Refresh UI
+        if NextKey222.UI and NextKey222.UI.RenderResults then
+            NextKey222.UI:RenderResults()
+        end
+    else
+        NextKey222.Debug:Error("Failed to create player - name may already exist or invalid parameters")
     end
 end
 

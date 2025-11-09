@@ -244,6 +244,51 @@ local function generatePlayerID()
     return playerIDCounter
 end
 
+--- Validates a WoW character name against Blizzard's official rules
+-- @param name string The name to validate (without realm)
+-- @return boolean, string Success status and error message if invalid
+--
+-- Blizzard's Official Rules:
+-- 1. Must be 2-12 characters long
+-- 2. Accented characters are supported
+-- 3. Numbers and symbols are not supported
+-- 4. Mixed capitals and spaces are not supported
+local function validateWoWName(name)
+    if not name or name == "" then
+        return false, "Name cannot be empty"
+    end
+    
+    -- Remove realm suffix if present for validation
+    local baseName = name:match("^([^%-]+)") or name
+    
+    -- Rule 1: Length check (2-12 characters)
+    if #baseName < 2 then
+        return false, "Name must be at least 2 characters"
+    end
+    if #baseName > 12 then
+        return false, "Name must be 12 characters or less"
+    end
+    
+    -- Rule 2 & 3: Letters only (including accented), no numbers or symbols
+    -- Lua pattern: %a matches all letters including accented characters
+    if not baseName:match("^%a+$") then
+        return false, "Name can only contain letters (no spaces, numbers, or symbols)"
+    end
+    
+    -- Rule 4: No mixed capitals (e.g., "TaNk" is invalid)
+    -- All lowercase OR proper case are both valid
+    -- Check if it's mixed case by seeing if it's NOT all one case
+    local isAllLower = baseName == baseName:lower()
+    local isAllUpper = baseName == baseName:upper()
+    local isProperCase = baseName:sub(1, 1) == baseName:sub(1, 1):upper() and baseName:sub(2) == baseName:sub(2):lower()
+    
+    if not (isAllLower or isAllUpper or isProperCase) then
+        return false, "Name cannot have mixed capitals (use 'Tank', 'TANK', or 'tank', not 'TaNk')"
+    end
+    
+    return true, nil
+end
+
 local function normalizePlayerName(name)
     if not name then return nil end
     -- Ensure realm is present
@@ -255,6 +300,17 @@ end
 
 local function getRandomClass()
     return VALID_CLASSES[math.random(1, #VALID_CLASSES)]
+end
+
+local function findSpecByID(specID)
+    for className, specs in pairs(CLASS_SPEC_DATA) do
+        for _, spec in ipairs(specs) do
+            if spec.specID == specID then
+                return spec
+            end
+        end
+    end
+    return nil
 end
 
 local function getRandomTier()
@@ -486,16 +542,22 @@ function FakePlayerService:CreatePlayer(config)
     config = config or {}
     
     return NextKey222.SafeRun(function()
-        -- Generate player name with realm
+        -- Handle custom name with realm
         local playerID = generatePlayerID()
-        -- NEW: Use numbered format (01FP, 02FP, etc.) instead of FakePlayer1, FakePlayer2
-        local playerName = config.name or string.format("%02dFP", playerID)
-        playerName = normalizePlayerName(playerName)
+        local playerName = config.name
         
-        -- Validate no duplicate
-        if fakePlayerStorage[playerName] then
-            NextKey222.Debug:Dev("fakeplayerservice", "Player already exists:", playerName)
-            return nil
+        if playerName then
+            -- User provided custom name
+            playerName = normalizePlayerName(playerName)
+            -- Validate uniqueness
+            if fakePlayerStorage[playerName] then
+                NextKey222.Debug:Error("Player already exists:", playerName)
+                return nil
+            end
+        else
+            -- Auto-generate numbered name
+            playerName = string.format("%02dFP", playerID)
+            playerName = normalizePlayerName(playerName)
         end
         
         -- Get active season dungeons
@@ -531,8 +593,28 @@ function FakePlayerService:CreatePlayer(config)
         end
         
         local classToken = config.class and string.upper(config.class) or getRandomClass()
-        local specInfo = pickSpecForClass(classToken)
-        local capabilities = determineCapabilities(classToken, specInfo and specInfo.specID)
+        
+        -- Handle spec selection - custom specID takes precedence
+        local specInfo = nil
+        if config.specID then
+            -- Find spec by ID
+            specInfo = findSpecByID(config.specID)
+            if not specInfo then
+                NextKey222.Debug:Error("Invalid spec ID:", config.specID)
+                return nil
+            end
+            -- Validate spec matches class if both provided
+            if config.class and specInfo.class and specInfo.class ~= classToken then
+                NextKey222.Debug:Error("Spec doesn't match class:", config.specID, "vs", classToken)
+                return nil
+            end
+        else
+            -- Random spec for class (existing behavior)
+            specInfo = pickSpecForClass(classToken)
+        end
+        
+        -- Handle capabilities - custom override or auto-detect
+        local capabilities = config.capabilities or determineCapabilities(classToken, specInfo and specInfo.specID)
       
         -- NEW: Get ALL specs for this class for spec preference generation
         local allClassSpecs = CLASS_SPEC_DATA[classToken] or {}
@@ -555,7 +637,7 @@ function FakePlayerService:CreatePlayer(config)
         	dungeonScores = dungeonScores,
         	keystone = keystone,
         	addonStatus = config.addonStatus or { nextkey = false, raiderio = false },
-        	io = config.io or calculateTotalIO(dungeonScores),
+        	io = config.io or (config.tier and calculateTotalIO(dungeonScores) or 0),
         	createdAt = GetTime(),
         	dataSource = "fake_player_service",
         	role = specInfo and specInfo.role or "DAMAGER",
@@ -1527,6 +1609,31 @@ function FakePlayerService:LogStats()
         status.storageType,
         status.defaultRealm
     ))
+end
+
+--- Gets all available specs for a class
+-- @param classToken string Class token (e.g., "EVOKER")
+-- @return table List of spec info {specID, specName, role}
+function FakePlayerService:GetClassSpecs(classToken)
+    classToken = classToken and string.upper(classToken)
+    return CLASS_SPEC_DATA[classToken] or {}
+end
+
+--- Gets all specs across all classes
+-- @return table List of all specs with class info
+function FakePlayerService:ListAllSpecs()
+    local specs = {}
+    for className, classSpecs in pairs(CLASS_SPEC_DATA) do
+        for _, spec in ipairs(classSpecs) do
+            table.insert(specs, {
+                class = className,
+                specID = spec.specID,
+                specName = spec.specName,
+                role = spec.role
+            })
+        end
+    end
+    return specs
 end
 
 -- MARK: Module Initialization Check

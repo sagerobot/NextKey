@@ -262,6 +262,13 @@ local function RenderKeystoneInfo(card, playerData, xOffset, yOffset, useAlias)
     keyText:SetText(dungeonText .. " +" .. (playerData.keystone.level or 0))
     keyText:SetTextColor(1, 0.82, 0)
     
+    -- Add width constraint and word wrap for expanded cards to prevent overflow
+    if not useAlias then
+        keyText:SetWidth(130)  -- Max width for 155px card
+        keyText:SetWordWrap(true)
+        keyText:SetJustifyH("LEFT")
+    end
+    
     -- Return updated offset (approximate text width)
     if useAlias then
         return xOffset + 45
@@ -289,9 +296,13 @@ end
 -- Helper: Render IO score
 local function RenderIOScore(card, playerData, xOffset, yOffset)
     local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    ioText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+    -- Right-align IO score to leave room for other text on the left
+    ioText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -5, -yOffset)
     ioText:SetText("[" .. (playerData.overallScore or 0) .. "]")
-    ioText:SetTextColor(0.8, 0.8, 1)
+    
+    -- Use universal IO score color system
+    local r, g, b = NextKey222.Utils:GetIOScoreColor(playerData.overallScore or 0)
+    ioText:SetTextColor(r, g, b)
 end
 
 
@@ -306,11 +317,11 @@ function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayM
         -- Determine size based on mode
         local width, height
         if displayMode == "compact" then
-            width, height = 200, 20  -- Widened from 180 to match bench width
+            width, height = 200, 22  -- Increased from 20 to 22 to accommodate role icon backgrounds
         elseif displayMode == "opt_out" then
             width, height = 90, 40  -- Square-ish for 2-line layout
         else
-            width, height = 155, 90  -- Expanded
+            width, height = 170, 105  -- Expanded (increased width to 170 to prevent dungeon name overflow)
         end
         
         -- Create native button frame with backdrop
@@ -471,12 +482,13 @@ function PlayerCard:CreateCompactContent(card, playerData)
     end
     
     local xOffset = 5
+    local yOffset = 2  -- Center content vertically in 22px card (was 0)
     
     -- Multi-role icons with preference colors (max 3) - use helper
-    xOffset = RenderRoleIcons(card, playerData, xOffset, 0, 3)
+    xOffset = RenderRoleIcons(card, playerData, xOffset, yOffset, 3)
     
     -- Player name (truncated to 7 chars) - use helper
-    xOffset = RenderPlayerName(card, playerData, xOffset, 0, 7)
+    xOffset = RenderPlayerName(card, playerData, xOffset, yOffset, 7)
     
     -- Separator
     local sepText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
@@ -486,10 +498,10 @@ function PlayerCard:CreateCompactContent(card, playerData)
     xOffset = xOffset + 10
     
     -- Keystone info (use alias for compact display) - use helper
-    xOffset = RenderKeystoneInfo(card, playerData, xOffset, 0, true)
+    xOffset = RenderKeystoneInfo(card, playerData, xOffset, yOffset, true)
     
     -- IO Score - use helper
-    RenderIOScore(card, playerData, xOffset, 0)
+    RenderIOScore(card, playerData, xOffset, yOffset)
 end
 
 -- MARK: Opt-Out Card Content (2-Line Square Layout)
@@ -536,7 +548,7 @@ function PlayerCard:CreateExpandedContent(card, playerData)
     local yOffset = 5
     local xOffset = 5
     
-    -- Line 1: Class icon + Multi-role icons with preference colors
+    -- Line 1: Class icon + Multi-role icons (left) | IO Score (right)
     -- Class icon
     if playerData.class then
         local classIcon = CreateTrackedTexture(card, nil, "ARTWORK")
@@ -551,34 +563,67 @@ function PlayerCard:CreateExpandedContent(card, playerData)
         xOffset = xOffset + 25
     end
     
-    -- Multi-role icons with preference colors (up to 3) - use helper
+    -- Multi-role icons with preference colors (up to 3)
     RenderRoleIcons(card, playerData, xOffset, yOffset, 3)
+    
+    -- IO Score (right-aligned on line 1, no separator)
+    local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormal")
+    ioText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -5, -yOffset)
+    ioText:SetText(playerData.overallScore or 0)
+    
+    -- Use universal IO score color system
+    local r, g, b = NextKey222.Utils:GetIOScoreColor(playerData.overallScore or 0)
+    ioText:SetTextColor(r, g, b)
     
     yOffset = yOffset + 25
     
-    -- Line 2: Player name - Full name (no truncation)
-    local nameText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormal")
-    nameText:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -yOffset)
-    nameText:SetText(playerData.name or "Unknown")
-    nameText:SetTextColor(1, 1, 1)
+    -- Line 2: Player name - Current Spec (truncated if needed)
+    local nameSpecText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormal")
+    nameSpecText:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -yOffset)
+    
+    -- Build name-spec string
+    local displayText = playerData.name or "Unknown"
+    if playerData.specName then
+        displayText = displayText .. " - " .. playerData.specName
+    end
+    
+    -- Smart truncation with max width
+    nameSpecText:SetWidth(160)  -- Increased for wider card
+    nameSpecText:SetWordWrap(false)
+    nameSpecText:SetJustifyH("LEFT")
+    nameSpecText:SetText(displayText)
+    
+    -- Truncate with ellipsis if too long
+    local actualWidth = nameSpecText:GetStringWidth()
+    if actualWidth > 160 then
+        local truncated = displayText
+        while nameSpecText:GetStringWidth() > 150 and #truncated > 3 do
+            truncated = truncated:sub(1, -2)
+            nameSpecText:SetText(truncated .. "...")
+        end
+    end
+    nameSpecText:SetTextColor(1, 1, 1)
+    
     yOffset = yOffset + 18
     
-    -- Line 2.5: Spec name (if available)
-    if playerData.specName then
-        local specText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-        specText:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -yOffset)
-        specText:SetText(playerData.specName)
-        specText:SetTextColor(0.7, 0.9, 1.0)  -- Light blue color
-        yOffset = yOffset + 14
-    end
-    
-    -- Line 3: Keystone info (full name) - use helper
-    RenderKeystoneInfo(card, playerData, 5, yOffset, false)
+    -- Lines 3-4: Keystone info (full name with wrapping)
     if playerData.keystone then
-        yOffset = yOffset + 16
+        local keyText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
+        keyText:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -yOffset)
+        
+        local dungeonText = "Unknown"
+        if NextKey222.DungeonNameService then
+            dungeonText = NextKey222.DungeonNameService:GetFullName(playerData.keystone.dungeonID)
+        end
+        
+        keyText:SetText(dungeonText .. " +" .. (playerData.keystone.level or 0))
+        keyText:SetTextColor(1, 0.82, 0)
+        keyText:SetWidth(135)  -- Reduced from 160 to wrap earlier and prevent last few characters from sticking out
+        keyText:SetWordWrap(true)
+        keyText:SetJustifyH("LEFT")
     end
     
-    -- Add keystone designation button in top-right corner (only in group slots and if has keystone)
+    -- Keystone designation button (bottom-right corner)
     if playerData.keystone then
         local keystoneButton = self:CreateKeystoneButton(card, playerData)
         if keystoneButton then
@@ -586,12 +631,6 @@ function PlayerCard:CreateExpandedContent(card, playerData)
             table.insert(card.roleButtons, keystoneButton)  -- Track for cleanup
         end
     end
-    
-    -- Line 4: IO Score (formatted as "IO: xxx")
-    local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    ioText:SetPoint("TOPLEFT", card, "TOPLEFT", 5, -yOffset)
-    ioText:SetText("IO: " .. (playerData.overallScore or 0))
-    ioText:SetTextColor(0.8, 0.8, 1)
 end
 
 -- MARK: Keystone Designation Button
@@ -603,10 +642,10 @@ function PlayerCard:CreateKeystoneButton(card, playerData)
         return nil
     end
     
-    -- Create button frame in top-right corner
+    -- Create button frame in BOTTOM-RIGHT corner
     local keystoneButton = CreateFrame("Button", nil, card, "BackdropTemplate")
     keystoneButton:SetSize(20, 20)
-    keystoneButton:SetPoint("TOPRIGHT", card, "TOPRIGHT", -3, -3)
+    keystoneButton:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -3, 3)
     keystoneButton:EnableMouse(true)
     
     -- Backdrop for visual feedback (circular background)

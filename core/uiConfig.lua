@@ -142,7 +142,7 @@ local UIConfig = {
     -- MARK: M+ Organizer Configuration
     ORGANIZER = {
         -- Window dimensions
-        COLUMN_WIDTH = 180,              -- Width of each group column
+        COLUMN_WIDTH = 195,              -- Width of each group column (increased from 180 to accommodate wider expanded cards)
         BENCH_WIDTH = 260,               -- Width of bench column
         PADDING = 20,                    -- Padding at window edges (left/right)
         BENCH_LEFT_GAP = 10,             -- Gap between M+ groups and bench (left side of bench)

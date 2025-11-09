@@ -406,11 +406,387 @@ local function create_developer_tools_group()
         end,
     }
 
+    -- MARK: Custom Player Builder
+    dev_args.custom_builder_header = {
+        type = "header",
+        name = "Custom Player Builder",
+        order = 25,
+    }
+    
+    dev_args.custom_builder_desc = {
+        type = "description",
+        name = "Create fully customized fake players with precise control over all attributes.",
+        order = 26,
+        fontSize = "small",
+    }
+    
+    -- Basic Info
+    dev_args.builder_name = {
+        type = "input",
+        name = "Player Name",
+        desc = "Blizzard Rules: 2-12 letters, no mixed capitals (use 'Tank', 'TANK', or 'tank', not 'TaNk')",
+        order = 27,
+        width = "normal",
+        get = function()
+            local form = ensure_debug_add_form()
+            return form.name or ""
+        end,
+        set = function(_, value)
+            local form = ensure_debug_add_form()
+            form.name = value
+            notify_options_changed()  -- Force refresh to update counter
+        end,
+    }
+    
+    -- Character counter (live update)
+    dev_args.builder_name_counter = {
+        type = "description",
+        name = function()
+            local form = ensure_debug_add_form()
+            local name = form.name or ""
+            local baseName = name:match("^([^%-]+)") or name
+            local length = #baseName
+            
+            -- Build status message
+            local lengthStatus = string.format("%d/12 characters", length)
+            local validationMsg = ""
+            
+            -- Validate and show errors
+            if length > 0 then
+                if length < 2 then
+                    validationMsg = " |cFFFF0000- Too short (min 2)|r"
+                elseif length > 12 then
+                    validationMsg = " |cFFFF0000- Too long (max 12)|r"
+                elseif not baseName:match("^%a+$") then
+                    validationMsg = " |cFFFF0000- Invalid characters (letters only)|r"
+                else
+                    -- Check for mixed capitals (e.g., "TaNk")
+                    local isAllLower = baseName == baseName:lower()
+                    local isAllUpper = baseName == baseName:upper()
+                    local isProperCase = baseName:sub(1, 1) == baseName:sub(1, 1):upper() and baseName:sub(2) == baseName:sub(2):lower()
+                    
+                    if not (isAllLower or isAllUpper or isProperCase) then
+                        validationMsg = " |cFFFF0000- No mixed capitals (use 'Tank', 'TANK', or 'tank', not 'TaNk')|r"
+                    else
+                        validationMsg = " |cFF00FF00- Valid|r"
+                    end
+                end
+            end
+            
+            return lengthStatus .. validationMsg
+        end,
+        order = 27.5,
+        fontSize = "small",
+    }
+    
+    dev_args.builder_class = {
+        type = "select",
+        name = "Class",
+        desc = "Select player class",
+        order = 28,
+        values = {
+            WARRIOR = "Warrior",
+            PALADIN = "Paladin",
+            HUNTER = "Hunter",
+            ROGUE = "Rogue",
+            PRIEST = "Priest",
+            DEATHKNIGHT = "Death Knight",
+            SHAMAN = "Shaman",
+            MAGE = "Mage",
+            WARLOCK = "Warlock",
+            MONK = "Monk",
+            DRUID = "Druid",
+            DEMONHUNTER = "Demon Hunter",
+            EVOKER = "Evoker",
+        },
+        get = function()
+            local form = ensure_debug_add_form()
+            return form.class or "WARRIOR"
+        end,
+        set = function(_, value)
+            local form = ensure_debug_add_form()
+            form.class = value
+            -- Reset spec when class changes
+            form.specID = nil
+            notify_options_changed()
+        end,
+    }
+    
+    dev_args.builder_spec = {
+        type = "select",
+        name = "Specialization",
+        desc = "Select specific spec (auto-filtered by class)",
+        order = 29,
+        values = function()
+            local form = ensure_debug_add_form()
+            local class = form.class or "WARRIOR"
+            
+            -- Get specs from FakePlayerService
+            if NextKey222.FakePlayerService and NextKey222.FakePlayerService.GetClassSpecs then
+                local specs = NextKey222.FakePlayerService:GetClassSpecs(class)
+                local values = { [0] = "Random" }
+                for _, spec in ipairs(specs) do
+                    values[spec.specID] = string.format("%s (%s)", spec.specName, spec.role)
+                end
+                return values
+            end
+            
+            return { [0] = "Random" }
+        end,
+        get = function()
+            local form = ensure_debug_add_form()
+            return form.specID or 0
+        end,
+        set = function(_, value)
+            local form = ensure_debug_add_form()
+            form.specID = (value ~= 0) and value or nil
+        end,
+    }
+    
+    -- Scoring
+    dev_args.builder_tier = {
+        type = "select",
+        name = "Skill Tier Preset",
+        desc = "Use preset skill tier for automatic score generation",
+        order = 30,
+        values = {
+            [""] = "Manual IO Score",
+            title = "Title (3600-3800 IO)",
+            elite = "Elite (3300-3600 IO)",
+            expert = "Expert (3100-3400 IO)",
+            skilled = "Skilled (2900-3100 IO)",
+            competent = "Competent (2500-2900 IO)",
+            average = "Average (2000-2600 IO)",
+            casual = "Casual (1500-2000 IO)",
+            beginner = "Beginner (1000-1500 IO)",
+        },
+        get = function()
+            local form = ensure_debug_add_form()
+            return form.tier or ""
+        end,
+        set = function(_, value)
+            local form = ensure_debug_add_form()
+            form.tier = (value ~= "") and value or nil
+        end,
+    }
+    
+    dev_args.builder_io = {
+        type = "range",
+        name = "Manual IO Score",
+        desc = "Specific IO score (only used if no tier preset selected)",
+        order = 31,
+        min = 0,
+        max = 4000,
+        step = 10,
+        disabled = function()
+            local form = ensure_debug_add_form()
+            return form.tier ~= nil and form.tier ~= ""
+        end,
+        get = function()
+            local form = ensure_debug_add_form()
+            return form.io or 2500
+        end,
+        set = function(_, value)
+            local form = ensure_debug_add_form()
+            form.io = value
+        end,
+    }
+    
+    -- Keystone
+    dev_args.builder_keystone_dungeon = {
+        type = "select",
+        name = "Keystone Dungeon",
+        desc = "Select dungeon for player's keystone (optional)",
+        order = 32,
+        values = function()
+            local dungeons = get_active_season_dungeons()
+            dungeons[""] = "No Keystone"
+            return dungeons
+        end,
+        get = function()
+            local form = ensure_debug_add_form()
+            return tostring(form.keystoneDungeon or "")
+        end,
+        set = function(_, value)
+            local form = ensure_debug_add_form()
+            form.keystoneDungeon = (value ~= "" and tonumber(value)) or nil
+        end,
+    }
+    
+    dev_args.builder_keystone_level = {
+        type = "range",
+        name = "Keystone Level",
+        desc = "Level for player's keystone",
+        order = 33,
+        min = 2,
+        max = 30,
+        step = 1,
+        disabled = function()
+            local form = ensure_debug_add_form()
+            return not form.keystoneDungeon
+        end,
+        get = function()
+            local form = ensure_debug_add_form()
+            return form.keystoneLevel or 10
+        end,
+        set = function(_, value)
+            local form = ensure_debug_add_form()
+            form.keystoneLevel = value
+        end,
+    }
+    
+    -- Preview
+    dev_args.builder_preview = {
+        type = "description",
+        name = function()
+            local form = ensure_debug_add_form()
+            if not form.name or form.name == "" then
+                return "|cFFFF0000Please enter a player name|r"
+            end
+            
+            local class = form.class or "Unknown"
+            local spec = "Random"
+            if form.specID and NextKey222.FakePlayerService then
+                local specs = NextKey222.FakePlayerService:GetClassSpecs(class)
+                for _, s in ipairs(specs or {}) do
+                    if s.specID == form.specID then
+                        spec = s.specName
+                        break
+                    end
+                end
+            end
+            
+            local io = form.tier and ("Tier: " .. form.tier) or ("IO: " .. (form.io or 2500))
+            local key = ""
+            if form.keystoneDungeon then
+                local dungeons = get_active_season_dungeons()
+                local dungeonName = dungeons[tostring(form.keystoneDungeon)] or "Unknown"
+                key = string.format("\nKeystone: %s +%d", dungeonName, form.keystoneLevel or 10)
+            end
+            
+            return string.format(
+                "|cFF00FF00Preview:|r\nName: %s\nClass: %s\nSpec: %s\n%s%s",
+                form.name,
+                class,
+                spec,
+                io,
+                key
+            )
+        end,
+        order = 34,
+        fontSize = "medium",
+    }
+    
+    -- Actions
+    dev_args.builder_create = {
+        type = "execute",
+        name = "Create Player",
+        desc = "Create the custom fake player with specified attributes",
+        order = 35,
+        func = function()
+            local form = ensure_debug_add_form()
+            
+            -- Validation
+            if not form.name or form.name == "" then
+                if Debug then
+                    Debug:Error("Please enter a player name")
+                end
+                return
+            end
+            
+            -- Validate name against Blizzard's official WoW character naming rules
+            local baseName = form.name:match("^([^%-]+)") or form.name
+            
+            -- Rule 1: Length (2-12 characters)
+            if #baseName < 2 or #baseName > 12 then
+                if Debug then
+                    Debug:Error("Player name must be 2-12 characters")
+                end
+                return
+            end
+            
+            -- Rule 2 & 3: Letters only (accented supported), no numbers/symbols
+            if not baseName:match("^%a+$") then
+                if Debug then
+                    Debug:Error("Player name can only contain letters (no spaces, numbers, or symbols)")
+                end
+                return
+            end
+            
+            -- Rule 4: No mixed capitals (e.g., "TaNk")
+            local isAllLower = baseName == baseName:lower()
+            local isAllUpper = baseName == baseName:upper()
+            local isProperCase = baseName:sub(1, 1) == baseName:sub(1, 1):upper() and baseName:sub(2) == baseName:sub(2):lower()
+            
+            if not (isAllLower or isAllUpper or isProperCase) then
+                if Debug then
+                    Debug:Error("Name cannot have mixed capitals (use 'Tank', 'TANK', or 'tank', not 'TaNk')")
+                end
+                return
+            end
+            
+            if not form.class then
+                if Debug then
+                    Debug:Error("Please select a class")
+                end
+                return
+            end
+            
+            -- Build config
+            local config = {
+                name = form.name,
+                class = form.class,
+                specID = form.specID,
+                tier = form.tier,
+                io = (form.tier or form.tier == "") and nil or form.io,
+                keystoneDungeon = form.keystoneDungeon,
+                keystoneLevel = form.keystoneLevel,
+            }
+            
+            -- Create player
+            if not NextKey222.FakePlayerService then
+                if Debug then
+                    Debug:Error("FakePlayerService not available")
+                end
+                return
+            end
+            
+            local playerName = NextKey222.FakePlayerService:CreatePlayer(config)
+            
+            if playerName then
+                if Debug then
+                    Debug:User("devtools", string.format("Created custom player: %s", playerName))
+                end
+                
+                -- Reset form
+                ensure_debug().addForm = { best = {} }
+                
+                notify_options_changed()
+                refresh_ui()
+            else
+                if Debug then
+                    Debug:Error("Failed to create player - name may already exist")
+                end
+            end
+        end,
+    }
+    
+    dev_args.builder_reset = {
+        type = "execute",
+        name = "Reset Form",
+        desc = "Clear all fields and start over",
+        order = 36,
+        func = function()
+            ensure_debug().addForm = { best = {} }
+            notify_options_changed()
+        end,
+    }
+
     -- Custom team
     dev_args.custom_header = {
         type = "header",
         name = "Custom Team",
-        order = 20,
+        order = 40,
     }
 
     dev_args.custom_count = {
@@ -420,7 +796,7 @@ local function create_developer_tools_group()
         min = 1,
         max = 12,
         step = 1,
-        order = 21,
+        order = 41,
         get = function()
             local dbg = ensure_debug()
             return (dbg and dbg.customTeamSize) or 4
@@ -436,7 +812,7 @@ local function create_developer_tools_group()
         type = "execute",
         name = "Generate Custom Team",
         desc = "Generate random fake players using current preset settings.",
-        order = 22,
+        order = 42,
         func = function()
             local dbg = ensure_debug()
             if not dbg or not NextKey222.Addon or not NextKey222.Addon.AddRandomFakePlayers then
@@ -466,7 +842,7 @@ local function create_developer_tools_group()
             end
             return ("Active fake players: %d"):format(total)
         end,
-        order = 30,
+        order = 50,
         fontSize = "medium",
     }
 
@@ -474,7 +850,7 @@ local function create_developer_tools_group()
         type = "execute",
         name = "Clear All Fake Players",
         confirm = true,
-        order = 31,
+        order = 51,
         func = function()
             if NextKey222.Addon and NextKey222.Addon.ClearFakePlayers then
                 NextKey222.Addon:ClearFakePlayers()
@@ -488,7 +864,7 @@ local function create_developer_tools_group()
         type = "execute",
         name = "Test PUG Application Tracking",
         desc = "Run PUG Helper application tracking test (if available).",
-        order = 40,
+        order = 60,
         func = function()
             if NextKey222.PUGHelper and NextKey222.PUGHelper.TestApplicationTracking then
                 NextKey222.PUGHelper:TestApplicationTracking()
