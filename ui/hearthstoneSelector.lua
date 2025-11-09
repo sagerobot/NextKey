@@ -409,7 +409,7 @@ function addon:CreateHearthstoneSelectorWindow()
     local frame = CreateFrame("Frame", "NextKeyHearthstoneSelector", UIParent, "BackdropTemplate")
     frame:SetSize(width, height)
     frame:SetPoint("CENTER", UIParent, "CENTER")
-    frame:SetFrameStrata("DIALOG")  -- Use DIALOG so GameTooltip (TOOLTIP) appears above
+    frame:SetFrameStrata("FULLSCREEN_DIALOG")  -- Above DIALOG (options menu) but below TOOLTIP
     frame:SetFrameLevel(100)
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
@@ -561,7 +561,7 @@ function addon:ShowHearthstoneSelector()
             end
             
             -- Ensure window appears on top of options menu but below GameTooltip
-            window.frame:SetFrameStrata("DIALOG")  -- Below TOOLTIP so GameTooltip can appear above
+            window.frame:SetFrameStrata("FULLSCREEN_DIALOG")  -- Above DIALOG (options menu) but below TOOLTIP
             window.frame:SetFrameLevel(100)
             window.frame:SetToplevel(true)
             window.frame:Show()

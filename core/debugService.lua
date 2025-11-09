@@ -63,10 +63,12 @@ local DEBUG_CATEGORY_GROUPS = {
         order = 3,
         categories = {
             ui = { name = "Main UI", description = "Primary user interface rendering and interaction" },
+            ui_contamination = { name = "UI Contamination Tracking", description = "Detect and prevent UI widget contamination between windows" },
             components = { name = "UI Components", description = "Reusable UI component system and widgets" },
             tooltip = { name = "Tooltip System", description = "Tooltip creation, positioning, and content" },
             teleport = { name = "Teleport System", description = "Teleport functionality and spell management" },
             lootwindow = { name = "Loot Tracking", description = "Loot window and item tracking interface" },
+            hearthstoneSelector = { name = "Hearthstone Selector", description = "Hearthstone selection UI and management" },
             profiles = { name = "Profile Management", description = "Player profile creation and management" },
             pughelper = { name = "PUG Helper", description = "Pick Up Group workflow assistance and automation" }
         }
@@ -91,9 +93,9 @@ local DEBUG_CATEGORY_GROUPS = {
         categories = {
             keystones = { name = "Keystone Processing", description = "Keystone data collection and processing" },
             season = { name = "Seasonal Data", description = "Season information and dungeon management" },
+            dungeonNameService = { name = "Dungeon Name Service", description = "Dungeon name lookup and mapping" },
             IOCalculator = { name = "IO Score Calculator", description = "IO score calculation algorithms and data" },
-            ioc = { name = "IO Calculation Operations", description = "Detailed IO calculation operations and steps" },
-            fakeplayerservice = { name = "Fake Player Service", description = "Testing data generation and fake player simulation" }
+            ioc = { name = "IO Calculation Details", description = "Detailed IO calculation operations and steps" }
         }
     },
 
@@ -103,6 +105,8 @@ local DEBUG_CATEGORY_GROUPS = {
         order = 6,
         categories = {
             test = { name = "Testing Utilities", description = "General testing tools and utilities" },
+            fakeplayerservice = { name = "Fake Player Service", description = "Testing data generation and fake player simulation" },
+            devtools = { name = "Developer Tools", description = "Developer utilities and testing interfaces" },
             debug = { name = "Meta-Debug", description = "Debug system self-monitoring and diagnostics" }
         }
     }
@@ -146,8 +150,9 @@ local DebugService = {
         tooltip = false,
         components = false,
         lootwindow = false,
+        hearthstoneSelector = false,
         pughelper = false,  -- PUG Helper functionality
-        ui_contamination = true,  -- UI contamination tracking (always enabled for debugging)
+        ui_contamination = false,  -- UI contamination tracking
 
         -- M+ Group Organizer
         organizer = false,  -- M+ Group Organizer core (survey, sorting, player data)
@@ -157,7 +162,8 @@ local DebugService = {
 
         -- Testing & Development
         fakeplayerservice = false,
-        dungeonNameService = false,  -- Dungeon name lookup service
+        devtools = false,
+        dungeonNameService = false,
         IOCalculator = false,
         ioc = false,
         test = false,

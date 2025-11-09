@@ -92,15 +92,31 @@ function IOCalculator:EstimateRunScore(level, timed, fractionalTime)
     
     -- Apply timing modifier
     if not timed then
-        -- Untimed runs get reduced score
-        score = score * 0.5
+        -- Untimed runs: Use same logic as CalculateDungeonScore
+        -- Assume 10% overtime if no fractionalTime provided (typical untimed scenario)
+        local assumedFractionalTime = fractionalTime or 1.1
+        
+        -- Calculate time percentage (capped at 40%)
+        local timePercent = (1.0 - assumedFractionalTime)
+        local cappedPercent = math.min(math.abs(timePercent), 0.4)
+        
+        -- Apply time-based adjustment (negative for overtime)
+        score = score + (timePercent * 37.5)
+        
+        -- Apply overtime penalty
+        score = score - 15
+        
+        -- Ensure minimum of 0
+        if math.abs(timePercent) > 0.4 then
+            return 0
+        end
     elseif fractionalTime and fractionalTime < 1.0 then
         -- Bonus for faster completion times
         local timeBonus = (1.0 - fractionalTime) * 0.4 * metrics.base
         score = score + timeBonus
     end
     
-    return math.floor(score + 0.5)
+    return math.max(0, math.floor(score + 0.5))
 end
 
 

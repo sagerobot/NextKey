@@ -590,28 +590,36 @@ function Events:OnChallengeModeCompleted(mapID, level)
         end, "Increment run counters on dungeon completion")
     end
     
-    -- Forward to PUG Helper if available
+    -- Forward to PUG Helper if available (PUG-specific context only)
     if NextKey222.PUGHelper and NextKey222.PUGHelper.OnChallengeModeCompleted then
         NextKey.SafeRun(NextKey222.PUGHelper.OnChallengeModeCompleted, "PUG Helper challenge mode completed", NextKey222.PUGHelper, mapID, level)
     end
-    
-    -- Auto-show teleport window after M+ completion (if enabled)
+
+    -- Auto-show teleport window after M+ completion (generic, Details-style)
+    -- This is the single authoritative place that opens the teleport window
+    -- for ALL Mythic+ completions. PUGHelper only sets context/target.
     local db = NextKey222.Addon and NextKey222.Addon.db
-    local autoShowEnabled = db and db.global and db.global.teleport and db.global.teleport.autoShowAfterCompletion
-    
-    if autoShowEnabled ~= false then  -- Default to true if not set
-        if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
-            NextKey222.Debug:User("Auto-showing teleport window after M+ completion")
-            -- Show teleport window after a short delay to ensure completion processing is done
-            C_Timer.After(1.5, function()
-                -- Verify window isn't already showing before toggling
-                if not NextKey222.Addon.teleportWindow or not NextKey222.Addon.teleportWindow.frame:IsShown() then
+    local tele = db and db.global and db.global.teleport
+    local auto_show_enabled = (not tele) or (tele.autoShowAfterCompletion ~= false)
+
+    if auto_show_enabled and NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
+        NextKey222.Debug:User("Auto-showing teleport window after M+ completion")
+        C_Timer.After(1.5, function()
+            NextKey222.SafeRun(function()
+                -- If the window is already visible, refresh instead of toggling it off.
+                if NextKey222.Addon.teleportWindow
+                    and NextKey222.Addon.teleportWindow.frame
+                    and NextKey222.Addon.teleportWindow.frame:IsShown() then
+                    if NextKey222.Addon.RefreshTeleportWindow then
+                        NextKey222.Addon:RefreshTeleportWindow()
+                    end
+                else
                     NextKey222.Addon:ToggleTeleportWindow()
                 end
-            end)
-        end
+            end, "AutoShowTeleportWindowAfterMPlus")
+        end)
     else
-        NextKey222.Debug:Dev("teleport", "Auto-show teleport window disabled by user configuration")
+        NextKey222.Debug:Dev("teleport", "Auto-show teleport window after completion disabled by configuration")
     end
     
     NextKey222.Performance:StopProfile("OnChallengeModeCompleted")

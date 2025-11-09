@@ -100,10 +100,8 @@ end
 
 -- MARK: Main Frame Creation (FULLY NATIVE INTERIOR)
 function RosterBoard:CreateMainFrame()
-    print("[ORGANIZER DIAGNOSTIC] CreateMainFrame called")
-    
     return NextKey222.SafeRun(function()
-        print("[ORGANIZER DIAGNOSTIC] Inside SafeRun")
+        Debug:Dev("organizer_ui", "CreateMainFrame called - clearing caches")
         
         -- CRITICAL: Clear ALL caches FIRST, before any profile calls
         if NextKey222.ProfilesService then
@@ -118,18 +116,18 @@ function RosterBoard:CreateMainFrame()
         
         -- Release existing frame if present
         if self.mainFrame then
-            print("[ORGANIZER DIAGNOSTIC] Releasing existing frame")
+            Debug:Dev("organizer_ui", "Releasing existing frame")
             AceGUI:Release(self.mainFrame)
             self.mainFrame = nil
         end
         
         -- Calculate dynamic sizing
-        print("[ORGANIZER DIAGNOSTIC] Calculating layout")
+        Debug:Dev("organizer_ui", "Calculating layout")
         local layout = self:CalculateOptimalLayout()
-        print("[ORGANIZER DIAGNOSTIC] Layout calculated - groups:", layout.groupColumns)
+        Debug:Dev("organizer_ui", "Layout calculated - groups:", layout.groupColumns)
         
         -- Create main window container with dynamic size (AceGUI for window chrome only)
-        print("[ORGANIZER DIAGNOSTIC] Creating AceGUI Frame")
+        Debug:Dev("organizer_ui", "Creating AceGUI Frame")
         local frame = AceGUI:Create("Frame")
         frame:SetTitle("M+ Group Organizer")
         frame:SetWidth(layout.totalWidth)
@@ -146,42 +144,32 @@ function RosterBoard:CreateMainFrame()
         
         -- Store reference
         self.mainFrame = frame
-        print("[ORGANIZER DIAGNOSTIC] Main frame created and stored")
+        Debug:Dev("organizer_ui", "Main frame created and stored")
         
         -- Get the native frame for direct content parenting
         -- AceGUI Frames have frame.content for interior content
         local nativeFrame = frame.content or frame.frame
-        print("[ORGANIZER DIAGNOSTIC] Native frame obtained:", nativeFrame and "YES" or "NO")
-        print("[ORGANIZER DIAGNOSTIC] Using frame.content:", frame.content and "YES" or "NO")
-        
-        -- If there's an InsetFrame, we need to work around it
-        if frame.frame.InsetBg then
-            print("[ORGANIZER DIAGNOSTIC] InsetBg found - adjusting setup")
-        end
+        Debug:Dev("organizer_ui", "Native frame obtained:", nativeFrame and "YES" or "NO")
         
         -- Create all sections as NATIVE frames with manual positioning
-        print("[ORGANIZER DIAGNOSTIC] Creating header section...")
         Debug:Dev("organizer_ui", "Creating header section (minimal spacer)...")
         self:CreateHeaderSection(nativeFrame)
-        print("[ORGANIZER DIAGNOSTIC] Header section created")
+        Debug:Dev("organizer_ui", "Header section created")
         
-        print("[ORGANIZER DIAGNOSTIC] Creating active pool section...")
         Debug:Dev("organizer_ui", "Creating active pool section...")
         self:CreateActivePoolSection(nativeFrame)
-        print("[ORGANIZER DIAGNOSTIC] Active pool section created")
+        Debug:Dev("organizer_ui", "Active pool section created")
         
         -- ACTION BAR REMOVED: All controls now in header (row 2)
         
-        print("[ORGANIZER DIAGNOSTIC] Creating opt-out section...")
         Debug:Dev("organizer_ui", "Creating opt-out section...")
         self:CreateOptOutSection(nativeFrame)
-        print("[ORGANIZER DIAGNOSTIC] Opt-out section created")
+        Debug:Dev("organizer_ui", "Opt-out section created")
         
         -- Populate with actual data
-        print("[ORGANIZER DIAGNOSTIC] Populating sections...")
         Debug:Dev("organizer_ui", "Populating sections...")
         self:PopulateAllSections()
-        print("[ORGANIZER DIAGNOSTIC] Sections populated")
+        Debug:Dev("organizer_ui", "Sections populated")
         
         -- Apply view-specific restrictions
         if self:IsParticipant() then
@@ -239,39 +227,67 @@ function RosterBoard:OnMainFrameClosed(widget)
 end
 
 function RosterBoard:CleanupNativeFrames()
-    Debug:Dev("ui_contamination", "[ORGANIZER] CleanupNativeFrames called - starting comprehensive cleanup")
+    Debug:Dev("ui_contamination", "[ORGANIZER] CleanupNativeFrames called - ENHANCED MEMORY LEAK FIXES")
     
-    -- Hide and nil all bench cards
+    -- CRITICAL FIX: Enhanced bench card cleanup with script handler nil-ing
     local benchCardCount = 0
     for _, card in ipairs(self.benchCards) do
         if card then
+            -- Nil ALL script handlers to break circular references
+            card:SetScript("OnDragStart", nil)
+            card:SetScript("OnDragStop", nil)
+            card:SetScript("OnMouseDown", nil)
+            card:SetScript("OnMouseUp", nil)
+            card:SetScript("OnEnter", nil)
+            card:SetScript("OnLeave", nil)
+            card:SetScript("OnClick", nil)
+            
+            -- Clear all child frames and textures
+            for _, child in ipairs({card:GetChildren()}) do
+                child:Hide()
+                child:SetParent(nil)
+            end
+            
+            for _, region in ipairs({card:GetRegions()}) do
+                if region:GetObjectType() == "Texture" then
+                    region:SetTexture(nil)
+                elseif region:GetObjectType() == "FontString" then
+                    region:SetText("")
+                end
+            end
+            
             card:Hide()
             card:SetParent(nil)
             card:ClearAllPoints()
-            -- Clear all scripts to prevent event handlers from firing
-            card:SetScript("OnDragStart", nil)
-            card:SetScript("OnDragStop", nil)
             benchCardCount = benchCardCount + 1
         end
     end
     self.benchCards = {}
-    Debug:Dev("ui_contamination", "[ORGANIZER] Cleaned up", benchCardCount, "bench cards")
+    Debug:Dev("ui_contamination", "[ORGANIZER] Enhanced cleanup:", benchCardCount, "bench cards")
     
-    -- Hide and nil all slot cards
+    -- CRITICAL FIX: Enhanced slot card cleanup
     local slotCount = 0
     for groupIndex, slots in pairs(self.groupSlots) do
         for slotIndex, slot in pairs(slots) do
             if slot.playerCard then
+                -- Nil all script handlers
+                slot.playerCard:SetScript("OnDragStart", nil)
+                slot.playerCard:SetScript("OnDragStop", nil)
+                slot.playerCard:SetScript("OnMouseDown", nil)
+                slot.playerCard:SetScript("OnMouseUp", nil)
+                slot.playerCard:SetScript("OnEnter", nil)
+                slot.playerCard:SetScript("OnLeave", nil)
+                slot.playerCard:SetScript("OnClick", nil)
+                
                 slot.playerCard:Hide()
                 slot.playerCard:SetParent(nil)
                 slot.playerCard:ClearAllPoints()
-                -- Clear all scripts to prevent event handlers from firing
-                if slot.playerCard.SetScript then
-                    slot.playerCard:SetScript("OnDragStart", nil)
-                    slot.playerCard:SetScript("OnDragStop", nil)
-                end
+                slot.playerCard = nil
             end
+            
             if slot.frame then
+                slot.frame:SetScript("OnEnter", nil)
+                slot.frame:SetScript("OnLeave", nil)
                 slot.frame:Hide()
                 slot.frame:SetParent(nil)
                 slot.frame:ClearAllPoints()
@@ -280,9 +296,9 @@ function RosterBoard:CleanupNativeFrames()
         end
     end
     self.groupSlots = {}
-    Debug:Dev("ui_contamination", "[ORGANIZER] Cleaned up", slotCount, "slot frames")
+    Debug:Dev("ui_contamination", "[ORGANIZER] Enhanced cleanup:", slotCount, "slot frames")
     
-    -- CRITICAL: Clean up all other frame references
+    -- Clean up header, active pool, and opt-out sections
     if self.headerSection then
         self.headerSection:Hide()
         self.headerSection:SetParent(nil)
@@ -299,6 +315,10 @@ function RosterBoard:CleanupNativeFrames()
         if self.optOutSection.playerCards then
             for _, card in ipairs(self.optOutSection.playerCards) do
                 if card then
+                    card:SetScript("OnDragStart", nil)
+                    card:SetScript("OnDragStop", nil)
+                    card:SetScript("OnMouseDown", nil)
+                    card:SetScript("OnMouseUp", nil)
                     card:Hide()
                     card:SetParent(nil)
                     card:ClearAllPoints()
@@ -310,10 +330,19 @@ function RosterBoard:CleanupNativeFrames()
         self.optOutSection = nil
     end
     
-    -- Clear all interactive frame references
+    -- CRITICAL FIX: Remove strong references and nil script handlers
     if self.allInteractiveFrames then
         for _, frame in ipairs(self.allInteractiveFrames) do
             if frame then
+                -- Nil all possible script handlers (use pcall to avoid errors on non-existent handlers)
+                pcall(function() frame:SetScript("OnMouseDown", nil) end)
+                pcall(function() frame:SetScript("OnMouseUp", nil) end)
+                pcall(function() frame:SetScript("OnDragStart", nil) end)
+                pcall(function() frame:SetScript("OnDragStop", nil) end)
+                pcall(function() frame:SetScript("OnEnter", nil) end)
+                pcall(function() frame:SetScript("OnLeave", nil) end)
+                pcall(function() frame:SetScript("OnClick", nil) end)
+                
                 frame:Hide()
                 frame:SetParent(nil)
                 frame:ClearAllPoints()
@@ -327,7 +356,7 @@ function RosterBoard:CleanupNativeFrames()
     self.groupTitles = {}
     self.groupKeystones = {}
     
-    Debug:Dev("ui_contamination", "[ORGANIZER] CleanupNativeFrames completed - all references cleared")
+    Debug:Dev("ui_contamination", "[ORGANIZER] CleanupNativeFrames COMPLETE - memory leak fixes applied")
 end
 
 -- MARK: Layout Calculation (Uses UIConfig constants)

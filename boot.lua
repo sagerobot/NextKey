@@ -226,10 +226,12 @@ NextKey222.StartUp = {
             self.currentPhase = i
             self:ExecutePhase(phase)
         end
-        
-        -- Setup options interface
-        if NextKey.SetupOptions then
-            NextKey.SafeRun(NextKey.SetupOptions, "Setup Options", NextKey)
+
+        -- Setup options interface (AceConfig registration for "NextKey")
+        if NextKey222.SetupOptions then
+            NextKey.SafeRun(function()
+                NextKey222.SetupOptions()
+            end, "Setup Options")
         end
         
         NextKey.isInitialized = true

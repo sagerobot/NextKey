@@ -589,8 +589,48 @@ function FakePlayerService:RemovePlayer(playerName)
             return false
         end
         
+        -- MEMORY LEAK FIX: Deep cleanup of nested data structures
+        local playerData = fakePlayerStorage[playerName]
+        if playerData then
+            -- Nil out deeply nested tables explicitly
+            if playerData.dungeonScores then
+                for dungeonID, scoreData in pairs(playerData.dungeonScores) do
+                    playerData.dungeonScores[dungeonID] = nil
+                end
+                playerData.dungeonScores = nil
+            end
+            
+            if playerData.keystoneData then
+                playerData.keystoneData = nil
+            end
+            
+            if playerData.specPreferences then
+                for role in pairs(playerData.specPreferences) do
+                    playerData.specPreferences[role] = nil
+                end
+                playerData.specPreferences = nil
+            end
+            
+            if playerData.specDetails then
+                playerData.specDetails = nil
+            end
+            
+            if playerData.specializations then
+                for i in ipairs(playerData.specializations) do
+                    playerData.specializations[i] = nil
+                end
+                playerData.specializations = nil
+            end
+        end
+        
         removeFromStorage(playerName)
-        NextKey222.Debug:Dev("fakeplayerservice", "Removed fake player:", playerName)
+        
+        -- Invalidate profile cache for this player
+        if NextKey222.ProfilesService then
+            NextKey222.ProfilesService:InvalidateCache(playerName)
+        end
+        
+        NextKey222.Debug:Dev("fakeplayerservice", "Removed fake player with deep cleanup:", playerName)
         return true
     end, "FakePlayerService:RemovePlayer")
 end
@@ -602,8 +642,44 @@ function FakePlayerService:ClearAllPlayers()
     
     return NextKey222.SafeRun(function()
         local count = 0
-        for playerName in pairs(fakePlayerStorage) do
+        
+        -- MEMORY LEAK FIX: Deep cleanup each player before clearing storage
+        for playerName, playerData in pairs(fakePlayerStorage) do
             count = count + 1
+            
+            -- Nil out deeply nested tables explicitly
+            if playerData then
+                if playerData.dungeonScores then
+                    for dungeonID, scoreData in pairs(playerData.dungeonScores) do
+                        playerData.dungeonScores[dungeonID] = nil
+                    end
+                    playerData.dungeonScores = nil
+                end
+                
+                if playerData.keystoneData then
+                    playerData.keystoneData = nil
+                end
+                
+                if playerData.specPreferences then
+                    for role in pairs(playerData.specPreferences) do
+                        playerData.specPreferences[role] = nil
+                    end
+                    playerData.specPreferences = nil
+                end
+                
+                if playerData.specDetails then
+                    playerData.specDetails = nil
+                end
+                
+                if playerData.specializations then
+                    for i in ipairs(playerData.specializations) do
+                        playerData.specializations[i] = nil
+                    end
+                    playerData.specializations = nil
+                end
+            end
+            
+            fakePlayerStorage[playerName] = nil
         end
         
         fakePlayerStorage = {}
@@ -613,7 +689,10 @@ function FakePlayerService:ClearAllPlayers()
             NextKey222.ProfilesService:InvalidateCache()
         end
         
-        NextKey222.Debug:Dev("fakeplayerservice", "Cleared all fake players, removed:", count)
+        -- Hint to garbage collector
+        collectgarbage("step")
+        
+        NextKey222.Debug:Dev("fakeplayerservice", "Cleared all fake players with deep cleanup, removed:", count)
         return count
     end, "FakePlayerService:ClearAllPlayers") or 0
 end
@@ -941,6 +1020,373 @@ function FakePlayerService:GetRandomClassForRole(role)
     else  -- DAMAGER/DPS
         return dpsClasses[math.random(#dpsClasses)]
     end
+end
+
+-- MARK: Public API - Keystone-Focused Generation
+
+--- Generates players with diverse keystones at the same level
+-- @param level number The keystone level for all players
+-- @param count number (optional) Number of players to generate (default 4)
+-- @return number Count of players created
+function FakePlayerService:GenerateDiverseKeys(level, count)
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    count = count or 4
+    level = level or 10
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        -- Get active season dungeons
+        local dungeonIDs = {}
+        if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+            dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+        end
+        
+        if #dungeonIDs == 0 then
+            NextKey222.Debug:Error("No dungeon IDs available for diverse key generation")
+            return 0
+        end
+        
+        -- Shuffle dungeons to ensure variety
+        local shuffled = {}
+        for i, id in ipairs(dungeonIDs) do
+            shuffled[i] = id
+        end
+        for i = #shuffled, 2, -1 do
+            local j = math.random(i)
+            shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+        end
+        
+        local created = 0
+        for i = 1, math.min(count, #shuffled) do
+            local playerName = self:CreatePlayer({
+                tier = "competent", -- Middle tier for testing
+                keystoneDungeon = shuffled[i],
+                keystoneLevel = level,
+                addonStatus = addonConfig
+            })
+            
+            if playerName then
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User(string.format("Generated %d players with diverse +%d keys", created, level))
+        return created
+    end, "FakePlayerService:GenerateDiverseKeys") or 0
+end
+
+--- Generates players with keystones in a specific level range
+-- @param minLevel number Minimum keystone level
+-- @param maxLevel number Maximum keystone level
+-- @param count number (optional) Number of players to generate (default 4)
+-- @return number Count of players created
+function FakePlayerService:GenerateLevelRange(minLevel, maxLevel, count)
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    count = count or 4
+    minLevel = minLevel or 7
+    maxLevel = maxLevel or 10
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        -- Get active season dungeons
+        local dungeonIDs = {}
+        if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+            dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+        end
+        
+        if #dungeonIDs == 0 then
+            NextKey222.Debug:Error("No dungeon IDs available for level range generation")
+            return 0
+        end
+        
+        local created = 0
+        for i = 1, count do
+            -- Random dungeon and level within range
+            local dungeonID = dungeonIDs[math.random(#dungeonIDs)]
+            local level = math.random(minLevel, maxLevel)
+            
+            local playerName = self:CreatePlayer({
+                tier = "competent",
+                keystoneDungeon = dungeonID,
+                keystoneLevel = level,
+                addonStatus = addonConfig
+            })
+            
+            if playerName then
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User(string.format("Generated %d players with +%d to +%d keys", created, minLevel, maxLevel))
+        return created
+    end, "FakePlayerService:GenerateLevelRange") or 0
+end
+
+--- Generates players with duplicate keystones (same dungeon, same level)
+-- @param dungeonID number The dungeon ID
+-- @param level number The keystone level
+-- @param count number (optional) Number of players to generate (default 3)
+-- @return number Count of players created
+function FakePlayerService:GenerateDuplicateKeys(dungeonID, level, count)
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    count = count or 3
+    level = level or 10
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        local created = 0
+        for i = 1, count do
+            local playerName = self:CreatePlayer({
+                tier = "competent",
+                keystoneDungeon = dungeonID,
+                keystoneLevel = level,
+                addonStatus = addonConfig
+            })
+            
+            if playerName then
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User(string.format("Generated %d players with dungeon %d +%d", created, dungeonID, level))
+        return created
+    end, "FakePlayerService:GenerateDuplicateKeys") or 0
+end
+
+-- MARK: Public API - Role Composition Generation
+
+--- Generates players with specific role composition
+-- @param tanks number Number of tanks (0-4)
+-- @param healers number Number of healers (0-4)
+-- @param dps number Number of DPS (0-12)
+-- @param options table (optional) { tier = "mixed" | tier name, respectSkillTier = bool, addonStatus = { nextkey, raiderio } }
+-- @return number Count of players created
+function FakePlayerService:GenerateRoleComposition(tanks, healers, dps, options)
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    tanks = tanks or 0
+    healers = healers or 0
+    dps = dps or 0
+    options = options or {}
+    
+    local total = tanks + healers + dps
+    if total > 20 then
+        NextKey222.Debug:Error("Total player count exceeds maximum (20)")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = options.addonStatus or { nextkey = true, raiderio = true }
+        if not options.addonStatus and NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        local created = 0
+        
+        -- Create tanks
+        for i = 1, tanks do
+            local classToken = self:GetRandomClassForRole("TANK")
+            local playerName = self:CreatePlayer({
+                class = classToken,
+                tier = options.tier or "competent",
+                addonStatus = addonConfig
+            })
+            if playerName then
+                created = created + 1
+            end
+        end
+        
+        -- Create healers
+        for i = 1, healers do
+            local classToken = self:GetRandomClassForRole("HEALER")
+            local playerName = self:CreatePlayer({
+                class = classToken,
+                tier = options.tier or "competent",
+                addonStatus = addonConfig
+            })
+            if playerName then
+                created = created + 1
+            end
+        end
+        
+        -- Create DPS
+        for i = 1, dps do
+            local classToken = self:GetRandomClassForRole("DAMAGER")
+            local playerName = self:CreatePlayer({
+                class = classToken,
+                tier = options.tier or "competent",
+                addonStatus = addonConfig
+            })
+            if playerName then
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User(string.format("Generated role composition: %d tanks, %d healers, %d DPS", tanks, healers, dps))
+        return created
+    end, "FakePlayerService:GenerateRoleComposition") or 0
+end
+
+--- Generates standard M+ composition (1 tank, 1 healer, 3 DPS)
+-- @return number Count of players created
+function FakePlayerService:GenerateStandardComp()
+    return self:GenerateRoleComposition(1, 1, 3, { tier = "competent" })
+end
+
+--- Generates enhanced Organizer team (20 players) with optimal distribution
+-- @return number Count of players created
+function FakePlayerService:GenerateOrganizerTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        -- Optimized composition for Organizer testing
+        -- 4 tanks (one per potential group)
+        -- 6 healers (coverage for 4 groups + flexibility)
+        -- 10 DPS (remaining slots)
+        
+        local roleAssignments = {}
+        
+        -- TANKS: 4 tanks with varied skill
+        table.insert(roleAssignments, { role = "TANK", tier = "expert" })
+        table.insert(roleAssignments, { role = "TANK", tier = "expert" })
+        table.insert(roleAssignments, { role = "TANK", tier = "skilled" })
+        table.insert(roleAssignments, { role = "TANK", tier = "skilled" })
+        
+        -- HEALERS: 6 healers with varied skill
+        table.insert(roleAssignments, { role = "HEALER", tier = "expert" })
+        table.insert(roleAssignments, { role = "HEALER", tier = "expert" })
+        table.insert(roleAssignments, { role = "HEALER", tier = "skilled" })
+        table.insert(roleAssignments, { role = "HEALER", tier = "skilled" })
+        table.insert(roleAssignments, { role = "HEALER", tier = "competent" })
+        table.insert(roleAssignments, { role = "HEALER", tier = "competent" })
+        
+        -- DPS: 10 DPS with skill distribution
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "expert" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "expert" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "expert" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "skilled" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "skilled" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "skilled" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "skilled" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "competent" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "competent" })
+        table.insert(roleAssignments, { role = "DAMAGER", tier = "competent" })
+        
+        -- Shuffle to mix roles
+        for i = #roleAssignments, 2, -1 do
+            local j = math.random(i)
+            roleAssignments[i], roleAssignments[j] = roleAssignments[j], roleAssignments[i]
+        end
+        
+        -- Create players
+        local created = 0
+        for i, assignment in ipairs(roleAssignments) do
+            local classToken = self:GetRandomClassForRole(assignment.role)
+            
+            -- 80% of players get keystones (realistic)
+            local shouldHaveKey = math.random(100) <= 80
+            
+            local config = {
+                tier = assignment.tier,
+                class = classToken,
+                addonStatus = addonConfig
+            }
+            
+            -- Don't specify keystone if player shouldn't have one
+            -- CreatePlayer will auto-generate if not specified and shouldHaveKey logic is built-in
+            
+            local playerName = self:CreatePlayer(config)
+            
+            if playerName then
+                -- Remove keystone for 20% of players
+                if not shouldHaveKey then
+                    local playerData = fakePlayerStorage[playerName]
+                    if playerData then
+                        playerData.keystone = nil
+                    end
+                end
+                created = created + 1
+            end
+        end
+        
+        -- Enable poll protocol for all fake players
+        if self.EnablePollProtocol then
+            self:EnablePollProtocol()
+        end
+        
+        NextKey222.Debug:User(string.format("Generated Organizer team: %d players (4T/6H/10D, 80%% with keys)", created))
+        return created
+    end, "FakePlayerService:GenerateOrganizerTeam") or 0
 end
 
 -- MARK: Public API - Data Modification

@@ -24,23 +24,36 @@ end
 local function ClearCardRegions(card)
     if not card.regions then return end
     
-    -- Hide and clear all textures
+    -- CRITICAL FIX: Properly destroy all textures
     for _, texture in ipairs(card.regions.textures) do
         texture:Hide()
         texture:ClearAllPoints()
+        texture:SetTexture(nil)  -- Release texture memory
     end
     
-    -- Hide and clear all font strings
+    -- CRITICAL FIX: Properly destroy all font strings
     for _, fontString in ipairs(card.regions.fontStrings) do
         fontString:Hide()
         fontString:SetText("")
         fontString:ClearAllPoints()
     end
     
-    -- CRITICAL: Clear role icon buttons (created with CreateFrame)
+    -- CRITICAL FIX: Properly destroy role icon buttons (created with CreateFrame)
     if card.roleButtons then
         for _, button in ipairs(card.roleButtons) do
             if button then
+                -- MEMORY LEAK FIX: Nil all script handlers to break circular references
+                button:SetScript("OnEnter", nil)
+                button:SetScript("OnLeave", nil)
+                button:SetScript("OnClick", nil)
+                
+                -- Clear all child textures
+                for _, region in ipairs({button:GetRegions()}) do
+                    if region:GetObjectType() == "Texture" then
+                        region:SetTexture(nil)
+                    end
+                end
+                
                 button:Hide()
                 button:SetParent(nil)
                 button:ClearAllPoints()
@@ -52,7 +65,7 @@ local function ClearCardRegions(card)
     -- Reset active count
     card.regions.activeCount = 0
     
-    Debug:Trace("organizer_ui", "Cleared all regions from card:", card.playerData and card.playerData.name or "Unknown")
+    Debug:Trace("organizer_ui", "Cleared all regions from card with proper cleanup:", card.playerData and card.playerData.name or "Unknown")
 end
 
 -- MARK: Region Creation Helpers (with tracking)

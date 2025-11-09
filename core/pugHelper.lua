@@ -193,51 +193,73 @@ function PUGHelper:OnGroupLeft()
     end
 end
 
+-- MARK: End-of-Dungeon Handling (Details-style)
+-- Called from Events:OnChallengeModeCompleted() after any Mythic+ completion.
+-- Responsibilities:
+-- - Only mark RUN_COMPLETE for valid tracked PUG runs.
+-- - Only set PUG-specific teleport context; do NOT decide generic auto-show here.
 function PUGHelper:OnChallengeModeCompleted(mapID, level)
-    if not self:IsEnabled() then return end
-    
+    if not self:IsEnabled() then
+        return
+    end
+
     Debug:Dev("pughelper", "OnChallengeModeCompleted: mapID=" .. tostring(mapID) .. ", level=" .. tostring(level))
-    
-    -- Check if this is a PUG group before showing Leave Group option
-    local groupType = "SOLO"
+
+    -- Require a consistent PUG classification
+    local group_type = "SOLO"
     if self.DetectGroupType then
-        groupType = self:DetectGroupType()
+        group_type = self:DetectGroupType()
     end
-    
-    if groupType ~= "PUG" then
-        Debug:Dev("pughelper", "Not a PUG group, skipping Leave Group window")
+
+    if group_type ~= "PUG" then
+        Debug:Dev("pughelper", "Completion detected, but group_type=" .. tostring(group_type) .. " (PUG-only behavior skipped)")
         return
     end
-    
-    Debug:Dev("pughelper", "Showing teleport window with Leave Group option for completed PUG dungeon")
-    
+
+    -- Require we were actually in a tracked run
+    if not self.GetState or self:GetState() ~= self.STATE.IN_GROUP then
+        Debug:Dev("pughelper", "Completion detected for PUG, but state is not IN_GROUP (state=" .. tostring(self.GetState and self:GetState() or "nil") .. ")")
+        return
+    end
+
     local NextKey = NextKey222.Addon
-    if not NextKey or not NextKey.SetTeleportWindowContext or not NextKey.ToggleTeleportWindow then
-        Debug:Dev("pughelper", "OnChallengeModeCompleted: NextKey teleport APIs not available")
+    if not NextKey or not NextKey.SetTeleportTargetKey or not NextKey.SetTeleportWindowContext then
+        Debug:Dev("pughelper", "Teleport APIs not available on completion; skipping PUG summary setup")
         return
     end
-    
-    -- Set teleport target with completed dungeon info
-    local fakeKeyInfo = {
+
+    -- Derive owner/leader for context; fall back gracefully
+    local owner_name = "Completed Run"
+    if self.currentGroupInfo and self.currentGroupInfo.leader then
+        owner_name = self.currentGroupInfo.leader
+    elseif self.currentGroupInfo and self.currentGroupInfo.name then
+        owner_name = self.currentGroupInfo.name
+    end
+
+    local key_info = {
         dungeonID = mapID,
         level = level,
-        ownerName = (self.currentGroupInfo and self.currentGroupInfo.leader) or "Completed Run",
+        ownerName = owner_name,
     }
-    
-    NextKey:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
+
+    Debug:Dev("pughelper", "Marking PUG run complete and configuring teleport context")
+
+    -- Mark state as run complete (Details-style: explicit lifecycle)
+    if self.TransitionToState then
+        self:TransitionToState(self.STATE.RUN_COMPLETE, "mplus_completed")
+    end
+
+    -- Set teleport target and PUG completion context
+    NextKey:SetTeleportTargetKey(key_info, { broadcast = false })
     NextKey:SetTeleportWindowContext({
         mode = "PUG",
-        dungeonComplete = true -- Flag to show Leave Group button
+        dungeonComplete = true,
     })
-    
-    -- Show teleport window
-    C_Timer.After(0.5, function()
-        NextKey222.SafeRun(function()
-            if not NextKey.teleportWindow or not NextKey.teleportWindow.frame or not NextKey.teleportWindow.frame:IsShown() then
-                NextKey:ToggleTeleportWindow()
-            end
-        end, "PUGHelper:ShowTeleportOnDungeonComplete")
-    end)
+
+    -- NOTE:
+    -- We DO NOT call ToggleTeleportWindow() here.
+    -- Generic auto-show behavior is owned by Events:OnChallengeModeCompleted(),
+    -- which will open the teleport window once using the context we just set.
 end
 
 -- MARK: UI Methods

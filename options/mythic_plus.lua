@@ -9,12 +9,23 @@ if not addon then return end
 
 local function createMythicPlusDataOptions()
     local dungeons = {}
-    local seasonData = addon:EnsureSeasonData()
     
+    -- Safely get season data
+    local seasonData = {}
+    if addon.EnsureSeasonData then
+        seasonData = addon:EnsureSeasonData() or {}
+    end
+
     -- Get active dungeons
     if addon.GetActiveSeasonDungeonIDs then
-        for _, mapID in ipairs(addon:GetActiveSeasonDungeonIDs()) do
-            dungeons[tostring(mapID)] = addon:GetDungeonName(mapID)
+        local success, dungeonIDs = pcall(addon.GetActiveSeasonDungeonIDs, addon)
+        if success and dungeonIDs then
+            for _, mapID in ipairs(dungeonIDs) do
+                local nameSuccess, name = pcall(addon.GetDungeonName, addon, mapID)
+                if nameSuccess and name then
+                    dungeons[tostring(mapID)] = name
+                end
+            end
         end
     end
 

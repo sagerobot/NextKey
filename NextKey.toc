@@ -102,12 +102,24 @@ ui\pugInviteNotification.lua
 ui\pugTravelAssistant.lua
 ui\pugApplicationTracker.lua
 
+# UI
+ui\main.lua
+ui\teleport.lua
+ui\dungeonCards.lua
+ui\lootWindow.lua
+ui\hearthstoneSelector.lua
+
+# Options
+options\mythic_plus.lua
+options\main.lua
+
 # Events
 events\handlers.lua
 
 # Debug
 debug\init.lua
 debug\tools.lua
+debug\memoryProfile.lua
 debug\test_io_tooltips.lua
 debug\pugHelper_tests.lua
 debug\loot_tracking_test.lua

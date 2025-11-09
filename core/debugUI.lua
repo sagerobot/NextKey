@@ -14,6 +14,9 @@ local DebugUI = {}
 -- Use the same DEBUG_CATEGORY_GROUPS from DebugService
 local DEBUG_CATEGORY_GROUPS = DebugService:GetCategoryGroups()
 
+-- Track expanded/collapsed state for each group
+DebugUI.expandedGroups = {}
+
 -- Debug presets (make accessible for testing)
 DebugUI.DEBUG_PRESETS = {
     ["minimal"] = {
@@ -131,116 +134,331 @@ function DebugUI:CreatePatternArgs()
     return patternArgs
 end
 
--- Create the main debug options structure
+-- Create the main debug options structure with tabs
 function DebugUI:CreateDebugOptions()
+    local tabs = {}
+    
+    -- Main tab
+    tabs.main = {
+        type = "group",
+        name = "Main",
+        order = 1,
+        args = self:CreateMainTabArgs()
+    }
+    
+    -- Category group tabs (always create them, but hide when disabled)
+    local debugGroups = DebugService:GetCategoryGroups()
+    local sortedGroups = {}
+    for groupName, groupData in pairs(debugGroups) do
+        table.insert(sortedGroups, {name = groupName, data = groupData})
+    end
+    table.sort(sortedGroups, function(a, b) return a.data.order < b.data.order end)
+    
+    for _, group in ipairs(sortedGroups) do
+        local groupName = group.name
+        local groupData = group.data
+        
+        tabs[groupName] = {
+            type = "group",
+            name = groupName,
+            desc = groupData.description,
+            order = groupData.order + 1,
+            hidden = function() return not DebugService.enabled end,
+            args = self:CreateCategoryGroupTabArgs(groupName, groupData)
+        }
+    end
+    
     return {
         type = "group",
         name = "Debug System",
         order = 99,
-        args = {
-            controlPanel = {
-                type = "group",
-                name = "Debug Control Panel",
-                order = 1,
-                args = self:CreateControlPanelArgs()
-            },
-            categoryGroups = {
-                type = "group",
-                name = "Category Groups",
-                order = 2,
-                args = self:CreateCategoryGroupsArgs()
-            },
-            outputOptions = {
-                type = "group",
-                name = "Output Options",
-                order = 3,
-                args = self:CreateOutputOptionsArgs()
-            },
-            presets = {
-                type = "group",
-                name = "Debug Presets",
-                order = 4,
-                args = self:CreatePresetsArgs()
-            },
-            statistics = {
-                type = "group",
-                name = "Statistics & Monitoring",
-                order = 5,
-                args = self:CreateStatisticsArgs()
-            }
-        }
+        childGroups = "tab",
+        args = tabs
     }
 end
 
--- Create control panel arguments
-function DebugUI:CreateControlPanelArgs()
-    return {
-        enabled = {
+-- Create main tab arguments
+function DebugUI:CreateMainTabArgs()
+    local args = {}
+    
+    -- Master controls (on same line)
+    args.enabled = {
+        type = "toggle",
+        name = "Enable Debug Mode",
+        desc = "Master toggle for the entire debug system",
+        get = function() return DebugService.enabled end,
+        set = function(_, value)
+            DebugService:SetEnabled(value)
+            self:RefreshOptions()
+        end,
+        width = "normal",
+        order = 1
+    }
+
+    -- All other controls (hide when debug mode is disabled)
+    args.level = {
+        type = "select",
+        name = "Debug Level",
+        desc = "Set the verbosity level for debug output",
+        values = {
+            [0] = "NONE (0) - Silent",
+            [1] = "ERROR (1) - Critical errors only",
+            [2] = "USER (2) - User messages",
+            [3] = "DEV (3) - Development messages",
+            [4] = "TRACE (4) - Ultra-verbose tracing"
+        },
+        get = function() return DebugService.level end,
+        set = function(_, value)
+            DebugService:SetLevel(value)
+            self:RefreshOptions()
+        end,
+        width = "double",
+        hidden = function() return not DebugService.enabled end,
+        order = 2
+    }
+    
+    -- Message when disabled
+    args.disabledMessage = {
+        type = "description",
+        name = "|cFF888888Enable debug mode to access debug settings and tools.|r",
+        fontSize = "medium",
+        hidden = function() return DebugService.enabled end,
+        order = 2
+    }
+    
+    -- Quick actions
+    args.quickActionsHeader = {
+        type = "header",
+        name = "Quick Actions",
+        hidden = function() return not DebugService.enabled end,
+        order = 10
+    }
+    
+    args.quickActionsDesc = {
+        type = "description",
+        name = "Use these quick toggles to enable or disable entire category groups at once. For fine-grained control over individual categories within each group, use the category-specific tabs above.",
+        fontSize = "small",
+        hidden = function() return not DebugService.enabled end,
+        order = 11
+    }
+    
+    -- Enable/Disable All master toggle
+    args.toggleAllCategories = {
+        type = "toggle",
+        name = "Enable All Categories",
+        desc = "Master toggle - enable or disable all debug categories at once",
+        width = "full",
+        hidden = function() return not DebugService.enabled end,
+        get = function()
+            -- Check if all categories are enabled
+            local allEnabled = true
+            for _, enabled in pairs(DebugService.categories) do
+                if not enabled then
+                    allEnabled = false
+                    break
+                end
+            end
+            return allEnabled
+        end,
+        set = function(_, value)
+            for category, _ in pairs(DebugService.categories) do
+                DebugService.categories[category] = value
+                if NextKey222.Addon and NextKey222.Addon.db then
+                    NextKey222.Addon.db.global.debug.categories[category] = value
+                end
+            end
+            self:RefreshOptions()
+        end,
+        order = 12
+    }
+    
+    -- Individual group toggles
+    local debugGroups = DebugService:GetCategoryGroups()
+    local sortedGroups = {}
+    for groupName, groupData in pairs(debugGroups) do
+        table.insert(sortedGroups, {name = groupName, data = groupData})
+    end
+    table.sort(sortedGroups, function(a, b) return a.data.order < b.data.order end)
+    
+    local groupOrder = 13
+    for _, group in ipairs(sortedGroups) do
+        local groupName = group.name
+        local groupData = group.data
+        
+        args["toggle_" .. groupName] = {
             type = "toggle",
-            name = "Enable Debug Mode",
-            desc = "Master toggle for the entire debug system",
-            get = function() return DebugService.enabled end,
+            name = groupName,
+            desc = groupData.description,
+            width = "full",
+            hidden = function() return not DebugService.enabled end,
+            get = function()
+                local enabled, _, _ = DebugService:GetGroupStatus(groupName)
+                return enabled
+            end,
             set = function(_, value)
-                DebugService:SetEnabled(value)
+                if value then
+                    DebugService:EnableGroup(groupName)
+                else
+                    DebugService:DisableGroup(groupName)
+                end
                 self:RefreshOptions()
             end,
-            width = "full",
-            order = 1
-        },
-
-        level = {
-            type = "select",
-            name = "Debug Level",
-            desc = "Set the verbosity level for debug output",
-            values = {
-                [0] = "NONE (0) - Silent",
-                [1] = "ERROR (1) - Critical errors only",
-                [2] = "USER (2) - User messages",
-                [3] = "DEV (3) - Development messages",
-                [4] = "TRACE (4) - Ultra-verbose tracing"
-            },
-            get = function() return DebugService.level end,
-            set = function(_, value)
-                DebugService:SetLevel(value)
-                self:RefreshOptions()
-            end,
-            width = "full",
-            order = 2
-        },
-
-        statusHeader = {
-            type = "header",
-            name = "Current Status",
-            order = 3
-        },
-
-        statusDisplay = {
-            type = "description",
-            name = function()
-                local stats = DebugService:GetStatistics()
-                local levelNames = {"NONE", "ERROR", "USER", "DEV", "TRACE"}
-                local levelIcon = DebugService.enabled and "|TInterface\\RAIDFRAME\\ReadyCheck-Ready:16|t" or "|TInterface\\RAIDFRAME\\ReadyCheck-NotReady:16|t"
-                local levelColor = DebugService.enabled and "|cFF00FF00" or "|cFFFF4444"
-
-                return string.format(
-                    "%s %sLevel: %s|r\n" ..
-                    "|TInterface\\ICONS\\INV_Misc_Book_09:12|t Enabled Categories: %d/%d\n" ..
-                    "|TInterface\\ICONS\\INV_Inscription_Scroll:12|t Total Messages: %d\n" ..
-                    "|TInterface\\ICONS\\INV_Misc_PocketWatch_01:12|t Uptime: %s",
-                    levelIcon,
-                    levelColor,
-                    levelNames[stats.currentLevel + 1] or "UNKNOWN",
-                    stats.enabledCategories,
-                    stats.totalCategories,
-                    stats.totalMessages,
-                    self:FormatUptime(stats.uptime)
-                )
-            end,
-            fontSize = "medium",
-            order = 4
+            order = groupOrder
         }
+        groupOrder = groupOrder + 1
+    end
+    
+    -- Simple status (after Quick Actions, so order starts at 30)
+    args.statusHeader = {
+        type = "header",
+        name = "Current Status",
+        hidden = function() return not DebugService.enabled end,
+        order = 30
     }
+    
+    args.statusDisplay = {
+        type = "description",
+        name = function()
+            local stats = DebugService:GetStatistics()
+            local levelIcon = DebugService.enabled and "|TInterface\\RAIDFRAME\\ReadyCheck-Ready:16|t" or "|TInterface\\RAIDFRAME\\ReadyCheck-NotReady:16|t"
+            return string.format(
+                "%s Debug %s | %d/%d categories enabled | %d messages logged",
+                levelIcon,
+                DebugService.enabled and "|cFF00FF00ON|r" or "|cFFFF4444OFF|r",
+                stats.enabledCategories,
+                stats.totalCategories,
+                stats.totalMessages
+            )
+        end,
+        fontSize = "medium",
+        hidden = function() return not DebugService.enabled end,
+        order = 31
+    }
+    
+    -- Statistics section
+    args.statisticsHeader = {
+        type = "header",
+        name = "Debug Statistics",
+        hidden = function() return not DebugService.enabled end,
+        order = 40
+    }
+    
+    local statsArgs = self:CreateSimplifiedStatisticsArgs()
+    for k, v in pairs(statsArgs) do
+        v.order = v.order + 40
+        v.hidden = function() return not DebugService.enabled end
+        args[k] = v
+    end
+    
+    return args
 end
+
+-- Create individual category group tab
+function DebugUI:CreateCategoryGroupTabArgs(groupName, groupData)
+    local args = {}
+    
+    -- Toggle All checkbox for this group
+    args.toggleAll = {
+        type = "toggle",
+        name = "Enable All " .. groupName,
+        desc = "Enable/disable all categories in " .. groupName,
+        get = function()
+            local enabled, enabledCount, totalCount = DebugService:GetGroupStatus(groupName)
+            return enabled
+        end,
+        set = function(_, value)
+            if value then
+                DebugService:EnableGroup(groupName)
+            else
+                DebugService:DisableGroup(groupName)
+            end
+            self:RefreshOptions()
+        end,
+        width = "full",
+        order = 1
+    }
+    
+    args.separator = {
+        type = "header",
+        name = "Individual Categories",
+        order = 2
+    }
+    
+    -- Individual category toggles
+    local catOrder = 3
+    for categoryName, categoryData in pairs(groupData.categories) do
+        args[categoryName] = {
+            type = "toggle",
+            name = categoryData.name,
+            desc = categoryData.description,
+            get = function() return DebugService.categories[categoryName] end,
+            set = function(_, value)
+                if value then
+                    DebugService:EnableCategory(categoryName)
+                else
+                    DebugService:DisableCategory(categoryName)
+                end
+                self:RefreshOptions()
+            end,
+            width = "full",
+            order = catOrder
+        }
+        catOrder = catOrder + 1
+    end
+    
+    return args
+end
+
+-- Create category tabs (one tab per group)
+function DebugUI:CreateCategoryTabsArgs()
+    local tabArgs = {}
+    local debugGroups = DebugService:GetCategoryGroups()
+    local sortedGroups = {}
+    for groupName, groupData in pairs(debugGroups) do
+        table.insert(sortedGroups, {name = groupName, data = groupData})
+    end
+    table.sort(sortedGroups, function(a, b) return a.data.order < b.data.order end)
+    
+    for _, group in ipairs(sortedGroups) do
+        local groupName = group.name
+        local groupData = group.data
+        
+        local categoryArgs = {}
+        local catOrder = 1
+        
+        -- Add individual category toggles for this group
+        for categoryName, categoryData in pairs(groupData.categories) do
+            categoryArgs[categoryName] = {
+                type = "toggle",
+                name = categoryData.name,
+                desc = categoryData.description,
+                get = function() return DebugService.categories[categoryName] end,
+                set = function(_, value)
+                    if value then
+                        DebugService:EnableCategory(categoryName)
+                    else
+                        DebugService:DisableCategory(categoryName)
+                    end
+                    self:RefreshOptions()
+                end,
+                width = "full",
+                order = catOrder
+            }
+            catOrder = catOrder + 1
+        end
+        
+        tabArgs[groupName] = {
+            type = "group",
+            name = groupName,
+            desc = groupData.description,
+            order = groupData.order,
+            args = categoryArgs
+        }
+    end
+    
+    return tabArgs
+end
+
 
 -- Create category groups arguments
 function DebugUI:CreateCategoryGroupsArgs()
@@ -521,207 +739,72 @@ function DebugUI:CreatePresetsArgs()
     return args
 end
 
--- Create statistics arguments
-function DebugUI:CreateStatisticsArgs()
+-- Create simplified statistics arguments (no nested groups)
+function DebugUI:CreateSimplifiedStatisticsArgs()
     return {
-        currentStats = {
-            type = "group",
-            name = "Current Statistics",
-            order = 1,
-            args = {
-                statsDisplay = {
-                    type = "description",
-                    name = function()
-                        local stats = DebugService:GetStatistics()
-                        local memoryIcon = "|TInterface\\ICONS\\INV_Misc_Coin_01:12|t"
-                        local uptimeIcon = "|TInterface\\ICONS\\INV_Misc_PocketWatch_01:12|t"
-                        local messageIcon = "|TInterface\\ICONS\\INV_Inscription_Scroll:12|t"
-                        local categoryIcon = "|TInterface\\ICONS\\INV_Misc_Book_09:12|t"
+        statsDisplay = {
+            type = "description",
+            name = function()
+                local stats = DebugService:GetStatistics()
+                local memoryIcon = "|TInterface\\ICONS\\INV_Misc_Coin_01:12|t"
+                local uptimeIcon = "|TInterface\\ICONS\\INV_Misc_PocketWatch_01:12|t"
+                local messageIcon = "|TInterface\\ICONS\\INV_Inscription_Scroll:12|t"
+                local categoryIcon = "|TInterface\\ICONS\\INV_Misc_Book_09:12|t"
 
-                        return string.format(
-                            "%s |cFF00FF00Total Messages: %d|r\n" ..
-                            "  |cFFFF4444Errors: %d|r |cFFFFFF00User: %d|r |cFF888888Dev: %d|r |cFF444444Trace: %d|r\n" ..
-                            "%s |cFF00FFFFEnabled Categories: %d/%d|r\n" ..
-                            "%s |cFFFFFF00Memory Usage: %s KB|r\n" ..
-                            "%s |cFFFFA500Uptime: %s|r",
-                            messageIcon, stats.totalMessages,
-                            stats.errorCount, stats.userCount, stats.devCount, stats.traceCount,
-                            categoryIcon, stats.enabledCategories, stats.totalCategories,
-                            memoryIcon, tostring(stats.memoryUsage),
-                            uptimeIcon, self:FormatUptime(stats.uptime)
-                        )
-                    end,
-                    fontSize = "medium",
-                    order = 1
-                },
-
-                performanceMetrics = {
-                    type = "description",
-                    name = function()
-                        local stats = DebugService:GetStatistics()
-                        local avgMsgPerMin = stats.uptime > 0 and (stats.totalMessages / (stats.uptime / 60)) or 0
-                        local memoryPerMsg = stats.totalMessages > 0 and (stats.memoryUsage / stats.totalMessages) or 0
-
-                        return string.format(
-                            "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:12|t |cFFFFFF00Performance Metrics|r\n" ..
-                            "Messages/Minute: %.1f\n" ..
-                            "Memory/Message: %.2f KB\n" ..
-                            "Active Groups: %d/5",
-                            avgMsgPerMin,
-                            memoryPerMsg,
-                            self:GetActiveGroupCount()
-                        )
-                    end,
-                    fontSize = "small",
-                    order = 2
-                },
-
-                optimizationTools = {
-                    type = "group",
-                    name = "Optimization Tools",
-                    order = 3,
-                    args = {
-                        memoryBreakdown = {
-                            type = "description",
-                            name = function()
-                                return "|TInterface\\ICONS\\INV_Misc_Coin_01:12|t |cFF00FFFFMemory Usage Breakdown|r\n" ..
-                                       "Memory tracking simplified for better performance"
-                            end,
-                            fontSize = "small",
-                            order = 1
-                        },
-
-                        performMaintenance = {
-                            type = "execute",
-                            name = "|TInterface\\ICONS\\INV_Misc_Wrench_01:16|t Perform Maintenance",
-                            desc = "Clean up caches and optimize memory usage",
-                            func = function()
-                                self:RefreshOptions()
-                                DebugService:User("Maintenance completed successfully")
-                            end,
-                            order = 2
-                        },
-
-                        optimizeForProduction = {
-                            type = "execute",
-                            name = "|TInterface\\ICONS\\INV_Misc_Gear_01:16|t Optimize for Production",
-                            desc = "Disable all debug features for minimal performance impact",
-                            confirm = true,
-                            confirmText = "This will disable all debug features. Are you sure?",
-                            func = function()
-                                DebugService:SetLevel(0) -- Set to NONE
-                                self:RefreshOptions()
-                                DebugService:User("Debug system optimized for production use")
-                            end,
-                            order = 3
-                        }
-                    }
-                },
-
-                resetStats = {
-                    type = "execute",
-                    name = "|TInterface\\ICONS\\INV_Misc_Dust_02:16|t Reset Statistics",
-                    desc = "Reset all debug statistics counters to zero",
-                    func = function()
-                        -- Reset basic statistics
-                        DebugService.stats.errorCount = 0
-                        DebugService.stats.userCount = 0
-                        DebugService.stats.devCount = 0
-                        DebugService.stats.traceCount = 0
-                        DebugService.stats.totalMessages = 0
-                        DebugService.stats.uptime = GetTime()
-                        self:RefreshOptions()
-                        DebugService:User("Debug statistics have been reset")
-                    end,
-                    order = 3
-                },
-
-                exportStats = {
-                    type = "execute",
-                    name = "|TInterface\\ICONS\\INV_Inscription_ScrollOfWisdom_01:16|t Export Statistics",
-                    desc = "Copy current statistics to clipboard for analysis",
-                    func = function()
-                        local stats = DebugService:GetStatistics()
-                        local exportText = string.format(
-                            "NextKey Debug Statistics Export\n" ..
-                            "Timestamp: %s\n" ..
-                            "Uptime: %s\n" ..
-                            "Total Messages: %d\n" ..
-                            "  Errors: %d\n" ..
-                            "  User: %d\n" ..
-                            "  Dev: %d\n" ..
-                            "  Trace: %d\n" ..
-                            "Enabled Categories: %d/%d\n" ..
-                            "Memory Usage: %s KB\n" ..
-                            "Active Groups: %d/5",
-                            date("%Y-%m-%d %H:%M:%S"),
-                            self:FormatUptime(stats.uptime),
-                            stats.totalMessages,
-                            stats.errorCount, stats.userCount, stats.devCount, stats.traceCount,
-                            stats.enabledCategories, stats.totalCategories,
-                            tostring(stats.memoryUsage),
-                            self:GetActiveGroupCount()
-                        )
-
-                        -- Copy to clipboard (if possible)
-                        if _G.ChatEdit_InsertLink then
-                            _G.ChatEdit_InsertLink(exportText)
-                            DebugService:User("Statistics copied to clipboard")
-                        else
-                            DebugService:User("Statistics export: " .. exportText)
-                        end
-                    end,
-                    order = 4
-                }
-            }
+                return string.format(
+                    "%s |cFF00FF00Total Messages: %d|r\n" ..
+                    "  |cFFFF4444Errors: %d|r |cFFFFFF00User: %d|r |cFF888888Dev: %d|r |cFF444444Trace: %d|r\n" ..
+                    "%s |cFF00FFFFEnabled Categories: %d/%d|r\n" ..
+                    "%s |cFFFFFF00Memory Usage: %s KB|r\n" ..
+                    "%s |cFFFFA500Uptime: %s|r",
+                    messageIcon, stats.totalMessages,
+                    stats.errorCount, stats.userCount, stats.devCount, stats.traceCount,
+                    categoryIcon, stats.enabledCategories, stats.totalCategories,
+                    memoryIcon, tostring(stats.memoryUsage),
+                    uptimeIcon, self:FormatUptime(stats.uptime)
+                )
+            end,
+            fontSize = "medium",
+            order = 1
         },
 
-        performanceMonitoring = {
-            type = "group",
-            name = "Performance Monitoring",
-            order = 2,
-            args = {
-                performanceInfo = {
-                    type = "description",
-                    name = "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:16|t |cFFFFFF00Performance Monitoring Simplified|r\n" ..
-                           "Advanced performance monitoring has been simplified to reduce complexity.\n" ..
-                           "Basic performance metrics are still available in the Statistics section above.",
-                    fontSize = "medium",
-                    order = 1
-                }
-            }
+        performanceMetrics = {
+            type = "description",
+            name = function()
+                local stats = DebugService:GetStatistics()
+                local avgMsgPerMin = stats.uptime > 0 and (stats.totalMessages / (stats.uptime / 60)) or 0
+                local memoryPerMsg = stats.totalMessages > 0 and (stats.memoryUsage / stats.totalMessages) or 0
+
+                return string.format(
+                    "|TInterface\\ICONS\\SPELL_HOLY_BORROWEDTIME:12|t |cFFFFFF00Performance Metrics|r\n" ..
+                    "Messages/Minute: %.1f\n" ..
+                    "Memory/Message: %.2f KB\n" ..
+                    "Active Groups: %d/6",
+                    avgMsgPerMin,
+                    memoryPerMsg,
+                    self:GetActiveGroupCount()
+                )
+            end,
+            fontSize = "small",
+            order = 2
         },
 
-        historicalData = {
-            type = "group",
-            name = "Historical Data",
-            order = 3,
-            args = {
-                peakUsage = {
-                    type = "description",
-                    name = function()
-                        return "|TInterface\\ICONS\\INV_Misc_Statue_02:12|t |cFFFFA500Peak Usage Tracking|r\n" ..
-                               "Peak Memory: Not implemented yet\n" ..
-                               "Peak Messages/Min: Not implemented yet\n" ..
-                               "Longest Session: Not implemented yet"
-                    end,
-                    fontSize = "small",
-                    order = 1
-                },
-
-                clearHistory = {
-                    type = "execute",
-                    name = "|TInterface\\ICONS\\INV_Misc_Dust_02:16|t Clear Historical Data",
-                    desc = "Clear all historical debug data and statistics",
-                    confirm = true,
-                    confirmText = "Are you sure you want to clear all historical debug data?",
-                    func = function()
-                        -- Implementation for clearing historical data
-                        DebugService:User("Historical data clearing not implemented yet")
-                    end,
-                    order = 2
-                }
-            }
+        resetStats = {
+            type = "execute",
+            name = "|TInterface\\ICONS\\INV_Misc_Dust_02:16|t Reset Statistics",
+            desc = "Reset all debug statistics counters to zero",
+            func = function()
+                -- Reset basic statistics
+                DebugService.stats.errorCount = 0
+                DebugService.stats.userCount = 0
+                DebugService.stats.devCount = 0
+                DebugService.stats.traceCount = 0
+                DebugService.stats.totalMessages = 0
+                DebugService.stats.uptime = GetTime()
+                self:RefreshOptions()
+                DebugService:User("Debug statistics have been reset")
+            end,
+            order = 3
         }
     }
 end
@@ -821,6 +904,50 @@ function DebugUI:SaveCurrentAsPreset(presetName)
 
     -- Refresh options to show the new preset in dropdown
     self:RefreshOptions()
+end
+
+-- Force rebuild of Debug System options (used when toggling debug mode)
+function DebugUI:RebuildDebugOptions()
+    local AceConfigRegistry = LibStub("AceConfigRegistry-3.0", true)
+    if not AceConfigRegistry then return end
+    
+    -- Get the current NextKey options table
+    local options = AceConfigRegistry:GetOptionsTable("NextKey")
+    if not options or not options.args then return end
+    
+    -- Recreate the debug system options
+    options.args.debugSystem = self:CreateDebugOptions()
+    
+    -- Also handle developer tools injection
+    local debugOptions = options.args.debugSystem
+    if debugOptions.args and debugOptions.args.main and debugOptions.args.main.args then
+        if DebugService and DebugService.enabled then
+            -- Import create_developer_tools_group from options/main.lua scope
+            if NextKey222.Addon and NextKey222.Addon.CreateDeveloperToolsGroup then
+                local devTools = NextKey222.Addon:CreateDeveloperToolsGroup()
+                if devTools and devTools.args then
+                    -- Add developer tools section to Main tab
+                    debugOptions.args.main.args.devToolsHeader = {
+                        type = "header",
+                        name = "Developer Tools",
+                        order = 100
+                    }
+                    
+                    -- Merge all developer tool items (except the duplicate Enable Debug Mode toggle)
+                    for k, v in pairs(devTools.args) do
+                        -- Skip the header and enable_debug_mode toggle (duplicate of main tab's toggle)
+                        if k ~= "header" and k ~= "enable_debug_mode" then
+                            v.order = (v.order or 0) + 100
+                            debugOptions.args.main.args[k] = v
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Notify AceConfig that the options table changed
+    AceConfigRegistry:NotifyChange("NextKey")
 end
 
 -- Register module

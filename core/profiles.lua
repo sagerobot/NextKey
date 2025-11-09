@@ -78,10 +78,12 @@ local ProfilesService = {}
 NextKey222.ProfilesService = ProfilesService
 NextKey222.RegisterModule("ProfilesService", ProfilesService)
 
--- Cache for built profiles (cleared on invalidation events)
+-- MEMORY LEAK FIX: LRU cache with max size limit
 ProfilesService.cache = {}
-ProfilesService.cacheStats = { hits = 0, misses = 0, builds = 0, invalidations = 0 }
+ProfilesService.cacheStats = { hits = 0, misses = 0, builds = 0, invalidations = 0, evictions = 0 }
 ProfilesService.cacheTimeout = 300 -- 5 minutes default timeout
+ProfilesService.maxCacheSize = 100 -- Maximum 100 cached profiles
+ProfilesService.lruQueue = {} -- Ordered list of cache keys for LRU eviction
 
 -- Performance metrics
 ProfilesService.perfStats = {
@@ -111,6 +113,14 @@ function ProfilesService:InvalidateCache(playerName)
             if cacheKey:match("^" .. escapedName .. ":") then
                 self.cache[cacheKey] = nil
                 invalidatedCount = invalidatedCount + 1
+                
+                -- MEMORY LEAK FIX: Remove from LRU queue
+                for i = #self.lruQueue, 1, -1 do
+                    if self.lruQueue[i] == cacheKey then
+                        table.remove(self.lruQueue, i)
+                        break
+                    end
+                end
             end
         end
         
@@ -123,6 +133,7 @@ function ProfilesService:InvalidateCache(playerName)
         -- This should be rare - only on major events like season changes
         invalidatedCount = self:CountTable(self.cache)
         self.cache = {}
+        self.lruQueue = {}  -- MEMORY LEAK FIX: Clear LRU queue too
         
         if NextKey222.Debug and invalidatedCount > 0 then
             NextKey222.Debug:Dev("profiles", string.format("Full cache invalidation: %d profiles cleared",
@@ -422,11 +433,30 @@ function ProfilesService:BuildProfileForPlayer(playerName)
 
     self:FinalizeProfile(profile)
 
+    -- MEMORY LEAK FIX: Cache with LRU eviction
+    -- Check if cache is full before adding
+    if self:CountTable(self.cache) >= self.maxCacheSize then
+        -- Evict oldest entry (LRU)
+        if #self.lruQueue > 0 then
+            local oldestKey = table.remove(self.lruQueue, 1)
+            self.cache[oldestKey] = nil
+            self.cacheStats.evictions = self.cacheStats.evictions + 1
+            
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("LRU eviction: removed %s (cache size: %d/%d)",
+                    oldestKey, self:CountTable(self.cache), self.maxCacheSize))
+            end
+        end
+    end
+    
     -- Cache the result with timestamp
     self.cache[cacheKey] = {
         profile = profile,
         timestamp = GetTime()
     }
+    
+    -- Add to LRU queue
+    table.insert(self.lruQueue, cacheKey)
     
     return profile
 end
@@ -564,9 +594,12 @@ function ProfilesService:GetCacheStats()
     return {
         enabled = self.enabled,
         cacheSize = self:CountTable(self.cache),
+        maxCacheSize = self.maxCacheSize,
+        lruQueueSize = #self.lruQueue,
         hits = self.cacheStats.hits,
         misses = self.cacheStats.misses,
         builds = self.cacheStats.builds,
+        evictions = self.cacheStats.evictions,
         hitRate = self.cacheStats.hits > 0 and (self.cacheStats.hits / (self.cacheStats.hits + self.cacheStats.misses)) or 0
     }
 end
@@ -580,8 +613,8 @@ end
 function ProfilesService:LogStats()
     local stats = self:GetCacheStats()
     if NextKey222.Debug then
-        NextKey222.Debug:Dev("profiles", string.format("Cache stats: %d entries, %.1f%% hit rate, %d builds", 
-            stats.cacheSize, stats.hitRate * 100, stats.builds))
+        NextKey222.Debug:Dev("profiles", string.format("Cache stats: %d/%d entries, %.1f%% hit rate, %d builds, %d evictions",
+            stats.cacheSize, stats.maxCacheSize, stats.hitRate * 100, stats.builds, stats.evictions))
     end
 end
 

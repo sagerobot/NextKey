@@ -381,18 +381,24 @@ local function BuildTeleportCard(entryData)
     iconHighlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
     iconHighlight:SetBlendMode("ADD")
 
-    -- Create text labels directly on the card frame with minimal spacing
+    -- Create text labels directly on the card frame with minimal spacing and proper width constraints
     local nameLabel = cardFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     nameLabel:SetPoint("LEFT", iconTexture, "RIGHT", 8, 8)  -- Reduced spacing from 12,10 to 8,8
+    nameLabel:SetPoint("RIGHT", cardFrame, "RIGHT", -8, 8)  -- Constrain to card width with padding
     nameLabel:SetText(entryData.displayName or entryData.titleText or "Unknown")
     nameLabel:SetJustifyH("LEFT")
     nameLabel:SetTextColor(1, 0.82, 0)  -- Gold color for titles
+    nameLabel:SetWordWrap(false)  -- Don't wrap, truncate instead
+    nameLabel:SetMaxLines(1)  -- Single line only
     
     local detailLabel = cardFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     detailLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -4)
+    detailLabel:SetPoint("RIGHT", cardFrame, "RIGHT", -8, 0)  -- Constrain width
     detailLabel:SetText(entryData.detailText or "")
     detailLabel:SetTextColor(0.82, 0.82, 0.82)
     detailLabel:SetJustifyH("LEFT")
+    detailLabel:SetWordWrap(false)
+    detailLabel:SetMaxLines(1)
     
     if entryData.subText and entryData.subText ~= "" then
         local subLabel = cardFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -716,6 +722,11 @@ function addon:EnsureTeleportWindow()
     frame:SetFrameStrata("FULLSCREEN_DIALOG")
     frame:SetFrameLevel(600)
     frame:SetToplevel(true)
+    
+    -- Make window non-resizable using AceGUI's EnableResize method
+    if mainContainer.EnableResize then
+        mainContainer:EnableResize(false)
+    end
     if mainContainer.SetTitle then
         mainContainer:SetTitle("NextKey")
     end

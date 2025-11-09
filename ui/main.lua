@@ -632,13 +632,28 @@ function UI:CreateMainFrame()
         -- CRITICAL: Clear header widgets references
         -- NOTE: Do NOT manually release - AceGUI:Release(widget) automatically releases children
         -- But we need to clear the references to prevent stale widget reuse
-        self.headerWidgets = {}
+        if self.headerWidgets then
+            wipe(self.headerWidgets)
+        end
         
         -- CRITICAL: Clear render tracking variables to prevent stale state
         self.lastRenderedKeystoneHash = nil
         self.lastRenderedSortMode = nil
         self.partyCompositionHash = nil
-        self.ioGainCache = {}
+        
+        -- CRITICAL: Clear all cache tables to prevent memory leaks
+        if self.ioGainCache then
+            wipe(self.ioGainCache)
+        end
+        if self.cachedItems then
+            wipe(self.cachedItems)
+        end
+        if self.profileCache then
+            wipe(self.profileCache)
+        end
+        if self.cachedPartyProfiles then
+            wipe(self.cachedPartyProfiles)
+        end
         
         Debug:Dev("ui_contamination", "[MAIN UI] OnClose - cleared all tracking variables and caches")
         
@@ -1110,10 +1125,21 @@ function UI:ToggleMainFrame()
     
     if self.mainFrame and self.mainFrame:IsShown() then
         Debug:Dev("ui", "Hiding existing main frame")
+        
+        -- PERFORMANCE FIX: Aggressively clear all caches before hiding
+        if self.ioGainCache then wipe(self.ioGainCache) end
+        if self.cachedItems then wipe(self.cachedItems) end
+        if self.profileCache then wipe(self.profileCache) end
+        if self.cachedPartyProfiles then wipe(self.cachedPartyProfiles) end
+        
         self.mainFrame:Hide()
         -- AceGUI:Release triggers OnClose callback which handles all cleanup
         AceGUI:Release(self.mainFrame)
         -- OnClose callback will handle setting everything to nil
+        
+        -- PERFORMANCE FIX: Force garbage collection hint after releasing many widgets
+        collectgarbage("step", 1000)
+        Debug:Dev("ui", "Cleared all caches and triggered GC after hide")
     else
         Debug:Dev("ui", "Showing or creating main frame")
         self:ShowMainFrame()
@@ -1972,10 +1998,17 @@ function UI:RenderResults()
     self.lastRenderedSortMode = mode
     Debug:Dev("ui_contamination", "[MAIN UI] Rendering - hash:", currentKeystoneHash ~= nil and "present" or "nil", "mode:", mode)
 
-    -- Clearing previous content
+    -- PERFORMANCE FIX: Clear all cached data before render to prevent accumulation
     -- Clear existing content
     self:ClearAuxFrames()
+    
+    -- CRITICAL: Release AceGUI children BEFORE clearing caches
     self.resultsFrame:ReleaseChildren()
+    
+    -- PERFORMANCE FIX: Clear cached items to prevent memory accumulation
+    if self.cachedItems then
+        wipe(self.cachedItems)
+    end
     
     -- DIAGNOSTIC: Check for organizer contamination before rendering
     Debug:Dev("ui_contamination", "[MAIN UI] About to render - checking for organizer contamination")
@@ -2061,7 +2094,18 @@ function UI:RenderResults()
         self.cachedPartyProfiles = nil
     end
 
-    self.cachedItems = {}
+    -- PERFORMANCE FIX: Clear cached items before rebuild to prevent memory accumulation
+    if self.cachedItems then
+        wipe(self.cachedItems)
+    else
+        self.cachedItems = {}
+    end
+    
+    -- PERFORMANCE FIX: Clear UI profile cache before rebuild
+    if self.profileCache then
+        wipe(self.profileCache)
+    end
+    
     self.cachedSortMode = mode
 
     local items = self:SortKeys(keys, mode)
