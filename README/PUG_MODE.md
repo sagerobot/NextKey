@@ -189,25 +189,6 @@ All components use the NextKey UIComponents system for consistent styling and be
 2. Verify you've completed a Mythic+ dungeon run
 3. Check if the PUG Mode state is RUN_COMPLETE (`/nk pug status`)
 
-## Changelog
+## Version History
 
-### Version 0.2.0.2 (Current)
-- **NEW**: Application Tracker window showing active LFG applications
-- **NEW**: Enhanced travel window detection - appears automatically when invite popup shows
-- **NEW**: Improved application status tracking with timestamps and history
-- **NEW**: Application tracker configuration options (disabled by default)
-- **NEW**: Slash commands for manual tracker control (`/nk pug tracker`)
-- Enhanced event handling for better application status updates
-- Added comprehensive test suite for application tracker
-
-### Version 0.2.0.1
-- Refactored PUG Mode to integrate with existing NextKey systems
-- Unified state management with validation and proper cleanup
-- Integrated UI components with standardized styling
-- Simplified travel assistant to use existing teleport window
-- Added comprehensive integration testing
-
-### Version 0.1.0.0 (Initial)
-- Basic PUG Mode implementation with application tracking
-- Invite notifications with basic dungeon information
-- Simple travel assistance and getaway UI
+See the main [CHANGELOG.md](../CHANGELOG.md) for complete version history and all PUG Mode related changes.

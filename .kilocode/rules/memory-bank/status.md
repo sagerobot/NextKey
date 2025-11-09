@@ -1,11 +1,11 @@
 # NextKey Current Status & Requirements
 
 ## Project Status
-**Date**: November 8, 2025  
-**Version**: 0.2.2  
-**Phase**: Week 3 Simplification Complete — OrganizerState, Teleport Sync; PUG Mode Hardening In Progress
+**Date**: November 9, 2025
+**Version**: 0.5.32
+**Phase**: Active Development — Memory Optimization, Debug System Enhancements, M+ Group Organizer
 
-This file is the concise status mirror of the current codebase and CHANGELOG for use as an authoritative reference.
+This file is the concise status mirror of the current codebase. For complete version history, see [`CHANGELOG.md`](../../../CHANGELOG.md).
 
 ## Completed
 
@@ -100,3 +100,7 @@ This file is the concise status mirror of the current codebase and CHANGELOG for
    - TELEPORT_SELECT semantics
    - PUG Helper stack behavior
    - Season data update process
+
+## Version History
+
+For a complete, detailed changelog of all releases and changes, see the main [`CHANGELOG.md`](../../../CHANGELOG.md) file in the project root.
