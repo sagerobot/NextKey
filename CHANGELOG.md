@@ -2,17 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v0.5.3] - 2025-11-09
+## [v0.6.2] - 2025-11-09
 ### ⚡️ Optimizations
 - **Memory Leak Fix:** Removed a problematic `OnUpdate` script from a performance optimization module that was causing significant memory leaks over long play sessions. This makes the addon much more stable.
 
-## [v0.5.2] - 2025-11-09
+## [v0.6.1] - 2025-11-09
 ### 🧪 Developer Features
 - **Custom Fake Player Builder:** To accelerate testing, a new UI was added to build and customize fake players with specific roles, classes, and Raider.IO scores. Includes real-time validation to prevent impossible player configurations.
 - **Options Menu Refactor:** The addon's options menu was restructured to isolate developer tools from the main user settings, creating a cleaner and more intuitive experience for end-users.
 
-## [v0.5.1] - 2025-11-06
-### ✨ Enhancements
+## [v0.6.0] - 2025-11-06
+### 🚀 Features
 - **M+ Group Organizer Animations:** Added smooth, animated transitions for players being moved into and out of M+ groups in the Organizer UI. This makes the drag-and-drop experience feel more responsive and polished.
 
 ## [v0.5.0] - 2025-11-05
@@ -48,62 +48,67 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 - **M+ Group Organizer - Drag and Drop UI:** The first major feature of the addon is here! A new UI window that allows users to form M+ breakout groups from a larger raid group using a simple and intuitive drag-and-drop interface.
 
-## [v0.1.11] - 2025-10-28
+## [v0.1.12] - 2025-10-28
 ### ⚡️ Optimizations
 - **Comprehensive Performance Pass:** Implemented a series of optimizations across the addon to reduce CPU usage during combat and minimize memory footprint.
 ### ✨ Enhancements
 - **Loot Tracking System:** Added a new system to track and display loot obtained from Mythic+ dungeons, helping users see their rewards over time.
 
-## [v0.1.10] - 2025-10-21
+## [v0.1.11] - 2025-10-21
 ### ⚡️ Optimizations
 - **Opcode Removal:** Removed several deprecated communication opcodes from the constants file.
 - **Conditional Refactor:** Complex `if/else` chains in the key rating logic were refactored into more readable and maintainable lookup tables.
 
-## [v0.1.9] - 2025-10-20
+## [v0.1.10] - 2025-10-20
 ### ✨ Enhancements
 - **PUG Helper Modularization:** The main `pugHelper.lua` file was split into smaller, more focused modules to improve code organization.
 - **Like/Dislike Feature Disabled:** The partially implemented and unused like/dislike feature was disabled to avoid confusion.
 
-## [v0.1.8] - 2025-10-19
+## [v0.1.9] - 2025-10-19
 ### ⚡️ Optimizations
 - **Centralized UI Components:** Refactored the UI to use a centralized factory for creating AceGUI components, ensuring a consistent look and feel and reducing code duplication.
 ### 🧪 Developer Features
 - **Hearthstone Data & UI:** Added data for Hearthstone locations and a basic UI for testing teleport functionality.
 
-## [v0.1.7] - 2025-10-19
+## [v0.1.8] - 2025-10-19
 ### ✨ Enhancements
 - **Loot Window Integration:** The Loot Window is now more tightly integrated with the Dungeon Card UI, making for a smoother user experience.
 
-## [v0.1.6] - 2025-10-12
+## [v0.1.7] - 2025-10-12
 ### ✨ Enhancements
 - **Loot Window Added:** A new UI window was added to display loot information for dungeons.
 ### ⚡️ Optimizations
 - **Unused Code Removal:** Removed old, unused manual sorting logic from the DungeonCards module.
 
-## [v0.1.5] - 2025-10-06
+## [v0.1.6] - 2025-10-06
 ### ✨ Enhancements
 - **Teleport Functionality:** The addon can now intelligently suggest the best portal to take to get to a selected dungeon, with improved matching logic.
 
-## [v0.1.4] - 2025-10-05
+## [v0.1.5] - 2025-10-05
 ### ⚡️ Optimizations
 - **Centralized Services:** Refactored fake player handling and debug logging into centralized services (`FakePlayerService`, `Debug:Dev`) to improve code structure and reduce redundancy.
 
-## [v0.1.3] - 2025-10-05
+## [v0.1.4] - 2025-10-05
 ### 🧪 Developer Features
 - **Fake Player Overhaul:** The system for creating fake players for testing was significantly overhauled to support more realistic Raider.IO score distributions and role assignments.
 - **Debug System Enhancements:** Added new tools and visualizations to the debug system to make testing easier.
 
-## [v0.1.2] - 2025-10-05
+## [v0.1.3] - 2025-10-05
 ### 🐛 Bug Fixes
 - **UI Visibility:** Fixed an issue where keystone buttons were incorrectly shown in the dungeon view.
 - **Statistics Reset:** Prevented logging during statistics reset to avoid data corruption.
 
-## [v0.1.1] - 2025-10-05
+## [v0.1.2] - 2025-10-05
 ### ✨ Enhancements
 - **PUG Mode:** Implemented the first version of PUG Mode, a feature designed to assist players in finding and joining pick-up groups through the LFG tool.
 
+## [v0.1.1] - 2025-09-29
+### ✨ Enhancements
+- **Dungeon Overview UI:** A new UI window was created to display a sortable overview of all Mythic+ dungeons for the season, including the player's best runs and scores for each. This provides a high-level view of a player's progress.
+- **Main UI Window:** The foundational UI for the addon was created using AceGUI. This includes the main window, the scrollable list for keystones, and the initial set of sorting and filtering controls.
+
 ## [v0.1.0] - 2025-09-28
 ### 🚀 Features
-- **Initial Commit:** The first version of the NextKey addon, including the basic framework and core logic for calculating Mythic+ key ratings.
+- **Initial Commit & Core Logic:** The first version of the NextKey addon, including the basic framework and the core logic for calculating Mythic+ key ratings based on the MythicPlanner.com algorithm.
 ### 🐛 Bug Fixes
 - **Initialization Fix:** Corrected a critical bug that was preventing the addon from loading correctly.
