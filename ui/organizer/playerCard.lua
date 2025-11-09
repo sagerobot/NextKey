@@ -127,6 +127,7 @@ end
 -- MARK: Shared Rendering Helpers
 
 -- Helper: Render multi-role icons with preference colors
+-- NOTE: For compact cards, pass yOffset=nil or 0 to use CENTER anchoring
 local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
     if not playerData.roles then
         Debug:Dev("organizer_ui", "RenderRoleIcons: playerData.roles is nil for", playerData.name)
@@ -182,13 +183,24 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
     -- Limit to specified max roles
     local roleCount = math.min(#rolesToShow, maxRoles)
     
+    -- Detect if this is compact mode (yOffset == 0 or nil for compact)
+    local isCompact = (yOffset == nil or yOffset == 0)
+    
     for i = 1, roleCount do
         local roleInfo = rolesToShow[i]
         
         -- Create invisible button frame for tooltip support
         local roleButton = CreateFrame("Button", nil, card)
         roleButton:SetSize(18, 18)
-        roleButton:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+        
+        if isCompact then
+            -- Compact mode: use LEFT anchor for vertical centering (y=0)
+            roleButton:SetPoint("LEFT", card, "LEFT", xOffset, 0)
+        else
+            -- Expanded mode: use TOPLEFT anchor with yOffset
+            roleButton:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+        end
+        
         roleButton:EnableMouse(true)
         
         -- CRITICAL: Track role button for cleanup
@@ -239,6 +251,7 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
 end
 
 -- Helper: Render keystone information
+-- NOTE: yOffset parameter is now unused for compact cards (uses vertical CENTER)
 local function RenderKeystoneInfo(card, playerData, xOffset, yOffset, useAlias)
     if not playerData.keystone then return xOffset end
     
@@ -258,7 +271,13 @@ local function RenderKeystoneInfo(card, playerData, xOffset, yOffset, useAlias)
     end
     
     local keyText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    keyText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+    if useAlias then
+        -- Compact mode: use LEFT anchor for vertical centering (y=0)
+        keyText:SetPoint("LEFT", card, "LEFT", xOffset, 0)
+    else
+        -- Expanded mode: use TOPLEFT with yOffset
+        keyText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+    end
     keyText:SetText(dungeonText .. " +" .. (playerData.keystone.level or 0))
     keyText:SetTextColor(1, 0.82, 0)
     
@@ -278,9 +297,18 @@ local function RenderKeystoneInfo(card, playerData, xOffset, yOffset, useAlias)
 end
 
 -- Helper: Render player name
+-- NOTE: yOffset parameter is now unused for compact cards (uses vertical CENTER)
 local function RenderPlayerName(card, playerData, xOffset, yOffset, truncateLength)
     local nameText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    nameText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+    
+    -- Check if this is compact mode (yOffset ignored for compact, used for expanded/opt-out)
+    if truncateLength then
+        -- Compact mode: use LEFT anchor for vertical centering (y=0)
+        nameText:SetPoint("LEFT", card, "LEFT", xOffset, 0)
+    else
+        -- Expanded/opt-out mode: use TOPLEFT with yOffset
+        nameText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+    end
     
     local displayName = playerData.name or "Unknown"
     if truncateLength and #displayName > truncateLength then
@@ -294,10 +322,18 @@ local function RenderPlayerName(card, playerData, xOffset, yOffset, truncateLeng
 end
 
 -- Helper: Render IO score
-local function RenderIOScore(card, playerData, xOffset, yOffset)
+-- NOTE: yOffset parameter is now unused for compact cards (uses vertical CENTER)
+local function RenderIOScore(card, playerData, xOffset, yOffset, isCompact)
     local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    -- Right-align IO score to leave room for other text on the left
-    ioText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -5, -yOffset)
+    
+    if isCompact then
+        -- Compact mode: use RIGHT anchor for vertical centering (y=0)
+        ioText:SetPoint("RIGHT", card, "RIGHT", -5, 0)
+    else
+        -- Expanded/opt-out mode: use TOPRIGHT with yOffset
+        ioText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -5, -yOffset)
+    end
+    
     ioText:SetText("[" .. (playerData.overallScore or 0) .. "]")
     
     -- Use universal IO score color system
@@ -317,9 +353,15 @@ function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayM
         -- Determine size based on mode
         local width, height
         if displayMode == "compact" then
-            width, height = 200, 22  -- Increased from 20 to 22 to accommodate role icon backgrounds
+            -- Use UIConfig for dynamic height (robust to config changes)
+            local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+            local benchCardHeight = config.BENCH_CARD_HEIGHT or 25
+            width, height = 200, benchCardHeight
         elseif displayMode == "opt_out" then
-            width, height = 90, 40  -- Square-ish for 2-line layout
+            -- Use UIConfig for opt-out card dimensions
+            local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+            width = config.OPT_OUT_CARD_WIDTH or 90
+            height = config.OPT_OUT_CARD_HEIGHT or 40
         else
             width, height = 170, 105  -- Expanded (increased width to 170 to prevent dungeon name overflow)
         end
@@ -481,40 +523,51 @@ function PlayerCard:CreateCompactContent(card, playerData)
         card:SetAlpha(1.0)
     end
     
-    local xOffset = 5
-    local yOffset = 2  -- Center content vertically in 22px card (was 0)
+    -- Read configurable left padding from UIConfig
+    local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+    local xOffset = config.BENCH_CARD_LEFT_PADDING or 5
     
-    -- Multi-role icons with preference colors (max 3) - use helper
-    xOffset = RenderRoleIcons(card, playerData, xOffset, yOffset, 3)
+    -- COMPACT CARD VERTICAL CENTERING FIX:
+    -- Use CENTER-based anchoring (y=0) for all elements instead of TOPLEFT
+    -- This ensures text centers through the middle of letters, not on the baseline
     
-    -- Player name (truncated to 7 chars) - use helper
-    xOffset = RenderPlayerName(card, playerData, xOffset, yOffset, 7)
+    Debug:Dev("organizer_ui", "Compact card using CENTER-based vertical anchoring (all elements y=0)")
     
-    -- Separator
+    -- Multi-role icons with preference colors (max 3) - uses LEFT anchor with y=0
+    xOffset = RenderRoleIcons(card, playerData, xOffset, 0, 3)
+    
+    -- Player name (truncated to 7 chars) - uses LEFT anchor with y=0
+    xOffset = RenderPlayerName(card, playerData, xOffset, 0, 7)
+    
+    -- Separator - uses LEFT anchor with y=0 (already correct)
     local sepText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
     sepText:SetPoint("LEFT", card, "LEFT", xOffset, 0)
     sepText:SetText("|")
     sepText:SetTextColor(0.7, 0.7, 0.7)
     xOffset = xOffset + 10
     
-    -- Keystone info (use alias for compact display) - use helper
-    xOffset = RenderKeystoneInfo(card, playerData, xOffset, yOffset, true)
+    -- Keystone info (use alias for compact display) - uses LEFT anchor with y=0
+    xOffset = RenderKeystoneInfo(card, playerData, xOffset, 0, true)
     
-    -- IO Score - use helper
-    RenderIOScore(card, playerData, xOffset, yOffset)
+    -- IO Score - uses RIGHT anchor with y=0
+    RenderIOScore(card, playerData, xOffset, 0, true)
 end
 
--- MARK: Opt-Out Card Content (2-Line Square Layout)
+-- MARK: Opt-Out Card Content (Redesigned Layout)
 function PlayerCard:CreateOptOutContent(card, playerData)
-    -- Line 1: Role icon + Name (truncated to 7 chars)
-    local line1YOffset = 5
-    local xOffset = 5
+    -- Get configuration
+    local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
+    local padding = config.OPT_OUT_PADDING or 5
     
-    -- Role icon (first role only) - no helper needed (single icon, simple)
+    -- Top-left: Role icon + Name (truncated to 7 chars)
+    local xOffset = padding
+    local topYOffset = padding
+    
+    -- Role icon (first role only)
     if playerData.roles and playerData.roles[1] then
         local icon = CreateTrackedTexture(card, nil, "ARTWORK")
         icon:SetSize(16, 16)
-        icon:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -line1YOffset)
+        icon:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -topYOffset)
         icon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
         
         local normalizedRole = playerData.roles[1]:upper()
@@ -529,18 +582,30 @@ function PlayerCard:CreateOptOutContent(card, playerData)
         xOffset = xOffset + 18
     end
     
-    -- Player name (truncated to 7 chars) - use helper
-    RenderPlayerName(card, playerData, xOffset, line1YOffset, 7)
+    -- Player name (truncated to 7 chars) - top-left after role icon
+    RenderPlayerName(card, playerData, xOffset, topYOffset, 7)
     
-    -- Line 2: Dungeon abbreviation +level | IO Score
-    local line2YOffset = 22
-    xOffset = 5
+    -- Bottom-left: Dungeon abbreviation +level
+    if playerData.keystone then
+        local dungeonText = "???"
+        if NextKey222.DungeonNameService then
+            dungeonText = NextKey222.DungeonNameService:GetAlias(playerData.keystone.dungeonID)
+        end
+        
+        local keyText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
+        keyText:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", padding, padding)
+        keyText:SetText(dungeonText .. " +" .. (playerData.keystone.level or 0))
+        keyText:SetTextColor(1, 0.82, 0)
+    end
     
-    -- Keystone info (use alias for opt-out display) - use helper
-    xOffset = RenderKeystoneInfo(card, playerData, xOffset, line2YOffset, true)
+    -- Upper-right: IO Score
+    local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
+    ioText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -padding, -topYOffset)
+    ioText:SetText("[" .. (playerData.overallScore or 0) .. "]")
     
-    -- IO Score - use helper
-    RenderIOScore(card, playerData, xOffset, line2YOffset)
+    -- Use universal IO score color system
+    local r, g, b = NextKey222.Utils:GetIOScoreColor(playerData.overallScore or 0)
+    ioText:SetTextColor(r, g, b)
 end
 
 -- MARK: Expanded Card Content (Native Frame Version)

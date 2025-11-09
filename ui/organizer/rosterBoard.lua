@@ -511,8 +511,8 @@ function RosterBoard:CreateHeaderSection(nativeParent)
         row1:AddChild(clearPollButton)
         self.clearPollButton = clearPollButton
         
-        -- Debug button (if enabled)
-        if hasFakePlayers then
+        -- Debug button (only in DEV_MODE)
+        if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
             local fakeRaidButton = AceGUI:Create("Button")
             fakeRaidButton:SetText("Add Raid")
             fakeRaidButton:SetWidth(HEADER_BUTTON_SIZES.DEBUG)
@@ -596,7 +596,7 @@ function RosterBoard:CreateHeaderSection(nativeParent)
         
         self.headerSection = headerContainer
         self.headerWidgets = {pollButton, endPollButton, clearPollButton, row1, organizeDropdown, organizeButton, announceButton, raidCheckbox, guildCheckbox, row2}
-        if hasFakePlayers then
+        if NextKey222.Debug and NextKey222.Debug.DEV_MODE and self.fakeRaidButton then
             table.insert(self.headerWidgets, self.fakeRaidButton)
         end
         

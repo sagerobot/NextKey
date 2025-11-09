@@ -381,15 +381,16 @@ function BenchManager:create_native_bench_column(rosterBoard, width, parentFrame
         titleBar:SetHeight(titleHeight)
         titleBar:Show()
         
-        -- Title label (left-aligned to make room for button)
+        -- Title label (vertically centered - anchor to parent center, not edge)
         local titleLabel = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
         titleLabel:SetPoint("LEFT", titleBar, "LEFT", 0, 0)
+        titleLabel:SetJustifyV("MIDDLE")  -- Explicitly set vertical justification
         titleLabel:SetText("BENCH")
         
-        -- Recall All button (right-aligned, small)
+        -- Recall All button (vertically centered)
         local recallButton = CreateFrame("Button", nil, titleBar, "UIPanelButtonTemplate")
         recallButton:SetSize(60, 16)
-        recallButton:SetPoint("RIGHT", titleBar, "RIGHT", 0, 0)
+        recallButton:SetPoint("RIGHT", titleBar, "RIGHT", 0, 0)  -- RIGHT anchor for vertical centering
         recallButton:SetText("Recall All")
         recallButton:SetNormalFontObject("GameFontNormalSmall")
         recallButton:SetEnabled(false)  -- Start disabled

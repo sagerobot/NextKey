@@ -1212,7 +1212,10 @@ function NextKey222.SetupOptions()
                         name = "Fake Player Tools",
                         desc = "Developer tools for generating and managing fake players for testing",
                         order = 300,
-                        hidden = function() return not (NextKey222.Debug and NextKey222.Debug.enabled) end,
+                        hidden = function()
+                            local DebugService = NextKey222.Debug
+                            return not (DebugService and DebugService.enabled)
+                        end,
                         args = (function()
                             local devTools = create_developer_tools_group()
                             local generationArgs = {}
@@ -1249,20 +1252,9 @@ function NextKey222.SetupOptions()
             Debug:Dev("startup", "Options table registered successfully")
         end
         
-        -- Hook into AceConfigDialog to start live updates when debug panel is opened
-        local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
-        if AceConfigDialog then
-            -- Wrap the Open function to start live updates
-            local originalOpen = AceConfigDialog.Open
-            AceConfigDialog.Open = function(self, appName, ...)
-                originalOpen(self, appName, ...)
-                
-                -- Start live updates when NextKey config is opened
-                if appName == "NextKey" and NextKey222.DebugUI and NextKey222.DebugUI.StartLiveUpdates then
-                    NextKey222.DebugUI:StartLiveUpdates()
-                end
-            end
-        end
+        -- Note: Live updates for debug statistics have been disabled to prevent
+        -- interrupting user input in text fields. Statistics will update when
+        -- the user interacts with debug controls (toggles, buttons, etc.)
     else
         if Debug then
             Debug:Error("Failed to register options table:", err)

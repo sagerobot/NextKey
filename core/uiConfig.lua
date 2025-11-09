@@ -171,10 +171,16 @@ local UIConfig = {
         -- Bench configuration
         BENCH_TITLE_HEIGHT = 10,         -- Height of bench title bar
         BENCH_SCROLL_GAP = 8,            -- Gap between title and scroll frame
-        BENCH_CARD_HEIGHT = 20,          -- Height of bench player cards
+        BENCH_CARD_HEIGHT = 25,          -- Height of bench player cards
         BENCH_CARD_SPACING = 3,          -- Spacing between bench cards
+        BENCH_CARD_LEFT_PADDING = 3,     -- Left padding before first role icon in bench cards
         BENCH_HORIZONTAL_PADDING = 10,   -- Left/right padding inside bench frame
         BENCH_SCROLLBAR_PADDING = 18,    -- Extra padding for scrollbar
+        
+        -- Opt-out card configuration
+        OPT_OUT_CARD_WIDTH = 90,         -- Width of opt-out cards
+        OPT_OUT_CARD_HEIGHT = 40,        -- Height of opt-out cards
+        OPT_OUT_PADDING = 5,             -- Padding from edges
         
         -- Group slot configuration
         SLOT_HEIGHT = 100,               -- Height of each group slot

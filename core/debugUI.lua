@@ -68,22 +68,22 @@ function DebugUI:RefreshOptions()
     end
 end
 
--- Start live statistics updates
-function DebugUI:StartLiveUpdates()
-    if self.updateTimer then
-        return  -- Already running
+-- Helper function to refresh only the statistics section
+function DebugUI:RefreshStatistics()
+    local reg = LibStub("AceConfigRegistry-3.0", true)
+    if reg then
+        -- This will cause the description fields with dynamic name functions to re-evaluate
+        -- without rebuilding the entire options table
+        reg:NotifyChange("NextKey", "debugSystem")
     end
-    
-    self.updateTimer = C_Timer.NewTicker(self.updateInterval, function()
-        -- Only refresh if the debug panel is actually open
-        local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
-        if AceConfigDialog and AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames["NextKey"] then
-            self:RefreshOptions()
-        else
-            -- Panel is closed, stop the timer
-            self:StopLiveUpdates()
-        end
-    end)
+end
+
+-- Start live statistics updates
+-- NOTE: Disabled automatic refresh to prevent interrupting user input in text fields.
+-- Statistics will update when the user interacts with debug controls (toggles, buttons, etc.)
+function DebugUI:StartLiveUpdates()
+    -- Do nothing - auto-refresh disabled to prevent input interruption
+    -- Statistics are already refreshed via RefreshOptions() calls in interactive elements
 end
 
 -- Stop live statistics updates
@@ -850,6 +850,16 @@ function DebugUI:CreateSimplifiedStatisticsArgs()
             order = 2
         },
 
+        refreshStats = {
+            type = "execute",
+            name = "|TInterface\\ICONS\\INV_Misc_Spyglass_02:16|t Refresh Statistics",
+            desc = "Manually refresh the statistics display to see current values",
+            func = function()
+                self:RefreshStatistics()
+            end,
+            order = 3
+        },
+        
         resetStats = {
             type = "execute",
             name = "|TInterface\\ICONS\\INV_Misc_Dust_02:16|t Reset Statistics",
@@ -862,10 +872,10 @@ function DebugUI:CreateSimplifiedStatisticsArgs()
                 DebugService.stats.traceCount = 0
                 DebugService.stats.totalMessages = 0
                 DebugService.stats.uptime = GetTime()
-                self:RefreshOptions()
+                self:RefreshStatistics()
                 DebugService:User("Debug statistics have been reset")
             end,
-            order = 3
+            order = 4
         }
     }
 end
@@ -1010,8 +1020,7 @@ function DebugUI:RebuildDebugOptions()
     -- Notify AceConfig that the options table changed
     AceConfigRegistry:NotifyChange("NextKey")
     
-    -- Start live updates when the debug panel is opened
-    self:StartLiveUpdates()
+    -- Note: Live updates disabled - statistics update on user interaction only
 end
 
 -- Register module
