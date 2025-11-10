@@ -48,7 +48,6 @@ local UI = {
     viewToggleBtn = nil,  -- Button to switch between views
     guildToggleBtn = nil, -- Button to toggle guild/party filter
     debugFakeTierSelection = "random",
-    suggestionMode = "auto", -- "auto", "best_key", or "best_groups"
     
     -- Character capture tracking
     hasTriggeredCharacterCapture = false, -- Track if we've captured character data on window open
@@ -258,7 +257,7 @@ function UI:UpdateDebugControlsVisibility()
 end
 
 --- Shows or hides keystone-specific controls based on view mode (Phase 7: Enhanced with dynamic configuration)
--- Handles visibility of Suggest Groups, Auto Mode, and Guild/Party toggle buttons
+-- Handles visibility of Open Organizer and Guild/Party toggle buttons
 function UI:UpdateKeystoneControlsVisibility()
     if not self.mainFrame then
         Debug:Dev("ui", "UpdateKeystoneControlsVisibility: Main frame not available")
@@ -275,68 +274,59 @@ function UI:UpdateKeystoneControlsVisibility()
         self.configContext:SynchronizeWithUI(self)
     end
     
-    -- Phase 7: Get controls configuration from context
+    -- Determine if we should show keystone controls and Open Organizer button
     local showKeystoneControls = self:ShouldShowKeystoneControls()
-    local shouldShowSuggestGroups = false
-    local shouldShowSuggestionMode = false
-    
-    if self.configContext then
-        local controlsConfig = self.configContext:GetResolvedConfig("controls")
-        shouldShowSuggestGroups = controlsConfig.keystone.children.suggestGroups.visible
-        shouldShowSuggestionMode = controlsConfig.keystone.children.suggestionMode.visible
-    else
-        -- Fallback to original logic
-        shouldShowSuggestGroups = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
-        shouldShowSuggestionMode = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
-    end
+    local shouldShowOpenOrganizer = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
     
     Debug:Dev("ui", "UpdateKeystoneControlsVisibility: showKeystoneControls =", showKeystoneControls,
-              "shouldShowSuggestGroups =", shouldShowSuggestGroups,
-              "shouldShowSuggestionMode =", shouldShowSuggestionMode)
+              "cachedItemsCount =", self.cachedItemsCount or 0,
+              "shouldShowOpenOrganizer =", shouldShowOpenOrganizer)
     
-    -- Handle Suggest Groups button (add/remove from layout like debug controls)
-    if self.suggestGroupsBtn then
+    -- Handle Open Organizer button visibility
+    if self.headerWidgets and self.headerWidgets.organizerBtn then
+        local organizerBtn = self.headerWidgets.organizerBtn
+        
         -- Check if button is currently in the layout
         local isInLayout = false
         if self.controlsContainer.children then
             for _, child in ipairs(self.controlsContainer.children) do
-                if child == self.suggestGroupsBtn then
+                if child == organizerBtn then
                     isInLayout = true
                     break
                 end
             end
         end
         
-        Debug:Dev("ui", "Suggest Groups button: shouldShow =", shouldShowSuggestGroups, "isInLayout =", isInLayout)
+        Debug:Dev("ui", "Open Organizer button: shouldShow =", shouldShowOpenOrganizer, "isInLayout =", isInLayout)
         
-        if shouldShowSuggestGroups and not isInLayout then
-            -- Add button to layout at the correct position (after guild toggle button)
-            Debug:Dev("ui", "Adding Suggest Groups button to layout")
+        if shouldShowOpenOrganizer and not isInLayout then
+            -- Add button to layout
+            Debug:Dev("ui", "Adding Open Organizer button to layout")
             
             -- Re-parent the button to the controls container
-            if self.suggestGroupsBtn.frame then
-                self.suggestGroupsBtn.frame:SetParent(self.controlsContainer.frame)
-                self.suggestGroupsBtn.frame:Show()
+            if organizerBtn.frame then
+                organizerBtn.frame:SetParent(self.controlsContainer.frame)
+                organizerBtn.frame:Show()
             end
             
-            -- Find the position to insert (after guild toggle button)
-            local insertPosition = 1
+            -- Find position to insert (after teleport button)
+            local insertPosition = #self.controlsContainer.children + 1
             if self.controlsContainer.children then
                 for i, child in ipairs(self.controlsContainer.children) do
-                    if child == self.guildToggleBtn then
+                    if child == self.headerWidgets.teleportWindowBtn then
                         insertPosition = i + 1
                         break
                     end
                 end
             end
             
-            table.insert(self.controlsContainer.children, insertPosition, self.suggestGroupsBtn)
-        elseif not shouldShowSuggestGroups and isInLayout then
+            table.insert(self.controlsContainer.children, insertPosition, organizerBtn)
+        elseif not shouldShowOpenOrganizer and isInLayout then
             -- Remove button from layout
-            Debug:Dev("ui", "Removing Suggest Groups button from layout")
+            Debug:Dev("ui", "Removing Open Organizer button from layout")
             local buttonIndex = nil
             for i, child in ipairs(self.controlsContainer.children) do
-                if child == self.suggestGroupsBtn then
+                if child == organizerBtn then
                     buttonIndex = i
                     break
                 end
@@ -344,69 +334,9 @@ function UI:UpdateKeystoneControlsVisibility()
             
             if buttonIndex then
                 table.remove(self.controlsContainer.children, buttonIndex)
-                if self.suggestGroupsBtn.frame then
-                    self.suggestGroupsBtn.frame:Hide()
-                    self.suggestGroupsBtn.frame:SetParent(nil)
-                end
-            end
-        end
-    end
-    
-    -- Handle Suggestion Mode button (add/remove from layout like debug controls)
-    if self.suggestionModeBtn then
-        -- Check if button is currently in the layout
-        local isInLayout = false
-        if self.controlsContainer.children then
-            for _, child in ipairs(self.controlsContainer.children) do
-                if child == self.suggestionModeBtn then
-                    isInLayout = true
-                    break
-                end
-            end
-        end
-        
-        Debug:Dev("ui", "Suggestion Mode button: shouldShow =", shouldShowSuggestionMode, "isInLayout =", isInLayout)
-        
-        if shouldShowSuggestionMode and not isInLayout then
-            -- Add button to layout at the correct position (after suggest groups button)
-            Debug:Dev("ui", "Adding Suggestion Mode button to layout")
-            
-            -- Re-parent the button to the controls container
-            if self.suggestionModeBtn.frame then
-                self.suggestionModeBtn.frame:SetParent(self.controlsContainer.frame)
-                self.suggestionModeBtn.frame:Show()
-            end
-            
-            -- Find the position to insert (after suggest groups button, or after guild toggle if suggest groups not present)
-            local insertPosition = 1
-            if self.controlsContainer.children then
-                for i, child in ipairs(self.controlsContainer.children) do
-                    if child == self.suggestGroupsBtn then
-                        insertPosition = i + 1
-                        break
-                    elseif child == self.guildToggleBtn then
-                        insertPosition = i + 1
-                    end
-                end
-            end
-            
-            table.insert(self.controlsContainer.children, insertPosition, self.suggestionModeBtn)
-        elseif not shouldShowSuggestionMode and isInLayout then
-            -- Remove button from layout
-            Debug:Dev("ui", "Removing Suggestion Mode button from layout")
-            local buttonIndex = nil
-            for i, child in ipairs(self.controlsContainer.children) do
-                if child == self.suggestionModeBtn then
-                    buttonIndex = i
-                    break
-                end
-            end
-            
-            if buttonIndex then
-                table.remove(self.controlsContainer.children, buttonIndex)
-                if self.suggestionModeBtn.frame then
-                    self.suggestionModeBtn.frame:Hide()
-                    self.suggestionModeBtn.frame:SetParent(nil)
+                if organizerBtn.frame then
+                    organizerBtn.frame:Hide()
+                    organizerBtn.frame:SetParent(nil)
                 end
             end
         end
@@ -717,23 +647,11 @@ function UI:CreateMainFrame()
     sortDrop:SetValue(self:GetCurrentSortMode())
     controls:AddChild(sortDrop)
 
-    local refreshBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
-        text = "Refresh",
+    -- Combined Refresh Data button - performs both keystone refresh and data sync
+    local refreshDataBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
+        text = "Refresh Data",
         onClick = function()
-            if self.viewMode == "dungeons" then
-                self:RenderDungeonCards()
-            else
-                -- Use enhanced refresh that re-scans keystones
-                self:RefreshResults()
-            end
-        end
-    })
-    controls:AddChild(refreshBtn)
-    self.headerWidgets.refreshBtn = refreshBtn
-
-    local syncBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
-        text = "Sync",
-        onClick = function()
+            -- Sync communications first
             if NextKey222.Communications then
                 -- Ensure current player's IO data is refreshed
                 NextKey222.Communications:EnsureCurrentPlayerIOData()
@@ -747,13 +665,19 @@ function UI:CreateMainFrame()
                 if NextKey222.Communications.RequestPartyIOData then
                     NextKey222.Communications:RequestPartyIOData()
                 end
+            end
+            
+            -- Then refresh UI with latest data
+            if self.viewMode == "dungeons" then
+                self:RenderDungeonCards()
             else
-                Debug:Error("Communications not available")
+                -- Use enhanced refresh that re-scans keystones
+                self:RefreshResults()
             end
         end
     })
-    controls:AddChild(syncBtn)
-    self.headerWidgets.syncBtn = syncBtn
+    controls:AddChild(refreshDataBtn)
+    self.headerWidgets.refreshDataBtn = refreshDataBtn
 
     -- Guild/Party Filter Toggle Button
     local guildToggleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
@@ -820,27 +744,6 @@ function UI:CreateMainFrame()
     self.viewToggleBtn = toggleBtn
     self.headerWidgets.viewToggleBtn = toggleBtn
 
-    -- Group suggestion buttons (conditionally added when 6+ players)
-    -- Create buttons but don't add to layout yet
-    local suggestBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
-        text = "Suggest Groups",
-        onClick = function()
-            self:SuggestGroups()
-        end
-    })
-    self.suggestGroupsBtn = suggestBtn
-    self.headerWidgets.suggestGroupsBtn = suggestBtn
-    Debug:Dev("ui", "Suggest Groups button created (not added to layout yet)")
-
-    local modeBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
-        text = "Auto Mode",
-        onClick = function()
-            self:ToggleSuggestionMode()
-        end
-    })
-    self.suggestionModeBtn = modeBtn
-    self.headerWidgets.suggestionModeBtn = modeBtn
-    Debug:Dev("ui", "Suggestion Mode button created (not added to layout yet)")
 
     -- Debug-only controls for managing fake players
     -- Always create widgets, but only add to layout when debug is enabled
@@ -967,14 +870,6 @@ function UI:CreateMainFrame()
     -- CRITICAL: Do NOT show frame here - frame should only show when explicitly toggled
     Debug:Dev("ui", "CreateMainFrame: Frame remains HIDDEN - will only show via ToggleMainFrame")
     
-    -- Double-check button visibility after frame is shown
-    Debug:Dev("ui", "CreateMainFrame: Final button visibility check")
-    if self.suggestGroupsBtn and self.suggestGroupsBtn.frame then
-        Debug:Dev("ui", "Suggest Groups button visible after frame show:", self.suggestGroupsBtn.frame:IsShown() and "YES" or "NO")
-    end
-    if self.suggestionModeBtn and self.suggestionModeBtn.frame then
-        Debug:Dev("ui", "Suggestion Mode button visible after frame show:", self.suggestionModeBtn.frame:IsShown() and "YES" or "NO")
-    end
 end
 
 -- MARK: Frame Visibility Management
@@ -1383,65 +1278,6 @@ function UI:HandleDeleteFakePlayer(playerName)
     self:ScheduleRender()
 end
 
---- Generate and display intelligent group suggestions
-function UI:SuggestGroups()
-    Debug:Dev("ui", "SuggestGroups called")
-
-    if not NextKey222.GroupSuggestions then
-        Debug:Error("ui", "GroupSuggestions module not available")
-        return
-    end
-
-    -- Generate suggestions based on current mode
-    local suggestion = NextKey222.GroupSuggestions:GenerateSuggestions(self.suggestionMode)
-
-    if not suggestion then
-        Debug:User("No group suggestions available. Need at least 5 players with keystones.")
-        return
-    end
-
-    -- Format for chat output
-    local chatMessage = NextKey222.GroupSuggestions:FormatSuggestionForChat(suggestion)
-
-    -- Send to party/raid chat
-    local chatType = UnitInRaid("player") and "RAID" or "PARTY"
-    if UnitInParty("player") or UnitInRaid("player") then
-        SendChatMessage(chatMessage, chatType)
-        Debug:User("Group suggestions posted to " .. chatType .. " chat")
-    else
-        -- Solo player - show in system chat
-        print(chatMessage)
-        Debug:User("Group suggestions displayed (solo player)")
-    end
-
-    -- Also show a brief summary in user chat
-    if suggestion.mode == "best_key" then
-        Debug:User(string.format("Suggested: %s +%d for %d group IO gain",
-            suggestion.selectedKey.dungeonName or "Unknown",
-            suggestion.selectedKey.level or 0,
-            suggestion.ioGain.total))
-    elseif suggestion.mode == "best_groups" then
-        Debug:User(string.format("Suggested: %d groups from %d players with key rotation",
-            #suggestion.groups, suggestion.totalPlayers))
-    end
-end
-
---- Toggle between suggestion modes (Best Key vs Best Groups)
-function UI:ToggleSuggestionMode()
-    if self.suggestionMode == "auto" then
-        self.suggestionMode = "best_key"
-        self.suggestionModeBtn:SetText("Best Key Mode")
-        Debug:User("Suggestion mode: Best Key (single group optimization)")
-    elseif self.suggestionMode == "best_key" then
-        self.suggestionMode = "best_groups"
-        self.suggestionModeBtn:SetText("Best Groups Mode")
-        Debug:User("Suggestion mode: Best Groups (multi-group key rotation)")
-    else
-        self.suggestionMode = "auto"
-        self.suggestionModeBtn:SetText("Auto Mode")
-        Debug:User("Suggestion mode: Auto (intelligent selection)")
-    end
-end
 
 --- Shared tooltip handler for IO gain displays (full and compact rows)
 -- @param button Frame Button or region triggering the tooltip

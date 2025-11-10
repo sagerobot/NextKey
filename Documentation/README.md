@@ -56,8 +56,8 @@ The memory bank is the foundation of project knowledge for future AI assistance:
 
 ## 🚀 Project Status
 
-**Current Version**: 0.2.1  
-**Current Phase**: Post-UI Refactor Bugfixing - Loot System Implementation (25% complete)  
+**Current Version**: 0.5.32
+**Current Phase**: Post-UI Refactor Bugfixing - Loot System Implementation (25% complete)
 **Main Focus**: Fixing loot window rendering issues, then PUG mode functionality
 
 See [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for detailed roadmap.

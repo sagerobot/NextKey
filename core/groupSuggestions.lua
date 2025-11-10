@@ -1,3 +1,19 @@
+-- ========================================================================
+-- DEPRECATION NOTICE
+-- ========================================================================
+-- This module is DEPRECATED and NO LONGER USED in the NextKey UI.
+-- 
+-- The "Suggest Groups" and "Suggestion Mode" buttons have been removed
+-- from the main UI in favor of the dedicated M+ Group Organizer window,
+-- which provides a more comprehensive and visual group management system.
+--
+-- This module remains in the codebase for potential future use or reference,
+-- but it is NOT currently integrated into any active UI flows.
+--
+-- Date: 2025-11-09
+-- Replaced by: M+ Group Organizer (ui/organizer/rosterBoard.lua)
+-- ========================================================================
+
 local _, NextKey222 = ...
 
 -- MARK: Group Suggestions Module

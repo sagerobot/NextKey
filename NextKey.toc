@@ -1,8 +1,8 @@
-## Interface: 110200
+## Interface: 110205
 ## Title: NextKey
 ## Notes: Intelligently ranks Mythic+ keys for your group.
 ## Author: Gemini & User
-## Version: 0.2.2
+## Version: 0.5.32
 ## X-Category: Dungeons
 ## SavedVariables: NextKeyDB
 ## OptionalDeps: RaiderIO

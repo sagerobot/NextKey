@@ -8,10 +8,10 @@ local UIConfig = {
     -- MARK: Main Window Configuration
     WINDOW = {
         WIDTH = 600,                    -- Overall window width
-        BASE_HEIGHT = 645,              -- Base window height (changes dynamically)
+        BASE_HEIGHT = 630,              -- Base window height (changes dynamically)
         DUNGEON_VIEW_HEIGHT = 776,      -- Height when showing dungeon cards (8 cards × 75px + ~150px UI chrome + small buffer)
         PLAYER_VIEW_HEIGHT = 645,       -- Height when showing player keystones
-        PLAYER_VIEW_HEIGHT_DEBUG = 675  -- Height for keystone view when debug controls are visible
+        PLAYER_VIEW_HEIGHT_DEBUG = 647  -- Height for keystone view when debug controls are visible
     },
     
     -- MARK: Card Layout Configuration

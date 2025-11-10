@@ -63,7 +63,7 @@ function ParticipantSurvey:OnAddonPing(message, sender)
         -- Auto-respond with ADDON_PONG (whisper to organizer)
         local response = {
             pollID = message.pollID,
-            version = NextKey222.Addon.version or "0.2.2"
+            version = NextKey222.Addon.version or "0.5.32"
         }
         
         NextKey222.OrganizerComms:SendOrganizerMessage(

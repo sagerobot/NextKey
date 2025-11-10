@@ -1698,7 +1698,7 @@ function FakePlayerService:SimulatePongResponses(pollID)
                 -- Build PONG message (identical structure to real player)
                 local pongMessage = {
                     pollID = pollID,
-                    version = "0.2.2-fake"
+                    version = "0.5.32-fake"
                 }
                 
                 -- Send directly to ParticipantSurvey as if received over network

@@ -51,13 +51,13 @@ NextKey.LibOpenRaid = NextKey222.LibOpenRaidIntegration
 -- MARK: Version Information
 -- Store version information
 local version, build, date, tvs = GetBuildInfo()
-NextKey.build_counter = 1
+NextKey.build_counter = 32
 NextKey.version_major = 0
-NextKey.version_minor = 2
-NextKey.version_patch = 1
+NextKey.version_minor = 5
+NextKey.version_patch = 32
 NextKey.game_version = version
 NextKey.gametoc = tvs
-NextKey.version = string.format("%d.%d.%d.%d", NextKey.version_major, NextKey.version_minor, NextKey.version_patch, NextKey.build_counter)
+NextKey.version = string.format("%d.%d.%d", NextKey.version_major, NextKey.version_minor, NextKey.version_patch)
 
 -- MARK: Namespace Organization
 -- Organized component namespaces

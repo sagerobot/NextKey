@@ -6,7 +6,7 @@ This UI component displays enhanced invite information when a tracked
 LFG application results in a group invitation.
 
 Author: NextKey Team
-Version: 0.2.0.1
+Version: 0.5.32
 ]]
 
 local _, NextKey222 = ...

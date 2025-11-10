@@ -472,9 +472,7 @@ function Responsive:AdaptButtonLayouts()
     -- Update control buttons
     local buttons = {
         NextKey222.UI.viewToggleBtn,
-        NextKey222.UI.guildToggleBtn,
-        NextKey222.UI.suggestGroupsBtn,
-        NextKey222.UI.suggestionModeBtn
+        NextKey222.UI.guildToggleBtn
     }
     
     for _, button in pairs(buttons) do

@@ -6,7 +6,7 @@ This UI component helps players quickly travel to the dungeon
 when they join a new PUG group.
 
 Author: NextKey Team
-Version: 0.2.0.1
+Version: 0.5.32
 ]]
 
 local _, NextKey222 = ...

@@ -40,7 +40,7 @@ function OrganizerSurveyTests:CreateMockPollRequest()
     local pollID = "test-" .. tostring(time())
     return {
         opcode = NextKey222.Constants.COMM_OPCODES.ORG_POLL_REQUEST,
-        version = "0.2.1",
+        version = "0.5.32",
         timestamp = GetTime(),
         sender = UnitName("player") .. "-" .. GetRealmName(),
         pollID = pollID
@@ -50,7 +50,7 @@ end
 function OrganizerSurveyTests:CreateMockPollResponse(playerName, optedIn, characterChoice)
     return {
         opcode = NextKey222.Constants.COMM_OPCODES.ORG_POLL_RESPONSE,
-        version = "0.2.1",
+        version = "0.5.32",
         timestamp = GetTime(),
         sender = playerName,
         pollID = NextKey222.ParticipantSurvey and NextKey222.ParticipantSurvey.activePollID or "test-poll",

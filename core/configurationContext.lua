@@ -84,20 +84,6 @@ ConfigurationContext.baseConfig = {
                 isNotDungeonView = true
             },
             children = {
-                suggestGroups = {
-                    visible = false,
-                    requiredContext = {
-                        showKeystoneControls = true,
-                        cachedItemsCount = 6
-                    }
-                },
-                suggestionMode = {
-                    visible = false,
-                    requiredContext = {
-                        showKeystoneControls = true,
-                        cachedItemsCount = 6
-                    }
-                },
                 guildToggle = {
                     visible = false,
                     requiredContext = {
@@ -224,20 +210,6 @@ function ConfigurationContext:ShouldShowKeystoneControls()
     return self.context.viewMode ~= "dungeons"
 end
 
---- Evaluates if suggest groups button should be shown
--- @return boolean True if suggest groups button should be visible
-function ConfigurationContext:ShouldShowSuggestGroups()
-    return self:ShouldShowKeystoneControls() and 
-           self.context.cachedItemsCount >= 6
-end
-
---- Evaluates if suggestion mode button should be shown
--- @return boolean True if suggestion mode button should be visible
-function ConfigurationContext:ShouldShowSuggestionMode()
-    return self:ShouldShowKeystoneControls() and 
-           self.context.cachedItemsCount >= 6
-end
-
 --- Evaluates if IO display mode button should be shown
 -- @return boolean True if IO display mode button should be visible
 function ConfigurationContext:ShouldShowIODisplayMode()
@@ -288,12 +260,6 @@ function ConfigurationContext:GetControlsConfig()
     controlsConfig.keystone = {
         visible = self:ShouldShowKeystoneControls(),
         children = {
-            suggestGroups = {
-                visible = self:ShouldShowSuggestGroups()
-            },
-            suggestionMode = {
-                visible = self:ShouldShowSuggestionMode()
-            },
             guildToggle = {
                 visible = self:ShouldShowKeystoneControls()
             }

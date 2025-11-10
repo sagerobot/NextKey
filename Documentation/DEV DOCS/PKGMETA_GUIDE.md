@@ -346,5 +346,5 @@ The packager will automatically read `.pkgmeta` and create the correct package.
 
 ---
 
-**Last Updated:** 2025-11-09  
-**NextKey Version:** 0.2.2
+**Last Updated:** 2025-11-09
+**NextKey Version:** 0.5.32
