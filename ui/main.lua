@@ -163,25 +163,7 @@ function UI:ApplyWindowHeight()
     Debug:Dev("ui", "ApplyWindowHeight: Set height to", height, "using", self.configContext and "dynamic config" or "fallback config")
 end
 
---- Applies configurable spacing between controls and the results list
-function UI:ApplyResultsTopPadding()
-    if not self.resultsSpacer or not self.resultsSpacer.SetHeight then
-        return
-    end
-
-    local padding = 0
-    if NextKey222.UIConfig and NextKey222.UIConfig.LAYOUT then
-        local cfgPadding = NextKey222.UIConfig.LAYOUT.RESULTS_TOP_PADDING
-        if type(cfgPadding) == "number" then
-            padding = math.max(cfgPadding, 0)
-        end
-    end
-
-    self.resultsSpacer:SetHeight(padding)
-    if self.resultsSpacer.frame then
-        self.resultsSpacer.frame:SetHeight(padding)
-    end
-end
+-- Removed: ApplyResultsTopPadding() - spacer no longer needed
 
 --- Shows or hides debug-specific widgets and reapplies layout (Phase 7: Enhanced with dynamic configuration)
 -- Dynamically adds or removes debug container based on debug mode state
@@ -269,13 +251,13 @@ function UI:UpdateKeystoneControlsVisibility()
         return
     end
     
-    -- Phase 7: Update configuration context first
-    if self.configContext then
-        self.configContext:SynchronizeWithUI(self)
-    end
+    -- Determine visibility BEFORE syncing config context
+    -- In dungeon view (viewMode == "dungeons"), hide keystone controls
+    -- In keystone view (viewMode == "keystones"), show keystone controls
+    local showKeystoneControls = (self.viewMode ~= "dungeons")
     
-    -- Determine if we should show keystone controls and Open Organizer button
-    local showKeystoneControls = self:ShouldShowKeystoneControls()
+    Debug:Dev("ui", "UpdateKeystoneControlsVisibility: viewMode =", self.viewMode,
+              "showKeystoneControls =", showKeystoneControls)
     local shouldShowOpenOrganizer = showKeystoneControls and self.cachedItemsCount and self.cachedItemsCount >= 6
     
     Debug:Dev("ui", "UpdateKeystoneControlsVisibility: showKeystoneControls =", showKeystoneControls,
@@ -342,12 +324,24 @@ function UI:UpdateKeystoneControlsVisibility()
         end
     end
     
-    -- Update Guild/Party toggle button visibility (this one can stay in layout, just show/hide)
+    -- Update Guild/Party toggle button visibility (hide in dungeon view)
     if self.guildToggleBtn and self.guildToggleBtn.frame then
         if showKeystoneControls then
             self.guildToggleBtn.frame:Show()
         else
             self.guildToggleBtn.frame:Hide()
+        end
+    end
+    
+    -- Update Teleport button visibility (hide in dungeon view - each dungeon card has its own)
+    if self.headerWidgets and self.headerWidgets.teleportWindowBtn then
+        local teleportBtn = self.headerWidgets.teleportWindowBtn
+        if teleportBtn.frame then
+            if showKeystoneControls then
+                teleportBtn.frame:Show()
+            else
+                teleportBtn.frame:Hide()
+            end
         end
     end
     
@@ -595,7 +589,6 @@ function UI:CreateMainFrame()
         self.debugFakeTierDropdown = nil
         self.debugAddFakeBtn = nil
         self.debugClearFakeBtn = nil
-        self.resultsSpacer = nil
         self:ClearAuxFrames()
     end)
 
@@ -650,6 +643,7 @@ function UI:CreateMainFrame()
     -- Combined Refresh Data button - performs both keystone refresh and data sync
     local refreshDataBtn = NextKey222.UIComponents:CreateButton("secondary_action", nil, {
         text = "Refresh Data",
+        size = {120, 25}, -- Increased width to fit text
         onClick = function()
             -- Sync communications first
             if NextKey222.Communications then
@@ -729,20 +723,7 @@ function UI:CreateMainFrame()
     })
     controls:AddChild(organizerBtn)
     self.headerWidgets.organizerBtn = organizerBtn
-
-    -- Add view toggle button to controls (this approach works reliably)
-    local toggleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
-        text = "Switch to Dungeons View",  -- Initial text - starts in Keystone View
-        size = {200, 25}, -- Increased width to fit full text
-        onClick = function()
-            self:ToggleViewMode()
-        end
-    })
-    controls:AddChild(toggleBtn)
-
-    -- Store reference for text updates AND widget cleanup
-    self.viewToggleBtn = toggleBtn
-    self.headerWidgets.viewToggleBtn = toggleBtn
+-- View toggle button moved to bottom of window (see below)
 
 
     -- Debug-only controls for managing fake players
@@ -827,17 +808,11 @@ function UI:CreateMainFrame()
     self.totalScoreLabel = totalScoreLabel
     self.headerWidgets.totalScoreLabel = totalScoreLabel
 
-    local spacer = NextKey222.UIComponents:CreateText("body", nil, {
-        text = "",
-        width = nil -- Full width
-    })
-    frame:AddChild(spacer)
-    self.resultsSpacer = spacer
-    self:ApplyResultsTopPadding()
+    -- Removed: resultsSpacer - no longer needed, scroll list starts immediately after controls
 
     local results = NextKey222.UIComponents:CreateScrollFrame("primary", nil, {
         fullWidth = true,
-        fullHeight = true,
+        fullHeight = false,  -- Don't fill - we need room for button below
         layout = "List"
     })
     
@@ -847,12 +822,34 @@ function UI:CreateMainFrame()
         Debug:Dev("ui", "Scroll frame parent:", results.frame:GetParent() and results.frame:GetParent():GetName() or "nil")
     end
     
+    -- CRITICAL FIX: Use the same scroll height calculation as ToggleViewMode()
+    -- This ensures initial state matches post-toggle state
+    local scrollHeight = NextKey222.UIConfig.WINDOW.SCROLL_FRAME_HEIGHT_KEYSTONE
+    results:SetHeight(scrollHeight)
+    Debug:Dev("ui", "Initial scroll frame height set to:", scrollHeight, "(keystone view default)")
+    
     frame:AddChild(results)
 
     self.resultsFrame = results
+    
+    -- Removed: buttonSpacer - no gap needed, button starts immediately after scroll frame
+    
+    -- Add view toggle button at the bottom - full width skinny button (height configurable)
+    local toggleBtn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
+        text = "Switch to Dungeons View",  -- Initial text - starts in Keystone View
+        fullWidth = true,
+        size = {580, NextKey222.UIConfig.WINDOW.BOTTOM_BUTTON_HEIGHT}, -- Width and height from config
+        onClick = function()
+            self:ToggleViewMode()
+        end
+    })
+    frame:AddChild(toggleBtn)
+    
+    -- Store reference for text updates AND widget cleanup
+    self.viewToggleBtn = toggleBtn
+    self.headerWidgets.viewToggleBtn = toggleBtn
+    
     self.mainFrame = frame
-
-    -- Toggle button is now in the top controls area where it works reliably
 
     -- Initialize with keystone view (default)
     -- Set up initial button text and render keystones
@@ -2517,26 +2514,44 @@ function UI:ToggleViewMode()
         if self.viewToggleBtn then
             self.viewToggleBtn:SetText("Switch to Keystone View")  -- Show what clicking will do
         end
+        -- Update scroll frame height for dungeon view
+        if self.resultsFrame then
+            self.resultsFrame:SetHeight(NextKey222.UIConfig.WINDOW.SCROLL_FRAME_HEIGHT_DUNGEON)
+        end
         -- Update sort dropdown options for dungeon view
         self:UpdateSortDropdownOptions()
         -- Show total score in dungeon view
         if self.totalScoreLabel then
             self.totalScoreLabel:SetText(self:FormatColoredTotalScore(NextKey222.Addon:GetRaiderIOTotalScore()))
         end
+        
+        -- Phase 7: Synchronize configuration context ONCE before any visibility updates
+        if self.configContext then
+            self.configContext:SynchronizeWithUI(self)
+        end
+        
+        -- CRITICAL: Update keystone controls visibility (but skip the internal ApplyWindowHeight call)
+        -- This ensures Guild/Party toggle and Teleport button are hidden in dungeon view
+        self:UpdateKeystoneControlsVisibility()
+        
         -- Update debug controls visibility (hide fake player buttons in dungeon view)
         self:UpdateDebugControlsVisibility()
-        -- Update keystone controls visibility (hide Suggest Groups, Auto Mode, and Guild/Party buttons)
-        self:UpdateKeystoneControlsVisibility()
-        -- Use centralized dungeon view height
-        self:ApplyWindowHeight()
+        
         -- Clear render tracking to force a re-render when switching views
         self.lastRenderedKeystoneHash = nil
         self.lastRenderedSortMode = nil
         self:RenderDungeonCards()
+        
+        -- Apply window height ONCE at the end after all state changes
+        self:ApplyWindowHeight()
     else
         self.viewMode = "keystones"
         if self.viewToggleBtn then
             self.viewToggleBtn:SetText("Switch to Dungeons View")  -- Show what clicking will do
+        end
+        -- Update scroll frame height for keystone view
+        if self.resultsFrame then
+            self.resultsFrame:SetHeight(NextKey222.UIConfig.WINDOW.SCROLL_FRAME_HEIGHT_KEYSTONE)
         end
         -- Update sort dropdown options for keystone view
         self:UpdateSortDropdownOptions()
@@ -2544,16 +2559,26 @@ function UI:ToggleViewMode()
         if self.totalScoreLabel then
             self.totalScoreLabel:SetText("")
         end
+        
+        -- Phase 7: Synchronize configuration context ONCE before any visibility updates
+        if self.configContext then
+            self.configContext:SynchronizeWithUI(self)
+        end
+        
+        -- CRITICAL: Update keystone controls visibility (but skip the internal ApplyWindowHeight call)
+        -- This ensures Guild/Party toggle and Teleport button are shown in keystone view
+        self:UpdateKeystoneControlsVisibility()
+        
         -- Update debug controls visibility (show fake player buttons in keystone view if debug is on)
         self:UpdateDebugControlsVisibility()
-        -- Update keystone controls visibility (show Suggest Groups, Auto Mode, and Guild/Party buttons if applicable)
-        self:UpdateKeystoneControlsVisibility()
-        -- Use centralized keystone view height
-        self:ApplyWindowHeight()
+        
         -- Clear render tracking to force a re-render when switching views
         self.lastRenderedKeystoneHash = nil
         self.lastRenderedSortMode = nil
         self:RenderResults()
+        
+        -- Apply window height ONCE at the end after all state changes
+        self:ApplyWindowHeight()
     end
 end
 

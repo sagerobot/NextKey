@@ -8,10 +8,16 @@ local UIConfig = {
     -- MARK: Main Window Configuration
     WINDOW = {
         WIDTH = 600,                    -- Overall window width
-        BASE_HEIGHT = 630,              -- Base window height (changes dynamically)
-        DUNGEON_VIEW_HEIGHT = 776,      -- Height when showing dungeon cards (8 cards × 75px + ~150px UI chrome + small buffer)
-        PLAYER_VIEW_HEIGHT = 645,       -- Height when showing player keystones
-        PLAYER_VIEW_HEIGHT_DEBUG = 647  -- Height for keystone view when debug controls are visible
+        BASE_HEIGHT = 630,              -- Base window height (original)
+        DUNGEON_VIEW_HEIGHT = 800,      -- Height when showing dungeon cards
+        PLAYER_VIEW_HEIGHT = 660,       -- Height when showing player keystones - enough for scroll + button
+        PLAYER_VIEW_HEIGHT_DEBUG = 692, -- Height for keystone view when debug controls are visible
+        
+        -- Scroll frame and bottom button configuration
+        SCROLL_FRAME_HEIGHT_KEYSTONE = 438,  -- Height of scroll area in keystone view (5 cards × 88 + 4 gaps × 8 = 472)
+        SCROLL_FRAME_HEIGHT_DUNGEON = 598,   -- Height of scroll area in dungeon view (8 dungeons × 75 each)
+        BOTTOM_BUTTON_HEIGHT = 35,           -- Height of view toggle button at bottom
+        BOTTOM_BUTTON_SPACER = 0            -- Spacer above bottom button
     },
     
     -- MARK: Card Layout Configuration

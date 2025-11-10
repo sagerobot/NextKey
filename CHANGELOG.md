@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [v0.5.32] - 2025-11-09
 ### ✨ Enhancements
 - **Category-Based Debug Profiles:** Replaced generic level-based debug presets (minimal, standard, verbose, full) with targeted category-based profiles designed for specific bug types. New profiles include: UI Issues, Organizer Issues, Keystone & Scoring Issues, PUG Helper Issues, Sync & Communication Issues, Loot Tracking Issues, and Teleport Issues. This provides beta testers and bug reporters with focused debug output relevant to their specific issue category.
+- **Streamlined Main UI:** Removed deprecated "Suggest Groups" and "Suggestion Mode" buttons from the main UI window, as this functionality has been replaced by the dedicated M+ Group Organizer window. Replaced separate Refresh and Sync buttons with a unified "Refresh Data" button for a cleaner interface.
+### 🔧 Maintenance
+- **Version Updates:** Updated addon version to 0.5.32 and game interface version to 110205 across all files for consistency.
+- **Module Deprecation:** Added deprecation notice to `groupSuggestions.lua` module as functionality has moved to the dedicated organizer system.
 
 ## [v0.5.29] - 2025-11-09
 ### ✨ Enhancements
