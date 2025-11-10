@@ -88,6 +88,30 @@ This file is the concise status mirror of the current codebase. For complete ver
    - Re-validation required under the current architecture:
      - Data correctness, persistence, integration with dungeon cards and decision logic.
 
+5. UI/Main.lua Refactor
+   - Status:
+     - `ui/main.lua` now functions as a slim facade:
+       - Registers `NextKey222.UI` and exposes a stable public API.
+       - Delegates window lifecycle to [`ui/mainWindow.lua`](../../../ui/mainWindow.lua).
+       - Delegates header/controls to [`ui/controls.lua`](../../../ui/controls.lua).
+       - Delegates view toggling and UI mode detection to [`ui/viewManager.lua`](../../../ui/viewManager.lua).
+       - Delegates keystone rendering orchestration to [`ui/rendering.lua`](../../../ui/rendering.lua).
+       - Delegates IO gain/hashing helpers to [`ui/ioCalculations.lua`](../../../ui/ioCalculations.lua).
+       - Delegates frame pacing to [`ui/performance.lua`](../../../ui/performance.lua) via `QueueFramePacedRender`.
+       - Integrates debug helpers and slash commands via [`ui/debugHelpers.lua`](../../../ui/debugHelpers.lua).
+       - Calls into `NextKey222.UIInitialization:InitializeUI(self)` when present.
+     - Legacy inline implementations removed or documented:
+       - Duplicate `RenderResults`, `RefreshKeystoneList`, and `QueueFramePacedRender` bodies eliminated.
+       - Legacy `DetectUIMode` / `SwitchToUIMode` and experimental dungeon ranking helpers removed.
+     - Load order and dependencies:
+       - UI module load order in [`NextKey.toc`](../../../NextKey.toc) updated to match the documented graph:
+         utilities → capabilities → score/tooltips/cards/dungeonView → ioCalculations → rendering → performance → viewManager → debugHelpers → mainWindow → initialization → main.
+   - Next:
+     - Full in-game verification:
+       - `/nk` open/close, view toggle, guild/party toggle.
+       - Teleport + organizer buttons.
+       - Debug/fake player tools and frame pacing behavior.
+
 ## Upcoming Priorities
 
 1. Complete PUG Mode validation and mark hardened path as stable.

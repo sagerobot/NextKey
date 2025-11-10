@@ -1855,7 +1855,55 @@ SLASH_NEXTKEY1 = "/nextkey"
 SLASH_NEXTKEY2 = "/nk"
 SlashCmdList["NEXTKEY"] = HandleSlashCommand
 
+-- UI debug/test helpers (Phase 6): delegate to UIDebugHelpers if available.
+SLASH_NEXTKEYREFRESHDEBUG1 = "/nextkeyrefreshdebug"
+SlashCmdList["NEXTKEYREFRESHDEBUG"] = function()
+    if NextKey222.UIDebugHelpers and NextKey222.UIDebugHelpers.RefreshDebugControls then
+        NextKey222.UIDebugHelpers:RefreshDebugControls()
+    elseif NextKey222.UI and NextKey222.UI.RefreshDebugControls then
+        NextKey222.UI:RefreshDebugControls()
+    end
+end
+
+SLASH_NEXTKEYREFRESH1 = "/nextkeyrefresh"
+SlashCmdList["NEXTKEYREFRESH"] = function()
+    if NextKey222.UIDebugHelpers and NextKey222.UIDebugHelpers.RefreshUI then
+        NextKey222.UIDebugHelpers:RefreshUI()
+    elseif NextKey222.UI and NextKey222.UI.RefreshResults then
+        NextKey222.UI:RefreshResults()
+    end
+end
+
+SLASH_NEXTKEYTESTSPEC1 = "/nextkeytestspec"
+SlashCmdList["NEXTKEYTESTSPEC"] = function()
+    if NextKey222.UIDebugHelpers and NextKey222.UIDebugHelpers.SimulateSpecChange then
+        NextKey222.UIDebugHelpers:SimulateSpecChange()
+    end
+end
+
+SLASH_NEXTKEYROSTER1 = "/nkroster"
+SlashCmdList["NEXTKEYROSTER"] = function()
+    if NextKey222.UIDebugHelpers and NextKey222.UIDebugHelpers.OpenRosterBoard then
+        NextKey222.UIDebugHelpers:OpenRosterBoard()
+        return
+    end
+
+    if NextKey222.RosterBoard and NextKey222.RosterBoard.Show then
+        local ui = NextKey222.UI
+        if ui and ui.mainFrame and ui.mainFrame.IsShown and ui.mainFrame:IsShown() then
+            ui.mainFrame:Hide()
+        end
+        NextKey222.RosterBoard:Show()
+    else
+        if NextKey222.Debug and NextKey222.Debug.Error then
+            NextKey222.Debug:Error("RosterBoard module not available for /nkroster")
+        end
+    end
+end
+
 -- Store reference for external access
 NextKey222.SlashCommands = SlashCommands
 
-NextKey222.Debug:Dev("startup", "Slash commands registered")
+if NextKey222.Debug and NextKey222.Debug.Dev then
+    NextKey222.Debug:Dev("startup", "Slash commands registered")
+end
