@@ -30,7 +30,7 @@ local function _create_sort_dropdown(ui, parent)
 
     local dropdown = NextKey222.UIComponents:CreateDropdown("primary", nil, {
         label = "Sort Mode",
-        width = 200,
+        width = NextKey222.UIConfig and NextKey222.UIConfig.CONTROLS and NextKey222.UIConfig.CONTROLS.SORT_DROPDOWN_WIDTH or 200,
         onValueChanged = function(_, _, key)
             if not ui or not ui.SetCurrentSortMode then
                 return
@@ -158,8 +158,12 @@ local function _create_guild_toggle(ui, parent)
         return
     end
 
+    local config = NextKey222.UIConfig and NextKey222.UIConfig.CONTROLS or {}
     local btn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
-        text = ui.showGuildKeys and "Guild Keys" or "Party Keys",
+        text = ui.showGuildKeys
+            and (config.GUILD_KEYS_TEXT or "Guild Keys")
+            or (config.PARTY_KEYS_TEXT or "Party Keys"),
+        width = config.GUILD_TOGGLE_WIDTH or 95,
         onClick = function()
             if not ui then
                 return
@@ -205,8 +209,10 @@ local function _create_teleport_button(ui, parent)
         return
     end
 
+    local config = NextKey222.UIConfig and NextKey222.UIConfig.CONTROLS or {}
     local btn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
-        text = "Open Teleport",
+        text = config.TELEPORT_TEXT or "Open Teleport",
+        width = config.TELEPORT_BUTTON_WIDTH or 110,
         onClick = function()
             if NextKey222.Addon and NextKey222.Addon.ToggleTeleportWindow then
                 NextKey222.Addon:ToggleTeleportWindow()
@@ -278,18 +284,14 @@ local function _create_organizer_button(ui, parent)
         return
     end
 
-    local player_count = _get_effective_player_count(ui)
-
-    -- For now: show organizer button when we have a realistic multi-group context.
-    -- Using >= 6 aligns with raid/organizer scenarios and compact keystone layout.
-    if player_count < 6 then
-        log_dev("UIControls: Skipping organizer button (insufficient players; count =", player_count, ")")
-        return
-    end
-
+    -- Always create the button, but initially hidden
+    local config = NextKey222.UIConfig and NextKey222.UIConfig.CONTROLS or {}
     local btn = NextKey222.UIComponents:CreateButton("primary_action", nil, {
-        text = "Open Organizer",
-        size = { 160, 25 },
+        text = config.ORGANIZER_TEXT or "Open Organizer",
+        size = {
+            config.ORGANIZER_BUTTON_WIDTH or 160,
+            config.ORGANIZER_BUTTON_HEIGHT or 25
+        },
         onClick = function()
             if NextKey222.RosterBoard and NextKey222.RosterBoard.Show then
                 NextKey222.RosterBoard:Show()
@@ -309,7 +311,16 @@ local function _create_organizer_button(ui, parent)
     end
 
     ui.headerWidgets.organizerBtn = btn
-    log_dev("UIControls: Organizer button created (player_count =", player_count, ")")
+    
+    -- Initial visibility based on current player count
+    local player_count = _get_effective_player_count(ui)
+    if player_count >= 6 then
+        btn.frame:Show()
+        log_dev("UIControls: Organizer button created and shown (player_count =", player_count, ")")
+    else
+        btn.frame:Hide()
+        log_dev("UIControls: Organizer button created but hidden (player_count =", player_count, ")")
+    end
 end
 
 local function _create_total_score_label(ui, parent)

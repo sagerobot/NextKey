@@ -327,6 +327,12 @@ function SlotManager:place_card_in_slot(card, slot)
         
         card:Show()
         
+        -- CRITICAL FIX: Save to OrganizerState for persistence
+        if card.playerData and card.playerData.id then
+            NextKey222.OrganizerState:MoveToSlot(card.playerData.id, slot.groupIndex, slot.slotIndex)
+            Debug:Dev("organizer_ui", "Saved player to OrganizerState - group", slot.groupIndex, "slot", slot.slotIndex)
+        end
+        
         Debug:Dev("organizer_ui", "Card placed in slot successfully")
         
         -- Update Recall All button state
@@ -416,7 +422,7 @@ function SlotManager:populate_opt_out(rosterBoard, players)
             playerData,
             rosterBoard.optOutSection.scrollChild,
             "opt_out",
-            "compact"  -- Use compact mode (same as bench)
+            "opt_out"  -- Use opt_out mode (simple two-line layout)
         )
         
         if card then

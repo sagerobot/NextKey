@@ -60,6 +60,22 @@ local UIConfig = {
         PREFERENCE_WIDTH = 50           -- Like/Dislike button width
     },
     
+    -- MARK: Main Window Control Buttons
+    CONTROLS = {
+        -- Button dimensions
+        SORT_DROPDOWN_WIDTH = 150,      -- Sort mode dropdown width
+        GUILD_TOGGLE_WIDTH = 85,        -- Party/Guild keys toggle button width
+        TELEPORT_BUTTON_WIDTH = 65,    -- Open Teleport button width
+        ORGANIZER_BUTTON_WIDTH = 110,   -- Open Organizer button width
+        ORGANIZER_BUTTON_HEIGHT = 25,   -- Open Organizer button height
+        
+        -- Button text labels
+        GUILD_KEYS_TEXT = "Guild Keys",
+        PARTY_KEYS_TEXT = "Party Keys",
+        TELEPORT_TEXT = "Teleport",
+        ORGANIZER_TEXT = "Organizer",
+    },
+    
     -- MARK: Layout Configuration
     LAYOUT = {
         CONTAINER_PADDING = 0,          -- Padding inside the main results container
@@ -120,24 +136,30 @@ local UIConfig = {
         
         -- Phase 2: Alt Selection
         PHASE2_WIDTH = 420,
-        PHASE2_BASE_HEIGHT = 180,
-        PHASE2_CARD_HEIGHT = 95,
-        PHASE2_MAX_HEIGHT = 700,
+        PHASE2_BASE_HEIGHT = 110,
+        PHASE2_CARD_HEIGHT = 90,
+        PHASE2_MAX_HEIGHT = 630,
+        PHASE2_SCROLL_TOP_OFFSET = 75,     -- Top offset for scroll frame (header height)
+        PHASE2_SCROLL_BOTTOM_OFFSET = 0,  -- Bottom offset for scroll frame (button area)
         
         -- Phase 3: Spec Selection
         PHASE3_WIDTH = 340,
-        PHASE3_BASE_HEIGHT = 160,
+        PHASE3_BASE_HEIGHT = 110,          -- Reduced from 160 (50 pixels shorter)
         PHASE3_SPEC_HEIGHT = 80,
         
         -- Card styling
         ICON_SIZE = 48,
         CARD_PADDING = 8,
         
-        -- Colors
+        -- Colors - Borders
         COLOR_GREEN_BORDER = {0.2, 0.8, 0.2, 1},
         COLOR_RED_BORDER = {0.8, 0.2, 0.2, 1},
         COLOR_YELLOW_BORDER = {0.9, 0.8, 0.2, 1},
-        COLOR_GREY_BORDER = {0.35, 0.35, 0.35, 0.8}
+        COLOR_GREY_BORDER = {0.35, 0.35, 0.35, 0.8},
+        
+        -- Colors - Backgrounds (for spec preference cards)
+        COLOR_GREEN_BG = {0.05, 0.3, 0.05, 0.9},      -- Dark green background for "play" state
+        COLOR_YELLOW_BG = {0.35, 0.3, 0.05, 0.9}      -- Lighter dark yellow background for "fill" state
     },
     
     -- MARK: Spell Configuration (from ui/teleport.lua)
@@ -155,7 +177,7 @@ local UIConfig = {
     ORGANIZER = {
         -- Window dimensions
         COLUMN_WIDTH = 195,              -- Width of each group column (increased from 180 to accommodate wider expanded cards)
-        BENCH_WIDTH = 260,               -- Width of bench column
+        BENCH_WIDTH = 270,               -- Width of bench column
         PADDING = 20,                    -- Padding at window edges (left/right)
         BENCH_LEFT_GAP = 10,             -- Gap between M+ groups and bench (left side of bench)
         BENCH_RIGHT_GAP = 54,            -- Gap between bench and right window edge

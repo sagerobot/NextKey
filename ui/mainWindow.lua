@@ -128,21 +128,29 @@ local function _wire_on_close(ui, widget, kind)
 end
 
 local function _select_footer_message()
-    local messages = {
-        "UI skeleton - M0.6",
-        "Pick your hearthstone in /nk opt",
-    }
-
-    if #messages == 0 then
-        return "NextKey"
+    -- Get current version from addon
+    local version = "v0.5.32"
+    if NextKey and NextKey.version then
+        version = "alpha-v" .. NextKey.version
     end
+    
+    local tips = {
+        "Use /nk to quickly open NextKey",
+        "Pick your hearthstone in /nk opt",
+        "Click the X button to close windows",
+        "Use Smart Sort for balanced IO gains",
+        "Set loot targets to prioritize specific dungeons",
+        "Open the M+ Organizer with /nk org",
+        "Open the Teleport window anywhere with /nk tp",
+    }
 
     local index = 1
     if GetTime then
-        index = (math.floor(GetTime()) % #messages) + 1
+        -- Rotate tip based on time, changing every ~10 seconds
+        index = (math.floor(GetTime() / 10) % #tips) + 1
     end
 
-    return messages[index]
+    return version .. " - " .. tips[index]
 end
 
 -- Legacy close handler (keystone window only) retained for compatibility.

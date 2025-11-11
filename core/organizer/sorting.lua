@@ -29,11 +29,15 @@ local function collect_players_by_role_preference(players, role)
         local canPlayRole = false
         
         -- Check if player has spec preferences from poll
-        if player.specPreferences and player.specPreferences[role] then
+        if player.specPreferences then
+            -- Player answered poll - use their explicit preferences
             preference = player.specPreferences[role]
             canPlayRole = (preference == "play" or preference == "fill")
+            
+            Debug:Dev("organizer", "Poll data for", player.name, "role", role, "preference:", preference or "none")
         else
             -- Fallback: Check if player's roles array includes this role
+            -- (used for players who haven't answered poll yet)
             if player.roles then
                 for _, playerRole in ipairs(player.roles) do
                     local normalizedRole = playerRole:upper()
@@ -45,6 +49,7 @@ local function collect_players_by_role_preference(players, role)
                        (normalizedTargetRole == "DAMAGER" and normalizedRole == "DPS") then
                         canPlayRole = true
                         preference = "play" -- Default to "play" when using roles array
+                        Debug:Dev("organizer", "Fallback roles for", player.name, "role", role, "matched")
                         break
                     end
                 end

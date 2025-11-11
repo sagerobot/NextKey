@@ -271,6 +271,16 @@ function UI:RenderResults()
     if self.UpdateKeystoneControlsVisibility then
         self:UpdateKeystoneControlsVisibility()
     end
+    
+    -- Update organizer button visibility based on rendered keystone count
+    if self.headerWidgets and self.headerWidgets.organizerBtn and self.headerWidgets.organizerBtn.frame then
+        if self.cachedItemsCount >= 6 then
+            self.headerWidgets.organizerBtn.frame:Show()
+        else
+            self.headerWidgets.organizerBtn.frame:Hide()
+        end
+    end
+    
     if self.configContext and self.configContext.SynchronizeWithUI then
         self.configContext:SynchronizeWithUI(self)
     end

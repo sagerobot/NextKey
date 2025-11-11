@@ -133,7 +133,7 @@ function RosterBoard:CreateMainFrame()
         frame:SetWidth(layout.totalWidth)
         frame:SetHeight(layout.totalHeight)
         frame:SetLayout("Fill")  -- Unused, but required by AceGUI
-        frame:EnableResize(true)
+        frame:EnableResize(false)
         
         frame:SetStatusText("M+ Group Organizer - Drag players between bench and groups")
         
@@ -438,6 +438,62 @@ function RosterBoard:PopulateAllSections()
             self:PopulateBench(benchPlayers)
         end
         
+        -- CRITICAL FIX: Restore group slot assignments from OrganizerState
+        Debug:Dev("organizer_ui", "Restoring group slot assignments from state")
+        
+        -- DEBUG: Check if OrganizerState has any group data
+        local totalGroupSlots = 0
+        if NextKey222.OrganizerState and NextKey222.OrganizerState.groups then
+            for gIdx, slots in pairs(NextKey222.OrganizerState.groups) do
+                for sIdx, pID in pairs(slots) do
+                    totalGroupSlots = totalGroupSlots + 1
+                    Debug:Dev("organizer_ui", "State has player in group", gIdx, "slot", sIdx, ":", pID)
+                end
+            end
+        end
+        Debug:Dev("organizer_ui", "OrganizerState has", totalGroupSlots, "total players in group slots")
+        
+        if self.groupSlots then
+            local restoredCount = 0
+            for groupIndex, slots in pairs(self.groupSlots) do
+                for slotIndex, slot in pairs(slots) do
+                    -- Get playerID from state (SafeRun returns the value directly, not (success, result))
+                    local playerID = NextKey222.OrganizerState:GetSlotPlayer(groupIndex, slotIndex)
+                    
+                    -- CRITICAL: Check playerID is valid before using it
+                    -- SafeRun may return true/false for success, or the actual value
+                    -- We only want string playerIDs
+                    if type(playerID) == "string" and playerID ~= "" then
+                        Debug:Dev("organizer_ui", "Found player in group", groupIndex, "slot", slotIndex, "- playerID:", playerID)
+                        -- Fetch full player data object using the playerID
+                        local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+                        
+                        if playerData and type(playerData) == "table" then
+                            -- Create card for this slot using the FULL player data object
+                            local card = NextKey222.PlayerCard:CreateNativeCard(
+                                playerData,
+                                slot,
+                                "role_slot",
+                                "compact"  -- Start compact, will expand on placement
+                            )
+                            
+                            if card then
+                                -- Place card in slot using SlotManager
+                                NextKey222.SlotManager:place_card_in_slot(card, slot)
+                                restoredCount = restoredCount + 1
+                                Debug:Dev("organizer_ui", "Restored player to group", groupIndex, "slot", slotIndex, ":", playerID)
+                            else
+                                Debug:Error("Failed to create card for slot player:", playerID)
+                            end
+                        else
+                            Debug:Error("GetPlayer returned invalid data for playerID:", playerID, "- type:", type(playerData))
+                        end
+                    end
+                end
+            end
+            Debug:Dev("organizer_ui", "Restored", restoredCount, "players to group slots")
+        end
+        
         -- SESSION 4 FIX: Fetch and populate opt-out players from state
         local optOutPlayerIDs = NextKey222.OrganizerState:GetOptOutPlayers()
         local optOutPlayers = {}
@@ -541,9 +597,9 @@ function RosterBoard:CreateHeaderSection(nativeParent)
         organizeDropdown:SetLabel("")
         organizeDropdown:SetList({
             simple_sort = "Simple Sort",
-            max_power = "Max Power",
-            balanced = "Balanced",
-            vault = "Vault Focused"
+            max_power = "(NYI)Max Power",
+            balanced = "(NYI)Balanced",
+            vault = "(NYI)Vault Focused"
         })
         organizeDropdown:SetValue("simple_sort")
         organizeDropdown:SetWidth(HEADER_BUTTON_SIZES.DROPDOWN)
@@ -1269,7 +1325,7 @@ function RosterBoard:AddPlayerToOptOut(playerData)
             playerData,
             self.optOutSection.scrollChild,
             "opt_out",
-            "compact"
+            "opt_out"
         )
         
         if card then
@@ -1575,10 +1631,13 @@ local function RefreshSingleCard(card, displayMode, locationContext, isSpecChang
             local newSpecRole = profile.role
             local pollHasThisRole = false
             
-            for role, preference in pairs(card.playerData.specPreferences) do
-                if role:upper() == newSpecRole:upper() and preference ~= "none" then
-                    pollHasThisRole = true
-                    break
+            -- Only check if we have a valid role
+            if newSpecRole then
+                for role, preference in pairs(card.playerData.specPreferences) do
+                    if role:upper() == newSpecRole:upper() and preference ~= "none" then
+                        pollHasThisRole = true
+                        break
+                    end
                 end
             end
             

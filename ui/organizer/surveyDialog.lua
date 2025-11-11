@@ -146,15 +146,29 @@ function SurveyDialog:CreateParticipationCard(parent, cardType, yOffset)
     card:SetSize(cfg.PHASE1_WIDTH - 40, cardHeight)
     card:SetPoint("TOP", parent, "TOP", 0, yOffset)
     
-    -- Backdrop
+    -- Backdrop (border only - no bgFile for solid colors)
     card:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 16,
+        tile = false,
         edgeSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 }
     })
+    
+    -- Create background texture with thematic colors (green for yes/yes_alt, red for no)
+    local bgTexture = card:CreateTexture(nil, "BACKGROUND")
+    bgTexture:SetAllPoints(card)
+    
+    -- Set thematic color based on card type
+    if cardType == "yes" or cardType == "yes_alt" then
+        bgTexture:SetColorTexture(0.05, 0.25, 0.05, 0.85)  -- Dark green
+        card.baseColor = {0.05, 0.25, 0.05, 0.85}
+        card.hoverColor = {0.08, 0.28, 0.08, 0.85}  -- Slightly lighter
+    else  -- "no"
+        bgTexture:SetColorTexture(0.25, 0.05, 0.05, 0.85)  -- Dark red
+        card.baseColor = {0.25, 0.05, 0.05, 0.85}
+        card.hoverColor = {0.28, 0.08, 0.08, 0.85}  -- Slightly lighter
+    end
+    card.bgTexture = bgTexture
     
     -- Card configuration based on type
     local config = {
@@ -183,8 +197,7 @@ function SurveyDialog:CreateParticipationCard(parent, cardType, yOffset)
     
     local cardConfig = config[cardType]
     
-    -- Set initial colors
-    card:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
+    -- Set initial border color
     card:SetBackdropBorderColor(cardConfig.borderColor[1], cardConfig.borderColor[2], cardConfig.borderColor[3], cardConfig.borderColor[4])
     
     -- Icon
@@ -206,14 +219,27 @@ function SurveyDialog:CreateParticipationCard(parent, cardType, yOffset)
     secondaryText:SetText(cardConfig.secondaryText)
     secondaryText:SetTextColor(0.8, 0.8, 0.8)
     
-    -- Hover effects
+    -- Hover effects (use pre-calculated hover color)
     card:SetScript("OnEnter", function()
-        card:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
-        card:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+        -- Use pre-calculated hover color
+        local hover = card.hoverColor
+        card.bgTexture:SetColorTexture(hover[1], hover[2], hover[3], hover[4])
+        
+        -- Brighten border
+        local currentBorderColor = {card:GetBackdropBorderColor()}
+        card:SetBackdropBorderColor(
+            math.min(currentBorderColor[1] * 1.5, 1),
+            math.min(currentBorderColor[2] * 1.5, 1),
+            math.min(currentBorderColor[3] * 1.5, 1),
+            1.0
+        )
     end)
     
     card:SetScript("OnLeave", function()
-        card:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
+        -- Restore original background
+        local base = card.baseColor
+        card.bgTexture:SetColorTexture(base[1], base[2], base[3], base[4])
+        -- Restore original border
         card:SetBackdropBorderColor(cardConfig.borderColor[1], cardConfig.borderColor[2], cardConfig.borderColor[3], cardConfig.borderColor[4])
     end)
     
@@ -308,19 +334,34 @@ function SurveyDialog:ShowPhase2()
         header:SetText("Select which character you want to play:")
         header:SetTextColor(1, 1, 1)
         
-        -- Scroll frame for characters
-        local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-        scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, -75)
-        scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -35, 50)
+        -- Calculate available space for content using UIConfig constants
+        local availableHeight = windowHeight - cfg.PHASE2_SCROLL_TOP_OFFSET - cfg.PHASE2_SCROLL_BOTTOM_OFFSET
+        local contentHeight = #charList * (cfg.PHASE2_CARD_HEIGHT + 8)
+        local needsScroll = contentHeight > availableHeight
         
-        local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-        scrollChild:SetSize(cfg.PHASE2_WIDTH - 50, #charList * (cfg.PHASE2_CARD_HEIGHT + 8))
-        scrollFrame:SetScrollChild(scrollChild)
+        local contentParent
         
-        -- Create character cards
+        if needsScroll then
+            -- Create scroll frame when content doesn't fit (using UIConfig constants)
+            local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+            scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, -cfg.PHASE2_SCROLL_TOP_OFFSET)
+            scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -35, cfg.PHASE2_SCROLL_BOTTOM_OFFSET)
+            
+            local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+            scrollChild:SetSize(cfg.PHASE2_WIDTH - 50, contentHeight)
+            scrollFrame:SetScrollChild(scrollChild)
+            contentParent = scrollChild
+        else
+            -- No scroll needed - use frame directly (using UIConfig constants)
+            contentParent = CreateFrame("Frame", nil, frame)
+            contentParent:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, -cfg.PHASE2_SCROLL_TOP_OFFSET)
+            contentParent:SetSize(cfg.PHASE2_WIDTH - 50, contentHeight)
+        end
+        
+        -- Create character cards (pass hasScrollbar flag to adjust card width)
         local yOffset = 0
         for i, charEntry in ipairs(charList) do
-            local card = self:CreateCharacterCard(scrollChild, charEntry, yOffset)
+            local card = self:CreateCharacterCard(contentParent, charEntry, yOffset, needsScroll)
             yOffset = yOffset - (cfg.PHASE2_CARD_HEIGHT + 8)
         end
         
@@ -328,7 +369,7 @@ function SurveyDialog:ShowPhase2()
         local backButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
         backButton:SetSize(80, 24)
         backButton:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 15, 15)
-        backButton:SetText("← Back")
+        backButton:SetText("< Back")
         backButton:SetScript("OnClick", function()
             self:ShowPhase1()
         end)
@@ -342,25 +383,52 @@ function SurveyDialog:ShowPhase2()
 end
 
 -- MARK: Create Character Card
-function SurveyDialog:CreateCharacterCard(parent, charEntry, yOffset)
+function SurveyDialog:CreateCharacterCard(parent, charEntry, yOffset, hasScrollbar)
     local cfg = UIConfig.POLL_WINDOW
     local charData = charEntry.data
     
+    -- Adjust card width based on whether scrollbar is visible
+    -- When no scrollbar: use more horizontal space (subtract less from PHASE2_WIDTH)
+    -- When scrollbar: use less horizontal space (subtract more for scrollbar)
+    local cardWidth = hasScrollbar and (cfg.PHASE2_WIDTH - 60) or (cfg.PHASE2_WIDTH - 40)
+    
     local card = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    card:SetSize(cfg.PHASE2_WIDTH - 60, cfg.PHASE2_CARD_HEIGHT)
+    card:SetSize(cardWidth, cfg.PHASE2_CARD_HEIGHT)
     card:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, yOffset)
     
-    -- Backdrop
+    -- Backdrop (border only - no bgFile for solid colors)
     card:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 16,
+        tile = false,
         edgeSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 }
     })
-    card:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
-    card:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.8)
+    
+    -- Get class color and darken it for background
+    local classFile = charData.class or "WARRIOR"
+    local classColor = RAID_CLASS_COLORS[classFile] or {r=1, g=1, b=1}
+    
+    -- Darken the class color (multiply by 0.35 for brighter base, was 0.25)
+    local darkR = classColor.r * 0.35
+    local darkG = classColor.g * 0.35
+    local darkB = classColor.b * 0.35
+    
+    -- Create background texture with darkened class color
+    local bgTexture = card:CreateTexture(nil, "BACKGROUND")
+    bgTexture:SetAllPoints(card)
+    bgTexture:SetColorTexture(darkR, darkG, darkB, 0.85)
+    card.bgTexture = bgTexture
+    
+    -- Store original colors for hover restoration
+    card.originalBgColor = {darkR, darkG, darkB, 0.85}
+    
+    -- Set border to VERY bright class color (1.5x to make it more vivid)
+    card:SetBackdropBorderColor(
+        math.min(classColor.r * 1.5, 1),
+        math.min(classColor.g * 1.5, 1),
+        math.min(classColor.b * 1.5, 1),
+        1.0
+    )
     
     -- Class icon
     local classIcon = card:CreateTexture(nil, "ARTWORK")
@@ -423,15 +491,37 @@ function SurveyDialog:CreateCharacterCard(parent, charEntry, yOffset)
     end
     keystoneLabel:SetTextColor(0.7, 0.7, 0.7)
     
-    -- Hover effects
+    -- Hover effects (subtle brightening by adding small amount)
     card:SetScript("OnEnter", function()
-        card:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
-        card:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+        -- Add 0.02 to each channel to brighten class color slightly
+        local orig = card.originalBgColor
+        card.bgTexture:SetColorTexture(
+            math.min(orig[1] + 0.02, 1),
+            math.min(orig[2] + 0.02, 1),
+            math.min(orig[3] + 0.02, 1),
+            orig[4]
+        )
+        
+        -- Brighten border even more on hover (1.8x for maximum vividness)
+        card:SetBackdropBorderColor(
+            math.min(classColor.r * 1.8, 1),
+            math.min(classColor.g * 1.8, 1),
+            math.min(classColor.b * 1.8, 1),
+            1.0
+        )
     end)
     
     card:SetScript("OnLeave", function()
-        card:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
-        card:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.8)
+        -- Restore original class-colored background
+        local orig = card.originalBgColor
+        card.bgTexture:SetColorTexture(orig[1], orig[2], orig[3], orig[4])
+        -- Restore very bright class color border (1.5x)
+        card:SetBackdropBorderColor(
+            math.min(classColor.r * 1.5, 1),
+            math.min(classColor.g * 1.5, 1),
+            math.min(classColor.b * 1.5, 1),
+            1.0
+        )
     end)
     
     -- Click handler
@@ -634,7 +724,7 @@ function SurveyDialog:ShowPhase3(characterID)
             local backButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
             backButton:SetSize(80, 24)
             backButton:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 15, 15)
-            backButton:SetText("← Back")
+            backButton:SetText("< Back")
             backButton:SetScript("OnClick", function()
                 -- Go back to Phase 2 (alt selection) or Phase 1 if current character
                 local currentChar = UnitName("player") .. "-" .. GetRealmName()
@@ -677,23 +767,26 @@ function SurveyDialog:CreateSpecCard(parent, specInfo, yOffset, defaultState)
     card:SetSize(cfg.PHASE3_WIDTH - 40, cfg.PHASE3_SPEC_HEIGHT)
     card:SetPoint("TOP", parent, "TOP", 0, yOffset)
     
-    -- Backdrop
+    -- Backdrop (border only - no bgFile so we can use solid colors)
     card:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 16,
+        tile = false,
         edgeSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 }
     })
     
+    -- Create background texture for solid color control
+    local bgTexture = card:CreateTexture(nil, "BACKGROUND")
+    bgTexture:SetAllPoints(card)
+    card.bgTexture = bgTexture
+    
     -- Initialize state (none/play/fill)
     card.state = defaultState or "none"
     
-    -- Spec icon
+    -- Spec icon (left side, standard positioning)
     local specIcon = card:CreateTexture(nil, "ARTWORK")
     specIcon:SetSize(40, 40)
-    specIcon:SetPoint("LEFT", card, "LEFT", 10, 0)
+    specIcon:SetPoint("LEFT", card, "LEFT", 10, 0)  -- Left side with small padding
     
     -- Use spec icon if available, otherwise fallback to role color
     if specInfo.iconTexture and specInfo.iconTexture ~= "" then
@@ -727,9 +820,26 @@ function SurveyDialog:CreateSpecCard(parent, specInfo, yOffset, defaultState)
         specIcon:SetColorTexture(color[1], color[2], color[3], 0.6)
     end
     
-    -- Spec name label (use specName if available, otherwise role)
+    -- Role icon (directly to the right of spec icon)
+    local roleIcon = card:CreateTexture(nil, "ARTWORK")
+    roleIcon:SetSize(20, 20)
+    roleIcon:SetPoint("LEFT", specIcon, "RIGHT", 8, 0)  -- 8px to the right of spec icon
+    
+    -- Set role icon texture
+    local roleIconPath = "Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES"
+    roleIcon:SetTexture(roleIconPath)
+    
+    if specInfo.role == "Tank" then
+        roleIcon:SetTexCoord(0, 19/64, 22/64, 41/64)
+    elseif specInfo.role == "Healer" then
+        roleIcon:SetTexCoord(20/64, 39/64, 1/64, 20/64)
+    else  -- DPS
+        roleIcon:SetTexCoord(20/64, 39/64, 22/64, 41/64)
+    end
+    
+    -- Spec name label (centered, to the right of role icon)
     local specLabel = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    specLabel:SetPoint("LEFT", specIcon, "RIGHT", 10, 10)
+    specLabel:SetPoint("LEFT", roleIcon, "RIGHT", 6, 0)  -- 6px to the right of role icon
     specLabel:SetText(specInfo.specName or specInfo.role)
     
     -- Spec name color based on role
@@ -751,27 +861,33 @@ function SurveyDialog:CreateSpecCard(parent, specInfo, yOffset, defaultState)
         local stateConfig = {
             none = {
                 text = "Not Playing",
-                bgColor = {0.05, 0.05, 0.05, 0.85},
+                bgColor = {0.15, 0.15, 0.15, 0.85},  -- Slightly lighter dark grey instead of pure black
                 borderColor = {0.3, 0.3, 0.3, 0.6},
                 textColor = {0.5, 0.5, 0.5}
             },
             play = {
                 text = "Want to Play",
-                bgColor = {0.05, 0.3, 0.05, 0.9},
+                bgColor = cfg.COLOR_GREEN_BG,          -- Use dark green background from UIConfig
                 borderColor = {0.2, 0.9, 0.2, 1.0},
                 textColor = {0.2, 0.9, 0.2}
             },
             fill = {
                 text = "Will Fill",
-                bgColor = {0.3, 0.25, 0.05, 0.9},
+                bgColor = cfg.COLOR_YELLOW_BG,         -- Use dark yellow background from UIConfig
                 borderColor = {0.9, 0.8, 0.2, 1.0},
                 textColor = {0.9, 0.8, 0.2}
             }
         }
         
         local config = stateConfig[card.state] or stateConfig.none
-        card:SetBackdropColor(config.bgColor[1], config.bgColor[2], config.bgColor[3], config.bgColor[4])
+        
+        -- Set solid background color using texture
+        card.bgTexture:SetColorTexture(config.bgColor[1], config.bgColor[2], config.bgColor[3], config.bgColor[4])
+        
+        -- Set border color
         card:SetBackdropBorderColor(config.borderColor[1], config.borderColor[2], config.borderColor[3], config.borderColor[4])
+        
+        -- Set label text and color
         stateLabel:SetText(config.text)
         stateLabel:SetTextColor(config.textColor[1], config.textColor[2], config.textColor[3])
     end
@@ -790,18 +906,19 @@ function SurveyDialog:CreateSpecCard(parent, specInfo, yOffset, defaultState)
         Debug:Dev("organizer", "Spec card clicked:", specInfo.specName, "- State changed from", oldState, "to", card.state)
     end)
     
-    -- Hover effects
+    -- Hover effects (store original state colors for hover)
+    card.hoverColors = {
+        none = {0.18, 0.18, 0.18, 0.85},  -- Slightly lighter grey
+        play = {0.08, 0.33, 0.08, 0.9},    -- Slightly lighter dark green
+        fill = {0.38, 0.33, 0.08, 0.9}     -- Slightly lighter dark yellow
+    }
+    
     card:SetScript("OnEnter", function()
-        -- Brighten background on hover
-        local currentBgColor = {card:GetBackdropColor()}
-        card:SetBackdropColor(
-            math.min(currentBgColor[1] * 1.3, 1),
-            math.min(currentBgColor[2] * 1.3, 1),
-            math.min(currentBgColor[3] * 1.3, 1),
-            currentBgColor[4]
-        )
+        -- Use pre-calculated hover color for current state
+        local hoverColor = card.hoverColors[card.state] or card.hoverColors.none
+        card.bgTexture:SetColorTexture(hoverColor[1], hoverColor[2], hoverColor[3], hoverColor[4])
         
-        -- Lighten border on hover (more prominent effect)
+        -- Brighten border
         local currentBorderColor = {card:GetBackdropBorderColor()}
         card:SetBackdropBorderColor(
             math.min(currentBorderColor[1] * 1.5, 1),

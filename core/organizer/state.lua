@@ -20,18 +20,26 @@ OrganizerState.activePoll = nil  -- {id, startTime, responses, timeout} - Active
 -- MARK: Initialization
 function OrganizerState:Initialize()
     return NextKey222.SafeRun(function()
+        Debug:User("⚠️ OrganizerState:Initialize() called - THIS SHOULD ONLY HAPPEN ONCE ON ADDON LOAD!")
         Debug:Dev("organizer_state", "Initializing OrganizerState module")
         
-        -- Initialize data structures
-        self.players = {}
-        self.bench = {}
-        self.optOut = {}
-        self.groups = {}
-        self.keystones = {}
-        self.activePoll = nil
-        
-        -- SESSION 4: Load persisted data
-        self:LoadFromPersistence()
+        -- Initialize data structures ONLY IF NOT ALREADY INITIALIZED
+        if not self._initialized then
+            self.players = {}
+            self.bench = {}
+            self.optOut = {}
+            self.groups = {}
+            self.keystones = {}
+            self.activePoll = nil
+            
+            -- SESSION 4: Load persisted data
+            self:LoadFromPersistence()
+            
+            self._initialized = true
+            Debug:User("✓ OrganizerState initialized for the first time")
+        else
+            Debug:User("⚠️ OrganizerState:Initialize() called AGAIN - skipping reinitialization to preserve data!")
+        end
         
         Debug:Dev("organizer_state", "OrganizerState initialized successfully")
         return true
@@ -358,6 +366,26 @@ function OrganizerState:MoveToSlot(playerID, groupIndex, slotIndex)
         self.groups[groupIndex][slotIndex] = playerID
         
         Debug:Dev("organizer_state", "MoveToSlot:", playerID, "to group", groupIndex, "slot", slotIndex)
+        Debug:User("IN-MEMORY ASSIGNMENT:", groupIndex, "slot", slotIndex, "=", playerID)
+        
+        -- Verify assignment succeeded
+        local verifyAssignment = self.groups[groupIndex] and self.groups[groupIndex][slotIndex]
+        Debug:User("VERIFY IN-MEMORY:", verifyAssignment)
+        
+        -- Auto-save after slot assignment
+        Debug:User("AUTO-SAVE TRIGGERED for", playerID, "in group", groupIndex, "slot", slotIndex)
+        self:SaveToPersistence()
+        Debug:User("AUTO-SAVE COMPLETED")
+        
+        -- Verify state after save
+        local totalSlots = 0
+        for gIdx, slots in pairs(self.groups) do
+            for sIdx, pID in pairs(slots) do
+                totalSlots = totalSlots + 1
+            end
+        end
+        Debug:User("AFTER SAVE - Total slots in memory:", totalSlots)
+        
         return true
     end, "OrganizerState:MoveToSlot")
 end
@@ -724,18 +752,33 @@ function OrganizerState:IsFakePlayer(playerID)
             return false
         end
         
-        -- Fake player patterns:
-        -- 1. "123-4567FP-Realm" (numeric ID + FP suffix)
-        -- 2. "Alt123-4567FP-Realm" (Alt prefix + numeric ID + FP suffix)
-        -- 3. Match any playerID containing "FP-" or "FP_" or ending with "FP"
+        -- Fake player patterns (from FakePlayerService):
+        -- CORRECT patterns that won't match real players:
+        -- 1. "Alt[digits]FP" (e.g., "Alt12FP", "Alt03FP") - ends with digits+FP
+        -- 2. "[digits]-[digits]FP-[Realm]" (e.g., "123-4567FP-Dalaran") - has FP before realm
+        --
+        -- IMPORTANT: Real players like "07FP-Dalaran" or "19FP-Dalaran" are NOT fake players!
+        -- They just have "FP" in their name coincidentally.
+        --
+        -- The key distinction: Fake players have "FP" IMMEDIATELY BEFORE the realm separator
+        -- or at the very end (for Alt players), while real players have more characters after "FP".
         
-        local isFake = playerID:match("FP%-") or playerID:match("FP_") or playerID:match("FP$")
+        -- Pattern 1: Alt prefix fake players (e.g., "Alt12FP", "Alt03FP")
+        -- Must end with Alt + digits + FP (no realm separator)
+        local isAltFake = playerID:match("^Alt%d+FP$")
+        
+        -- Pattern 2: Numeric fake players with realm (e.g., "123-4567FP-Dalaran")
+        -- Must have digits + FP immediately before the realm separator (hyphen)
+        -- This specifically looks for: digits, then "FP-", then realm name
+        local isNumericFake = playerID:match("%d+FP%-[%w]+$")
+        
+        local isFake = (isAltFake or isNumericFake) ~= nil
         
         if isFake then
             Debug:Dev("organizer_state", "IsFakePlayer: FAKE -", playerID)
         end
         
-        return isFake ~= nil
+        return isFake
         
     end, "OrganizerState:IsFakePlayer")
 end
@@ -745,69 +788,66 @@ end
 -- @usage OrganizerState:SaveToPersistence()
 function OrganizerState:SaveToPersistence()
     return NextKey222.SafeRun(function()
-        -- Validate database access
-        if not NextKey222.db or not NextKey222.db.char then
-            Debug:Error("Cannot save state - database not available")
+        -- Validate database access (use NextKey.db, not NextKey222.db)
+        local db_ref = NextKey222.Addon and NextKey222.Addon.db or NextKey.db
+        if not db_ref or not db_ref.char then
+            Debug:Dev("organizer_state", "Cannot save state - database not yet available (will retry later)")
             return false
         end
         
         -- Initialize organizerState if needed
-        if not NextKey222.db.char.organizerState then
-            NextKey222.db.char.organizerState = {
+        if not db_ref.char.organizerState then
+            db_ref.char.organizerState = {
                 players = {},
                 groups = {},
                 keystones = {},
+                optOut = {},
                 lastPoll = nil
             }
         end
         
-        local db = NextKey222.db.char.organizerState
+        local db = db_ref.char.organizerState
         
-        -- Save ONLY real players (filter out fake players)
-        local realPlayersCount = 0
-        local fakePlayersCount = 0
+        -- TESTING MODE: Save ALL players (including fake players for testing)
+        local savedPlayersCount = 0
         
         db.players = {}
         for playerID, playerData in pairs(self.players) do
-            if not self:IsFakePlayer(playerID) then
-                db.players[playerID] = playerData
-                realPlayersCount = realPlayersCount + 1
-            else
-                fakePlayersCount = fakePlayersCount + 1
-            end
+            db.players[playerID] = playerData
+            savedPlayersCount = savedPlayersCount + 1
+            Debug:Dev("organizer_state", "Saving player:", playerID)
         end
         
-        -- Save groups (only if they contain real players)
+        -- Save ALL groups (including fake players for testing)
         db.groups = {}
+        local savedGroupSlots = 0
         for groupIndex, slots in pairs(self.groups) do
             db.groups[groupIndex] = {}
             for slotIndex, playerID in pairs(slots) do
-                if not self:IsFakePlayer(playerID) then
-                    db.groups[groupIndex][slotIndex] = playerID
-                end
+                db.groups[groupIndex][slotIndex] = playerID
+                savedGroupSlots = savedGroupSlots + 1
+                Debug:Dev("organizer_state", "Saving group assignment:", groupIndex, "slot", slotIndex, "->", playerID)
             end
         end
         
-        -- Save keystones (only for real players)
+        -- Save ALL keystones (including fake players for testing)
         db.keystones = {}
         for groupIndex, keystoneData in pairs(self.keystones) do
-            if keystoneData and keystoneData.playerID and not self:IsFakePlayer(keystoneData.playerID) then
+            if keystoneData and keystoneData.playerID then
                 db.keystones[groupIndex] = keystoneData
             end
         end
         
-        -- SESSION 4 FIX: Save opt-out status (only real players)
+        -- Save ALL opt-out status (including fake players for testing)
         db.optOut = {}
         for playerID, _ in pairs(self.optOut) do
-            if not self:IsFakePlayer(playerID) then
-                db.optOut[playerID] = true
-            end
+            db.optOut[playerID] = true
         end
         
         -- Save poll metadata
         db.lastPoll = self.activePoll
         
-        Debug:Dev("organizer_state", "SaveToPersistence: Saved", realPlayersCount, "real players, filtered", fakePlayersCount, "fake players")
+        Debug:Dev("organizer_state", "SaveToPersistence: Saved", savedPlayersCount, "players and", savedGroupSlots, "group slot assignments")
         
         return true
         
@@ -819,37 +859,49 @@ end
 -- @usage OrganizerState:LoadFromPersistence()
 function OrganizerState:LoadFromPersistence()
     return NextKey222.SafeRun(function()
-        -- Validate database access
-        if not NextKey222.db or not NextKey222.db.char or not NextKey222.db.char.organizerState then
+        -- Validate database access (use NextKey.db, not NextKey222.db)
+        local db_ref = NextKey222.Addon and NextKey222.Addon.db or NextKey.db
+        if not db_ref or not db_ref.char or not db_ref.char.organizerState then
             Debug:Dev("organizer_state", "LoadFromPersistence: No persisted data found")
             return false
         end
         
-        local db = NextKey222.db.char.organizerState
+        local db = db_ref.char.organizerState
         
-        -- Restore players
-        local restoredCount = 0
-        if db.players then
-            for playerID, playerData in pairs(db.players) do
-                self.players[playerID] = playerData
-                
-                -- Restore to bench by default (user will organize them)
-                self.bench[playerID] = true
-                
-                restoredCount = restoredCount + 1
-            end
-        end
-        
-        -- Restore groups
+        -- CRITICAL FIX: Restore groups FIRST to know which players should NOT be on bench
         if db.groups then
             for groupIndex, slots in pairs(db.groups) do
                 self.groups[groupIndex] = {}
                 for slotIndex, playerID in pairs(slots) do
                     self.groups[groupIndex][slotIndex] = playerID
-                    
-                    -- Remove from bench if in a group
-                    self.bench[playerID] = nil
                 end
+            end
+        end
+        
+        -- Restore players and assign to correct locations
+        local restoredCount = 0
+        if db.players then
+            for playerID, playerData in pairs(db.players) do
+                self.players[playerID] = playerData
+                
+                -- Check if player is in a group slot (check ALL groups)
+                local isInGroup = false
+                for groupIndex, slots in pairs(self.groups) do
+                    for slotIndex, assignedPlayerID in pairs(slots) do
+                        if assignedPlayerID == playerID then
+                            isInGroup = true
+                            break
+                        end
+                    end
+                    if isInGroup then break end
+                end
+                
+                -- Only add to bench if NOT in a group (groups and opt-out restored separately)
+                if not isInGroup then
+                    self.bench[playerID] = true
+                end
+                
+                restoredCount = restoredCount + 1
             end
         end
         
@@ -891,9 +943,10 @@ function OrganizerState:ClearPersistedData()
         self.keystones = {}
         self.activePoll = nil
         
-        -- Clear SavedVariables
-        if NextKey222.db and NextKey222.db.char and NextKey222.db.char.organizerState then
-            NextKey222.db.char.organizerState = {
+        -- Clear SavedVariables (use NextKey.db, not NextKey222.db)
+        local db_ref = NextKey222.Addon and NextKey222.Addon.db or NextKey.db
+        if db_ref and db_ref.char and db_ref.char.organizerState then
+            db_ref.char.organizerState = {
                 players = {},
                 groups = {},
                 keystones = {},

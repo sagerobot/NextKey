@@ -50,19 +50,27 @@ function BenchManager:get_bench_players(rosterBoard)
         if fakePlayers then
             for _, fakeData in ipairs(fakePlayers) do
                 if not seenPlayers[fakeData.name] then
-                    -- SESSION 4 FIX: Check if player has opted out before adding to bench
-                    local location = NextKey222.OrganizerState:GetPlayerLocation(fakeData.name)
+                    -- Check if player exists in state
+                    local exists = NextKey222.OrganizerState:PlayerExists(fakeData.name)
                     
-                    if location ~= "opt_out" then
-                        -- Build playerData and add to state
-                        local playerData = self:BuildPlayerDataFromFake(fakeData)
-                        NextKey222.OrganizerState:SetPlayer(fakeData.name, playerData)
-                        NextKey222.OrganizerState:MoveToBench(fakeData.name)
+                    if not exists then
+                        -- Player is NEW (not in state at all) - check if should add
+                        local location = NextKey222.OrganizerState:GetPlayerLocation(fakeData.name)
                         
-                        table.insert(allPlayers, playerData)
-                        seenPlayers[fakeData.name] = true
+                        if location == "opt_out" then
+                            Debug:Dev("organizer_ui", "Skipping opted-out player:", fakeData.name)
+                        else
+                            -- Add new player to bench
+                            local playerData = self:BuildPlayerDataFromFake(fakeData)
+                            NextKey222.OrganizerState:SetPlayer(fakeData.name, playerData)
+                            NextKey222.OrganizerState:MoveToBench(fakeData.name)
+                            
+                            table.insert(allPlayers, playerData)
+                            seenPlayers[fakeData.name] = true
+                        end
                     else
-                        Debug:Dev("organizer_ui", "Skipping opted-out player:", fakeData.name)
+                        -- Player exists - don't move them!
+                        Debug:Dev("organizer_ui", "Player already in state, not moving:", fakeData.name)
                     end
                 end
             end
@@ -74,21 +82,29 @@ function BenchManager:get_bench_players(rosterBoard)
         local partyMembers = NextKey222.Addon:GetPartyMemberNames()
         for _, memberName in ipairs(partyMembers) do
             if not seenPlayers[memberName] then
-                -- SESSION 4 FIX: Check if player has opted out before adding to bench
-                local location = NextKey222.OrganizerState:GetPlayerLocation(memberName)
+                -- Check if player exists in state
+                local exists = NextKey222.OrganizerState:PlayerExists(memberName)
                 
-                if location ~= "opt_out" then
-                    -- Build playerData and add to state
-                    local playerData = self:BuildPlayerDataFromParty(memberName)
-                    if playerData then
-                        NextKey222.OrganizerState:SetPlayer(memberName, playerData)
-                        NextKey222.OrganizerState:MoveToBench(memberName)
-                        
-                        table.insert(allPlayers, playerData)
-                        seenPlayers[memberName] = true
+                if not exists then
+                    -- Player is NEW (not in state at all) - check if should add
+                    local location = NextKey222.OrganizerState:GetPlayerLocation(memberName)
+                    
+                    if location == "opt_out" then
+                        Debug:Dev("organizer_ui", "Skipping opted-out player:", memberName)
+                    else
+                        -- Add new player to bench
+                        local playerData = self:BuildPlayerDataFromParty(memberName)
+                        if playerData then
+                            NextKey222.OrganizerState:SetPlayer(memberName, playerData)
+                            NextKey222.OrganizerState:MoveToBench(memberName)
+                            
+                            table.insert(allPlayers, playerData)
+                            seenPlayers[memberName] = true
+                        end
                     end
                 else
-                    Debug:Dev("organizer_ui", "Skipping opted-out player:", memberName)
+                    -- Player exists - don't move them!
+                    Debug:Dev("organizer_ui", "Player already in state, not moving:", memberName)
                 end
             end
         end

@@ -259,6 +259,17 @@ function UIRendering:render_keystones(ui, keys, mode)
     if ui.UpdateKeystoneControlsVisibility then
         ui:UpdateKeystoneControlsVisibility()
     end
+    
+    -- Update organizer button visibility based on rendered keystone count
+    if ui.headerWidgets and ui.headerWidgets.organizerBtn and ui.headerWidgets.organizerBtn.frame then
+        if self.cached_items_count >= 6 then
+            ui.headerWidgets.organizerBtn.frame:Show()
+            safe_dev("ui", "Organizer button shown (keystone count =", self.cached_items_count, ")")
+        else
+            ui.headerWidgets.organizerBtn.frame:Hide()
+            safe_dev("ui", "Organizer button hidden (keystone count =", self.cached_items_count, ")")
+        end
+    end
 end
 
 -- MARK: Initialize

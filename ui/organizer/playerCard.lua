@@ -131,12 +131,14 @@ end
 local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
     if not playerData.roles then
         Debug:Dev("organizer_ui", "RenderRoleIcons: playerData.roles is nil for", playerData.name)
-        return xOffset
+        -- Always reserve space for maxRoles even if no roles to render
+        return xOffset + (maxRoles * 20)
     end
     
     if #playerData.roles == 0 then
         Debug:Dev("organizer_ui", "RenderRoleIcons: playerData.roles is empty array for", playerData.name)
-        return xOffset
+        -- Always reserve space for maxRoles even if no roles to render
+        return xOffset + (maxRoles * 20)
     end
     
     -- BUG FIX: Initialize roleButtons array if not present
@@ -185,6 +187,9 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
     
     -- Detect if this is compact mode (yOffset == 0 or nil for compact)
     local isCompact = (yOffset == nil or yOffset == 0)
+    
+    -- Store starting offset for space reservation
+    local startOffset = xOffset
     
     for i = 1, roleCount do
         local roleInfo = rolesToShow[i]
@@ -247,7 +252,8 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
         xOffset = xOffset + 20
     end
     
-    return xOffset
+    -- Always return offset as if we rendered maxRoles icons (reserve space)
+    return startOffset + (maxRoles * 20)
 end
 
 -- Helper: Render keystone information
@@ -533,11 +539,11 @@ function PlayerCard:CreateCompactContent(card, playerData)
     
     Debug:Dev("organizer_ui", "Compact card using CENTER-based vertical anchoring (all elements y=0)")
     
-    -- Multi-role icons with preference colors (max 3) - uses LEFT anchor with y=0
-    xOffset = RenderRoleIcons(card, playerData, xOffset, 0, 3)
-    
-    -- Player name (truncated to 7 chars) - uses LEFT anchor with y=0
+    -- Player name (truncated to 7 chars) - FIRST - uses LEFT anchor with y=0
     xOffset = RenderPlayerName(card, playerData, xOffset, 0, 7)
+    
+    -- Multi-role icons with preference colors (max 3) - SECOND - uses LEFT anchor with y=0
+    xOffset = RenderRoleIcons(card, playerData, xOffset, 0, 3)
     
     -- Separator - uses LEFT anchor with y=0 (already correct)
     local sepText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
@@ -553,21 +559,19 @@ function PlayerCard:CreateCompactContent(card, playerData)
     RenderIOScore(card, playerData, xOffset, 0, true)
 end
 
--- MARK: Opt-Out Card Content (Redesigned Layout)
+-- MARK: Opt-Out Card Content (Two-Line Layout - No IO)
 function PlayerCard:CreateOptOutContent(card, playerData)
     -- Get configuration
     local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
     local padding = config.OPT_OUT_PADDING or 5
     
-    -- Top-left: Role icon + Name (truncated to 7 chars)
     local xOffset = padding
-    local topYOffset = padding
     
-    -- Role icon (first role only)
+    -- Role icon (first role only) - vertically centered on left side
     if playerData.roles and playerData.roles[1] then
         local icon = CreateTrackedTexture(card, nil, "ARTWORK")
         icon:SetSize(16, 16)
-        icon:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -topYOffset)
+        icon:SetPoint("LEFT", card, "LEFT", xOffset, 0)
         icon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
         
         local normalizedRole = playerData.roles[1]:upper()
@@ -582,10 +586,18 @@ function PlayerCard:CreateOptOutContent(card, playerData)
         xOffset = xOffset + 18
     end
     
-    -- Player name (truncated to 7 chars) - top-left after role icon
-    RenderPlayerName(card, playerData, xOffset, topYOffset, 7)
+    -- Line 1: Player name (truncated to 7 chars) - top line
+    local nameText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
+    nameText:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -padding)
     
-    -- Bottom-left: Dungeon abbreviation +level
+    local displayName = playerData.name or "Unknown"
+    if #displayName > 7 then
+        displayName = displayName:sub(1, 7)
+    end
+    nameText:SetText(displayName)
+    nameText:SetTextColor(1, 1, 1)
+    
+    -- Line 2: Keystone info (short name) - bottom line
     if playerData.keystone then
         local dungeonText = "???"
         if NextKey222.DungeonNameService then
@@ -593,19 +605,10 @@ function PlayerCard:CreateOptOutContent(card, playerData)
         end
         
         local keyText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-        keyText:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", padding, padding)
+        keyText:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", xOffset, padding)
         keyText:SetText(dungeonText .. " +" .. (playerData.keystone.level or 0))
         keyText:SetTextColor(1, 0.82, 0)
     end
-    
-    -- Upper-right: IO Score
-    local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormalSmall")
-    ioText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -padding, -topYOffset)
-    ioText:SetText("[" .. (playerData.overallScore or 0) .. "]")
-    
-    -- Use universal IO score color system
-    local r, g, b = NextKey222.Utils:GetIOScoreColor(playerData.overallScore or 0)
-    ioText:SetTextColor(r, g, b)
 end
 
 -- MARK: Expanded Card Content (Native Frame Version)
