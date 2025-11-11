@@ -88,34 +88,33 @@ This file is the concise status mirror of the current codebase. For complete ver
    - Re-validation required under the current architecture:
      - Data correctness, persistence, integration with dungeon cards and decision logic.
 
-5. UI/Main.lua Refactor
-   - Status: ✅ **Complete** (Phases 1-7)
-     - `ui/main.lua` now functions as a slim facade (~1940 lines, includes inline dungeon rendering and compatibility wrappers):
-       - Registers `NextKey222.UI` and exposes a stable public API.
-       - Delegates window lifecycle to [`ui/mainWindow.lua`](../../../ui/mainWindow.lua).
-       - Delegates header/controls to [`ui/controls.lua`](../../../ui/controls.lua).
-       - Delegates view toggling and UI mode detection to [`ui/viewManager.lua`](../../../ui/viewManager.lua).
-       - Delegates keystone rendering orchestration to [`ui/rendering.lua`](../../../ui/rendering.lua).
-       - Delegates IO gain/hashing helpers to [`ui/ioCalculations.lua`](../../../ui/ioCalculations.lua).
-       - Delegates frame pacing to [`ui/performance.lua`](../../../ui/performance.lua) via `QueueFramePacedRender`.
-       - Integrates debug helpers via [`ui/debugHelpers.lua`](../../../ui/debugHelpers.lua).
-       - Slash commands centralized in [`core/slashCommands.lua`](../../../core/slashCommands.lua).
-     - Architectural goals achieved:
-       - ✅ Clear separation of concerns with facade pattern.
-       - ✅ All lifecycle, view management, rendering orchestration, performance, and calculations delegated to specialized modules.
-       - ✅ Full backward compatibility (all public APIs preserved).
-       - ✅ SafeRun usage patterns preserved throughout.
-     - Remaining inline code (optional future extraction):
-       - Dungeon view rendering (`RenderDungeonCards`, `AddDungeonRowCompact`).
-       - Fake player handlers (`HandleAddDebugFakePlayer`, etc.) - could call into UIDebugHelpers.
-       - Entry metadata enrichment (`EnrichEntryMetadata`).
-       - Backward-compatible wrappers and fallback paths.
-   - Full in-game verification complete:
-     - ✅ `/nk` open/close, view toggle, guild/party toggle.
-     - ✅ Teleport + organizer buttons.
-     - ✅ Debug/fake player tools and frame pacing behavior.
-     - ✅ All sort modes functional.
-     - ✅ No regressions in UX or performance.
+5. UI/Main.lua Refactor ✅ **COMPLETE**
+   - **Status**: Fully implemented and verified (2025-11-11)
+   - **Documentation**: See [`UI_MAIN_REFACTORING_PLAN.md`](../../../Documentation/FEATURES & PLANS/UI_MAIN_REFACTORING_PLAN.md) (archived)
+   - **Achievement**: Transformed monolithic 3000+ line file into modular architecture
+   
+   **Final Architecture** (~1531 lines):
+   - `ui/main.lua` functions as slim facade exposing stable public APIs
+   - Delegates window lifecycle to `ui/mainWindow.lua`
+   - Delegates header/controls to `ui/controls.lua`
+   - Delegates view management to `ui/viewManager.lua`
+   - Delegates rendering orchestration to `ui/rendering.lua`
+   - Delegates IO calculations to `ui/ioCalculations.lua`
+   - Delegates frame pacing to `ui/performance.lua`
+   - Integrates debug helpers via `ui/debugHelpers.lua`
+   - Slash commands centralized in `core/slashCommands.lua`
+   
+   **Architectural Goals Achieved**:
+   - ✅ Clear separation of concerns with facade pattern
+   - ✅ All critical responsibilities delegated to specialized modules (13 modules created)
+   - ✅ Full backward compatibility (zero breaking changes)
+   - ✅ SafeRun usage patterns preserved throughout
+   - ✅ 49% code reduction through modularization
+   
+   **Verification**:
+   - ✅ All in-game workflows tested and functional
+   - ✅ Zero performance or UX regressions
+   - ✅ Module load order validated in `NextKey.toc`
 
 ## Upcoming Priorities
 
