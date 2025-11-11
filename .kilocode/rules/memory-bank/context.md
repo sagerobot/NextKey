@@ -1,9 +1,9 @@
 # NextKey Current Context
 
 ## Current Status
-**Date**: November 8, 2025  
-**Version**: 0.2.2  
-**Current Phase**: Week 3 Simplification Complete — OrganizerState, Teleport Sync, PUG Mode Hardening  
+**Date**: November 11, 2025
+**Version**: 0.6.0
+**Current Phase**: Major UI Architecture Release — Independent Two-Window System, Modular UI Complete
 **Authoritative Note**: This file is the canonical snapshot of the current system state for AI and future contributors.
 
 ## Recent Completions

@@ -1,9 +1,9 @@
 # NextKey Current Status & Requirements
 
 ## Project Status
-**Date**: November 9, 2025
-**Version**: 0.5.32
-**Phase**: Active Development — Memory Optimization, Debug System Enhancements, M+ Group Organizer
+**Date**: November 11, 2025
+**Version**: 0.6.0
+**Phase**: Active Development — Independent Two-Window Architecture, UI Modularization, M+ Group Organizer
 
 This file is the concise status mirror of the current codebase. For complete version history, see [`CHANGELOG.md`](../../../CHANGELOG.md).
 
@@ -89,7 +89,7 @@ This file is the concise status mirror of the current codebase. For complete ver
      - Data correctness, persistence, integration with dungeon cards and decision logic.
 
 5. UI/Main.lua Refactor ✅ **COMPLETE**
-   - **Status**: Fully implemented and verified (2025-11-11)
+   - **Status**: Fully implemented and verified (2025-11-09)
    - **Documentation**: See [`UI_MAIN_REFACTORING_PLAN.md`](../../../Documentation/FEATURES & PLANS/UI_MAIN_REFACTORING_PLAN.md) (archived)
    - **Achievement**: Transformed monolithic 3000+ line file into modular architecture
    
@@ -115,6 +115,26 @@ This file is the concise status mirror of the current codebase. For complete ver
    - ✅ All in-game workflows tested and functional
    - ✅ Zero performance or UX regressions
    - ✅ Module load order validated in `NextKey.toc`
+
+### 6. Independent Two-Window Architecture ✅ **COMPLETE**
+   - **Status**: Fully implemented and verified (2025-11-10)
+   - **Achievement**: Revolutionary two-window system allowing complete independence
+   
+   **Architecture**:
+   - Keystone Selection Window: Party keystones with IO gain calculations
+   - Dungeon Overview Window: Personal dungeon performance tracking
+   - Each window has its own dedicated toggle button
+   - Windows operate completely independently
+   
+   **Benefits**:
+   - Greater flexibility for both group coordination and personal tracking workflows
+   - Users can view party keys and personal performance simultaneously
+   - Clean separation of concerns between group and personal data
+   
+   **Verification**:
+   - ✅ Both windows function independently
+   - ✅ Toggle buttons work correctly
+   - ✅ No UI conflicts between windows
 
 ## Upcoming Priorities
 

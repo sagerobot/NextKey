@@ -3,10 +3,10 @@
 ## Project Identity
 **Name**: NextKey
 **Type**: World of Warcraft Addon
-**Version**: 0.2.2
+**Version**: 0.6.0
 **Game Version**: Retail (11.0.2+)
 **Primary Language**: Lua
-**Current Phase**: Week 3 Simplification Complete — OrganizerState, Teleport Sync, PUG Mode Hardening
+**Current Phase**: Major UI Architecture Release — Independent Two-Window System, Modular UI Complete
 
 ## Core Purpose
 NextKey is a Mythic+ keystone optimization addon that helps groups intelligently select the best dungeon run next by analyzing party keystones, player scores, and loot preferences in under 30 seconds. It also features:
@@ -62,13 +62,16 @@ The M+ Group Organizer and supporting systems have been implemented and hardened
 - Modern WoW API compatibility (texture-based UI components)
 - Organizer-specific handshake and poll flows built on top of Communications
 
-## Current Phase
-- Week 3 Simplification complete:
+## Current Phase: v0.6.0 Release
+- Major UI architecture improvements complete:
+  - Independent Two-Window Architecture: Keystone Selection and Dungeon Overview windows operate completely independently
+  - UI Main Refactoring: Transformed monolithic 3000+ line file into 13 specialized modules (49% code reduction)
   - OrganizerState module fully wired into organizer UI
   - Unified handshake/poll system implemented
   - Teleport selection sync (TELEPORT_SELECT) hardened with single-source SetTeleportTargetKey API
-  - PUG Helper architecture implemented (state, applications, detection, invite/travel UIs) and integrated with teleport window
+  - PUG Helper architecture implemented and integrated with teleport window
 - Active Focus:
-  - Validate organizer flows and TELEPORT_SELECT behavior in real groups
+  - Validate independent window behavior in production environments
+  - Continue organizer flows and TELEPORT_SELECT validation in real groups
   - Validate PUG Mode behavior end-to-end using the hardened PUG Helper stack
   - Reconfirm Loot Targeting System correctness under the current architecture
