@@ -45,22 +45,22 @@ ConfigurationContext.baseConfig = {
     window = {
         base = {
             width = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.WIDTH or 600 end,
-            height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.BASE_HEIGHT or 645 end
+            height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.KEYSTONE_HEIGHT or 630 end
         },
         viewModes = {
             keystones = {
-                height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.PLAYER_VIEW_HEIGHT or 645 end,
+                height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.KEYSTONE_HEIGHT or 630 end,
                 showKeystoneControls = true,
                 showDebugControls = false
             },
             dungeons = {
-                height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.DUNGEON_VIEW_HEIGHT or 760 end,
+                height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.DUNGEON_HEIGHT or 788 end,
                 showKeystoneControls = false,
                 showDebugControls = false
             }
         },
         debug = {
-            height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.PLAYER_VIEW_HEIGHT_DEBUG or 675 end,
+            height = function() return NextKey222.UIConfig and NextKey222.UIConfig.WINDOW.KEYSTONE_HEIGHT or 630 end,
             showDebugControls = true
         },
         compact = {

@@ -5,7 +5,11 @@ local AceGUI = LibStub and LibStub("AceGUI-3.0")
 -- MARK: Module Definition
 
 local MainWindow = {
+    -- Keystone window (primary)
     main_frame = nil,
+
+    -- Dungeon window (separate, dedicated)
+    dungeon_frame = nil,
 }
 
 NextKey222.MainWindow = MainWindow
@@ -38,7 +42,89 @@ local function _apply_backdrop(frame)
         return
     end
 
-    NextKey222.UIComponents:ConfigureBackdrop(frame, "dialog", { colorScheme = "dark" })
+    -- Get configurable backdrop opacity
+    local opacity = NextKey222.UIConfig and NextKey222.UIConfig.WINDOW
+        and NextKey222.UIConfig.WINDOW.BACKDROP_OPACITY or 0.95
+
+    NextKey222.UIComponents:ConfigureBackdrop(frame, "dialog", {
+        colorScheme = "dark",
+        customBgColor = {0, 0, 0, opacity}
+    })
+end
+
+local function _wire_on_close(ui, widget, kind)
+    if not ui then
+        return
+    end
+
+    -- Shared cleanup for any primary window (keystone/dungeon)
+    if ui.pendingRenderTimer then
+        ui.pendingRenderTimer:Cancel()
+        ui.pendingRenderTimer = nil
+    end
+
+    if ui.headerWidgets then
+        wipe(ui.headerWidgets)
+    end
+    
+    -- Clear all widget and container references so they get recreated on next open
+    ui.headerContainer = nil
+    ui.controlsContainer = nil
+    ui.sortDropdown = nil
+    ui.guildToggleBtn = nil
+    ui.viewToggleBtn = nil
+
+    ui.lastRenderedKeystoneHash = nil
+    ui.lastRenderedSortMode = nil
+    ui.partyCompositionHash = nil
+    
+    -- CRITICAL: Clear UIRendering module cache ONLY for keystone window
+    -- Dungeon window doesn't use UIRendering, so only clear when keystone window closes
+    if kind == "keystone" and NextKey222.UIRendering then
+        NextKey222.UIRendering.last_rendered_keystone_hash = nil
+        NextKey222.UIRendering.last_rendered_sort_mode = nil
+        NextKey222.UIRendering.cached_items = nil
+        NextKey222.UIRendering.cached_use_compact_mode = nil
+        NextKey222.UIRendering.cached_items_count = 0
+    end
+
+    if ui.ioGainCache then
+        wipe(ui.ioGainCache)
+    end
+    if ui.cachedItems then
+        wipe(ui.cachedItems)
+    end
+    if ui.profileCache then
+        wipe(ui.profileCache)
+    end
+    if ui.cachedPartyProfiles then
+        wipe(ui.cachedPartyProfiles)
+    end
+
+    if ui.ClearAuxFrames then
+        ui:ClearAuxFrames()
+    end
+
+    if AceGUI and widget then
+        AceGUI:Release(widget)
+    end
+
+    if kind == "keystone" then
+        ui.mainFrame = nil
+        MainWindow.main_frame = nil
+        
+        -- If BOTH windows are now closed, clean up the shared FrameRegistry
+        local dungeonWindowClosed = not NextKey222.DungeonWindow or not NextKey222.DungeonWindow:IsVisible()
+        if dungeonWindowClosed and NextKey222.FrameRegistry and NextKey222.FrameRegistry.ClearAll then
+            log_dev("Both windows closed - clearing shared FrameRegistry")
+            NextKey222.FrameRegistry:ClearAll()
+        end
+    elseif kind == "dungeon" then
+        ui.dungeonFrame = nil
+        MainWindow.dungeon_frame = nil
+    end
+
+    log_dev(string.format("[MAIN UI] OnClose (%s) - cleared state and released widget", kind or "unknown"))
 end
 
 local function _select_footer_message()
@@ -59,59 +145,9 @@ local function _select_footer_message()
     return messages[index]
 end
 
+-- Legacy close handler (keystone window only) retained for compatibility.
 local function _on_close(ui, widget)
-    if not ui then
-        return
-    end
-
-    -- Cancel pending debounced render
-    if ui.pendingRenderTimer then
-        ui.pendingRenderTimer:Cancel()
-        ui.pendingRenderTimer = nil
-    end
-
-    -- Clear header widgets references
-    if ui.headerWidgets then
-        wipe(ui.headerWidgets)
-    end
-
-    -- Clear render tracking variables
-    ui.lastRenderedKeystoneHash = nil
-    ui.lastRenderedSortMode = nil
-    ui.partyCompositionHash = nil
-
-    -- Clear caches
-    if ui.ioGainCache then
-        wipe(ui.ioGainCache)
-    end
-    if ui.cachedItems then
-        wipe(ui.cachedItems)
-    end
-    if ui.profileCache then
-        wipe(ui.profileCache)
-    end
-    if ui.cachedPartyProfiles then
-        wipe(ui.cachedPartyProfiles)
-    end
-
-    -- Clear aux frames via FrameRegistry + legacy cleanup
-    if ui.ClearAuxFrames then
-        ui:ClearAuxFrames()
-    end
-
-    log_dev("[MAIN UI] OnClose - cleared all tracking variables and caches")
-
-    if AceGUI and widget then
-        AceGUI:Release(widget)
-    end
-
-    ui.mainFrame = nil
-    ui.resultsFrame = nil
-    ui.controlsContainer = nil
-    ui.debugControlsContainer = nil
-    ui.debugFakeTierDropdown = nil
-    ui.debugAddFakeBtn = nil
-    ui.debugClearFakeBtn = nil
+    _wire_on_close(ui, widget, "keystone")
 end
 
 -- MARK: Public Interface
@@ -146,7 +182,7 @@ function MainWindow:CreateMainFrame(ui)
         end
     end
 
-    log_dev("MainWindow: creating AceGUI Frame")
+    log_dev("MainWindow: creating AceGUI Frame for keystone window")
 
     local frame = AceGUI:Create("Frame")
     frame:SetTitle("NextKey")
@@ -159,7 +195,7 @@ function MainWindow:CreateMainFrame(ui)
 
         local initial_height = NextKey222.UIConfig:GetWindowHeight("keystones", {
             isDebugMode = ui.ShouldShowDebugControls and ui:ShouldShowDebugControls() or false,
-        }) or NextKey222.UIConfig.WINDOW.BASE_HEIGHT or 640
+        }) or NextKey222.UIConfig.WINDOW.KEYSTONE_HEIGHT or 630
 
         frame:SetHeight(initial_height)
     end
@@ -179,7 +215,14 @@ function MainWindow:CreateMainFrame(ui)
         _on_close(ui, widget)
     end)
 
+    -- Store frame reference (backward compatibility)
     ui.mainFrame = frame
+    self.main_frame = frame
+    
+    -- Initialize keystoneWindow structure
+    ui.keystoneWindow = ui.keystoneWindow or {}
+    ui.keystoneWindow.frame = frame
+    ui.keystoneWindow.controls = nil  -- Will be set by UIControls
 
     -- Attach header controls and layout via UIControls when available (Phase 5 wiring)
     if NextKey222.UIControls and NextKey222.UIControls.AttachHeaderControls then
@@ -188,6 +231,7 @@ function MainWindow:CreateMainFrame(ui)
         log_dev("MainWindow: UIControls.AttachHeaderControls not available; main UI will be bare")
     end
 
+    log_dev("MainWindow: keystone window frame creation complete")
     return frame
 end
 
@@ -204,62 +248,52 @@ function MainWindow:IsMainFrameVisible()
     return frame and frame.IsShown and frame:IsShown() or false
 end
 
---- Show the main frame, creating it if necessary.
+--- Show the KEYS main frame, creating it if necessary.
 -- @param ui table NextKey222.UI facade
 function MainWindow:ShowMainFrame(ui)
     if not ui then
         return
     end
-
-    if not ui.mainFrame then
+    
+    if not self.main_frame or not ui.mainFrame then
         self:CreateMainFrame(ui)
     end
 
-    if ui.mainFrame then
-        ui.mainFrame:Show()
-        log_dev("MainWindow: main frame shown")
-    else
-        log_error("MainWindow: failed to create main frame")
+    local frame = self.main_frame or ui.mainFrame
+    if not frame then
+        log_error("MainWindow:ShowMainFrame - main (keystone) frame missing after CreateMainFrame")
+        return
+    end
+
+    frame:Show()
+    log_dev("MainWindow: main (keystone) frame shown")
+
+    -- Render keystone results into this window's resultsFrame
+    if ui.keystoneWindow and ui.keystoneWindow.resultsFrame and ui.RenderResults then
+        local previous_results = ui.resultsFrame
+        ui.resultsFrame = ui.keystoneWindow.resultsFrame
+        ui:RenderResults()
+        ui.resultsFrame = previous_results
+    elseif ui.RenderResults then
+        ui:RenderResults()
     end
 end
 
---- Toggle the main frame; hides and releases on close, or shows if not visible.
--- Cleanup semantics mirror existing UI:ToggleMainFrame behavior.
+--- Toggle the main (keystone) frame; uses the same close semantics as OnClose.
 -- @param ui table NextKey222.UI facade
 function MainWindow:ToggleMainFrame(ui)
     if not ui then
         return
     end
 
-    local frame = ui.mainFrame
+    local frame = ui.mainFrame or self.main_frame
 
     if frame and frame.IsShown and frame:IsShown() then
-        log_dev("MainWindow: hiding existing main frame")
-
-        -- Clear key caches proactively (in addition to OnClose)
-        if ui.ioGainCache then wipe(ui.ioGainCache) end
-        if ui.cachedItems then wipe(ui.cachedItems) end
-        if ui.profileCache then wipe(ui.profileCache) end
-        if ui.cachedPartyProfiles then wipe(ui.cachedPartyProfiles) end
-
-        frame:Hide()
-
-        if AceGUI then
-            AceGUI:Release(frame)
-        end
-
-        ui.mainFrame = nil
-        ui.resultsFrame = nil
-        ui.controlsContainer = nil
-        ui.debugControlsContainer = nil
-
-        if collectgarbage then
-            collectgarbage("step", 1000)
-        end
-
-        log_dev("MainWindow: frame hidden, caches cleared, GC hinted")
+        log_dev("MainWindow: toggling OFF main (keystone) frame")
+        -- Reuse unified close handler to avoid double-release bugs
+        _wire_on_close(ui, frame, "keystone")
     else
-        log_dev("MainWindow: showing or creating main frame")
+        log_dev("MainWindow: toggling ON main (keystone) frame")
         self:ShowMainFrame(ui)
     end
 end
@@ -269,6 +303,35 @@ end
 function MainWindow:Initialize()
     log_dev("MainWindow module initialized")
     return true
+end
+
+-- MARK: Dungeon Window (REMOVED - now in independent ui/dungeonWindow.lua)
+
+--- Deprecated: Dungeon window is now managed by NextKey222.DungeonWindow module
+-- These functions are kept for backward compatibility only
+function MainWindow:CreateDungeonWindow(ui)
+    log_dev("MainWindow:CreateDungeonWindow - deprecated, use NextKey222.DungeonWindow instead")
+end
+
+function MainWindow:ShowDungeonWindow(ui)
+    log_dev("MainWindow:ShowDungeonWindow - deprecated, use NextKey222.DungeonWindow:Show() instead")
+    if NextKey222.DungeonWindow then
+        NextKey222.DungeonWindow:Show()
+    end
+end
+
+function MainWindow:ToggleDungeonWindow(ui)
+    log_dev("MainWindow:ToggleDungeonWindow - deprecated, use NextKey222.DungeonWindow:Toggle() instead")
+    if NextKey222.DungeonWindow then
+        NextKey222.DungeonWindow:Toggle()
+    end
+end
+
+function MainWindow:IsDungeonWindowVisible()
+    if NextKey222.DungeonWindow then
+        return NextKey222.DungeonWindow:IsVisible()
+    end
+    return false
 end
 
 return MainWindow

@@ -269,10 +269,57 @@ function DebugUI:CreateMainTabArgs()
         get = function() return DebugService.enabled end,
         set = function(_, value)
             DebugService:SetEnabled(value)
+            
+            -- When enabling Debug Mode, disable Basic Tools
+            if value and NextKey222.Addon and NextKey222.Addon.db then
+                local dbg = NextKey222.Addon.db.global.debug
+                if dbg then
+                    dbg.basicToolsEnabled = false
+                end
+            end
+            
             self:RefreshOptions()
         end,
         width = "normal",
         order = 1
+    }
+    
+    args.basicToolsEnabled = {
+        type = "toggle",
+        name = "Enable Basic Fake Player Testing Tools",
+        desc = "Enable simplified fake player generation tools without full debug mode",
+        disabled = function() return DebugService.enabled end,
+        get = function()
+            if NextKey222.Addon and NextKey222.Addon.db then
+                local dbg = NextKey222.Addon.db.global.debug
+                return dbg and dbg.basicToolsEnabled or false
+            end
+            return false
+        end,
+        set = function(_, value)
+            if NextKey222.Addon and NextKey222.Addon.db then
+                local dbg = NextKey222.Addon.db.global.debug
+                if dbg then
+                    -- Prevent enabling if Debug Mode is active
+                    if DebugService.enabled then
+                        DebugService:User("Cannot enable Basic Tools while Debug Mode is active")
+                        return
+                    end
+                    dbg.basicToolsEnabled = value
+                    self:RefreshOptions()
+                end
+            end
+        end,
+        width = "normal",
+        order = 1.5
+    }
+    
+    args.basicToolsDisabledInfo = {
+        type = "description",
+        name = "|cFFFFAA00Basic Tools are disabled while Debug Mode is active.|r",
+        fontSize = "small",
+        hidden = function() return not DebugService.enabled end,
+        order = 1.6
     }
 
     -- All other controls (hide when debug mode is disabled)

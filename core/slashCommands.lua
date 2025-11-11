@@ -189,7 +189,7 @@ local Commands = {
     
     -- Dungeon cards commands
     {
-        cmd = {"dungeon", "dungeons", "cards"},
+        cmd = {"dungeon", "dungeons", "dung", "cards"},
         desc = "Show the dungeon overview UI",
         handler = "ShowDungeonCards"
     },
@@ -750,14 +750,14 @@ end
 function SlashCommands:ShowDungeonCards()
     NextKey222.Debug:Dev("slashcommands", "ShowDungeonCards called")
     
-    if NextKey222.Addon and NextKey222.Addon.DungeonCardsUI then
-        if NextKey222.Addon.DungeonCardsUI.Show then
-            NextKey222.Addon.DungeonCardsUI:Show()
-        elseif NextKey222.Addon.DungeonCardsUI.CreateFrame then
-            NextKey222.Addon.DungeonCardsUI:CreateFrame()
+    if NextKey222.DungeonWindow then
+        if NextKey222.DungeonWindow.Show then
+            NextKey222.DungeonWindow:Show()
+        else
+            NextKey222.Debug:Error("DungeonWindow.Show method not available")
         end
     else
-        NextKey222.Debug:User("Dungeon cards UI not ready yet")
+        NextKey222.Debug:User("Dungeon window not ready yet")
     end
 end
 

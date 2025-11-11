@@ -118,6 +118,11 @@ local function create_developer_tools_group()
             local dbg = ensure_debug()
             if not dbg then return end
             dbg.enabled = v and true or false
+            
+            -- When enabling Debug Mode, disable Basic Tools
+            if v then
+                dbg.basicToolsEnabled = false
+            end
 
             if NextKey222.UI and NextKey222.UI.OnDebugModeChanged then
                 NextKey222.UI:OnDebugModeChanged()
@@ -126,6 +131,59 @@ local function create_developer_tools_group()
             if NextKey222.Debug and NextKey222.Debug.SetEnabled then
                 NextKey222.Debug:SetEnabled(dbg.enabled)
             end
+            
+            -- Refresh options UI to update checkbox states
+            notify_options_changed()
+        end,
+    }
+    
+    -- Basic Fake Player Testing Tools toggle
+    dev_args.enable_basic_tools = {
+        type = "toggle",
+        name = "Enable Basic Fake Player Testing Tools",
+        desc = "Enable simplified fake player generation tools (team builders and custom player creator). This provides a subset of debug features without full debug mode overhead.",
+        width = "full",
+        order = 2,
+        disabled = function()
+            local dbg = ensure_debug()
+            return dbg and dbg.enabled or false
+        end,
+        get = function()
+            local dbg = ensure_debug()
+            return dbg and dbg.basicToolsEnabled or false
+        end,
+        set = function(_, v)
+            local dbg = ensure_debug()
+            if not dbg then return end
+            
+            -- Prevent enabling if Debug Mode is active
+            if dbg.enabled then
+                if Debug then
+                    Debug:User("Cannot enable Basic Tools while Debug Mode is active")
+                end
+                return
+            end
+            
+            dbg.basicToolsEnabled = v and true or false
+            notify_options_changed()
+        end,
+    }
+    
+    -- Tooltip widget that shows when Basic Tools is disabled due to Debug Mode
+    dev_args.basic_tools_disabled_info = {
+        type = "description",
+        name = function()
+            local dbg = ensure_debug()
+            if dbg and dbg.enabled then
+                return "|cFFFFAA00Basic Tools are disabled while Debug Mode is active. Disable Debug Mode to use Basic Tools.|r"
+            end
+            return ""
+        end,
+        order = 2.5,
+        fontSize = "small",
+        hidden = function()
+            local dbg = ensure_debug()
+            return not (dbg and dbg.enabled)
         end,
     }
 
@@ -228,22 +286,22 @@ local function create_developer_tools_group()
         12
     )
     
-    -- NEW: Organizer Team
+    -- NEW: 19-player role-aware team (replaces Organizer team for simplicity)
     dev_args.gen_organizer = {
         type = "execute",
-        name = "Organizer Team (20 Players)",
-        desc = "20 players with optimal role distribution for Organizer testing (4T/6H/10D, 80% with keys).",
+        name = "19-Player Team (Fills Your Role)",
+        desc = "Detects your current role and generates 19 players for a 20-player raid (4T/4H/12D). Varied skill tiers, 80% have keystones.",
         order = 13,
         func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateOrganizerTeam then
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.Generate19PlayerTeam then
                 if Debug then
-                    Debug:User("devtools", "Organizer team generator not available.")
+                    Debug:User("devtools", "19-player team generator not available.")
                 end
                 return
             end
-            local count = NextKey222.FakePlayerService:GenerateOrganizerTeam()
+            local count = NextKey222.FakePlayerService:Generate19PlayerTeam()
             if Debug then
-                Debug:User("devtools", ("Generated %d players for Organizer"):format(count or 0))
+                Debug:User("devtools", ("Generated %d players for raid team"):format(count or 0))
             end
             refresh_ui()
         end,
@@ -372,10 +430,78 @@ local function create_developer_tools_group()
     }
     
     -- NEW: Role Composition header
+    dev_args.add_single_header = {
+        type = "header",
+        name = "Single Fake Player",
+        order = 22,
+    }
+
+    dev_args.add_single_tier = {
+        type = "select",
+        name = "Single Player Skill Tier",
+        desc = "Select the skill tier for the next fake player, or Random.",
+        order = 23,
+        values = {
+            random = "Random Tier",
+            title = "Title (3600-3800 IO)",
+            elite = "Elite (3300-3600 IO)",
+            expert = "Expert (3100-3400 IO)",
+            skilled = "Skilled (2900-3100 IO)",
+            competent = "Competent (2500-2900 IO)",
+            average = "Average (2000-2600 IO)",
+            casual = "Casual (1500-2000 IO)",
+            beginner = "Beginner (1000-1500 IO)",
+        },
+        get = function()
+            local dbg = ensure_debug()
+            dbg.singlePlayerTier = dbg.singlePlayerTier or "random"
+            return dbg.singlePlayerTier
+        end,
+        set = function(_, value)
+            local dbg = ensure_debug()
+            if not dbg then return end
+            dbg.singlePlayerTier = value or "random"
+        end,
+    }
+
+    dev_args.add_single_player = {
+        type = "execute",
+        name = "Add Single Fake Player",
+        desc = "Add one fake player using the selected skill tier. Does not clear existing fake players.",
+        order = 24,
+        func = function()
+            local dbg = ensure_debug()
+            if not dbg then return end
+
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.CreatePlayer then
+                if Debug then
+                    Debug:User("devtools", "FakePlayerService not available.")
+                end
+                return
+            end
+
+            local tier = dbg.singlePlayerTier or "random"
+            if tier == "random" then
+                -- Use FakePlayerService default tier distribution
+                local name = NextKey222.FakePlayerService:CreatePlayer({})
+                if name and Debug then
+                    Debug:User("devtools", ("Added fake player %s with random tier"):format(name))
+                end
+            else
+                local name = NextKey222.FakePlayerService:CreatePlayer({ tier = tier })
+                if name and Debug then
+                    Debug:User("devtools", ("Added fake player %s (tier: %s)"):format(name, tier))
+                end
+            end
+
+            refresh_ui()
+        end,
+    }
+
     dev_args.role_header = {
         type = "header",
         name = "Role Composition",
-        order = 22,
+        order = 30,
     }
     
     dev_args.role_desc = {
@@ -385,22 +511,43 @@ local function create_developer_tools_group()
         fontSize = "small",
     }
     
-    -- NEW: Standard Comp button
+    -- NEW: Role-aware 4-player team button
     dev_args.gen_standard_comp = {
         type = "execute",
-        name = "Standard Comp (1T/1H/3D)",
-        desc = "Generate standard M+ composition: 1 tank, 1 healer, 3 DPS.",
+        name = "4-Player Team (Fills Your Role)",
+        desc = "Detects your current role and generates 4 players to complete a 5-man team (1T/1H/3D). Uses 'competent' tier for balanced testing.",
         order = 24,
         func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateStandardComp then
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.Generate4PlayerTeam then
                 if Debug then
-                    Debug:User("devtools", "Standard comp generator not available.")
+                    Debug:User("devtools", "4-player team generator not available.")
                 end
                 return
             end
-            local count = NextKey222.FakePlayerService:GenerateStandardComp()
+            local count = NextKey222.FakePlayerService:Generate4PlayerTeam()
             if Debug then
-                Debug:User("devtools", ("Generated standard comp: %d players"):format(count or 0))
+                Debug:User("devtools", ("Generated %d players to complete your team"):format(count or 0))
+            end
+            refresh_ui()
+        end,
+    }
+    
+    -- NEW: Role-aware 19-player team button
+    dev_args.gen_19_player_team = {
+        type = "execute",
+        name = "19-Player Team (Fills Your Role)",
+        desc = "Detects your current role and generates 19 players for a 20-player raid (4T/4H/12D). Varied skill tiers, 80% have keystones.",
+        order = 24.5,
+        func = function()
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.Generate19PlayerTeam then
+                if Debug then
+                    Debug:User("devtools", "19-player team generator not available.")
+                end
+                return
+            end
+            local count = NextKey222.FakePlayerService:Generate19PlayerTeam()
+            if Debug then
+                Debug:User("devtools", ("Generated %d players for raid team"):format(count or 0))
             end
             refresh_ui()
         end,
@@ -1205,6 +1352,7 @@ function NextKey222.SetupOptions()
                     },
                 }
                 
+                
                 -- Add Fake Player Tools as a final tab
                 if debugOptions.args then
                     debugOptions.args.fakePlayerTools = {
@@ -1214,17 +1362,67 @@ function NextKey222.SetupOptions()
                         order = 300,
                         hidden = function()
                             local DebugService = NextKey222.Debug
-                            return not (DebugService and DebugService.enabled)
+                            local dbg = ensure_debug()
+                            -- Show if either full debug OR basic tools are enabled
+                            return not ((DebugService and DebugService.enabled) or (dbg and dbg.basicToolsEnabled))
                         end,
                         args = (function()
                             local devTools = create_developer_tools_group()
                             local generationArgs = {}
                             
                             if devTools and devTools.args then
-                                -- Copy all developer tool items except the duplicate Enable Debug Mode toggle
+                                -- Widgets to show in Basic Tools mode (filtered subset)
+                                local basicToolsWhitelist = {
+                                    gen_standard_comp = true,
+                                    gen_organizer = true,
+                                    custom_builder_header = true,
+                                    custom_builder_desc = true,
+                                    builder_name = true,
+                                    builder_name_counter = true,
+                                    builder_class = true,
+                                    builder_spec = true,
+                                    builder_tier = true,
+                                    builder_io = true,
+                                    builder_keystone_dungeon = true,
+                                    builder_keystone_level = true,
+                                    builder_preview = true,
+                                    builder_create = true,
+                                    builder_reset = true,
+                                    status = true,
+                                    clear_fake = true,
+                                }
+                                
+                                -- Copy developer tool items with filtering
                                 for k, v in pairs(devTools.args) do
-                                    if k ~= "header" and k ~= "enable_debug_mode" then
-                                        generationArgs[k] = v
+                                    if k ~= "header" and k ~= "enable_debug_mode" and k ~= "enable_basic_tools" and k ~= "basic_tools_disabled_info" then
+                                        -- Clone the widget config
+                                        local widgetCopy = {}
+                                        for key, val in pairs(v) do
+                                            widgetCopy[key] = val
+                                        end
+                                        
+                                        -- Add hidden function to filter in Basic mode
+                                        local originalHidden = widgetCopy.hidden
+                                        widgetCopy.hidden = function(...)
+                                            -- Check if original widget was hidden
+                                            if originalHidden and originalHidden(...) then
+                                                return true
+                                            end
+                                            
+                                            -- Filter based on mode
+                                            local dbg = ensure_debug()
+                                            local isDebugMode = dbg and dbg.enabled
+                                            local isBasicMode = dbg and dbg.basicToolsEnabled and not isDebugMode
+                                            
+                                            -- In Basic mode, hide widgets not in whitelist
+                                            if isBasicMode and not basicToolsWhitelist[k] then
+                                                return true
+                                            end
+                                            
+                                            return false
+                                        end
+                                        
+                                        generationArgs[k] = widgetCopy
                                     end
                                 end
                             end

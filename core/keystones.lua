@@ -570,8 +570,11 @@ function NextKey:CollectPartyKeys()
         end
     end
 
-    -- Debug keys handled by FakePlayerService
-    if NextKey222.FakePlayerService then
+    -- Debug keys handled by FakePlayerService (when debug mode OR basic tools enabled)
+    local debugEnabled = self.db and self.db.global and self.db.global.debug and self.db.global.debug.enabled
+    local basicToolsEnabled = self.db and self.db.global and self.db.global.debug and self.db.global.debug.basicToolsEnabled
+    
+    if (debugEnabled or basicToolsEnabled) and NextKey222.FakePlayerService then
         local fakePlayers = NextKey222.FakePlayerService:GetAllPlayers()
         NextKey222.Debug:Dev("keystones", "Checking fake players from FakePlayerService, count:", fakePlayers and #fakePlayers or "nil")
         if fakePlayers and type(fakePlayers) == "table" then
@@ -1008,8 +1011,11 @@ function NextKey:GetPartyMemberNames()
         end
     end
     
-    -- In debug mode, add fake players as if they were party members
-    if self.db and self.db.global and self.db.global.debug and self.db.global.debug.enabled then
+    -- In debug mode OR basic tools mode, add fake players as if they were party members
+    local debugEnabled = self.db and self.db.global and self.db.global.debug and self.db.global.debug.enabled
+    local basicToolsEnabled = self.db and self.db.global and self.db.global.debug and self.db.global.debug.basicToolsEnabled
+    
+    if (debugEnabled or basicToolsEnabled) then
         if NextKey222.FakePlayerService then
             local fakePlayers = NextKey222.FakePlayerService:GetAllPlayers()
             if fakePlayers and type(fakePlayers) == "table" then

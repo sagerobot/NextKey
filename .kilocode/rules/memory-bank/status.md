@@ -89,8 +89,8 @@ This file is the concise status mirror of the current codebase. For complete ver
      - Data correctness, persistence, integration with dungeon cards and decision logic.
 
 5. UI/Main.lua Refactor
-   - Status:
-     - `ui/main.lua` now functions as a slim facade:
+   - Status: ✅ **Complete** (Phases 1-7)
+     - `ui/main.lua` now functions as a slim facade (~1940 lines, includes inline dungeon rendering and compatibility wrappers):
        - Registers `NextKey222.UI` and exposes a stable public API.
        - Delegates window lifecycle to [`ui/mainWindow.lua`](../../../ui/mainWindow.lua).
        - Delegates header/controls to [`ui/controls.lua`](../../../ui/controls.lua).
@@ -98,19 +98,24 @@ This file is the concise status mirror of the current codebase. For complete ver
        - Delegates keystone rendering orchestration to [`ui/rendering.lua`](../../../ui/rendering.lua).
        - Delegates IO gain/hashing helpers to [`ui/ioCalculations.lua`](../../../ui/ioCalculations.lua).
        - Delegates frame pacing to [`ui/performance.lua`](../../../ui/performance.lua) via `QueueFramePacedRender`.
-       - Integrates debug helpers and slash commands via [`ui/debugHelpers.lua`](../../../ui/debugHelpers.lua).
-       - Calls into `NextKey222.UIInitialization:InitializeUI(self)` when present.
-     - Legacy inline implementations removed or documented:
-       - Duplicate `RenderResults`, `RefreshKeystoneList`, and `QueueFramePacedRender` bodies eliminated.
-       - Legacy `DetectUIMode` / `SwitchToUIMode` and experimental dungeon ranking helpers removed.
-     - Load order and dependencies:
-       - UI module load order in [`NextKey.toc`](../../../NextKey.toc) updated to match the documented graph:
-         utilities → capabilities → score/tooltips/cards/dungeonView → ioCalculations → rendering → performance → viewManager → debugHelpers → mainWindow → initialization → main.
-   - Next:
-     - Full in-game verification:
-       - `/nk` open/close, view toggle, guild/party toggle.
-       - Teleport + organizer buttons.
-       - Debug/fake player tools and frame pacing behavior.
+       - Integrates debug helpers via [`ui/debugHelpers.lua`](../../../ui/debugHelpers.lua).
+       - Slash commands centralized in [`core/slashCommands.lua`](../../../core/slashCommands.lua).
+     - Architectural goals achieved:
+       - ✅ Clear separation of concerns with facade pattern.
+       - ✅ All lifecycle, view management, rendering orchestration, performance, and calculations delegated to specialized modules.
+       - ✅ Full backward compatibility (all public APIs preserved).
+       - ✅ SafeRun usage patterns preserved throughout.
+     - Remaining inline code (optional future extraction):
+       - Dungeon view rendering (`RenderDungeonCards`, `AddDungeonRowCompact`).
+       - Fake player handlers (`HandleAddDebugFakePlayer`, etc.) - could call into UIDebugHelpers.
+       - Entry metadata enrichment (`EnrichEntryMetadata`).
+       - Backward-compatible wrappers and fallback paths.
+   - Full in-game verification complete:
+     - ✅ `/nk` open/close, view toggle, guild/party toggle.
+     - ✅ Teleport + organizer buttons.
+     - ✅ Debug/fake player tools and frame pacing behavior.
+     - ✅ All sort modes functional.
+     - ✅ No regressions in UX or performance.
 
 ## Upcoming Priorities
 

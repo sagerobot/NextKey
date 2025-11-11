@@ -1370,6 +1370,203 @@ function FakePlayerService:GenerateStandardComp()
     return self:GenerateRoleComposition(1, 1, 3, { tier = "competent" })
 end
 
+--- Generates a 4-player team based on current player's role (1T/1H/3D minus player)
+-- Detects your role and fills remaining slots to complete a standard 5-man composition
+-- @return number Count of players created
+function FakePlayerService:Generate4PlayerTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        -- Detect current player's role
+        local playerRole = "DAMAGER"  -- Default fallback
+        if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
+            local playerName = UnitName("player")
+            local realmName = GetRealmName()
+            if playerName and realmName then
+                local fullName = playerName .. "-" .. realmName
+                local profile = NextKey222.ProfilesService:GetProfile(fullName)
+                if profile and profile.role then
+                    playerRole = profile.role
+                    NextKey222.Debug:Dev("fakeplayerservice", "Detected player role:", playerRole)
+                end
+            end
+        end
+        
+        -- Build 5-man composition: 1 Tank, 1 Healer, 3 DPS (minus player's role)
+        local roleAssignments = {}
+        
+        -- Add tank if player is not tank
+        if playerRole ~= "TANK" then
+            table.insert(roleAssignments, { role = "TANK", tier = "competent" })
+        end
+        
+        -- Add healer if player is not healer
+        if playerRole ~= "HEALER" then
+            table.insert(roleAssignments, { role = "HEALER", tier = "competent" })
+        end
+        
+        -- Calculate remaining DPS slots (3 total DPS, minus player if they are DPS)
+        local dpsSlots = (playerRole == "DAMAGER") and 2 or 3
+        for i = 1, dpsSlots do
+            table.insert(roleAssignments, { role = "DAMAGER", tier = "competent" })
+        end
+        
+        NextKey222.Debug:Dev("fakeplayerservice", string.format(
+            "Creating 4-player team for player role %s: %d assignments",
+            playerRole, #roleAssignments))
+        
+        -- Create fake players
+        local created = 0
+        for _, assignment in ipairs(roleAssignments) do
+            local classToken = self:GetRandomClassForRole(assignment.role)
+            
+            local playerName = self:CreatePlayer({
+                tier = assignment.tier,
+                class = classToken,
+                addonStatus = addonConfig
+            })
+            
+            if playerName then
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User(string.format(
+            "Created %d-player team (you + 4) - Standard M+ composition",
+            created + 1))
+        
+        return created
+    end, "FakePlayerService:Generate4PlayerTeam") or 0
+end
+
+--- Generates a 19-player team based on current player's role (4T/4H/12D minus player)
+-- Detects your role and fills remaining slots for a 20-player raid composition
+-- @return number Count of players created
+function FakePlayerService:Generate19PlayerTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        -- Detect current player's role
+        local playerRole = "DAMAGER"  -- Default fallback
+        if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
+            local playerName = UnitName("player")
+            local realmName = GetRealmName()
+            if playerName and realmName then
+                local fullName = playerName .. "-" .. realmName
+                local profile = NextKey222.ProfilesService:GetProfile(fullName)
+                if profile and profile.role then
+                    playerRole = profile.role
+                    NextKey222.Debug:Dev("fakeplayerservice", "Detected player role:", playerRole)
+                end
+            end
+        end
+        
+        -- Build 20-player composition: 4 Tanks, 4 Healers, 12 DPS (minus player's role)
+        local roleAssignments = {}
+        
+        -- Add tanks (4 total, minus 1 if player is tank)
+        local tankSlots = (playerRole == "TANK") and 3 or 4
+        for i = 1, tankSlots do
+            table.insert(roleAssignments, {
+                role = "TANK",
+                tier = i <= 2 and "expert" or "skilled"
+            })
+        end
+        
+        -- Add healers (4 total, minus 1 if player is healer)
+        local healerSlots = (playerRole == "HEALER") and 3 or 4
+        for i = 1, healerSlots do
+            table.insert(roleAssignments, {
+                role = "HEALER",
+                tier = i <= 2 and "expert" or "competent"
+            })
+        end
+        
+        -- Add DPS (12 total, minus 1 if player is DPS)
+        local dpsSlots = (playerRole == "DAMAGER") and 11 or 12
+        for i = 1, dpsSlots do
+            table.insert(roleAssignments, {
+                role = "DAMAGER",
+                tier = i <= 3 and "expert" or (i <= 7 and "skilled" or "competent")
+            })
+        end
+        
+        -- Shuffle to mix skill levels
+        for i = #roleAssignments, 2, -1 do
+            local j = math.random(i)
+            roleAssignments[i], roleAssignments[j] = roleAssignments[j], roleAssignments[i]
+        end
+        
+        NextKey222.Debug:Dev("fakeplayerservice", string.format(
+            "Creating 19-player team for player role %s: %d assignments",
+            playerRole, #roleAssignments))
+        
+        -- Create fake players
+        local created = 0
+        for _, assignment in ipairs(roleAssignments) do
+            local classToken = self:GetRandomClassForRole(assignment.role)
+            
+            -- 80% of players get keystones
+            local shouldHaveKey = math.random(100) <= 80
+            
+            local config = {
+                tier = assignment.tier,
+                class = classToken,
+                addonStatus = addonConfig
+            }
+            
+            local playerName = self:CreatePlayer(config)
+            
+            if playerName then
+                -- Remove keystone for 20% of players
+                if not shouldHaveKey then
+                    local playerData = fakePlayerStorage[playerName]
+                    if playerData then
+                        playerData.keystone = nil
+                    end
+                end
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User(string.format(
+            "Created %d-player raid team (you + 19) - 4T/4H/12D composition, 80%% with keys",
+            created + 1))
+        
+        return created
+    end, "FakePlayerService:Generate19PlayerTeam") or 0
+end
+
 --- Generates enhanced Organizer team (20 players) with optimal distribution
 -- @return number Count of players created
 function FakePlayerService:GenerateOrganizerTeam()

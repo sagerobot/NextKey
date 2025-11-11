@@ -146,6 +146,7 @@ NextKey222.Defaults = {
         -- Debug settings
         debug = {
             enabled = false,  -- Disabled by default for release
+            basicToolsEnabled = false,  -- Basic fake player testing tools (subset of debug features)
             categories = {
                 keystones = false,
                 communications = false,

@@ -38,6 +38,7 @@ ui\scoreCalculations.lua
 ui\tooltips.lua
 ui\keystoneCards.lua
 ui\dungeonView.lua
+ui\dungeonWindow.lua
 
 # UI Calculation & Orchestration Modules (Phases 3-6)
 ui\ioCalculations.lua

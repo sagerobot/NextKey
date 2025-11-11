@@ -6,18 +6,24 @@ local _, NextKey222 = ...
 
 local UIConfig = {
     -- MARK: Main Window Configuration
+    -- Now that windows are separate, each has its own dimensions
     WINDOW = {
-        WIDTH = 600,                    -- Overall window width
-        BASE_HEIGHT = 630,              -- Base window height (original)
-        DUNGEON_VIEW_HEIGHT = 800,      -- Height when showing dungeon cards
-        PLAYER_VIEW_HEIGHT = 660,       -- Height when showing player keystones - enough for scroll + button
-        PLAYER_VIEW_HEIGHT_DEBUG = 692, -- Height for keystone view when debug controls are visible
+        WIDTH = 600,                    -- Overall window width (both windows)
         
-        -- Scroll frame and bottom button configuration
-        SCROLL_FRAME_HEIGHT_KEYSTONE = 438,  -- Height of scroll area in keystone view (5 cards × 88 + 4 gaps × 8 = 472)
-        SCROLL_FRAME_HEIGHT_DUNGEON = 598,   -- Height of scroll area in dungeon view (8 dungeons × 75 each)
-        BOTTOM_BUTTON_HEIGHT = 35,           -- Height of view toggle button at bottom
-        BOTTOM_BUTTON_SPACER = 0            -- Spacer above bottom button
+        -- Keystone Window (ui/main.lua)
+        KEYSTONE_HEIGHT = 630,          -- Keystone window height
+        SCROLL_FRAME_HEIGHT_KEYSTONE = 438,  -- Keystone scroll area height
+        
+        -- Dungeon Window (ui/dungeonWindow.lua)
+        DUNGEON_HEIGHT = 788,           -- Dungeon window height (taller for 8 dungeons)
+        SCROLL_FRAME_HEIGHT_DUNGEON = 598,   -- Dungeon scroll area height
+        
+        -- Bottom button configuration (both windows)
+        BOTTOM_BUTTON_HEIGHT = 35,      -- Height of bottom button
+        BOTTOM_BUTTON_SPACER = 0,       -- Spacer above bottom button
+        
+        -- Backdrop opacity (0.0 = transparent, 1.0 = opaque)
+        BACKDROP_OPACITY = 1.0,        -- Global backdrop opacity for all windows
     },
     
     -- MARK: Card Layout Configuration
@@ -214,23 +220,18 @@ function UIConfig:Initialize()
     return true
 end
 
--- Helper function to get window height for view mode
-function UIConfig:GetWindowHeight(viewMode, debugMode)
-    local isDebug = false
-    if type(debugMode) == "table" then
-        isDebug = debugMode.debugMode or debugMode.isDebugMode
-    else
-        isDebug = debugMode == true
-    end
-
+-- DEPRECATED: GetWindowHeight with viewMode parameter
+-- Since windows are now completely independent modules, each window
+-- uses its own height constant directly (KEYSTONE_HEIGHT or DUNGEON_HEIGHT)
+-- This function is kept for backward compatibility only.
+function UIConfig:GetWindowHeight(viewMode)
     if viewMode == "dungeons" then
-        return self.WINDOW.DUNGEON_VIEW_HEIGHT
-    else
-        if isDebug and self.WINDOW.PLAYER_VIEW_HEIGHT_DEBUG then
-            return self.WINDOW.PLAYER_VIEW_HEIGHT_DEBUG
-        end
-        return self.WINDOW.PLAYER_VIEW_HEIGHT
+        return self.WINDOW.DUNGEON_HEIGHT
+    elseif viewMode == "keystones" then
+        return self.WINDOW.KEYSTONE_HEIGHT
     end
+    -- Default to keystone height
+    return self.WINDOW.KEYSTONE_HEIGHT
 end
 
 return UIConfig

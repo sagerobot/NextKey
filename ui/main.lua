@@ -5,8 +5,7 @@ local NextKey = NextKey222.Addon
 
 -- Central UI facade: thin coordinator delegating to dedicated modules.
 local UI = {
-    -- Core view state
-    viewMode = "keystones",
+    -- Core state
     showGuildKeys = false,
 
     -- Frame/control references (owned by MainWindow/UIControls)
@@ -15,6 +14,10 @@ local UI = {
     viewToggleBtn = nil,
     guildToggleBtn = nil,
     headerWidgets = {},
+    
+    -- Window structures for independent windows
+    keystoneWindow = nil,
+    dungeonWindow = nil,
 
     -- Debug / fake player state
     debugFakeTierSelection = "random",
@@ -64,31 +67,25 @@ function UI:CreateMainFrame()
     end
 
     -- Create base frame once
+    -- MainWindow handles all UI construction including header controls
     local frame = MainWindow:CreateMainFrame(self)
-
-    -- Attach header/controls exactly once to avoid duplicate widgets
-    if frame and (not self._headerInitialized) and UIControls and UIControls.AttachHeaderControls then
-        UIControls:AttachHeaderControls(self, frame)
-        self._headerInitialized = true
-    end
 
     return frame
 end
 
+-- Two-window system:
+-- - Keystone window: primary NextKey view (/nk)
+-- - Dungeon window: dedicated dungeon view (opened explicitly)
+-- No more mutable single window toggling.
+
+-- Keystone window: show/hide
+
 function UI:ShowMainFrame()
     if not MainWindow or not MainWindow.ShowMainFrame then
-        if NextKey222.Debug then
-            NextKey222.Debug:Error("UI: MainWindow module not available")
+        if NextKey222.Debug and NextKey222.Debug.Error then
+            NextKey222.Debug:Error("UI: MainWindow module not available for keystone window")
         end
         return
-    end
-
-    if not self.mainFrame then
-        self:CreateMainFrame()
-    end
-
-    if ViewManager and ViewManager.detect_ui_mode and not self.currentUIMode then
-        self.currentUIMode = ViewManager:detect_ui_mode()
     end
 
     MainWindow:ShowMainFrame(self)
@@ -97,12 +94,12 @@ end
 function UI:ToggleMainFrame()
     if not MainWindow or not MainWindow.ToggleMainFrame then
         if NextKey222.Debug and NextKey222.Debug.Error then
-            NextKey222.Debug:Error("UI: MainWindow module not available")
+            NextKey222.Debug:Error("UI: MainWindow module not available for keystone window toggle")
         end
         return
     end
 
-    -- Ensure frame + controls exist before toggling visibility
+    -- Ensure frame exists when toggling.
     if not self.mainFrame then
         self:CreateMainFrame()
     end
@@ -117,15 +114,45 @@ function UI:IsMainFrameVisible()
     return self.mainFrame and self.mainFrame.IsShown and self.mainFrame:IsShown() or false
 end
 
--- View / mode switching (facade)
+-- Dungeon window: dedicated, separate frame
+
+--- Show the dedicated dungeon window (separate from keystone window).
+function UI:ShowDungeonWindow()
+    if NextKey222.DungeonWindow then
+        NextKey222.DungeonWindow:Show()
+    else
+        if NextKey222.Debug and NextKey222.Debug.Error then
+            NextKey222.Debug:Error("UI: DungeonWindow module not available")
+        end
+    end
+end
+
+--- Toggle the dedicated dungeon window.
+function UI:ToggleDungeonWindow()
+    if NextKey222.DungeonWindow then
+        NextKey222.DungeonWindow:Toggle()
+    else
+        if NextKey222.Debug and NextKey222.Debug.Error then
+            NextKey222.Debug:Error("UI: DungeonWindow module not available")
+        end
+    end
+end
+
+function UI:IsDungeonWindowVisible()
+    if NextKey222.DungeonWindow then
+        return NextKey222.DungeonWindow:IsVisible()
+    end
+    return false
+end
+
+-- View / mode switching (legacy toggle) is deprecated under two-window system.
+-- Keep stub for compatibility; internally we route to open the relevant window.
 
 function UI:ToggleViewMode()
-    if ViewManager and ViewManager.toggle_view_mode then
-        return ViewManager:toggle_view_mode(self)
+    if NextKey222.Debug and NextKey222.Debug.Dev then
+        NextKey222.Debug:Dev("ui", "ToggleViewMode called (deprecated) - opening dungeon window instead")
     end
-    if NextKey222.Debug then
-        NextKey222.Debug:Error("UI: ViewManager module not available for ToggleViewMode")
-    end
+    self:ShowDungeonWindow()
 end
 
 function UI:OnGroupRosterUpdate()
@@ -135,14 +162,16 @@ function UI:OnGroupRosterUpdate()
 end
 
 function UI:RefreshKeystoneList()
-    if not self.mainFrame then
-        return
+    -- Refresh keystone window if open
+    if self.keystoneWindow and self.keystoneWindow.frame and self.keystoneWindow.frame:IsShown() then
+        if self.RenderResults then
+            self:RenderResults()
+        end
     end
-
-    if self.viewMode == "dungeons" and self.RenderDungeonCards then
-        self:RenderDungeonCards()
-    elseif self.RenderResults then
-        self:RenderResults()
+    
+    -- Refresh dungeon window if open
+    if NextKey222.DungeonWindow and NextKey222.DungeonWindow:IsVisible() then
+        NextKey222.DungeonWindow:Render()
     end
 end
 
@@ -283,9 +312,8 @@ function UI:QueueFramePacedRender()
         NextKey222.Debug:Dev("ui", "UIPerformance missing; falling back to immediate render")
     end
 
-    if self.viewMode == "dungeons" and self.RenderDungeonCards then
-        self:RenderDungeonCards()
-    elseif self.RenderResults then
+    -- Default to keystone rendering if called directly
+    if self.RenderResults then
         self:RenderResults()
     end
 end
@@ -305,12 +333,8 @@ function UI:Initialize()
         UIPerformance:Initialize_for_ui(self)
     end
 
-    if ViewManager and ViewManager.initialize_view_mode then
-        ViewManager:initialize_view_mode(self)
-        self.viewMode = ViewManager:get_view_mode()
-    else
-        self.viewMode = self.viewMode or "keystones"
-    end
+    -- ViewManager no longer needed for two-window system
+    -- Each window is independent
 
     if NextKey222.UIInitialization and NextKey222.UIInitialization.InitializeUI then
         NextKey222.UIInitialization:InitializeUI(self)
@@ -338,8 +362,8 @@ function UI:ShouldShowDebugControls()
 
     local is_debug = self:IsDebugMode()
     local has_fake_service = NextKey222.FakePlayerService ~= nil
-    local is_not_dungeon_view = self.viewMode ~= "dungeons"
-    return is_debug and has_fake_service and is_not_dungeon_view
+    -- Debug controls only appear in keystone window
+    return is_debug and has_fake_service
 end
 
 --- Determines if keystone-specific controls should be visible.
@@ -348,7 +372,8 @@ function UI:ShouldShowKeystoneControls()
         return self.configContext:ShouldShowKeystoneControls()
     end
 
-    return self.viewMode ~= "dungeons"
+    -- Keystone controls should show in keystone window (always true for keystone window)
+    return true
 end
 
 --- Applies the appropriate window height based on current view and debug state.
@@ -363,7 +388,7 @@ function UI:ApplyWindowHeight()
         local window_config = self.configContext:GetResolvedConfig("window") or {}
         height = window_config.height or height
     elseif NextKey222.UIConfig and NextKey222.UIConfig.GetWindowHeight then
-        height = NextKey222.UIConfig:GetWindowHeight(self.viewMode or "keystones", {
+        height = NextKey222.UIConfig:GetWindowHeight("keystones", {
             isDebugMode = self:ShouldShowDebugControls(),
         }) or height
     end
@@ -378,192 +403,23 @@ end
 -- Removed: ApplyResultsTopPadding() - spacer no longer needed
 
 --- Shows or hides debug-specific widgets and reapplies layout.
+-- DEPRECATED: Controls are now rebuilt per-view via ViewManager:_rebuild_controls()
+-- Kept as a stub for backward compatibility.
 function UI:UpdateDebugControlsVisibility()
-    if not self.controlsContainer or not self.debugControlsContainer then
-        return
+    if NextKey222.Debug and NextKey222.Debug.Dev then
+        NextKey222.Debug:Dev("ui", "UpdateDebugControlsVisibility: deprecated stub called (controls now rebuilt per-view)")
     end
-
-    if self.configContext and self.configContext.SynchronizeWithUI then
-        self.configContext:SynchronizeWithUI(self)
-    end
-
-    local show_debug = self:ShouldShowDebugControls()
-
-    local is_in_layout = false
-    local children = self.controlsContainer.children
-    if children then
-        for _, child in ipairs(children) do
-            if child == self.debugControlsContainer then
-                is_in_layout = true
-                break
-            end
-        end
-    end
-
-    if show_debug and not is_in_layout then
-        if self.controlsContainer.AddChild then
-            self.controlsContainer:AddChild(self.debugControlsContainer)
-        end
-    elseif not show_debug and is_in_layout and children then
-        local index = nil
-        for i, child in ipairs(children) do
-            if child == self.debugControlsContainer then
-                index = i
-                break
-            end
-        end
-
-        if index then
-            table.remove(children, index)
-            if self.debugControlsContainer.frame then
-                self.debugControlsContainer.frame:Hide()
-                self.debugControlsContainer.frame:SetParent(nil)
-            end
-        end
-    end
-
-    if self.controlsContainer.DoLayout then
-        self.controlsContainer:DoLayout()
-    end
-
-    if self.mainFrame then
-        self:ApplyWindowHeight()
-        if self.mainFrame.DoLayout then
-            self.mainFrame:DoLayout()
-        end
-    end
+    -- No-op: controls are now managed by ViewManager:_rebuild_controls()
 end
 
 --- Shows or hides keystone-specific controls based on view mode.
--- Handles visibility of Open Organizer and Guild/Party toggle buttons.
+-- DEPRECATED: Controls are now rebuilt per-view via ViewManager:_rebuild_controls()
+-- Kept as a stub for backward compatibility.
 function UI:UpdateKeystoneControlsVisibility()
-    if not self.mainFrame or not self.controlsContainer then
-        if NextKey222.Debug and NextKey222.Debug.Dev then
-            NextKey222.Debug:Dev("ui", "UpdateKeystoneControlsVisibility: missing frame or controlsContainer")
-        end
-        return
-    end
-    
-    -- Determine visibility BEFORE syncing config context
-    -- In dungeon view (viewMode == "dungeons"), hide keystone controls
-    -- In keystone view (viewMode == "keystones"), show keystone controls
-    local showKeystoneControls = (self.viewMode ~= "dungeons")
-
-    -- Decide whether to show the "Open Organizer" button.
-    -- Rules:
-    -- - Only in keystone view.
-    -- - Only when there are enough entries to meaningfully use the organizer (6+).
-    -- - Uses cachedItemsCount as primary signal; falls back to group size when needed.
-    local effectiveCount = self.cachedItemsCount or 0
-
-    -- Fallback: if we do not yet have a cached count but we are already in a group,
-    -- use current group size as a proxy to avoid hiding the organizer button incorrectly.
-    if effectiveCount == 0 then
-        local groupSize = GetNumGroupMembers() or 0
-        if groupSize >= 6 then
-            effectiveCount = groupSize
-        end
-    end
-
-    local shouldShowOpenOrganizer = showKeystoneControls and effectiveCount >= 6
-
-    Debug:Dev("ui", "UpdateKeystoneControlsVisibility: viewMode =", self.viewMode,
-              "showKeystoneControls =", showKeystoneControls,
-              "cachedItemsCount =", self.cachedItemsCount or 0,
-              "effectiveCount =", effectiveCount,
-              "shouldShowOpenOrganizer =", shouldShowOpenOrganizer)
-    
-    -- Handle Open Organizer button visibility
-    if self.headerWidgets and self.headerWidgets.organizerBtn then
-        local organizerBtn = self.headerWidgets.organizerBtn
-        
-        -- Check if button is currently in the layout
-        local isInLayout = false
-        if self.controlsContainer.children then
-            for _, child in ipairs(self.controlsContainer.children) do
-                if child == organizerBtn then
-                    isInLayout = true
-                    break
-                end
-            end
-        end
-        
-        Debug:Dev("ui", "Open Organizer button: shouldShow =", shouldShowOpenOrganizer, "isInLayout =", isInLayout)
-        
-        if shouldShowOpenOrganizer and not isInLayout then
-            -- Add button to layout
-            Debug:Dev("ui", "Adding Open Organizer button to layout")
-            
-            -- Re-parent the button to the controls container
-            if organizerBtn.frame then
-                organizerBtn.frame:SetParent(self.controlsContainer.frame)
-                organizerBtn.frame:Show()
-            end
-            
-            -- Find position to insert (after teleport button)
-            local insertPosition = #self.controlsContainer.children + 1
-            if self.controlsContainer.children then
-                for i, child in ipairs(self.controlsContainer.children) do
-                    if child == self.headerWidgets.teleportWindowBtn then
-                        insertPosition = i + 1
-                        break
-                    end
-                end
-            end
-            
-            table.insert(self.controlsContainer.children, insertPosition, organizerBtn)
-        elseif not shouldShowOpenOrganizer and isInLayout then
-            -- Remove button from layout
-            Debug:Dev("ui", "Removing Open Organizer button from layout")
-            local buttonIndex = nil
-            for i, child in ipairs(self.controlsContainer.children) do
-                if child == organizerBtn then
-                    buttonIndex = i
-                    break
-                end
-            end
-            
-            if buttonIndex then
-                table.remove(self.controlsContainer.children, buttonIndex)
-                if organizerBtn.frame then
-                    organizerBtn.frame:Hide()
-                    organizerBtn.frame:SetParent(nil)
-                end
-            end
-        end
-    end
-    
-    -- Update Guild/Party toggle button visibility (hide in dungeon view)
-    if self.guildToggleBtn and self.guildToggleBtn.frame then
-        if showKeystoneControls then
-            self.guildToggleBtn.frame:Show()
-        else
-            self.guildToggleBtn.frame:Hide()
-        end
-    end
-    
-    -- Update Teleport button visibility (hide in dungeon view - each dungeon card has its own)
-    if self.headerWidgets and self.headerWidgets.teleportWindowBtn then
-        local teleportBtn = self.headerWidgets.teleportWindowBtn
-        if teleportBtn.frame then
-            if showKeystoneControls then
-                teleportBtn.frame:Show()
-            else
-                teleportBtn.frame:Hide()
-            end
-        end
-    end
-
-    if self.controlsContainer.DoLayout then
-        self.controlsContainer:DoLayout()
-        if NextKey222.Debug and NextKey222.Debug.Dev then
-            NextKey222.Debug:Dev("ui", "Controls container layout updated")
-        end
-    end
-
     if NextKey222.Debug and NextKey222.Debug.Dev then
-        NextKey222.Debug:Dev("ui", "Keystone controls visibility updated")
+        NextKey222.Debug:Dev("ui", "UpdateKeystoneControlsVisibility: deprecated stub called (controls now rebuilt per-view)")
     end
+    -- No-op: controls are now managed by ViewManager:_rebuild_controls()
 end
 
 --- Manual refresh function for debug controls (for testing and fallback).
@@ -596,8 +452,11 @@ function UI:OnDebugModeChanged()
 
     self:UpdateDebugControlsVisibility()
 
-    if self.viewMode == "keystones" and self.RenderResults then
-        self:RenderResults()
+    -- Refresh keystone window if it's open
+    if self.keystoneWindow and self.keystoneWindow.frame and self.keystoneWindow.frame:IsShown() then
+        if self.RenderResults then
+            self:RenderResults()
+        end
     end
 
     if NextKey222.Debug and NextKey222.Debug.Dev then
@@ -882,69 +741,23 @@ function UI:ScheduleRender()
     self.pendingRenderTimer = C_Timer.NewTimer(self.renderDebounceDelay, function()
         self.pendingRenderTimer = nil
         
-        -- Execute the actual render
-        if self.viewMode == "dungeons" then
-            self:RenderDungeonCards()
-        else
-            self:RenderResults()
+        -- Refresh keystone window
+        if self.keystoneWindow and self.keystoneWindow.frame and self.keystoneWindow.frame:IsShown() then
+            if self.RenderResults then
+                self:RenderResults()
+            end
+        end
+        
+        -- Refresh dungeon window
+        if NextKey222.DungeonWindow and NextKey222.DungeonWindow:IsVisible() then
+            NextKey222.DungeonWindow:Render()
         end
     end)
 end
 
---- Adds a single fake player using the current debug tier selection
--- PERFORMANCE: Uses debounced rendering to prevent lag from rapid clicks
-function UI:HandleAddDebugFakePlayer()
-    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.CreatePlayer then
-        Debug:Dev("fakeplayerservice", "FakePlayerService unavailable - cannot add player from UI")
-        return
-    end
-
-    local tierSelection = self.debugFakeTierSelection or "random"
-    local allTiers = { "title", "elite", "expert", "skilled", "competent", "average", "casual", "beginner" }
-
-    local chosenTier = tierSelection
-    if tierSelection == "random" then
-        local index = math.random(#allTiers)
-        chosenTier = allTiers[index]
-    end
-
-    local createdName = NextKey222.FakePlayerService:CreatePlayer({ tier = chosenTier })
-    if createdName then
-        Debug:Dev("fakeplayerservice", "UI created fake player", createdName, "tier", chosenTier)
-        -- Use debounced render instead of immediate render to prevent lag
-        self:ScheduleRender()
-    else
-        Debug:Dev("fakeplayerservice", "UI failed to create fake player for tier", chosenTier)
-    end
-end
-
---- Removes all fake players (debug helper)
--- PERFORMANCE: Uses debounced rendering to prevent lag
-function UI:HandleDeleteAllFakePlayers()
-    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.ClearAllPlayers then
-        Debug:Dev("fakeplayerservice", "FakePlayerService unavailable - cannot clear players")
-        return
-    end
-
-    local removedCount = NextKey222.FakePlayerService:ClearAllPlayers() or 0
-    Debug:Dev("fakeplayerservice", "UI cleared fake players", removedCount)
-    -- Use debounced render instead of immediate render
-    self:ScheduleRender()
-end
-
---- Removes a specific fake player by name
--- PERFORMANCE: Uses debounced rendering to prevent lag
--- @param playerName string Full normalized player name
-function UI:HandleDeleteFakePlayer(playerName)
-    if not playerName or not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.RemovePlayer then
-        return
-    end
-
-    NextKey222.FakePlayerService:RemovePlayer(playerName)
-    Debug:Dev("fakeplayerservice", "UI removed fake player", playerName)
-    -- Use debounced render instead of immediate render
-    self:ScheduleRender()
-end
+-- REMOVED: HandleAddDebugFakePlayer, HandleDeleteAllFakePlayers, HandleDeleteFakePlayer
+-- Fake player management is now exclusively handled through the options menu
+-- Fake Player Tools tab. No fake player controls appear in the main UI.
 
 
 --- Shared tooltip handler for IO gain displays (delegates to Tooltips module)
@@ -1151,10 +964,10 @@ end
 -- MARK: Cleanup & Utility Functions
 
 function UI:ClearAuxFrames()
-    if NextKey222.FrameRegistry and NextKey222.FrameRegistry.ClearAll then
-        NextKey222.FrameRegistry:ClearAll()
-    end
-
+    -- NOTE: Do NOT call FrameRegistry:ClearAll() here - it's shared with the dungeon window
+    -- and would clear frames from both windows. FrameRegistry should only be cleared on window close.
+    -- The resultsFrame:ReleaseChildren() call in rendering is sufficient for clearing UI content.
+    
     if self._auxFrames then
         for _, frame in ipairs(self._auxFrames) do
             if frame and frame.Hide then
@@ -1208,10 +1021,16 @@ function UI:ToggleGuildFilter()
         local function refreshUI()
             Debug:Dev("ui", "Refreshing UI after guild keystone request")
             
-            if self.viewMode == "dungeons" then
-                self:RenderDungeonCards()
-            else
-                self:RenderResults()
+            -- Refresh keystone window
+            if self.keystoneWindow and self.keystoneWindow.frame and self.keystoneWindow.frame:IsShown() then
+                if self.RenderResults then
+                    self:RenderResults()
+                end
+            end
+            
+            -- Refresh dungeon window
+            if NextKey222.DungeonWindow and NextKey222.DungeonWindow:IsVisible() then
+                NextKey222.DungeonWindow:Render()
             end
         end
         
@@ -1220,10 +1039,16 @@ function UI:ToggleGuildFilter()
     else
         -- Immediate refresh when switching to party mode
         Debug:Dev("ui", " Switching to party mode")
-        if self.viewMode == "dungeons" then
-            self:RenderDungeonCards()
-        else
-            self:RenderResults()
+        -- Refresh keystone window
+        if self.keystoneWindow and self.keystoneWindow.frame and self.keystoneWindow.frame:IsShown() then
+            if self.RenderResults then
+                self:RenderResults()
+            end
+        end
+        
+        -- Refresh dungeon window
+        if NextKey222.DungeonWindow and NextKey222.DungeonWindow:IsVisible() then
+            NextKey222.DungeonWindow:Render()
         end
     end
 end
@@ -1233,274 +1058,29 @@ end
 -- Functions for rendering dungeon information cards including scores,
 -- levels, and seasonal data for each available dungeon.
 
---- Renders dungeon information cards for the current season
--- Displays dungeon names, best scores, levels, and completion data
-function UI:RenderDungeonCards()
-    if not self.resultsFrame then
-        return
-    end
+--- REMOVED: RenderDungeonCards and AddDungeonRowCompact
+-- Dungeon rendering now handled by independent NextKey222.DungeonWindow module
+-- See ui/dungeonWindow.lua
 
-    -- Clear existing content completely
-    self:ClearAuxFrames()
-    self.resultsFrame:ReleaseChildren()
-    
-    -- Get current season dungeons
-    local dungeons = NextKey222.Addon.PortalData and NextKey222.Addon.PortalData.dungeons or {}
-    local seasonName = NextKey222.Addon.PortalData and NextKey222.Addon.PortalData.name or "Unknown Season"
-    
-    -- Update status text (removed season text to save space)
-    local count = 0
-    for _ in pairs(dungeons) do count = count + 1 end
-    Debug:Dev("ui", string.format("Dungeon Cards: Mode: Dungeons | Count: %d", count))
-    
-    if not next(dungeons) then
-        local none = NextKey222.UIComponents:CreateText("body", nil, {
-            text = "No dungeon data available for current season.",
-            width = nil -- Full width
-        })
-        self.resultsFrame:AddChild(none)
-        return
+function UI:RenderDungeonCards()
+    -- Deprecated: delegate to DungeonWindow module
+    if NextKey222.DungeonWindow and NextKey222.DungeonWindow:IsVisible() then
+        NextKey222.DungeonWindow:Render()
     end
-    
-    -- Sort dungeons based on current sort mode
-    local sortedDungeons = {}
-    for dungeonID, data in pairs(dungeons) do
-        -- Get IO score for each dungeon for sorting
-        local ioScore = self:GetRaiderIODungeonScore(dungeonID)
-        table.insert(sortedDungeons, {id = dungeonID, data = data, ioScore = ioScore})
-    end
-    
-    -- Apply sorting based on current mode
-    local currentSort = self:GetCurrentSortMode()
-    if currentSort == "Alphabetical" then
-        table.sort(sortedDungeons, function(a, b) return a.data.name < b.data.name end)
-    elseif currentSort == "HighestIO" then
-        table.sort(sortedDungeons, function(a, b) return (a.ioScore or 0) > (b.ioScore or 0) end)
-    elseif currentSort == "LowestIO" then
-        table.sort(sortedDungeons, function(a, b) return (a.ioScore or 0) < (b.ioScore or 0) end)
-    else
-        -- Default to alphabetical if unknown sort mode
-        table.sort(sortedDungeons, function(a, b) return a.data.name < b.data.name end)
-    end
-    
-    -- Calculate total IO score from all dungeons
-    local totalIOScore = NextKey222.Addon:GetRaiderIOTotalScore()
-    
-    -- Update total score display
-    if self.totalScoreLabel then
-        self.totalScoreLabel:SetText(self:FormatColoredTotalScore(totalIOScore))
-    end
-    
-    -- Create enhanced dungeon cards with preferences
-    local useCompact = true -- Always use compact for better layout
-    -- Use centralized height calculation variables (use dungeon-specific height)
-    local expectedHeight = #sortedDungeons * NextKey222.UIConfig.CARD.HEIGHT_DUNGEON + NextKey222.UIConfig.CARD.HEADER_PADDING
-    
-    Debug:Dev("ui", " Rendering", #sortedDungeons, "enhanced dungeons with preferences")
-    Debug:Dev("ui", " Expected total height:", expectedHeight, "px (window height: 640px)")
-    Debug:Dev("ui", " Card height: 52px, with icons, IO scores, and preference buttons")
-    Debug:Dev("ui", " Total IO Score:", totalIOScore or 0)
-    
-    for i, dungeon in ipairs(sortedDungeons) do
-        Debug:Dev("ui", string.format("Rendering dungeon %d/%d: %s (ID: %d)", i, #sortedDungeons, dungeon.data.name, dungeon.id))
-        
-        local success = NextKey222.SafeRun(function()
-            if useCompact then
-                self:AddDungeonRowCompact(dungeon.id, dungeon.data)
-            else
-                self:AddDungeonRow(dungeon.id, dungeon.data)
-            end
-        end, "Render dungeon card: " .. dungeon.data.name)
-        
-        if not success then
-            Debug:Error("Failed to render dungeon card:", dungeon.data.name)
-        end
-    end
-    
-    Debug:Dev("ui", "Finished rendering all dungeon cards")
 end
 
--- Enhanced dungeon card with icons and IO scores - matching keystone card pattern
 function UI:AddDungeonRowCompact(dungeonID, dungeonData)
-    -- Use CreateCardContainer like keystones do - creates proper backdrop support
-    -- Use shorter height for dungeon cards (64px vs 88px for keystones)
-    local container = NextKey222.UIComponents:CreateCardContainer(NextKey222.UIConfig.CARD.HEIGHT_DUNGEON, false)
-    self.resultsFrame:AddChild(container)
-    
-    -- Get the dedicated cardFrame and apply backdrop for visible borders (like keystone cards)
-    local cardFrame = container.cardFrame or container.frame
-    NextKey222.UIComponents:CreateBackdrop(cardFrame, "keystone")
-    cardFrame:Show()  -- Explicitly show the cardFrame
-    trackAuxFrame(self, cardFrame)
-    
-    Debug:Dev("ui", "Rendering dungeon card for", dungeonData.name, "ID:", dungeonID)
-    
-    -- Get player's best data and IO score
-    local playerScore = self:GetDungeonScore(dungeonID)
-    local bestLevel = self:GetBestLevel(dungeonID)
-    local ioScore = self:GetDungeonIOScore(dungeonID)
-    
-    -- Create dungeon icon using native frame (like keystone class icons)
-    local dungeonIcon = CreateFrame("Frame", nil, cardFrame)
-    dungeonIcon:SetSize(NextKey222.UIConfig.ICON.SIZE, NextKey222.UIConfig.ICON.SIZE)
-    -- Position dungeon icon with simple vertical centering for 75px card height
-    dungeonIcon:SetPoint("TOPLEFT", cardFrame, "TOPLEFT", 12, -15)  -- 15px from top for 75px card centering
-    dungeonIcon:Show()  -- Explicitly show the icon frame
-    
-    local texture = dungeonIcon:CreateTexture(nil, "ARTWORK")
-    texture:SetAllPoints()
-    texture:Show()  -- Explicitly show the texture
-    
-    -- Try to get icon texture from spell ID or map art ID
-    local iconSet = false
-    
-    -- Try spell texture first
-    if dungeonData.spellID and dungeonData.spellID > 0 then
-        local spellTexture = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(dungeonData.spellID)
-        if spellTexture and spellTexture ~= "" then
-            texture:SetTexture(spellTexture)
-            iconSet = true
-        end
+    -- Deprecated: delegate to DungeonWindow module
+    if NextKey222.DungeonWindow then
+        NextKey222.DungeonWindow:RenderDungeonCard(dungeonID, dungeonData)
     end
-    
-    -- Try ChallengeMode API if spell didn't work
-    if not iconSet and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
-        local challengeModeMapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
-        if challengeModeMapID then
-            local _, _, _, iconFileID = C_ChallengeMode.GetMapUIInfo(challengeModeMapID)
-            if iconFileID and iconFileID > 0 then
-                texture:SetTexture(iconFileID)
-                iconSet = true
-            end
-        end
-    end
-    
-    -- Try mapArtID as last resort
-    if not iconSet and dungeonData.mapArtID and type(dungeonData.mapArtID) == "number" and dungeonData.mapArtID > 0 then
-        texture:SetTexture(dungeonData.mapArtID)
-        iconSet = true
-    end
-    
-    -- Fallback to default dungeon icon
-    if not iconSet then
-        texture:SetTexture("Interface\\Icons\\Achievement_Dungeon_GloryoftheRaider")
-    end
-    
-    -- Dungeon name positioned relative to icon (simple vertical alignment)
-    local nameLabel = NextKey222.UIComponents:CreateText("body", cardFrame, {
-        text = dungeonData.name,
-        fontObject = GameFontNormal,
-        justifyH = "LEFT"
-    })
-    nameLabel.frame:SetPoint("TOPLEFT", dungeonIcon, "TOPRIGHT", 8, 0)
-    nameLabel.frame:SetPoint("RIGHT", cardFrame, "RIGHT", -260, 0)
-    nameLabel.frame:Show()  -- Explicitly show text
-    
-    -- IO Score and level display
-    local scoreToDisplay = ioScore or playerScore or 0
-    local infoText = ""
-    local infoColor = {0.7, 0.7, 0.7}
-    
-    if scoreToDisplay > 0 then
-        local level, chests = self:GetDungeonLevelAndChests(dungeonID)
-        local chestIndicator = ""
-        if level > 0 then
-            if chests >= 3 then
-                chestIndicator = " | +++" .. level
-            elseif chests >= 2 then
-                chestIndicator = " | ++" .. level
-            elseif chests >= 1 then
-                chestIndicator = " | +" .. level
-            else
-                chestIndicator = " | " .. level
-            end
-        end
-        infoText = string.format("%.0f IO%s", scoreToDisplay, chestIndicator)
-        infoColor = self:GetDungeonScoreColor(scoreToDisplay)
-    else
-        infoText = "0 IO"
-        infoColor = {0.5, 0.5, 0.5}
-    end
-    
-    local scoreLabel = NextKey222.UIComponents:CreateText("small", cardFrame, {
-        text = infoText,
-        fontObject = GameFontNormalSmall,
-        justifyH = "LEFT"
-    })
-    scoreLabel.frame:SetPoint("TOPLEFT", nameLabel.frame, "BOTTOMLEFT", 0, -4)
-    scoreLabel.frame:SetPoint("RIGHT", nameLabel.frame, "RIGHT", 0, 0)
-    scoreLabel:SetColor(infoColor[1], infoColor[2], infoColor[3])
-    scoreLabel.frame:Show()  -- Explicitly show score label
-    
-    -- Buttons positioned on the right with simple vertical centering
-    local lootBtn = NextKey222.UIComponents:CreateButtonLegacy(cardFrame, "select")
-    lootBtn:SetText("Loot")
-    lootBtn:SetSize(75, 24)
-    -- Simple vertical centering for 75px card height
-    lootBtn:SetPoint("TOPRIGHT", cardFrame, "TOPRIGHT", -12, -15)  -- 15px from top for 75px card centering
-    lootBtn:SetScript("OnClick", function()
-        NextKey222.Addon:HandleLootClick(dungeonID, dungeonData)
-    end)
-    lootBtn:Show()  -- Explicitly show button
-    trackAuxFrame(self, lootBtn)
-    
-    local teleBtn = NextKey222.UIComponents:CreateButtonLegacy(cardFrame, "select")
-    teleBtn:SetText("Teleport")
-    teleBtn:SetSize(100, 24)
-    teleBtn:SetPoint("RIGHT", lootBtn, "LEFT", -4, 0)
-    teleBtn:SetScript("OnClick", function()
-        local fakeKeyInfo = {
-            dungeonID = dungeonID,
-            level = 0,
-            ownerName = "Dungeon Portal",
-            ownerShort = "Portal",
-            source = "dungeon_portal",
-            class = "MAGE",
-            io = 0,
-            dungeonName = dungeonData.name -- Pass the correct dungeon name
-        }
-        NextKey222.Addon:SetTeleportTargetKey(fakeKeyInfo, { broadcast = false })
-        NextKey222.Addon:ToggleTeleportWindow()
-    end)
-    teleBtn:Show()  -- Explicitly show button
-    trackAuxFrame(self, teleBtn)
-    
-    -- Preference buttons (smaller, positioned to the left of Teleport, vertically centered)
-    local preference = NextKey222.ProfilesService:GetDungeonPreference(dungeonID)
-    
-    local dislikeBtn = NextKey222.UIComponents:CreateButtonLegacy(cardFrame, "small")
-    dislikeBtn:SetText(preference and preference.disliked and "|cFFFF0000-|r" or "-")
-    dislikeBtn:SetSize(30, 24)
-    -- Align with teleport button for consistent vertical centering
-    dislikeBtn:SetPoint("RIGHT", teleBtn, "LEFT", -4, 0)
-    dislikeBtn:SetScript("OnClick", function()
-        NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, false)
-        self:RenderDungeonCards()
-    end)
-    dislikeBtn:Show()  -- Explicitly show button
-    trackAuxFrame(self, dislikeBtn)
-    
-    local likeBtn = NextKey222.UIComponents:CreateButtonLegacy(cardFrame, "small")
-    likeBtn:SetText(preference and preference.liked and "|cFF00FF00+|r" or "+")
-    likeBtn:SetSize(30, 24)
-    -- Keep like button aligned with dislike button
-    likeBtn:SetPoint("RIGHT", dislikeBtn, "LEFT", -4, 0)
-    likeBtn:SetScript("OnClick", function()
-        NextKey222.ProfilesService:ToggleDungeonPreference(dungeonID, true)
-        self:RenderDungeonCards()
-    end)
-    likeBtn:Show()  -- Explicitly show button
-    trackAuxFrame(self, likeBtn)
-    
-    Debug:Dev("ui", "Completed rendering dungeon card for", dungeonData.name)
 end
 
 function UI:AddDungeonRow(dungeonID, dungeonData)
-    if NextKey222.DungeonView then
-        return NextKey222.DungeonView:AddDungeonRow(self, dungeonID, dungeonData)
+    -- Deprecated: delegate to DungeonWindow module
+    if NextKey222.DungeonWindow then
+        NextKey222.DungeonWindow:RenderDungeonCard(dungeonID, dungeonData)
     end
-    -- Fallback if module not loaded
-    Debug:Error("DungeonView module not available")
 end
 
 -- MARK: Score & Data Functions Moved
@@ -1911,10 +1491,18 @@ function UI:OnSpecChanged(unitID)
     -- This gives the profile system time to fetch updated data
     if self.mainFrame and self.mainFrame:IsShown() then
         C_Timer.After(0.15, function()
-            if self.viewMode == "dungeons" then
-                self:RenderDungeonCards()
-            else
-                self:RenderResults()
+            -- Refresh whichever windows are open
+            if self.keystoneWindow and self.keystoneWindow.frame and self.keystoneWindow.frame:IsShown() then
+                if self.RenderResults then
+                    local previous_results = self.resultsFrame
+                    self.resultsFrame = self.keystoneWindow.resultsFrame
+                    self:RenderResults()
+                    self.resultsFrame = previous_results
+                end
+            end
+            
+            if NextKey222.DungeonWindow and NextKey222.DungeonWindow:IsVisible() then
+                NextKey222.DungeonWindow:Render()
             end
             Debug:Dev("ui", "UI refreshed after spec change for", playerName)
         end)
