@@ -51,6 +51,16 @@ v0.3.0 + Dev Feature (🧪) = v0.3.5    (+5)
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.3] - 2025-11-11
+### ✨ Enhancements
+- **M+ Group Organizer - Persistence Improvements:** Implemented auto-save functionality that preserves player slot assignments across game sessions with intelligent initialization guards to prevent state resets on `/reload`. Enhanced player restoration logic to prioritize group slots over bench placement, ensuring roster configurations remain intact.
+- **M+ Group Organizer - Visual Theming:** Redesigned survey dialog cards with class-colored backgrounds and role icons for Phase 3 spec selection. Added polished hover effects with thematic color brightening and created a compact two-line opt-out card layout for better space utilization.
+- **M+ Group Organizer - UI Polish:** Improved player card rendering with reserved space for role icons and reordered compact card elements (name first, then roles) for better visual hierarchy. Reduced window heights and optimized scroll frame usage for a cleaner, more responsive interface.
+- **M+ Group Organizer - Dynamic Button:** Fixed organizer button visibility to only appear when in groups of 6 or more players, with dynamic show/hide functionality in the main UI. Centralized UI configuration constants in UIConfig for better maintainability.
+- **M+ Group Organizer - State Management:** Enhanced poll data usage in role preference collection with fallback logging for players without poll responses. Fixed bench manager to respect existing player locations and improved slot manager persistence with deeper state integration.
+### 🐛 Bug Fixes
+- **Fake Player Detection:** Enhanced fake player detection with precise pattern matching to prevent real player data from being incorrectly filtered during state persistence operations.
+
 ## [v0.6.0] - 2025-11-10
 ### 🚀 Features
 - **Independent Two-Window Architecture:** Implemented a two-window system that allows the Keystone Selection Window (party keystones with IO gain calculations) and Dungeon Overview Window (personal dungeon performance tracking) to be opened and used completely independently. Each window now has its own dedicated toggle button and can be used separately, providing much greater flexibility and improving the user experience for both group coordination and personal tracking workflows. This was the best way to squash persistant UI bugs.
