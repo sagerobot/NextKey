@@ -103,7 +103,7 @@ Stop running dungeons you don't need. Track specific items and see:
 |---------|-------------|
 | `/nk` | Open main NextKey window (keystone rankings) |
 | `/nk config` | Open configuration panel |
-| `/nk organizer|org` | Open M+ Group Organizer |
+| `"/nk organizer" or "org"` | Open M+ Group Organizer |
 
 **Debug Mode** (for troubleshooting):
 - `/nk config|opt|options` → Debug System → Enable Debugging
