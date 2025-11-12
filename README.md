@@ -15,7 +15,7 @@ When your group has multiple keystones, which one gives the best IO gains? NextK
 - **Loot Targeting**: Prioritizes dungeons with items you're farming
 - **Smart Sort (Borda Count)**: Balances all factors for the mathematically optimal choice
 
-**Result**: Your group agrees on the next key in under 30 seconds instead of 5-10 minutes of discussion.
+**Result**: Your group agrees on the next key in under 30 seconds instead of minutes of discussion.
 
 ### **M+ Group Organizer**
 Forming multiple groups for M+ night? The Organizer helps you:
@@ -24,14 +24,14 @@ Forming multiple groups for M+ night? The Organizer helps you:
 - **Spec preference polling** to understand player flexibility
 - **Auto-detection** of party members with instant roster population
 
-Perfect for guilds running 10-20 people through keys each week.
+Perfect for guilds running 10-30 people through keys each week.
 
 ### **PUG Helper** (For Solo Players)
 Applying to Mythic+ PUGs via Group Finder? NextKey assists with:
 - **Auto-travel assistance**: Teleport window opens when you're accepted to a group
-- **Dungeon detection**: Automatically identifies which dungeon from group names
-- **Leave Group helper**: Quick exit after dungeon completion
-- **Application tracking**: Debug UI shows all your active applications (dev mode)
+- **Dungeon detection**: Automatically identifies which dungeon from group names. No more forgetting what dungeon you applied to!
+Now you wont have to ask in chat!
+- **Leave Group helper**: Quick exit after dungeon completion with pop up hearthstone and leave group button.
 
 ### **Loot Targeting System**
 Stop running dungeons you don't need. Track specific items and see:
@@ -39,6 +39,7 @@ Stop running dungeons you don't need. Track specific items and see:
 - **Custom item tracking** by item ID
 - **Run counters**: How many times you've run each dungeon (7+ only)
 - **Smart sorting**: "Max Item Need" mode prioritizes dungeons with your tracked items
+- **Currently Bugged**: Known Issue: Items arent showing up properly.
 
 ---
 
@@ -50,7 +51,7 @@ Stop running dungeons you don't need. Track specific items and see:
 4. **Restart WoW**: Log in and type `/nk` to start
 
 **Requirements**:
-- **World of Warcraft**: Retail (The War Within - 11.0.2+)
+- **World of Warcraft**: Retail (The War Within - 11.2.7)
 - **RaiderIO Addon**: **REQUIRED** for accurate player scores and dungeon data
 - **LibOpenRaid** (optional): Enhanced keystone sharing across party/guild
 
@@ -114,15 +115,15 @@ Stop running dungeons you don't need. Track specific items and see:
 
 ## 🔧 Configuration Options
 
-Access via `/nk config`:
+Access via `/nk config|opt|options`:
 
 **Teleport Settings**:
 - Auto-show teleport window after M+ completion (default: ON)
 - Hearthstone preferences for travel assistance
 
 **UI Settings**:
-- Window scale and positioning
-- Theme customization
+- Window scale and positioning(Coming soon tm*)
+- Theme customization(Coming soon tm*)
 
 **Debug System** (Advanced):
 - 23 debug categories across 5 logical groups
@@ -175,7 +176,6 @@ NextKey offers multiple sorting strategies:
 **Limitations**:
 - **RaiderIO Dependency**: Score data requires RaiderIO addon installed
 - **Party Member Keystones**: Requires LibOpenRaid or manual communication for non-current-player keys
-- **Cross-Realm**: Some features may behave differently cross-realm
 
 **Reporting Bugs**:
 1. Enable debug logging: `/nk config` → Debug System → Enable
@@ -185,33 +185,11 @@ NextKey offers multiple sorting strategies:
 
 ---
 
-## 🛠️ For Developers
-
-NextKey follows the **Details! Damage Meter** architectural patterns for enterprise-grade WoW addon development.
-
-**Key Technologies**:
-- Lua 5.1 (WoW embedded)
-- Ace3 Framework (AceAddon, AceDB, AceComm, AceConfig, AceGUI)
-- Professional debug system with compile-time stripping
-- Modular architecture with centralized boot sequence
-
-**Getting Started**:
-1. Read [`Documentation/DEVELOPMENT.md`](Documentation/DEVELOPMENT.md)
-2. Review [`Documentation/AI DOCS/DEBUG_SYSTEM.md`](Documentation/AI DOCS/DEBUG_SYSTEM.md)
-3. Check [`.kilocode/rules/memory-bank/`](.kilocode/rules/memory-bank/) for architecture docs
-4. Use `/nk test` to generate fake players for testing
-
-**Contributing**: Pull requests welcome! Please follow the mandatory debug system rules (no `print()` statements).
-
----
-
 ## 📚 Documentation
 
 - **[User Guide](README/USER_GUIDE.md)**: Comprehensive player documentation
-- **[PUG Mode Guide](README/PUG_MODE.md)**: PUG Helper features and workflows
 - **[Slash Commands](README/SLASH_COMMANDS.md)**: Complete command reference
 - **[Debug System Guide](README/DEBUG_SYSTEM_USER_GUIDE.md)**: Troubleshooting and advanced features
-- **[Developer Docs](Documentation/README.md)**: Full technical documentation
 
 ---
 
@@ -277,14 +255,6 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full version history.
 ## 📄 License
 
 NextKey is free and open-source software licensed under the [MIT License](LICENSE).
-
-**Key Points**:
-- ✅ Free to use, modify, and distribute
-- ✅ Commercial use allowed
-- ✅ Can be used in both open-source and closed-source projects
-- ✅ Simple and permissive
-
-This ensures maximum flexibility for both the WoW community and future development while keeping the code freely available.
 
 ---
 
