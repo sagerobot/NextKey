@@ -44,7 +44,7 @@ Stop running dungeons you don't need. Track specific items and see:
 
 ## 📦 Installation
 
-1. **Download**: Get the latest release from [GitHub Releases](#) *(or CurseForge/Wago when published)*
+1. **Download**: Get the latest release from [GitHub Releases](https://github.com/sagerobot/NextKey/releases) *(releases coming soon)*
 2. **Extract**: Unzip the `NextKey` folder
 3. **Install**: Copy to `World of Warcraft\_retail_\Interface\AddOns\`
 4. **Restart WoW**: Log in and type `/nk` to start
@@ -164,10 +164,12 @@ NextKey offers multiple sorting strategies:
 
 ## 🐛 Known Issues & Limitations
 
-**Current Status** (v0.2.3):
+**Current Status** (v0.6.3):
 - ✅ Core keystone ranking stable
-- ✅ M+ Group Organizer functional (drag/drop, polls, keystone assignment)
-- ⚠️ PUG Helper in validation (recent critical fixes applied)
+- ✅ Independent Two-Window Architecture (Keystone Selection + Dungeon Overview)
+- ✅ UI Main Refactoring complete (49% code reduction, modular architecture)
+- ✅ M+ Group Organizer fully functional (drag/drop, polls, keystone assignment, persistence)
+- ✅ PUG Helper architecture implemented and hardening in progress
 - ⚠️ Hero-track item tooltips (ilvl display needs tuning)
 
 **Limitations**:
@@ -179,7 +181,7 @@ NextKey offers multiple sorting strategies:
 1. Enable debug logging: `/nk config` → Debug System → Enable
 2. Reproduce the issue
 3. Type `/console scriptErrors 1` to see Lua errors
-4. Report via GitHub Issues with debug logs
+4. Report via [GitHub Issues](https://github.com/sagerobot/NextKey/issues) with debug logs
 
 ---
 
@@ -215,22 +217,43 @@ NextKey follows the **Details! Damage Meter** architectural patterns for enterpr
 
 ## 📝 Version History
 
+**v0.6.3** (November 11, 2025) - M+ Group Organizer Enhancements
+- Auto-save functionality preserves player slot assignments across sessions
+- Visual theming improvements with class-colored survey cards and role icons
+- Enhanced poll data usage and state management
+- Improved fake player detection to prevent data filtering issues
+
+**v0.6.0** (November 10, 2025) - Independent Two-Window Architecture
+- Revolutionary two-window system allowing Keystone Selection and Dungeon Overview to operate independently
+- UI Main Refactoring: 49% code reduction (3000+ → 1531 lines) with 13 specialized modules
+- Each window has dedicated toggle button for maximum flexibility
+
+**v0.5.26** (November 9, 2025) - Category-Based Debug Profiles
+- Replaced generic debug presets with targeted category-based profiles
+- Streamlined main UI with unified "Refresh Data" button
+- Removed deprecated "Suggest Groups" functionality
+
+**v0.5.0** (October 27, 2025) - M+ Group Organizer
+- New drag-and-drop UI for forming M+ breakout groups from raids
+- Comprehensive roster management with role validation
+
+**v0.4.0** (October 19, 2025) - Hearthstone Selector
+- New UI for selecting from unlocked hearthstones in teleport system
+
+**v0.3.0** (October 13, 2025) - Loot Window
+- New UI window displaying loot information for dungeons
+- Track desired items for specific content
+
 **v0.2.3** (November 8, 2025) - PUG Mode Critical Fixes
 - Fixed primary invite lock for first-accepted-wins guarantee
-- Added Season 3 dungeon abbreviation support (Priory, Eco-Dome, Floodgate)
-- Enhanced PUG Helper stability
+- Added Season 3 dungeon abbreviation support
 
-**v0.2.2** (November 2, 2025) - M+ Group Organizer Tooltip Fixes
-- Fixed role icons and spec tooltips for fake players after polls
-- Normalized DAMAGER → DPS role naming
-
-**v0.2.1** (October 20, 2025) - Loot Targeting System
-- Complete loot tracking implementation with Season 3 data
-- Item texture preloading and run counters
+**v0.2.0** (October 13, 2025) - PUG Mode Initial Release
+- First version of PUG Mode for LFG workflow assistance
 
 **v0.1.0** (February 4, 2024) - DungeonCards & Preferences
 - Card-based visual interface for keystones
-- Per-character dungeon preferences (like/dislike)
+- Per-character dungeon preferences
 
 See [`CHANGELOG.md`](CHANGELOG.md) for full version history.
 
@@ -238,22 +261,32 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full version history.
 
 ## 🙏 Credits
 
-**Created by**: [Your Name/Guild]  
-**Inspired by**: Details! Damage Meter architecture  
-**Powered by**: RaiderIO data, Ace3 libraries, LibOpenRaid  
+**Created by**: Sagerobot (with AI assistance)
+**Inspired by**: Details! Damage Meter architecture
+**Powered by**: RaiderIO data, Ace3 libraries, LibOpenRaid
 
 **Special Thanks**:
-- RaiderIO team for comprehensive M+ data
+- [RaiderIO](https://raider.io/) team for comprehensive M+ data and addon API
+- [RatingCalculator](https://github.com/SamFarah/RatingCalculator) for IO calculation algorithms
 - Details! team for architectural inspiration
 - Ace3 library maintainers
+- AI assistance in development and code analysis
 
 ---
 
 ## 📄 License
 
-NextKey is provided as-is for World of Warcraft players. See [LICENSE](LICENSE) for details.
+NextKey is free and open-source software licensed under the [MIT License](LICENSE).
+
+**Key Points**:
+- ✅ Free to use, modify, and distribute
+- ✅ Commercial use allowed
+- ✅ Can be used in both open-source and closed-source projects
+- ✅ Simple and permissive
+
+This ensures maximum flexibility for both the WoW community and future development while keeping the code freely available.
 
 ---
 
-**Questions? Feedback?**  
-Open an issue on [GitHub](#) or find us in the NextKey Discord community!
+**Questions? Feedback?**
+Open an issue on [GitHub Issues](https://github.com/sagerobot/NextKey/issues)
