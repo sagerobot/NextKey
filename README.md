@@ -101,9 +101,9 @@ Stop running dungeons you don't need. Track specific items and see:
 
 | Command | Description |
 |---------|-------------|
-| `/nk` | Open main NextKey window (keystone rankings) |
-| `/nk config` | Open configuration panel |
-| `"/nk organizer" or "org"` | Open M+ Group Organizer |
+| `/nk "<no arg>" or "show" or "hide"` | Open main NextKey window (keystone rankings) |
+| `/nk "config" or "opt" or "options"` | Open configuration panel |
+| `/nk "organizer" or "org"` | Open M+ Group Organizer |
 
 **Debug Mode** (for troubleshooting):
 - `/nk config|opt|options` → Debug System → Enable Debugging
