@@ -103,12 +103,10 @@ Stop running dungeons you don't need. Track specific items and see:
 |---------|-------------|
 | `/nk` | Open main NextKey window (keystone rankings) |
 | `/nk config` | Open configuration panel |
-| `/nk organizer` | Open M+ Group Organizer |
-| `/nk test` | Generate 4 fake players for testing (dev mode) |
-| `/nkpugtest` | Open PUG Helper Test UI (dev mode) |
+| `/nk organizer|org` | Open M+ Group Organizer |
 
 **Debug Mode** (for troubleshooting):
-- `/nk config` → Debug System → Enable Debugging
+- `/nk config|opt|options` → Debug System → Enable Debugging
 - Allows granular logging control and performance monitoring
 
 ---
