@@ -51,6 +51,18 @@ v0.3.0 + Dev Feature (🧪) = v0.3.5    (+5)
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.6] - 2025-11-13
+### ✨ Enhancements
+- **LibGroupInSpecT Integration:** Integrated LibGroupInSpecT-1.1 library to dramatically improve group member specialization detection accuracy in the M+ Group Organizer. Enhanced the Blizzard adapter to use LibGroupInSpecT as the primary spec source with a robust fallback chain (LibGroupInSpecT → inspection → assigned role), resolving issues where players showed incorrect or missing specialization data in organizer tooltips and role assignments. Added announcement system for group compositions in organizer UI.
+- **RaiderIO Score Calculation:** Improved RaiderIO score calculation using The War Within Season 1 formula with corrected dungeon ID mappings and updated profile merge logic to prioritize RaiderIO scores.
+- **API Modernization:** Modernized WoW API calls throughout the codebase to use current APIs (C_SpecializationInfo, C_Item, C_Spell) for better compatibility with recent game versions.
+- **Debug System Improvements:** Enhanced debug system to hide DEV/TRACE debug levels when DEV_MODE is false, providing cleaner output in production environments.
+### 📚 Documentation
+- **README Updates:** Updated README documentation for improved clarity and accuracy in features, requirements, and command syntax. Clarified M+ Group Organizer command references and improved overall consistency.
+- **License & Attribution:** Added MIT License to the project with comprehensive attribution notices for AI assistance and third-party components.
+### 🔧 Maintenance
+- **Copyright Update:** Updated copyright year in LICENSE file to 2025.
+
 ## [v0.6.3] - 2025-11-11
 ### ✨ Enhancements
 - **M+ Group Organizer - Persistence Improvements:** Implemented auto-save functionality that preserves player slot assignments across game sessions with intelligent initialization guards to prevent state resets on `/reload`. Enhanced player restoration logic to prioritize group slots over bench placement, ensuring roster configurations remain intact.
