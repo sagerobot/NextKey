@@ -34,17 +34,17 @@ function Events:RegisterCoreEvents()
         self:OnChatMsgAddon(prefix, message, distribution, sender)
     end)
     
-    -- PUG Helper events
+    -- PUG Helper events (now broadcast as messages)
     NextKey:RegisterEvent("LFG_LIST_SEARCH_RESULTS_UPDATED", function()
-        self:OnLFGSearchResultsUpdated()
+        NextKey:SendMessage("LFG_SEARCH_RESULTS_UPDATED")
     end)
     
     NextKey:RegisterEvent("LFG_LIST_APPLICATION_STATUS_UPDATED", function(_, resultID, newStatus, oldStatus)
-        self:OnLFGApplicationStatusChanged(resultID, newStatus, oldStatus)
+        NextKey:SendMessage("LFG_APPLICATION_STATUS_CHANGED", resultID, newStatus, oldStatus)
     end)
     
     NextKey:RegisterEvent("GROUP_INVITE_CONFIRMATION", function(_, name)
-        self:OnGroupInviteConfirmation(name)
+        NextKey:SendMessage("GROUP_INVITE_CONFIRMATION", name)
     end)
     
     NextKey:RegisterEvent("CHALLENGE_MODE_COMPLETED", function(_, mapID, level)
@@ -489,73 +489,8 @@ function Events:OnChatMsgAddon(prefix, message, distribution, sender)
 end
 
 -- MARK: PUG Helper Event Handlers
-function Events:OnLFGSearchResultsUpdated()
-    NextKey222.Performance:StartProfile("OnLFGSearchResultsUpdated")
-    
-    -- Forward to PUG Helper to cache search results
-    if NextKey222.PUGHelper and NextKey222.PUGHelper.CacheSearchResults then
-        NextKey.SafeRun(NextKey222.PUGHelper.CacheSearchResults, "PUG Helper cache search results", NextKey222.PUGHelper)
-    end
-    
-    NextKey222.Performance:StopProfile("OnLFGSearchResultsUpdated")
-end
-
-function Events:OnLFGApplicationListUpdated()
-    NextKey222.Performance:StartProfile("OnLFGApplicationListUpdated")
-    
-    -- Forward to PUG Helper if available
-    if NextKey222.PUGHelper and NextKey222.PUGHelper.OnApplicationListUpdated then
-        NextKey.SafeRun(NextKey222.PUGHelper.OnApplicationListUpdated, "PUG Helper application list updated", NextKey222.PUGHelper)
-    end
-    
-    NextKey222.Performance:StopProfile("OnLFGApplicationListUpdated")
-end
-
-function Events:OnLFGApplicationStatusChanged(resultID, newStatus, oldStatus)
-    NextKey222.Performance:StartProfile("OnLFGApplicationStatusChanged")
-    
-    -- Forward to PUG Helper if available
-    if NextKey222.PUGHelper and NextKey222.PUGHelper.OnApplicationStatusChanged then
-        NextKey.SafeRun(NextKey222.PUGHelper.OnApplicationStatusChanged, "PUG Helper application status changed", NextKey222.PUGHelper, resultID, newStatus, oldStatus)
-    end
-    
-    NextKey222.Performance:StopProfile("OnLFGApplicationStatusChanged")
-end
-
-function Events:OnGroupInviteConfirmation(name)
-    NextKey222.Performance:StartProfile("OnGroupInviteConfirmation")
-    
-    NextKey222.Debug:User("EVENTS: Group invite confirmation received for: " .. name)
-    
-    -- Forward to PUG Helper if available
-    if NextKey222.PUGHelper and NextKey222.PUGHelper.OnGroupInvite then
-        NextKey.SafeRun(NextKey222.PUGHelper.OnGroupInvite, "PUG Helper group invite", NextKey222.PUGHelper, name)
-    else
-        NextKey222.Debug:Error("EVENTS: PUG Helper not available for group invite")
-    end
-    
-    -- NOTE:
-    -- Previous behavior auto-showed the teleport window here on every invite confirmation.
-    -- This caused unexpected UI popups and conflicted with the design that the main UI
-    -- and travel window should only appear when explicitly requested (/nk or explicit triggers).
-    --
-    -- New behavior:
-    -- - PUGHelper.OnMPlusAccepted (and related logic) is responsible for showing the teleport
-    --   window when appropriate based on primary invite locking.
-    -- - We do NOT auto-toggle any main or teleport UI directly from this low-level event.
-    if NextKey222.PUGHelper and NextKey222.PUGHelper:IsEnabled() then
-        local matched_app = NextKey222.PUGHelper:MatchInviteToApplication(name)
-        if matched_app then
-            NextKey222.Debug:Dev("events", "Matched group invite confirmation to tracked application: " .. (matched_app.name or "Unknown"))
-        else
-            NextKey222.Debug:Dev("events", "No tracked application match for group invite confirmation from: " .. tostring(name))
-        end
-    else
-        NextKey222.Debug:Dev("events", "PUG Helper not enabled - skipping invite-based UI behavior")
-    end
-    
-    NextKey222.Performance:StopProfile("OnGroupInviteConfirmation")
-end
+-- PUG Helper event handlers are now self-contained within the PUG Helper module.
+-- The core event handler is now only responsible for broadcasting generic messages.
 
 function Events:OnChallengeModeCompleted(mapID, level)
     NextKey222.Performance:StartProfile("OnChallengeModeCompleted")

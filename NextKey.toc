@@ -111,15 +111,15 @@ ui\organizer\modules\keystoneManager.lua
 ui\organizer\dragManager.lua
 
 # PUG Helper
-core\pugHelper.lua
-core\pugHelper_state.lua
-core\pugHelper_applications.lua
-core\pugHelper_detection.lua
+core\PugHelper\main.lua
+core\PugHelper\state.lua
+core\PugHelper\applications.lua
+core\PugHelper\detection.lua
 
 # PUG Helper UI
-ui\pugInviteNotification.lua
-ui\pugTravelAssistant.lua
-ui\pugApplicationTracker.lua
+ui\PugHelper\inviteNotification.lua
+ui\PugHelper\travelAssistant.lua
+ui\PugHelper\applicationTracker.lua
 
 # UI (Phase 3-7 consolidated load order)
 # NOTE: ui\ioCalculations.lua, ui\rendering.lua, ui\performance.lua, ui\viewManager.lua,
