@@ -24,7 +24,7 @@ DEV_MODE = false,
 ### 2. Verify Version Numbers Match
 Check that these files have matching version numbers:
 
-- **`NextKey.toc`** (Line 5): `## Version: 0.6.3`
+- **`NextKey.toc`** (Line 5): `## Version: 0.6.6`
 - **`boot.lua`** (Lines 55-57):
   ```lua
   NextKey.version_major = 0
@@ -33,7 +33,7 @@ Check that these files have matching version numbers:
   ```
 - **`README.md`** (Line 166): `**Current Status** (v0.6.3):`
 
-**Current Version:** v0.6.3
+**Current Version:** v0.6.6
 
 ### 3. Test the Addon In-Game
 1. Enable script errors: `/console scriptErrors 1`
@@ -55,7 +55,7 @@ With `DEV_MODE = false`:
 ### 5. Update CHANGELOG.md (If Needed)
 Ensure the latest changes are documented in `CHANGELOG.md`.
 
-**Current Latest Version:** v0.6.3 (2025-11-11)
+**Current Latest Version:** v0.6.6 (2025-11-13)
 
 ---
 
@@ -164,7 +164,7 @@ Your release package should contain:
    ├── README.md
    └── CHANGELOG.md
    ```
-5. Compress the `NextKey` folder into a ZIP file: `NextKey-v0.6.3-alpha.zip`
+5. Compress the `NextKey` folder into a ZIP file: `NextKey-v0.6.6-alpha.zip`
 
 **Option B: Using Git (Advanced)**
 
@@ -184,23 +184,23 @@ Your release package should contain:
 
    **Tag version:**
    ```
-   v0.6.3-alpha
+   v0.6.6-alpha
    ```
    
    **Release title:**
    ```
-   NextKey v0.6.3 Alpha - M+ Group Organizer Enhancements
+   NextKey v0.6.6 Alpha - LibGroupInSpecT Integration & Enhanced Spec Detection
    ```
    
    **Description:** (Copy/paste this template)
    ```markdown
-   # NextKey v0.6.3 Alpha Release
+   # NextKey v0.6.6 Alpha Release
    
    ## ⚠️ Alpha Release Notice
    
    This is an **ALPHA** release for early testing. Expect bugs and incomplete features. Please report issues via [GitHub Issues](https://github.com/sagerobot/NextKey/issues).
    
-   ## 🚀 What's New in v0.6.3
+   ## 🚀 What's New in v0.6.6
    
    ### M+ Group Organizer Enhancements
    - **Auto-save functionality** preserves player slot assignments across sessions
@@ -213,7 +213,7 @@ Your release package should contain:
    
    ## 📦 Installation
    
-   1. Download `NextKey-v0.6.3-alpha.zip`
+   1. Download `NextKey-v0.6.6-alpha.zip`
    2. Extract the ZIP file
    3. Copy the `NextKey` folder to `World of Warcraft\_retail_\Interface\AddOns\`
    4. Restart World of Warcraft or type `/reload` in-game
@@ -253,7 +253,7 @@ Your release package should contain:
 
 5. **Upload Release Asset:**
    - Click "Attach binaries by dropping them here or selecting them"
-   - Upload your `NextKey-v0.6.3-alpha.zip` file
+   - Upload your `NextKey-v0.6.6-alpha.zip` file
 
 6. **Mark as Pre-release:**
    - ✅ Check the box: **"This is a pre-release"**
@@ -311,7 +311,7 @@ Follow semantic versioning: `major.minor.patch`
 ### Release Types on GitHub
 
 1. **Alpha Releases:** Check "This is a pre-release" ✅
-   - Version format: `v0.6.3-alpha`
+   - Version format: `v0.6.6-alpha`
    
 2. **Beta Releases:** Check "This is a pre-release" ✅
    - Version format: `v1.0.0-beta.1`
@@ -358,11 +358,11 @@ If you run into issues during the release process:
 
 ## 📝 Quick Reference
 
-**Current Version:** v0.6.3  
-**Release Type:** Alpha (pre-release)  
-**Critical Pre-Release Step:** Set `DEV_MODE = false` in `core/debugService.lua`  
-**Package Name:** `NextKey-v0.6.3-alpha.zip`  
-**Tag Name:** `v0.6.3-alpha`
+**Current Version:** v0.6.6
+**Release Type:** Alpha (pre-release)
+**Critical Pre-Release Step:** Set `DEV_MODE = false` in `core/debugService.lua`
+**Package Name:** `NextKey-v0.6.6-alpha.zip`
+**Tag Name:** `v0.6.6-alpha`
 
 ---
 

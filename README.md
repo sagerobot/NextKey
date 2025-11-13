@@ -163,7 +163,7 @@ NextKey offers multiple sorting strategies:
 
 ## 🐛 Known Issues & Limitations
 
-**Current Status** (v0.6.3):
+**Current Status** (v0.6.6):
 - ✅ Core keystone ranking stable
 - ✅ Independent Two-Window Architecture (Keystone Selection + Dungeon Overview)
 - ✅ UI Main Refactoring complete (49% code reduction, modular architecture)
@@ -192,6 +192,12 @@ NextKey offers multiple sorting strategies:
 ---
 
 ## 📝 Version History
+
+**v0.6.6** (November 13, 2025) - LibGroupInSpecT Integration & Enhanced Spec Detection
+- LibGroupInSpecT-1.1 integration for accurate group member specialization detection
+- Improved RaiderIO score calculation using TWW Season 1 formula
+- Modernized WoW API calls throughout the codebase
+- Enhanced debug system to hide DEV/TRACE levels in production
 
 **v0.6.3** (November 11, 2025) - M+ Group Organizer Enhancements
 - Auto-save functionality preserves player slot assignments across sessions

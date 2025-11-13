@@ -51,10 +51,10 @@ NextKey.LibOpenRaid = NextKey222.LibOpenRaidIntegration
 -- MARK: Version Information
 -- Store version information
 local version, build, date, tvs = GetBuildInfo()
-NextKey.build_counter = 33
+NextKey.build_counter = 34
 NextKey.version_major = 0
 NextKey.version_minor = 6
-NextKey.version_patch = 3
+NextKey.version_patch = 6
 NextKey.game_version = version
 NextKey.gametoc = tvs
 NextKey.version = string.format("%d.%d.%d", NextKey.version_major, NextKey.version_minor, NextKey.version_patch)
