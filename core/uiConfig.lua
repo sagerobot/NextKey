@@ -11,8 +11,8 @@ local UIConfig = {
         WIDTH = 600,                    -- Overall window width (both windows)
         
         -- Keystone Window (ui/main.lua)
-        KEYSTONE_HEIGHT = 630,          -- Keystone window height
-        SCROLL_FRAME_HEIGHT_KEYSTONE = 438,  -- Keystone scroll area height
+        KEYSTONE_HEIGHT = 632,          -- Keystone window height
+        SCROLL_FRAME_HEIGHT_KEYSTONE = 440,  -- Keystone scroll area height
         
         -- Dungeon Window (ui/dungeonWindow.lua)
         DUNGEON_HEIGHT = 788,           -- Dungeon window height (taller for 8 dungeons)

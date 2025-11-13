@@ -73,49 +73,45 @@ function IOCalculator:ApproximateFractionalFromChests(chests)
     return fractions[chests] or 1.0
 end
 
---- Estimates the score of a Mythic+ run based on the keystone level and whether it was timed.
---- This is a simplified estimation for UI and debugging purposes.
+--- Estimates the score of a Mythic+ run based on the TWW Season 1 formula.
+--- Uses RaiderIO data (level, chests, fractionalTime) to calculate accurate per-dungeon scores.
 ---@param level number The keystone level.
----@param timed boolean Whether the run was completed within the timer.
----@param fractionalTime number|nil An optional fractional completion time for a more accurate estimation.
+---@param timed boolean Whether the run was completed within the timer (chests > 0).
+---@param fractionalTime number|nil The ratio of time taken (0.0-1.0 = timed, >1.0 = overtime).
 ---@return number The estimated score.
 function IOCalculator:EstimateRunScore(level, timed, fractionalTime)
     level = tonumber(level) or 0
     if level < 2 then return 0 end
     
-    -- Get metrics for this key level to use as baseline
-    local metrics = self:GetDungeonMetrics(level)
-    if not metrics then return 0 end
-    
-    -- Start with base score for the level
-    local score = metrics.base
-    
-    -- Apply timing modifier
-    if not timed then
-        -- Untimed runs: Use same logic as CalculateDungeonScore
-        -- Assume 10% overtime if no fractionalTime provided (typical untimed scenario)
-        local assumedFractionalTime = fractionalTime or 1.1
-        
-        -- Calculate time percentage (capped at 40%)
-        local timePercent = (1.0 - assumedFractionalTime)
-        local cappedPercent = math.min(math.abs(timePercent), 0.4)
-        
-        -- Apply time-based adjustment (negative for overtime)
-        score = score + (timePercent * 37.5)
-        
-        -- Apply overtime penalty
-        score = score - 15
-        
-        -- Ensure minimum of 0
-        if math.abs(timePercent) > 0.4 then
-            return 0
-        end
-    elseif fractionalTime and fractionalTime < 1.0 then
-        -- Bonus for faster completion times
-        local timeBonus = (1.0 - fractionalTime) * 0.4 * metrics.base
-        score = score + timeBonus
+    -- TWW Season 1 Base Score Brackets
+    local score = 0
+    if level >= 12 then
+        score = (level * 15) + 185
+    elseif level >= 10 then
+        score = (level * 15) + 170
+    elseif level >= 7 then
+        score = (level * 15) + 160
+    elseif level >= 4 then
+        score = (level * 15) + 145
+    else -- Level 2-3
+        score = (level * 15) + 135
     end
     
+    -- Time Bonus/Penalty Logic
+    if timed then
+        -- Bonus for finishing fast (max 15 points for 40% time remaining)
+        if fractionalTime and fractionalTime < 1.0 then
+            local timeRemainingPct = math.max(0, 1.0 - fractionalTime)
+            -- Bonus capped at 40% time remaining (fractionalTime <= 0.6)
+            local bonusRatio = math.min(timeRemainingPct, 0.4) / 0.4
+            score = score + (15 * bonusRatio)
+        end
+    else
+        -- Penalty for overtime (simplified)
+        score = score - 15
+    end
+    
+    -- Clamp to 0
     return math.max(0, math.floor(score + 0.5))
 end
 
@@ -329,9 +325,10 @@ end
 
 -- MARK: Range-Based IO Calculations
 --- Calculates the potential IO gain range (minimum, maximum, and expected) for a player completing a specific keystone.
+--- Returns nil for players without addon data (to exclude them from calculations).
 ---@param keystoneData table The data for the keystone being considered.
 ---@param playerProfile table The profile of the player.
----@return table A table containing the min, max, and expected IO gain.
+---@return table|nil A table containing the min, max, and expected IO gain, or nil if player has no addon data.
 function IOCalculator:CalculateIORange(keystoneData, playerProfile)
     if not keystoneData or not playerProfile then
         NextKey222.Debug:Dev("IOCalculator", "CalculateIORange: Missing keystoneData or playerProfile")
@@ -341,6 +338,15 @@ function IOCalculator:CalculateIORange(keystoneData, playerProfile)
     local dungeonId = keystoneData.dungeonID
     local keyLevel = keystoneData.level
     local playerName = playerProfile.name or "Unknown"
+    
+    -- CRITICAL: Check if player has addon data before calculating
+    -- Return nil for players without addons (excludes them from group calculations)
+    if not self:HasPlayerAddonData(playerName) then
+        NextKey222.Debug:Dev("IOCalculator", string.format(
+            "CalculateIORange: Excluding %s (no addon data) from dungeon %d calculations",
+            playerName, dungeonId))
+        return nil
+    end
     
     -- Try to get score from unified system first, then fallback to profile data
     local currentScore = 0
@@ -362,7 +368,9 @@ function IOCalculator:CalculateIORange(keystoneData, playerProfile)
     -- Method 3: Try unified scoring system (fallback for real players)
     local unifiedScore = 0
     if playerName and fakeScore == 0 then  -- Skip if fake player already found
-        unifiedScore = self:GetPlayerDungeonScore(playerName, dungeonId)
+        local score = self:GetPlayerDungeonScore(playerName, dungeonId)
+        -- Handle nil return (no addon data) vs 0 (fresh character)
+        unifiedScore = score or 0
     end
     
     -- Use the highest score from all methods
@@ -412,6 +420,7 @@ end
 
 -- MARK: Group Range Calculations
 --- Calculates the total IO gain range for a group of players for a specific keystone.
+--- Automatically excludes players without addon data from calculations.
 ---@param keystoneData table The keystone being considered.
 ---@param partyProfiles table A table of player profiles for the party.
 ---@return table A table with the total min, max, and expected IO gain for the group, and a player-by-player breakdown.
@@ -421,36 +430,54 @@ function IOCalculator:CalculateGroupIORange(keystoneData, partyProfiles)
         max = 0,
         expected = 0,
         keystoneDungeonID = keystoneData and keystoneData.dungeonID or nil,
-        playerBreakdown = {}
+        playerBreakdown = {},
+        excludedPlayers = {}  -- Track players excluded due to no addon data
     }
     
     for playerName, profile in pairs(partyProfiles or {}) do
             local playerRange = self:CalculateIORange(keystoneData, profile)
 
-            -- Add to totals
-            groupRange.min = groupRange.min + (playerRange.min or 0)
-            groupRange.max = groupRange.max + (playerRange.max or 0)
-            groupRange.expected = groupRange.expected + (playerRange.expected or 0)
+            -- CRITICAL: Exclude players with no addon data (playerRange will be nil)
+            if playerRange == nil then
+                NextKey222.Debug:Dev("IOCalculator", string.format(
+                    "CalculateGroupIORange: Excluding %s from group totals (no addon data)",
+                    playerName))
+                table.insert(groupRange.excludedPlayers, playerName)
+                -- Skip this player - don't add to breakdown or totals
+            else
+                -- Add to totals
+                groupRange.min = groupRange.min + (playerRange.min or 0)
+                groupRange.max = groupRange.max + (playerRange.max or 0)
+                groupRange.expected = groupRange.expected + (playerRange.expected or 0)
 
-            -- Always use the correct per-dungeon score for 'current' value
-            local dungeonId = keystoneData and keystoneData.dungeonID
-            local currentDungeonScore = 0
-            if profile and profile.dungeonScores and dungeonId and profile.dungeonScores[dungeonId] then
-                currentDungeonScore = profile.dungeonScores[dungeonId].bestScore or 0
+                -- Always use the correct per-dungeon score for 'current' value
+                local dungeonId = keystoneData and keystoneData.dungeonID
+                local currentDungeonScore = 0
+                if profile and profile.dungeonScores and dungeonId and profile.dungeonScores[dungeonId] then
+                    currentDungeonScore = profile.dungeonScores[dungeonId].bestScore or 0
+                end
+                groupRange.playerBreakdown[playerName] = {
+                    current = currentDungeonScore,
+                    range = playerRange,
+                    min = playerRange.min,
+                    max = playerRange.max,
+                    expected = playerRange.expected,
+                    gainText = string.format("%d → %d-%d (+%d-%d)",
+                        currentDungeonScore,
+                        (playerRange.targetScores and playerRange.targetScores.min) or 0,
+                        (playerRange.targetScores and playerRange.targetScores.max) or 0,
+                        playerRange.min or 0,
+                        playerRange.max or 0)
+                }
             end
-            groupRange.playerBreakdown[playerName] = {
-                current = currentDungeonScore,
-                range = playerRange,
-                min = playerRange.min,
-                max = playerRange.max,
-                expected = playerRange.expected,
-                gainText = string.format("%d → %d-%d (+%d-%d)",
-                    currentDungeonScore,
-                    (playerRange.targetScores and playerRange.targetScores.min) or 0,
-                    (playerRange.targetScores and playerRange.targetScores.max) or 0,
-                    playerRange.min or 0,
-                    playerRange.max or 0)
-            }
+    end
+    
+    -- Log summary of excluded players
+    if #groupRange.excludedPlayers > 0 then
+        NextKey222.Debug:User("IOCalculator", string.format(
+            "Group calculation excluded %d player(s) without addon data: %s",
+            #groupRange.excludedPlayers,
+            table.concat(groupRange.excludedPlayers, ", ")))
     end
     
     return groupRange
@@ -491,12 +518,24 @@ end
 
 --- Retrieves a player's score for a specific dungeon from various sources.
 --- The function checks the profile service, communication cache, Raider.IO data, and fake player data.
+--- Returns nil if the player has no addon data available (to distinguish from legitimate 0 scores).
 ---@param playerName string The name of the player.
 ---@param dungeonID number The ID of the dungeon.
----@return number The player's score for the dungeon.
+---@return number|nil The player's score for the dungeon, or nil if player has no addon data.
 function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     if not playerName or not dungeonID then
         return 0
+    end
+    
+    -- CRITICAL: Check if player has ANY addon data before attempting score lookup
+    -- This distinguishes between:
+    --   - Real 0 (fresh character with RaiderIO but no runs) -> return 0
+    --   - No-addon 0 (no RaiderIO, no NextKey) -> return nil
+    if not self:HasPlayerAddonData(playerName) then
+        NextKey222.Debug:Dev("IOCalculator", string.format(
+            "Player %s has no addon data (no RaiderIO, no NextKey) - excluding from calculations",
+            playerName))
+        return nil
     end
     
     -- PHASE 2: Memoization - check if we already looked this up in the current refresh cycle
@@ -564,7 +603,28 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
     local profileScore = getScoreFromProfile(playerName, dungeonID)
     if profileScore and profileScore > 0 then
         NextKey222.Debug:Dev("IOCalculator", "Profile service score for", playerName, "dungeon", dungeonID .. ":", profileScore)
+        self.scoreLookupCache[cacheKey] = profileScore
         return profileScore
+    end
+    
+    -- BUGFIX: Direct RaiderIO fallback if ProfilesService returned zero
+    -- This handles the case where LibOpenRaid merged first with io=0
+    if not playerName:match("^FakePlayer") and NextKey222.RaiderIOAdapter then
+        if NextKey222.RaiderIOAdapter:HasPlayerData(playerName) then
+            NextKey222.Debug:Dev("IOCalculator", "ProfilesService returned 0, checking RaiderIO fallback for", playerName, "dungeon", dungeonID)
+            
+            local profile = NextKey222.RaiderIOAdapter:GetProfile(playerName)
+            if profile and profile.dungeonScores and profile.dungeonScores[dungeonID] then
+                local dungeonScore = profile.dungeonScores[dungeonID].bestScore or 0
+                if dungeonScore > 0 then
+                    NextKey222.Debug:Dev("IOCalculator", "RaiderIO fallback found score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
+                    self.scoreLookupCache[cacheKey] = dungeonScore
+                    return dungeonScore
+                end
+            else
+                NextKey222.Debug:Dev("IOCalculator", "RaiderIO fallback: no score found for", playerName, "dungeon", dungeonID)
+            end
+        end
     end
 
     -- Check if this is the current player
@@ -1337,6 +1397,135 @@ function IOCalculator:GetPreferenceScore(playerName, dungeonID, preferenceWeight
     Debug:Dev("IOCalculator", "Preference score for", playerName, "dungeon", dungeonID, ":", preferenceScore)
     
     return preferenceScore
+end
+
+-- MARK: Addon Data Detection
+--- Checks if a player has any addon data available (NextKey or RaiderIO).
+--- This is used to distinguish between:
+---   - Fresh characters (legitimate 0 scores) who have RaiderIO
+---   - Players with no addon data at all (should be excluded from calculations)
+---@param playerName string The player's name.
+---@return boolean True if player has NextKey or RaiderIO data, false otherwise.
+function IOCalculator:HasPlayerAddonData(playerName)
+    if not playerName then
+        return false
+    end
+    
+    -- Check if it's a fake player (always has data for testing)
+    if playerName:match("^FakePlayer") then
+        NextKey222.Debug:Dev("IOCalculator", "HasPlayerAddonData: FakePlayer detected -", playerName)
+        return true
+    end
+    
+    -- Method 1: Check ProfilesService for addon status
+    if NextKey222.ProfilesService then
+        local profile = NextKey222.ProfilesService:GetProfile(playerName)
+        if profile and profile.addonStatus then
+            local hasData = profile.addonStatus.nextkey or profile.addonStatus.raiderio
+            NextKey222.Debug:Dev("IOCalculator", string.format(
+                "HasPlayerAddonData via ProfilesService for %s: nextkey=%s, raiderio=%s -> %s",
+                playerName,
+                tostring(profile.addonStatus.nextkey),
+                tostring(profile.addonStatus.raiderio),
+                tostring(hasData)))
+            return hasData
+        end
+    end
+    
+    -- Method 2: Direct check for NextKey via Communications
+    if NextKey222.Communications and NextKey222.Communications:HasIODataForPlayer(playerName) then
+        NextKey222.Debug:Dev("IOCalculator", "HasPlayerAddonData: Player has NextKey data -", playerName)
+        return true
+    end
+    
+    -- Method 3: Direct check for RaiderIO
+    if NextKey222.RaiderIOAdapter and NextKey222.RaiderIOAdapter:HasPlayerData(playerName) then
+        NextKey222.Debug:Dev("IOCalculator", "HasPlayerAddonData: Player has RaiderIO data -", playerName)
+        return true
+    end
+    
+    -- No addon data found
+    NextKey222.Debug:Dev("IOCalculator", string.format(
+        "HasPlayerAddonData: No addon data found for %s (no NextKey, no RaiderIO)",
+        playerName))
+    return false
+end
+
+-- MARK: RaiderIO Batch Processing
+--- Retrieves RaiderIO profile and calculates scores for all best runs.
+--- This function is specifically designed to work with players who don't have NextKey installed.
+---@param playerName string The player's name (Name-Realm format).
+---@param playerRealm string|nil Optional realm (extracted from playerName if not provided).
+---@return table|nil A list of { name, level, score, isTimed } or nil if profile missing.
+function IOCalculator:GetPlayerDungeonScores(playerName, playerRealm)
+    -- Check RaiderIO dependency
+    if not _G.RaiderIO then
+        NextKey222.Debug:Dev("IOCalculator", "RaiderIO addon not available for GetPlayerDungeonScores")
+        return nil
+    end
+    
+    -- Parse player name and realm
+    local name, realm
+    if playerName:find("-") then
+        name, realm = playerName:match("(.+)-(.+)")
+    else
+        name = playerName
+        realm = playerRealm or GetRealmName()
+    end
+    
+    if not name then
+        NextKey222.Debug:Dev("IOCalculator", "Invalid player name format:", playerName)
+        return nil
+    end
+    
+    -- Fetch RaiderIO Profile
+    local profile = _G.RaiderIO.GetProfile(name, realm)
+    if not (profile and profile.mythicKeystoneProfile and profile.mythicKeystoneProfile.sortedDungeons) then
+        NextKey222.Debug:Dev("IOCalculator", "No RaiderIO profile found for", name, "-", realm)
+        return nil
+    end
+    
+    local scores = {}
+    
+    NextKey222.Debug:Dev("IOCalculator", string.format("Processing RaiderIO data for %s: %d dungeons",
+        name, #profile.mythicKeystoneProfile.sortedDungeons))
+    
+    -- Iterate over best runs (sortedDungeons contains one entry per dungeon)
+    for _, dungeonRun in ipairs(profile.mythicKeystoneProfile.sortedDungeons) do
+        if dungeonRun and dungeonRun.dungeon then
+            local isTimed = (dungeonRun.chests or 0) > 0
+            local calculatedScore = self:EstimateRunScore(
+                dungeonRun.level,
+                isTimed,
+                dungeonRun.fractionalTime
+            )
+            
+            -- Map RaiderIO dungeon ID to NextKey canonical ID
+            local dungeonID = dungeonRun.dungeon.id
+            if NextKey222.IDMapper then
+                dungeonID = NextKey222.IDMapper:ToDungeonID(dungeonRun.dungeon.id, "raiderio") or dungeonRun.dungeon.id
+            end
+            
+            table.insert(scores, {
+                dungeonID = dungeonID,
+                name = dungeonRun.dungeon.shortName,
+                level = dungeonRun.level,
+                score = calculatedScore,
+                isTimed = isTimed,
+                chests = dungeonRun.chests or 0,
+                fractionalTime = dungeonRun.fractionalTime,
+                originalRioID = dungeonRun.dungeon.id
+            })
+            
+            NextKey222.Debug:Dev("IOCalculator", string.format("  %s (ID:%d): level=%d, chests=%d, fractional=%.2f -> score=%d",
+                dungeonRun.dungeon.shortName, dungeonID, dungeonRun.level,
+                dungeonRun.chests or 0, dungeonRun.fractionalTime or 0, calculatedScore))
+        end
+    end
+    
+    NextKey222.Debug:Dev("IOCalculator", string.format("Calculated %d dungeon scores for %s", #scores, name))
+    
+    return scores
 end
 
 return IOCalculator

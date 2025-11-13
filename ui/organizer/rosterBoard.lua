@@ -1069,9 +1069,313 @@ end
 -- This function is obsolete - organize mode is now selected via dropdown
 -- and executed via unified OnOrganizeClicked handler
 
+-- MARK: Announcement System
+--- Gets the role label for a slot index
+-- @param slotIndex number - Slot index (1-5)
+-- @return string - Role label ("TANK", "HEALER", "DPS")
+function RosterBoard:GetRoleLabel(slotIndex)
+    local ROLE_SLOTS = {
+        [1] = "TANK",
+        [2] = "HEALER",
+        [3] = "DPS",
+        [4] = "DPS",
+        [5] = "DPS"
+    }
+    return ROLE_SLOTS[slotIndex] or "DPS"
+end
+
+--- Formats a single player line for announcement
+-- @param playerData table - Player data from OrganizerState
+-- @param slotIndex number - Slot index for role label
+-- @return string - Formatted player line
+function RosterBoard:FormatPlayerLine(playerData, slotIndex)
+    local roleLabel = self:GetRoleLabel(slotIndex)
+    local name = playerData.name or "Unknown"
+    local class = playerData.class or "Unknown"
+    local io = playerData.overallScore or 0
+    
+    return string.format("  [%s] %s (%s, %d IO)", roleLabel, name, class, io)
+end
+
+--- Formats the group header with keystone info
+-- @param groupIndex number - Group number
+-- @param keystoneData table|nil - Keystone data from OrganizerState
+-- @return string - Formatted group header
+function RosterBoard:FormatGroupHeader(groupIndex, keystoneData)
+    local header = "Group " .. groupIndex .. ": "
+    
+    if keystoneData and type(keystoneData) == "table" and keystoneData.keystone then
+        local keystone = keystoneData.keystone
+        local dungeonName = "Unknown"
+        
+        -- Get dungeon name
+        if NextKey222.Utils and keystone.dungeonID then
+            local success, name = pcall(function()
+                return NextKey222.Utils:GetDungeonAbbreviation(keystone.dungeonID)
+            end)
+            if success and name then
+                dungeonName = name
+            end
+        end
+        
+        local level = keystone.level or 0
+        local owner = keystoneData.playerID or "Unknown"
+        
+        -- Extract short name (remove realm)
+        local ownerShort = owner:match("^([^%-]+)") or owner
+        
+        header = header .. string.format("[%s +%d] (Owner: %s)", dungeonName, level, ownerShort)
+    else
+        header = header .. "No keystone assigned"
+    end
+    
+    return header
+end
+
+--- Identifies PUG needs for a group (empty slots)
+-- @param groupIndex number - Group number
+-- @return table - Array of empty slot descriptions
+function RosterBoard:IdentifyPUGNeeds(groupIndex)
+    local pugNeeds = {}
+    
+    if not self.groupSlots or not self.groupSlots[groupIndex] then
+        return pugNeeds
+    end
+    
+    for slotIndex = 1, 5 do
+        local slot = self.groupSlots[groupIndex][slotIndex]
+        if slot and slot.isEmpty then
+            local roleLabel = self:GetRoleLabel(slotIndex)
+            table.insert(pugNeeds, string.format("  [%s] **NEED PUG**", roleLabel))
+        end
+    end
+    
+    return pugNeeds
+end
+
+--- Formats a complete group announcement
+-- @param groupIndex number - Group number
+-- @return string|nil - Formatted group announcement or nil if empty
+function RosterBoard:FormatSingleGroupAnnouncement(groupIndex)
+    if not NextKey222.OrganizerState then
+        Debug:Error("OrganizerState not available")
+        return nil
+    end
+    
+    -- Get group assignments (unwrap SafeRun tuple)
+    local success, assignments = NextKey222.OrganizerState:GetGroupAssignments(groupIndex)
+    if not success or not assignments or not next(assignments) then
+        -- Check if there are any slots at all
+        if not self.groupSlots or not self.groupSlots[groupIndex] then
+            return nil -- Skip completely empty groups
+        end
+        assignments = {}
+    end
+    
+    -- Get keystone data (unwrap SafeRun tuple)
+    local success2, keystoneData = NextKey222.OrganizerState:GetDesignatedKeystone(groupIndex)
+    if not success2 then
+        keystoneData = nil
+    end
+    
+    -- Build announcement lines
+    local lines = {}
+    
+    -- Add group header
+    local header = self:FormatGroupHeader(groupIndex, keystoneData)
+    if header then
+        table.insert(lines, header)
+    end
+    
+    -- Add player lines
+    local playerCount = 0
+    for slotIndex = 1, 5 do
+        local playerID = assignments and assignments[slotIndex]
+        
+        if playerID then
+            local pSuccess, playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+            if pSuccess and playerData and type(playerData) == "table" then
+                local playerLine = self:FormatPlayerLine(playerData, slotIndex)
+                if playerLine then
+                    table.insert(lines, playerLine)
+                    playerCount = playerCount + 1
+                end
+            end
+        end
+    end
+    
+    -- Add PUG needs if there are any players
+    if playerCount > 0 then
+        local pugNeeds = self:IdentifyPUGNeeds(groupIndex)
+        if pugNeeds then
+            for _, need in ipairs(pugNeeds) do
+                table.insert(lines, need)
+            end
+        end
+    else
+        -- Empty group
+        table.insert(lines, "  No players assigned")
+    end
+    
+    return table.concat(lines, "\n")
+end
+
+--- Formats the complete announcement for all groups
+-- @return string - Complete formatted announcement
+function RosterBoard:FormatGroupAnnouncement()
+    local lines = {}
+    
+    -- Add header
+    table.insert(lines, "=== NextKey M+ Groups ===")
+    
+    -- Get number of groups
+    local groupCount = 0
+    if self.groupSlots then
+        for _ in pairs(self.groupSlots) do
+            groupCount = groupCount + 1
+        end
+    end
+    
+    if groupCount == 0 then
+        return "No groups configured"
+    end
+    
+    -- Format each group
+    for groupIndex = 1, groupCount do
+        local groupAnnouncement = self:FormatSingleGroupAnnouncement(groupIndex)
+        if groupAnnouncement then
+            table.insert(lines, groupAnnouncement)
+        end
+    end
+    
+    return table.concat(lines, "\n")
+end
+
+--- Handles the Announce button click
 function RosterBoard:OnAnnounceClicked()
-    Debug:Dev("organizer_ui", "Announce clicked")
-    Debug:User("Announcement system will be implemented in Phase 5")
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "Announce button clicked")
+        
+        -- Validate groups exist
+        local groupCount = 0
+        if self.groupSlots then
+            for _ in pairs(self.groupSlots) do
+                groupCount = groupCount + 1
+            end
+        end
+        
+        if groupCount == 0 then
+            Debug:User("No groups configured to announce")
+            return
+        end
+        
+        -- Generate announcement
+        Debug:Dev("organizer_ui", "Generating announcement for", groupCount, "groups")
+        local announcement = self:FormatGroupAnnouncement()
+        
+        if not announcement or announcement == "" then
+            Debug:Error("Failed to generate announcement")
+            Debug:User("Failed to generate announcement")
+            return
+        end
+        
+        Debug:Dev("organizer_ui", "Announcement generated - length:", #announcement)
+        
+        -- Track success for user feedback
+        local sentToRaid = false
+        local sentToGuild = false
+        
+        -- Check if we're in debug mode with fake players
+        local hasFakePlayers = NextKey222.FakePlayerService and
+                               NextKey222.FakePlayerService:IsEnabled() and
+                               #NextKey222.FakePlayerService:GetAllPlayerNames() > 0
+        
+        -- Send to Raid channel if selected
+        if self.announceToRaid then
+            if IsInRaid() or hasFakePlayers then
+                local channel = IsInRaid() and "RAID" or "SAY"
+                Debug:Dev("organizer_ui", "Sending announcement to", channel, "channel")
+                -- Split into multiple messages if needed (WoW has 255 char limit per message)
+                local maxLength = 250 -- Leave some buffer
+                local currentMessage = ""
+                
+                for line in announcement:gmatch("[^\n]+") do
+                    local testMessage = currentMessage == "" and line or (currentMessage .. "\n" .. line)
+                    
+                    if #testMessage > maxLength then
+                        -- Send current message
+                        if currentMessage ~= "" then
+                            ChatFrame_SendTell(currentMessage, channel)
+                            Debug:Dev("organizer_ui", "Sent", channel, "message chunk:", #currentMessage, "chars")
+                        end
+                        currentMessage = line
+                    else
+                        currentMessage = testMessage
+                    end
+                end
+                
+                -- Send remaining message
+                if currentMessage ~= "" then
+                    ChatFrame_SendTell(currentMessage, channel)
+                    Debug:Dev("organizer_ui", "Sent final", channel, "message chunk:", #currentMessage, "chars")
+                end
+                
+                sentToRaid = true
+                Debug:Dev("organizer_ui", "Announcement sent to", channel, "channel")
+            else
+                Debug:Dev("organizer_ui", "Raid checkbox selected but player not in raid and no fake players")
+            end
+        end
+        
+        -- Send to Guild channel if selected
+        if self.announceToGuild then
+            if IsInGuild() or hasFakePlayers then
+                local channel = IsInGuild() and "GUILD" or "SAY"
+                Debug:Dev("organizer_ui", "Sending announcement to", channel, "channel")
+                -- Split into multiple messages if needed
+                local maxLength = 250
+                local currentMessage = ""
+                
+                for line in announcement:gmatch("[^\n]+") do
+                    local testMessage = currentMessage == "" and line or (currentMessage .. "\n" .. line)
+                    
+                    if #testMessage > maxLength then
+                        -- Send current message
+                        if currentMessage ~= "" then
+                            ChatFrame_SendTell(currentMessage, channel)
+                            Debug:Dev("organizer_ui", "Sent", channel, "message chunk:", #currentMessage, "chars")
+                        end
+                        currentMessage = line
+                    else
+                        currentMessage = testMessage
+                    end
+                end
+                
+                -- Send remaining message
+                if currentMessage ~= "" then
+                    ChatFrame_SendTell(currentMessage, channel)
+                    Debug:Dev("organizer_ui", "Sent final", channel, "message chunk:", #currentMessage, "chars")
+                end
+                
+                sentToGuild = true
+                Debug:Dev("organizer_ui", "Announcement sent to", channel, "channel")
+            else
+                Debug:Dev("organizer_ui", "Guild checkbox selected but player not in guild and no fake players")
+            end
+        end
+        
+        -- Show user feedback
+        if sentToRaid or sentToGuild then
+            local channels = {}
+            if sentToRaid then table.insert(channels, "Raid") end
+            if sentToGuild then table.insert(channels, "Guild") end
+            
+            Debug:User("Announced to " .. table.concat(channels, " and ") .. " chat")
+        else
+            Debug:User("No announcements sent - check channel selections and group membership")
+        end
+        
+    end, "RosterBoard:OnAnnounceClicked")
 end
 
 -- MARK: Clear Poll Handler (SESSION 4)

@@ -77,9 +77,9 @@ function NextKey222.HearthstoneData.HasHearthstone(itemID, itemType)
     if itemType == "toy" then
         return PlayerHasToy(itemID)
     elseif itemType == "spell" then
-        return IsSpellKnown(itemID) or IsPlayerSpell(itemID)
+        return C_Spell.IsSpellKnown(itemID)
     elseif itemType == "item" then
-        return GetItemCount(itemID) > 0
+        return C_Item.GetItemCount(itemID, false, false, false) > 0
     end
     return false
 end
@@ -127,8 +127,8 @@ function NextKey222.HearthstoneData.GetHearthstoneTexture(itemID, itemType)
             texture = spellTexture
         end
     elseif itemType == "item" then
-        local _, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(itemID)
-        texture = itemTexture
+        local itemInfo = C_Item.GetItemInfo(itemID)
+        texture = itemInfo and select(10, C_Item.GetItemInfo(itemID))
     end
     
     return texture or "Interface\\Icons\\INV_Misc_QuestionMark"
@@ -150,7 +150,7 @@ function NextKey222.HearthstoneData.GetHearthstoneName(itemID, itemType)
             name = GetSpellInfo(itemID) or name
         end
     elseif itemType == "item" then
-        name = GetItemInfo(itemID) or name
+        name = C_Item.GetItemInfo(itemID) or name
     end
     
     return name

@@ -327,13 +327,24 @@ function DebugUI:CreateMainTabArgs()
         type = "select",
         name = "Debug Level",
         desc = "Set the verbosity level for debug output",
-        values = {
-            [0] = "NONE (0) - Silent",
-            [1] = "ERROR (1) - Critical errors only",
-            [2] = "USER (2) - User messages",
-            [3] = "DEV (3) - Development messages",
-            [4] = "TRACE (4) - Ultra-verbose tracing"
-        },
+        values = function()
+            -- When DEV_MODE is false, hide DEV and TRACE levels
+            if DebugService.DEV_MODE then
+                return {
+                    [0] = "NONE (0) - Silent",
+                    [1] = "ERROR (1) - Critical errors only",
+                    [2] = "USER (2) - User messages",
+                    [3] = "DEV (3) - Development messages",
+                    [4] = "TRACE (4) - Ultra-verbose tracing"
+                }
+            else
+                return {
+                    [0] = "NONE (0) - Silent",
+                    [1] = "ERROR (1) - Critical errors only",
+                    [2] = "USER (2) - User messages"
+                }
+            end
+        end,
         get = function() return DebugService.level end,
         set = function(_, value)
             DebugService:SetLevel(value)

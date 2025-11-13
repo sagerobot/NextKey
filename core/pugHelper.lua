@@ -32,7 +32,9 @@ function PUGHelper:Initialize()
     self:RegisterEvents()
     self:LoadConfig()
     self:SetHookEnabled(true)
-    Debug:User("PUG Helper initialized - Enabled: " .. (pugConfig.enabled and "YES" or "NO"))
+    if Debug.DEV_MODE then
+        Debug:User("PUG Helper initialized - Enabled: " .. (pugConfig.enabled and "YES" or "NO"))
+    end
     return true
 end
 

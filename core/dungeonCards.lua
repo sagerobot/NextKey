@@ -469,7 +469,10 @@ function DungeonCards:LoadLootTracking()
         local card = self:GetCard(dungeonID, dungeonName, dungeonShortName)
         
         if tracking.defaultItems then
-            NextKey222.Debug:Dev("lootwindow", "Loading", table.getn(tracking.defaultItems), "default items for dungeon", dungeonID)
+            -- Count items in hash table
+            local defaultItemCount = 0
+            for _ in pairs(tracking.defaultItems) do defaultItemCount = defaultItemCount + 1 end
+            NextKey222.Debug:Dev("lootwindow", "Loading", defaultItemCount, "default items for dungeon", dungeonID)
             for itemID, tracked in pairs(tracking.defaultItems) do
                 card.trackedItems[itemID] = tracked
                 NextKey222.Debug:Dev("lootwindow", "Loaded tracked item", itemID, "for dungeon", dungeonID)
@@ -477,7 +480,10 @@ function DungeonCards:LoadLootTracking()
         end
         
         if tracking.customItems then
-            NextKey222.Debug:Dev("lootwindow", "Loading", table.getn(tracking.customItems), "custom items for dungeon", dungeonID)
+            -- Count items in hash table
+            local customItemCount = 0
+            for _ in pairs(tracking.customItems) do customItemCount = customItemCount + 1 end
+            NextKey222.Debug:Dev("lootwindow", "Loading", customItemCount, "custom items for dungeon", dungeonID)
             for itemID in pairs(tracking.customItems) do
                 card.customTrackedItems[itemID] = true
                 NextKey222.Debug:Dev("lootwindow", "Loaded custom item", itemID, "for dungeon", dungeonID)
@@ -486,7 +492,10 @@ function DungeonCards:LoadLootTracking()
         
         -- Load run counter data
         if tracking.lootData then
-            NextKey222.Debug:Dev("lootwindow", "Loading loot data for", table.getn(tracking.lootData), "items for dungeon", dungeonID)
+            -- Count items in hash table
+            local lootDataCount = 0
+            for _ in pairs(tracking.lootData) do lootDataCount = lootDataCount + 1 end
+            NextKey222.Debug:Dev("lootwindow", "Loading loot data for", lootDataCount, "items for dungeon", dungeonID)
             if not card.lootData then
                 card.lootData = {}
             end
@@ -500,7 +509,10 @@ function DungeonCards:LoadLootTracking()
         end
     end
     
-    NextKey222.Debug:Dev("lootwindow", "Loaded loot tracking data for", table.getn(lootData), "dungeons")
+    -- Count dungeons in hash table
+    local dungeonCount = 0
+    for _ in pairs(lootData) do dungeonCount = dungeonCount + 1 end
+    NextKey222.Debug:Dev("lootwindow", "Loaded loot tracking data for", dungeonCount, "dungeons")
 end
 
 function DungeonCards:Init()

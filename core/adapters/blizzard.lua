@@ -5,6 +5,9 @@ local _, NextKey222 = ...
 
 local BlizzardAdapter = {}
 
+-- Get LibGroupInSpecT if available
+local LibGroupInSpecT = LibStub and LibStub:GetLibrary("LibGroupInSpecT-1.1", true)
+
 -- MARK: Blizzard API Integration
 function BlizzardAdapter:IsAvailable()
     return C_ChallengeMode and 
@@ -28,30 +31,72 @@ function BlizzardAdapter:GetProfile(playerName)
     local isCurrentPlayer = (playerName == currentFullName or playerName == currentPlayerName)
     
     -- Try to get spec data for group members
-    local specID, className
+    local specID, className, role
     if isCurrentPlayer then
         -- Current player: use GetSpecialization
         local currentSpec = GetSpecialization() or 0
         specID = GetSpecializationInfo and select(1, GetSpecializationInfo(currentSpec))
         className = select(2, UnitClass("player"))
+        role = GetSpecializationInfo and select(5, GetSpecializationInfo(currentSpec))
         
         -- Debug logging for current player spec detection
         if NextKey222.Debug then
             local specName = GetSpecializationInfo and select(2, GetSpecializationInfo(currentSpec)) or "Unknown"
-            local role = GetSpecializationInfo and select(5, GetSpecializationInfo(currentSpec)) or "Unknown"
             NextKey222.Debug:Dev("blizzard_adapter", string.format("Current Player Debug: playerName=%s, currentSpec=%d, specID=%d, specName=%s, role=%s",
-                playerName, currentSpec, specID or 0, specName, role))
+                playerName, currentSpec, specID or 0, specName, role or "nil"))
         end
     else
         -- Group member: try to find unit ID and get spec
         local unitID = self:FindUnitIDForPlayer(playerName)
         if unitID then
-            specID = GetInspectSpecialization(unitID)
             className = select(2, UnitClass(unitID))
             
+            -- PRIORITY 1: Try LibGroupInSpecT if available (best source for group member specs)
+            if LibGroupInSpecT then
+                local guid = UnitGUID(unitID)
+                local info = guid and LibGroupInSpecT:GetCachedInfo(guid)
+                
+                if info then
+                    specID = info.global_spec_id
+                    specName = info.spec_name_localized
+                    role = info.spec_role
+                    
+                    if NextKey222.Debug then
+                        NextKey222.Debug:Dev("blizzard_adapter", string.format("LibGroupInSpecT: playerName=%s, specID=%s, specName=%s, role=%s",
+                            playerName, tostring(specID or 0), tostring(specName or "nil"), tostring(role or "nil")))
+                    end
+                end
+            end
+            
+            -- PRIORITY 2: Fall back to standard APIs if LibGroupInSpecT didn't have data
+            if not specID or specID == 0 then
+                specID = GetInspectSpecialization(unitID)
+                
+                -- Use UnitGroupRolesAssigned as fallback
+                if UnitGroupRolesAssigned then
+                    role = UnitGroupRolesAssigned(unitID)
+                    
+                    if NextKey222.Debug then
+                        NextKey222.Debug:Dev("blizzard_adapter", string.format("UnitGroupRolesAssigned(%s) returned: %s",
+                            unitID, tostring(role)))
+                    end
+                end
+                
+                -- If we got a valid specID from inspection, get the spec name
+                if specID and specID > 0 and GetSpecializationInfoByID then
+                    local _, name = GetSpecializationInfoByID(specID)
+                    specName = name
+                    -- Also verify role matches spec
+                    local specRole = GetSpecializationRoleByID(specID)
+                    if specRole and (not role or role == "NONE") then
+                        role = specRole
+                    end
+                end
+            end
+            
             if NextKey222.Debug then
-                NextKey222.Debug:Dev("blizzard_adapter", string.format("Group Member Debug: playerName=%s, unitID=%s, specID=%s, class=%s",
-                    playerName, unitID, tostring(specID), tostring(className)))
+                NextKey222.Debug:Dev("blizzard_adapter", string.format("Group Member Final: playerName=%s, unitID=%s, specID=%s, specName=%s, class=%s, role=%s",
+                    playerName, unitID, tostring(specID or 0), tostring(specName or "nil"), tostring(className), tostring(role)))
             end
         else
             -- Can't find unit ID, return nil for non-current player
@@ -63,6 +108,8 @@ function BlizzardAdapter:GetProfile(playerName)
         name = playerName,
         class = className,
         specID = specID,
+        specName = specName,  -- Include spec name for tooltips
+        role = role,  -- CRITICAL: Include role from spec detection
         io = 0, -- Will be calculated from dungeon scores
         dataSource = "blizzard",
         dungeonScores = {},

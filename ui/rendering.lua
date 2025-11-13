@@ -106,17 +106,19 @@ function UIRendering:enrich_entry_metadata(ui, entry)
     entry.specName = profile and profile.specName or nil
     entry.specID = profile and profile.specID or nil
 
-    -- Role resolution (mirrors existing UI behavior)
-    if entry.specID
+    -- Role resolution: prioritize profile.role (which comes from Blizzard adapter)
+    if profile and profile.role then
+        -- Profile already has role from adapter/finalization
+        entry.role = string.upper(profile.role)
+    elseif entry.specID
         and NextKey222.UIComponents
         and NextKey222.UIComponents.GetRoleFromSpecID
     then
+        -- Fallback to spec-to-role mapping
         entry.role = NextKey222.UIComponents:GetRoleFromSpecID(entry.specID, "DAMAGER")
     else
-        local role = (profile and profile.role) or "DAMAGER"
-        if role then
-            entry.role = string.upper(role)
-        end
+        -- Final fallback
+        entry.role = "DAMAGER"
     end
 
     -- Heroism / Battle Res flags via PlayerCapabilities

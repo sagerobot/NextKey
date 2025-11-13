@@ -90,4 +90,6 @@ SlashCmdList["TESTSPECCHANGE"] = function()
     TestSpecChangeDetection()
 end
 
-print("Spec change test loaded. Type /testspec to run.")
+if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+    print("Spec change test loaded. Type /testspec to run.")
+end

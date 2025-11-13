@@ -198,4 +198,6 @@ end
 -- Make the test function globally available
 _G.TestLootTrackingFixes = TestLootTrackingFixes
 
-NextKey222.Debug:User("Loot tracking test script loaded. Use /script TestLootTrackingFixes() to run tests.")
+if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+    NextKey222.Debug:User("Loot tracking test script loaded. Use /script TestLootTrackingFixes() to run tests.")
+end

@@ -95,25 +95,19 @@ local function ShowRoleTooltip(roleButton, roleInfo, playerData)
     
     GameTooltip:SetText(displayRole, 1, 1, 1)
     
-    -- Show spec-level breakdown if available (CRITICAL: normalize role key to uppercase)
-    local normalizedRole = roleInfo.role:upper()
-    
-    -- ONLY show tooltip if we have spec details - otherwise show fallback
-    if playerData.specDetails and playerData.specDetails[normalizedRole] then
-    	for _, specInfo in ipairs(playerData.specDetails[normalizedRole]) do
-    		-- CRITICAL: Only show "play" and "fill" preferences, hide "none"
-    		if specInfo.preference == "play" or specInfo.preference == "fill" then
-    			-- Show with appropriate color
-    			if specInfo.preference == "play" then
-    				GameTooltip:AddLine(specInfo.specName .. ": Want to Play", 0.2, 0.9, 0.2)
-    			else -- fill
-    				GameTooltip:AddLine(specInfo.specName .. ": Will Fill", 0.9, 0.8, 0.2)
-    			end
-    		end
-    		-- NOTE: "none" preferences are NOT displayed (per user request)
-    	end
+    -- SIMPLIFIED FIX: Just show the player's current spec from profile
+    -- This is the same data shown in expanded cards (line 701-702)
+    if playerData.specName then
+        -- Show current spec with preference color
+        if roleInfo.preference == "play" then
+            GameTooltip:AddLine(playerData.specName .. ": Want to Play", 0.2, 0.9, 0.2)
+        elseif roleInfo.preference == "fill" then
+            GameTooltip:AddLine(playerData.specName .. ": Will Fill", 0.9, 0.8, 0.2)
+        else
+            GameTooltip:AddLine(playerData.specName, 1, 1, 1)
+        end
     else
-        -- Fallback to simple display
+        -- Fallback if no spec name available
         if roleInfo.preference == "play" then
             GameTooltip:AddLine("Want to Play", 0.2, 0.9, 0.2)
         elseif roleInfo.preference == "fill" then
@@ -631,8 +625,21 @@ function PlayerCard:CreateExpandedContent(card, playerData)
         xOffset = xOffset + 25
     end
     
-    -- Multi-role icons with preference colors (up to 3)
-    RenderRoleIcons(card, playerData, xOffset, yOffset, 3)
+    -- CRITICAL FIX: When in a slot, override roles to show slot role instead of current spec
+    local displayPlayerData = playerData
+    if card.location and type(card.location) == "table" and card.location.type == "role_slot" then
+        -- Create a copy with the slot's role for display purposes
+        displayPlayerData = {}
+        for k, v in pairs(playerData) do
+            displayPlayerData[k] = v
+        end
+        -- Override roles to show the slot's role
+        displayPlayerData.roles = {card.location.role}
+        Debug:Dev("organizer_ui", "Expanded card showing slot role:", card.location.role, "for", playerData.name)
+    end
+    
+    -- Multi-role icons with preference colors (up to 3) - use display data
+    RenderRoleIcons(card, displayPlayerData, xOffset, yOffset, 3)
     
     -- IO Score (right-aligned on line 1, no separator)
     local ioText = CreateTrackedFontString(card, nil, "OVERLAY", "GameFontNormal")

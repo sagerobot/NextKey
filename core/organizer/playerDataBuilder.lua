@@ -14,6 +14,9 @@ NextKey222.RegisterModule("OrganizerPlayerDataBuilder", PlayerDataBuilder)
 local Debug = NextKey222.Debug
 -- Debug reference loaded
 
+-- Get LibGroupInSpecT if available
+local LibGroupInSpecT = LibStub and LibStub:GetLibrary("LibGroupInSpecT-1.1", true)
+
 -- MARK: Private Implementation
 
 -- Data source priority order
@@ -44,7 +47,7 @@ function PlayerDataBuilder:GenerateSpecPreferences(playerID, options)
         local specDetails = {}
         local availableSpecs = {}
         
-        -- Get player profile
+        -- Get player profile - THIS IS OUR SINGLE SOURCE OF TRUTH
         local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(playerID)
         if not profile or not profile.class then
             Debug:Error("No profile found for:", playerID)
@@ -52,7 +55,9 @@ function PlayerDataBuilder:GenerateSpecPreferences(playerID, options)
         end
         
         local currentSpecID = profile.specID
-        Debug:Dev("organizer", "Player", playerID, "current specID:", currentSpecID, "specName:", profile.specName)
+        local currentSpecName = profile.specName
+        local currentRole = profile.role  -- CRITICAL: Fallback to role if specID is invalid
+        Debug:Dev("organizer", "Player", playerID, "current specID:", currentSpecID, "specName:", currentSpecName, "role:", currentRole)
         
         -- Get class ID for API call
         local classID = nil
@@ -71,9 +76,28 @@ function PlayerDataBuilder:GenerateSpecPreferences(playerID, options)
         end
         
         -- Query ALL specializations for this class
-        local numSpecs = GetNumSpecializationsForClassID(classID)
+        -- CRITICAL: Use correct WoW API with C_SpecializationInfo namespace and fallback
+        local numSpecs = (C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID)
+            and C_SpecializationInfo.GetNumSpecializationsForClassID(classID)
+            or GetNumSpecializations()
+        
         for i = 1, numSpecs do
-            local specID, specName, _, iconTexture, role = GetSpecializationInfoForClassID(classID, i)
+            local specID, specName, _, iconTexture, role
+            if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfoForClassID then
+                specID, specName, _, iconTexture, role = C_SpecializationInfo.GetSpecializationInfoForClassID(classID, i)
+            else
+                -- Fallback: use GetSpecializationInfo for current player's specs
+                specID, specName, _, iconTexture, role = GetSpecializationInfo(i)
+            end
+            
+            -- BUGFIX: If role is nil from API, derive it from specID using GetSpecializationRoleByID
+            if specID and not role then
+                if GetSpecializationRoleByID then
+                    role = GetSpecializationRoleByID(specID)
+                    Debug:Dev("organizer", "Derived role from specID", specID, "for", specName, "->", role)
+                end
+            end
+            
             if specID then
                 table.insert(availableSpecs, {
                     specID = specID,
@@ -87,60 +111,87 @@ function PlayerDataBuilder:GenerateSpecPreferences(playerID, options)
         -- Generate preferences based on mode
         local priorityMap = { play = 3, fill = 2, none = 1 }
         
+        -- BUGFIX: Track if we've already matched a spec for role-based fallback
+        local roleMatchFound = false
+        
         for _, specInfo in ipairs(availableSpecs) do
-            local normalizedRole = specInfo.role and specInfo.role:upper() or "DAMAGER"
-            local isCurrentSpec = currentSpecID and specInfo.specID == currentSpecID
-            
-            local preference
-            if randomize then
-                -- RANDOMIZED MODE: Weighted probabilities
-                if isCurrentSpec then
-                    -- Current spec: 70% play, 20% fill, 10% none
-                    local rand = math.random()
-                    if rand < 0.70 then
-                        preference = "play"
-                    elseif rand < 0.90 then
-                        preference = "fill"
-                    else
-                        preference = "none"
-                    end
-                else
-                    -- Off-spec: 30% play, 40% fill, 30% none
-                    local rand = math.random()
-                    if rand < 0.30 then
-                        preference = "play"
-                    elseif rand < 0.70 then
-                        preference = "fill"
-                    else
-                        preference = "none"
-                    end
+        	-- CRITICAL FIX: Only process specs with valid role data
+        	-- This prevents all classes from showing the same spec in tooltips
+        	if specInfo.role then
+        		local normalizedRole = specInfo.role:upper()
+        		
+        		-- BUGFIX: If specID is 0 or nil, fall back to matching by role
+        		local isCurrentSpec = false
+        		if currentSpecID and currentSpecID > 0 then
+        			isCurrentSpec = specInfo.specID == currentSpecID
+        		elseif currentRole and not roleMatchFound then
+        			-- Fallback: Match ONLY THE FIRST spec of current role as "play"
+        			-- All other specs (including other specs of the same role) will be "none"
+        			if normalizedRole == currentRole:upper() then
+        				isCurrentSpec = true
+        				roleMatchFound = true  -- Prevent marking additional specs
+        				Debug:Dev("organizer", "Role-based match for", playerID, "- marking", specInfo.specName, "as current spec")
+        			end
+        		end
+        		
+        		local preference
+        		if randomize then
+        			-- RANDOMIZED MODE: Weighted probabilities
+        			if isCurrentSpec then
+        				-- Current spec: 70% play, 20% fill, 10% none
+        				local rand = math.random()
+        				if rand < 0.70 then
+        					preference = "play"
+        				elseif rand < 0.90 then
+        					preference = "fill"
+        				else
+        					preference = "none"
+        				end
+        			else
+        				-- Off-spec: 30% play, 40% fill, 30% none
+        				local rand = math.random()
+        				if rand < 0.30 then
+        					preference = "play"
+        				elseif rand < 0.70 then
+        					preference = "fill"
+        				else
+        					preference = "none"
+        				end
+        			end
+        			Debug:Dev("organizer", (isCurrentSpec and "Current spec" or "Off-spec"), specInfo.specName, "->", preference)
+        		else
+        			-- DETERMINISTIC MODE: Current spec="play", others="none"
+        			if isCurrentSpec then
+        				preference = "play"
+        				Debug:Dev("organizer", "Marking CURRENT spec", specInfo.specName, "as 'play' for", playerID, "role:", normalizedRole)
+        			else
+        				preference = "none"
+        			end
+        		end
+        		
+        		-- Track spec details for tooltips (ALWAYS use uppercase keys)
+        		-- NOTE: Only add specs that are NOT "none" to avoid cluttering tooltip
+        		if preference ~= "none" then
+        			if not specDetails[normalizedRole] then
+        				specDetails[normalizedRole] = {}
+        			end
+        			table.insert(specDetails[normalizedRole], {
+        				specName = specInfo.specName,
+        				preference = preference
+        			})
+        			Debug:Dev("organizer", "Added to specDetails[", normalizedRole, "]:", specInfo.specName, "with preference:", preference)
+        		end
+                
+                -- Store by role with priority (highest priority wins)
+                local currentPriority = priorityMap[specPreferences[normalizedRole]] or 0
+                local newPriority = priorityMap[preference] or 0
+                
+                if newPriority > currentPriority then
+                    specPreferences[normalizedRole] = preference
                 end
-                Debug:Dev("organizer", (isCurrentSpec and "Current spec" or "Off-spec"), specInfo.specName, "->", preference)
             else
-                -- DETERMINISTIC MODE: Current spec="play", others="none"
-                if isCurrentSpec then
-                    preference = "play"
-                    Debug:Dev("organizer", "Marking CURRENT spec", specInfo.specName, "as 'play' for", playerID)
-                else
-                    preference = "none"
-                end
-            end
-            
-            -- Track spec details for tooltips (ALWAYS use uppercase keys)
-            if not specDetails[normalizedRole] then
-                specDetails[normalizedRole] = {}
-            end
-            table.insert(specDetails[normalizedRole], {
-                specName = specInfo.specName,
-                preference = preference
-            })
-            
-            -- Store by role with priority (highest priority wins)
-            local currentPriority = priorityMap[specPreferences[normalizedRole]] or 0
-            local newPriority = priorityMap[preference] or 0
-            
-            if newPriority > currentPriority then
-                specPreferences[normalizedRole] = preference
+                -- No role data for this spec - log warning and skip
+                Debug:Dev("organizer", "WARNING: Spec", specInfo.specName, "has no role data - skipping")
             end
         end
         

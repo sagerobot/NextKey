@@ -1161,12 +1161,42 @@ function SlashCommands:DebugRaiderIO()
     if _G.RaiderIO and _G.RaiderIO.GetProfile then
         local playerName = UnitName("player")
         local realmName = GetRealmName()
-        NextKey222.Debug:Dev("raiderio", "Checking RaiderIO for", playerName .. "-" .. realmName)
+        NextKey222.Debug:User("=== RaiderIO Data Dump ===")
+        NextKey222.Debug:User("Player: " .. playerName .. "-" .. realmName)
+        
         local profile = _G.RaiderIO.GetProfile(playerName, realmName)
         if profile and profile.mythicKeystoneProfile then
             local mp = profile.mythicKeystoneProfile
-            NextKey222.Debug:User("RaiderIO Profile found!")
-            NextKey222.Debug:User("  currentScore:", mp.currentScore or "nil")
+            NextKey222.Debug:User("Profile Found!")
+            NextKey222.Debug:User("  Total IO: " .. (mp.currentScore or "nil"))
+            
+            if mp.sortedDungeons then
+                NextKey222.Debug:User("  Dungeons: " .. #mp.sortedDungeons)
+                NextKey222.Debug:User("")
+                NextKey222.Debug:User("Dungeon Details:")
+                
+                for i, dung in ipairs(mp.sortedDungeons) do
+                    if dung and dung.dungeon then
+                        NextKey222.Debug:User(string.format("  %d. %s (ID: %d)",
+                            i, dung.dungeon.shortName or "Unknown", dung.dungeon.id))
+                        NextKey222.Debug:User(string.format("      level: %d", dung.level or 0))
+                        NextKey222.Debug:User(string.format("      chests: %d", dung.chests or 0))
+                        NextKey222.Debug:User(string.format("      fractionalTime: %.4f", dung.fractionalTime or 0))
+                        
+                        -- Calculate our score
+                        if NextKey222.IOCalculator and NextKey222.IOCalculator.EstimateRunScore then
+                            local timed = (dung.chests or 0) > 0
+                            local score = NextKey222.IOCalculator:EstimateRunScore(
+                                dung.level, timed, dung.fractionalTime
+                            )
+                            NextKey222.Debug:User(string.format("      Our calculated score: %d", score))
+                        end
+                        NextKey222.Debug:User("")
+                    end
+                end
+            else
+                NextKey222.Debug:User("  No sortedDungeons data")
+            end
         else
             NextKey222.Debug:User("No RaiderIO profile found")
         end

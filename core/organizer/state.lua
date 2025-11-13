@@ -93,10 +93,22 @@ function OrganizerState:SetPlayer(playerID, playerData)
             end
         end
         
+        -- BUG FIX: Ensure specPreferences and specDetails are generated if missing
+        -- This is critical for tooltip display to work correctly
+        if (not playerData.specPreferences or not next(playerData.specPreferences)) and
+           NextKey222.OrganizerPlayerDataBuilder and
+           NextKey222.OrganizerPlayerDataBuilder.GenerateSpecPreferences then
+            local specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(playerID, {randomize = false})
+            playerData.specPreferences = specPrefs
+            playerData.specDetails = specDetails
+            Debug:Dev("organizer_state", "Generated missing spec preferences for:", playerID)
+        end
+        
         -- Store in players table
         self.players[playerID] = playerData
         
-        Debug:Dev("organizer_state", "SetPlayer:", playerID, "- stored with roles:", playerData.roles and table.concat(playerData.roles, ",") or "NONE")
+        Debug:Dev("organizer_state", "SetPlayer:", playerID, "- stored with roles:", playerData.roles and table.concat(playerData.roles, ",") or "NONE",
+                  "specPreferences:", playerData.specPreferences ~= nil, "specDetails:", playerData.specDetails ~= nil)
     end, "OrganizerState:SetPlayer")
 end
 

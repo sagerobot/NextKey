@@ -56,4 +56,6 @@ function CheckCardState()
     print("=== END CHECK ===")
 end
 
-print("CheckCardState() function loaded. Use /script CheckCardState() to run.")
+if NextKey222 and NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+    print("CheckCardState() function loaded. Use /script CheckCardState() to run.")
+end

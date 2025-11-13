@@ -38,4 +38,6 @@ function SimplePersistenceTest()
 end
 
 _G.SimplePersistenceTest = SimplePersistenceTest
-NextKey222.Debug:User("Simple test loaded. Use /script SimplePersistenceTest() to test.")
+if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+    NextKey222.Debug:User("Simple test loaded. Use /script SimplePersistenceTest() to test.")
+end

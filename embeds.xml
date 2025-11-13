@@ -22,4 +22,7 @@
   
   <!-- LibOpenRaid -->
   <Include file="Libs\LibOpenRaid\lib.xml"/>
+  
+  <!-- LibGroupInSpecT -->
+  <Include file="Libs\LibGroupInSpecT-1.1\LibGroupInSpecT-1.1.xml"/>
 </Ui>

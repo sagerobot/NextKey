@@ -72,4 +72,6 @@ end
 SLASH_TESTLFGAPIS1 = "/testlfgapis"
 SlashCmdList["TESTLFGAPIS"] = TestLFGAPIs
 
-print("LFG API test loaded. Use /testlfgapis to test (apply to some M+ groups first).")
+if NextKey222 and NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+    print("LFG API test loaded. Use /testlfgapis to test (apply to some M+ groups first).")
+end

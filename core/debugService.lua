@@ -401,7 +401,9 @@ function DebugService:Print(level, category, ...)
         local plainMessage = message:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "")
         
         -- Send to channel (wrapped in pcall for safety)
-        pcall(SendChatMessage, plainMessage, "CHANNEL", nil, debugChannelID)
+        -- Modern API: SendChatMessage(message, chatType, languageID, target)
+        -- For channels, languageID is optional (nil) and target is the channel number
+        pcall(C_ChatInfo.SendAddonMessageLogged, "NextKeyDebug", plainMessage, "CHANNEL", debugChannelID)
     end
 end
 

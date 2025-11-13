@@ -198,4 +198,6 @@ SlashCmdList["NKTESTPRIORITY"] = function()
     NextKeyTestPrioritySorting()
 end
 
-print("Priority sorting test loaded. Use /nktestpriority to run tests.")
+if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+    print("Priority sorting test loaded. Use /nktestpriority to run tests.")
+end

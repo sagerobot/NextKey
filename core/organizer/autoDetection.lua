@@ -13,20 +13,21 @@ NextKey222.RegisterModule("OrganizerAutoDetection", AutoDetection)
 -- MARK: Private Implementation
 
 -- Class to role mappings for auto-detection
+-- CRITICAL: Use UPPERCASE WoW API constants (TANK, HEALER, DAMAGER)
 local CLASS_ROLES = {
-    WARRIOR = {"Tank", "DPS"},
-    PALADIN = {"Tank", "Healer", "DPS"},
-    HUNTER = {"DPS"},
-    ROGUE = {"DPS"},
-    PRIEST = {"Healer", "DPS"},
-    DEATHKNIGHT = {"Tank", "DPS"},
-    SHAMAN = {"Healer", "DPS"},
-    MAGE = {"DPS"},
-    WARLOCK = {"DPS"},
-    MONK = {"Tank", "Healer", "DPS"},
-    DRUID = {"Tank", "Healer", "DPS"},
-    DEMONHUNTER = {"Tank", "DPS"},
-    EVOKER = {"Healer", "DPS"}
+    WARRIOR = {"TANK", "DAMAGER"},
+    PALADIN = {"TANK", "HEALER", "DAMAGER"},
+    HUNTER = {"DAMAGER"},
+    ROGUE = {"DAMAGER"},
+    PRIEST = {"HEALER", "DAMAGER"},
+    DEATHKNIGHT = {"TANK", "DAMAGER"},
+    SHAMAN = {"HEALER", "DAMAGER"},
+    MAGE = {"DAMAGER"},
+    WARLOCK = {"DAMAGER"},
+    MONK = {"TANK", "HEALER", "DAMAGER"},
+    DRUID = {"TANK", "HEALER", "DAMAGER"},
+    DEMONHUNTER = {"TANK", "DAMAGER"},
+    EVOKER = {"HEALER", "DAMAGER"}
 }
 
 -- Class utility mappings
@@ -120,7 +121,16 @@ function AutoDetection:BuildPlayerDataFromAPIs(unit, fullName)
         
         local class, classFile = UnitClass(unit)
         local level = UnitLevel(unit)
-        local specID = GetSpecializationInfo(GetSpecialization() or 1)
+        
+        -- BUGFIX: Use GetInspectSpecialization for group members, not GetSpecialization
+        -- GetSpecialization() returns current player's spec, not the unit's spec!
+        local specID = GetInspectSpecialization(unit)
+        
+        -- If inspection hasn't happened yet (specID = 0), use UnitGroupRolesAssigned
+        local assignedRole = nil
+        if UnitGroupRolesAssigned then
+            assignedRole = UnitGroupRolesAssigned(unit)
+        end
         
         -- Build basic player data
         local playerData = {
@@ -129,7 +139,7 @@ function AutoDetection:BuildPlayerDataFromAPIs(unit, fullName)
             realm = realm or GetRealmName(),
             class = classFile or "UNKNOWN",
             level = level or 80,
-            roles = self:DeriveRoles(classFile, specID),
+            roles = self:DeriveRoles(classFile, specID, assignedRole),
             utils = self:DeriveUtilities(classFile),
             keystone = self:GetKeystoneFromLibOpenRaid(fullName),
             scores = self:GetScoresFromAPIs(fullName),
@@ -149,6 +159,13 @@ function AutoDetection:BuildPlayerDataFromAPIs(unit, fullName)
             local specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(fullName, {randomize = false})
             playerData.specPreferences = specPrefs
             playerData.specDetails = specDetails
+            
+            Debug:Dev("autodetect", "Generated spec preferences for", fullName, "- specPrefs:", specPrefs ~= nil, "specDetails:", specDetails ~= nil)
+            if specDetails then
+                for role, specs in pairs(specDetails) do
+                    Debug:Dev("autodetect", "  Role", role, "has", #specs, "specs")
+                end
+            end
         end
         
         return playerData
@@ -157,27 +174,42 @@ end
 
 --- Derive roles from class and spec
 -- @param classFile string Class file token (e.g., "WARRIOR")
--- @param specID number Specialization ID
--- @return table List of available roles
-function AutoDetection:DeriveRoles(classFile, specID)
+-- @param specID number Specialization ID (may be 0 if not inspected)
+-- @param assignedRole string Role from UnitGroupRolesAssigned (may be nil)
+-- @return table List of available roles (UPPERCASE: TANK, HEALER, DAMAGER)
+function AutoDetection:DeriveRoles(classFile, specID, assignedRole)
     return NextKey222.SafeRun(function()
-        local roles = CLASS_ROLES[classFile] or {"DPS"}
+        local roles = CLASS_ROLES[classFile] or {"DAMAGER"}
         
-        -- If we have spec info, try to be more specific
+        -- Priority 1: Use assigned role if available (most reliable for group members)
+        if assignedRole and assignedRole ~= "NONE" then
+            if assignedRole == "TANK" or assignedRole == "HEALER" or assignedRole == "DAMAGER" then
+                Debug:Dev("autodetect", "Using assigned role:", assignedRole)
+                return {assignedRole}
+            end
+        end
+        
+        -- Priority 2: If we have spec info, try to be more specific
         if specID and specID > 0 then
             local specRole = GetSpecializationRoleByID(specID)
             if specRole then
-                -- Convert to our role format
+                -- CRITICAL: Return UPPERCASE WoW API constants directly
+                -- This matches what the rest of the system expects
                 if specRole == "TANK" then
-                    return {"Tank"}
+                    Debug:Dev("autodetect", "Using spec role from specID", specID, ":", "TANK")
+                    return {"TANK"}
                 elseif specRole == "HEALER" then
-                    return {"Healer"}
+                    Debug:Dev("autodetect", "Using spec role from specID", specID, ":", "HEALER")
+                    return {"HEALER"}
                 elseif specRole == "DAMAGER" then
-                    return {"DPS"}
+                    Debug:Dev("autodetect", "Using spec role from specID", specID, ":", "DAMAGER")
+                    return {"DAMAGER"}
                 end
             end
         end
         
+        -- Priority 3: Fallback to class-based roles
+        Debug:Dev("autodetect", "Using class-based roles for", classFile)
         return roles
     end, "AutoDetection:DeriveRoles")
 end

@@ -590,9 +590,19 @@ function SurveyDialog:ShowPhase3(characterID)
             end
             
             -- Query ALL specializations for this class
-            local numSpecs = GetNumSpecializationsForClassID(classID)
+            -- Use C_SpecializationInfo namespace with fallback
+            local numSpecs = (C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID)
+                and C_SpecializationInfo.GetNumSpecializationsForClassID(classID)
+                or GetNumSpecializations()
+            
             for i = 1, numSpecs do
-                local specID, specName, _, iconTexture, role = GetSpecializationInfoForClassID(classID, i)
+                local specID, specName, _, iconTexture, role
+                if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfoForClassID then
+                    specID, specName, _, iconTexture, role = C_SpecializationInfo.GetSpecializationInfoForClassID(classID, i)
+                else
+                    -- Fallback: use GetSpecializationInfo for current player's specs
+                    specID, specName, _, iconTexture, role = GetSpecializationInfo(i)
+                end
                 if specID then
                     table.insert(availableSpecs, {
                         specID = specID,

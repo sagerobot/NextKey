@@ -396,25 +396,49 @@ function ProfilesService:BuildProfileForPlayer(playerName)
     if debugProfile then
         self:MergeProfileData(profile, debugProfile)
         profile.dataSource = "debug"
+        
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("profiles", string.format("Built profile for %s from debug data: io=%d",
+                playerName, profile.io or 0))
+        end
     else
         -- 2. Get data from real sources and merge in priority order
         
-        -- Try LibOpenRaid first (most comprehensive real-time data)
+        -- Try LibOpenRaid first (keystone inventory data)
         local lorProfile = self:GetLibOpenRaidProfile(playerName)
         if lorProfile then
             self:MergeProfileData(profile, lorProfile)
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("Merged LibOpenRaid data for %s: io=%d (from keystone data)",
+                    playerName, lorProfile.io or 0))
+            end
         end
         
-        -- Try RaiderIO (external API data)
+        -- Try RaiderIO (comprehensive IO scores)
         local rioProfile = self:GetRaiderIOProfile(playerName)
         if rioProfile then
             self:MergeProfileData(profile, rioProfile)
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("Merged RaiderIO data for %s: io=%d, dungeonScores=%d",
+                    playerName, rioProfile.io or 0, profile.dungeonScores and self:CountTable(profile.dungeonScores) or 0))
+            end
         end
         
         -- Try Blizzard APIs (local client data)
         local blizzardProfile = self:GetBlizzardProfile(playerName)
         if blizzardProfile then
             self:MergeProfileData(profile, blizzardProfile)
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("profiles", string.format("Merged Blizzard data for %s: spec=%s, role=%s",
+                    playerName, blizzardProfile.specName or "nil", blizzardProfile.role or "nil"))
+            end
+        end
+        
+        -- Log final merged state
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("profiles", string.format("Final profile for %s: io=%d (source=%s), dungeonScores=%d",
+                playerName, profile.io or 0, profile.ioDataSource or "none",
+                profile.dungeonScores and self:CountTable(profile.dungeonScores) or 0))
         end
     end
     
@@ -485,7 +509,16 @@ function ProfilesService:MergeProfileData(target, source)
     
     -- Basic fields - take non-nil values
     target.class = target.class or source.class
-    target.io = math.max(target.io or 0, source.io or 0)
+    
+    -- BUGFIX: Only merge IO if source has valid data (> 0)
+    -- This prevents LibOpenRaid's io=0 from overwriting RaiderIO scores
+    if source.io and source.io > 0 then
+        target.io = math.max(target.io or 0, source.io)
+        -- Track which data source provided the IO score for debugging
+        if source.io > (target.io or 0) then
+            target.ioDataSource = source.dataSource
+        end
+    end
     
     -- Merge addon status
     if source.addonStatus then
@@ -529,11 +562,37 @@ function ProfilesService:MergeProfileData(target, source)
     end
     
     -- Merge dungeon scores - keep best scores per dungeon
+    -- CRITICAL FIX: RaiderIO scores should ALWAYS merge (even if 0), because:
+    --   1. RaiderIO is processed AFTER LibOpenRaid (more authoritative)
+    --   2. RaiderIO 0 means "legitimate no runs" not "no data"
+    --   3. LibOpenRaid provides estimated scores that should be overwritten by RaiderIO
     if source.dungeonScores then
         for dungeonID, scoreData in pairs(source.dungeonScores) do
+            local sourceScore = scoreData.bestScore or 0
             local existing = target.dungeonScores[dungeonID]
-            if not existing or (scoreData.bestScore or 0) > (existing.bestScore or 0) then
-                target.dungeonScores[dungeonID] = scoreData
+            local existingScore = existing and (existing.bestScore or 0) or 0
+            
+            -- CRITICAL: RaiderIO data ALWAYS overwrites (even if 0)
+            local isRaiderIOData = source.dataSource == "raiderio"
+            
+            -- For non-RaiderIO sources, skip zero scores to prevent LibOpenRaid 0s from overwriting real data
+            if sourceScore > 0 or isRaiderIOData then
+                -- Only update if source score is better OR it's RaiderIO (authoritative)
+                if sourceScore > existingScore or isRaiderIOData then
+                    target.dungeonScores[dungeonID] = scoreData
+                    
+                    if NextKey222.Debug then
+                        NextKey222.Debug:Dev("profiles", string.format("Merged dungeon %d score: %d (from %s) %s previous %d",
+                            dungeonID, sourceScore, source.dataSource or "unknown",
+                            isRaiderIOData and "(RaiderIO override)" or ">", existingScore))
+                    end
+                end
+            else
+                -- Log when we skip a zero score from non-RaiderIO sources
+                if NextKey222.Debug and source.dataSource then
+                    NextKey222.Debug:Dev("profiles", string.format("Skipped dungeon %d with score=0 from %s (target has %d)",
+                        dungeonID, source.dataSource, target.dungeonScores[dungeonID] and (target.dungeonScores[dungeonID].bestScore or 0) or 0))
+                end
             end
         end
     end
@@ -818,8 +877,11 @@ function ProfilesService:FinalizeProfile(profile)
                 role = specRole
                 specName = name
                 
+                -- CRITICAL: Actually set profile.role here, not later
+                profile.role = role
+                
                 if NextKey222.Debug then
-                    NextKey222.Debug:Dev("profiles", string.format("GetSpecializationInfoByID(%d) returned: specName=%s, role=%s",
+                    NextKey222.Debug:Dev("profiles", string.format("GetSpecializationInfoByID(%d) returned: specName=%s, role=%s -> profile.role SET",
                         profile.specID, specName or "nil", role or "nil"))
                 end
             else
@@ -828,15 +890,6 @@ function ProfilesService:FinalizeProfile(profile)
                     NextKey222.Debug:Dev("profiles", string.format("GetSpecializationInfoByID(%d) returned INVALID role: %s (expected TANK/HEALER/DAMAGER)",
                         profile.specID, tostring(specRole)))
                 end
-            end
-        end
-        
-        -- ALWAYS use spec-based role if we got a valid one (overwrite any existing role)
-        if role then
-            profile.role = role
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", string.format("ROLE SET from specID %d: %s -> profile.role = %s",
-                    profile.specID, role, profile.role))
             end
         end
         

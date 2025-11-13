@@ -196,7 +196,9 @@ function Events:CaptureCurrentCharacterData(retryOnFailure)
         characterData.specializations = {}  -- NEW: Store full spec list for UI
         
         -- Get all specs for the current class
-        local numSpecs = GetNumSpecializationsForClassID and GetNumSpecializationsForClassID(select(3, UnitClass("player"))) or GetNumSpecializations()
+        -- Use C_SpecializationInfo API (modern) with fallback to legacy API
+        local classID = select(3, UnitClass("player"))
+        local numSpecs = C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID(classID) or GetNumSpecializations()
         
         if numSpecs and numSpecs > 0 then
             NextKey222.Debug:Dev("events", "Character has", numSpecs, "specializations")

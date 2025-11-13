@@ -181,4 +181,6 @@ SlashCmdList["TESTIOTOOLTIPS"] = function(msg)
     TestIOTooltips()
 end
 
-print("|cffFFFF00IO Tooltip Test Script loaded. Use /testiotooltips to test.|r")
+if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+    print("|cffFFFF00IO Tooltip Test Script loaded. Use /testiotooltips to test.|r")
+end

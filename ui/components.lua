@@ -1348,7 +1348,7 @@ function Components:AttachItemTooltip(frame, itemID)
     
     -- Phase 7: Use centralized tooltip system if available
     if NextKey222.Tooltip then
-        local itemName, itemLink, itemQuality = GetItemInfo(itemID)
+        local itemName, itemLink, itemQuality = C_Item.GetItemInfo(itemID)
         local tooltipData = {
             frame = frame,
             name = itemName or "Unknown Item",

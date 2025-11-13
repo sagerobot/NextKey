@@ -102,7 +102,11 @@
         "UIDropDownMenu_SetButtonWidth",
         "UIDropDownMenu_JustifyText",
         "StaticPopupDialogs",
-        "StaticPopup_Show"
+        "StaticPopup_Show",
+        "ChatFrame_SendTell",
+        "InspectFrame",
+        "TalentUtil",
+        "TalentButtonUtil"
     ],
     "Lua.type.weakUnionCheck": true,
     "Lua.diagnostics.disable": [

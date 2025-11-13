@@ -288,41 +288,63 @@ function NextKey:ScanPlayerKeystone()
                 timestamp = GetUtils().currentTime()
             }
         else
-            print("NextKey DEBUG: Modern API failed - mapID or level invalid")
+            if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+                print("NextKey DEBUG: Modern API failed - mapID or level invalid")
+            end
         end
     else
-        print("NextKey DEBUG: C_MythicPlus not available")
+        if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+            print("NextKey DEBUG: C_MythicPlus not available")
+        end
     end
 
     -- If the modern API fails, fall back to scanning bags manually
-    print("NextKey DEBUG: Modern API failed, scanning bags.")
+    if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+        print("NextKey DEBUG: Modern API failed, scanning bags.")
+    end
     
     if C_Container and C_MythicPlus and C_MythicPlus.IsMythicPlusKeystone then
-        print("NextKey DEBUG: All bag scan APIs available")
+        if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+            print("NextKey DEBUG: All bag scan APIs available")
+        end
         local itemsFound = 0
         for bag = 0, NUM_BAG_SLOTS do
             local slots = C_Container.GetContainerNumSlots(bag)
-            print("NextKey DEBUG: Scanning bag", bag, "with", slots or 0, "slots")
+            if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+                print("NextKey DEBUG: Scanning bag", bag, "with", slots or 0, "slots")
+            end
             for slot = 1, slots do
                 local info = C_Container.GetContainerItemInfo(bag, slot)
                 if info and info.itemID then
                     itemsFound = itemsFound + 1
-                    print("NextKey DEBUG: Found item", info.itemID, "checking if keystone")
+                    if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+                        print("NextKey DEBUG: Found item", info.itemID, "checking if keystone")
+                    end
                     if C_MythicPlus.IsMythicPlusKeystone(info.itemID) then
-                        print("NextKey DEBUG: Found potential keystone in bags, itemID:", info.itemID)
+                        if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+                            print("NextKey DEBUG: Found potential keystone in bags, itemID:", info.itemID)
+                        end
                         if info.hyperlink then
-                            print("NextKey DEBUG: Keystone has hyperlink, getting info")
+                            if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+                                print("NextKey DEBUG: Keystone has hyperlink, getting info")
+                            end
                             -- Try to get keystone info from the item
                             local keystoneMapID, keystoneLevel = C_ChallengeMode.GetKeystoneInfo(info.hyperlink)
-                            print("NextKey DEBUG: GetKeystoneInfo returned mapID:", keystoneMapID or "nil", "level:", keystoneLevel or "nil")
+                            if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+                                print("NextKey DEBUG: GetKeystoneInfo returned mapID:", keystoneMapID or "nil", "level:", keystoneLevel or "nil")
+                            end
                             if keystoneMapID and keystoneMapID ~= 0 and keystoneLevel and keystoneLevel > 0 then
-                                print("NextKey DEBUG: Keystone confirmed from bags")
+                                if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+                                    print("NextKey DEBUG: Keystone confirmed from bags")
+                                end
                                 mapID = keystoneMapID
                                 level = keystoneLevel
                                 break
                             end
                         else
-                            print("NextKey DEBUG: Keystone has no hyperlink")
+                            if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+                                print("NextKey DEBUG: Keystone has no hyperlink")
+                            end
                         end
                     end
                 end
@@ -331,19 +353,27 @@ function NextKey:ScanPlayerKeystone()
                 break
             end
         end
-        print("NextKey DEBUG: Bag scan complete, found", itemsFound, "items total")
+        if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+            print("NextKey DEBUG: Bag scan complete, found", itemsFound, "items total")
+        end
     else
-        print("NextKey DEBUG: Missing bag scan APIs - C_Container:", C_Container and "yes" or "no", 
-              "C_MythicPlus:", C_MythicPlus and "yes" or "no", 
-              "IsMythicPlusKeystone:", C_MythicPlus and C_MythicPlus.IsMythicPlusKeystone and "yes" or "no")
+        if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+            print("NextKey DEBUG: Missing bag scan APIs - C_Container:", C_Container and "yes" or "no",
+                  "C_MythicPlus:", C_MythicPlus and "yes" or "no",
+                  "IsMythicPlusKeystone:", C_MythicPlus and C_MythicPlus.IsMythicPlusKeystone and "yes" or "no")
+        end
     end
 
     if not mapID or mapID == 0 then
-        print("NextKey DEBUG: No key found after all checks.")
+        if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+            print("NextKey DEBUG: No key found after all checks.")
+        end
         return nil
     end
 
-    print(string.format("NextKey DEBUG: Found key %s, Level %d", self:GetDungeonName(mapID), level or 0))
+    if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
+        print(string.format("NextKey DEBUG: Found key %s, Level %d", self:GetDungeonName(mapID), level or 0))
+    end
 
     local owner = self.playerFullName or GetUtils().safeGetName("player")
     local class = self.playerClass ~= "" and self.playerClass or GetUtils().safeGetClass("player") or ""

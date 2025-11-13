@@ -9,15 +9,16 @@ local _, NextKey222 = ...
 local IDMappings = {
     -- Canonical NextKey Dungeon IDs -> Other Systems
     -- Format: [nextKeyDungeonID] = { challengeMapID, raiderIOID, keystoneID, blizzardMapID }
-    [503] = { challengeMapID = 503, raiderIOID = 503, keystoneID = 503, blizzardMapID = 503 },  -- Ara-Kara, City of Echoes
-    [505] = { challengeMapID = 524, raiderIOID = 542, keystoneID = 542, blizzardMapID = 524 },  -- The Dawnbreaker
-    [542] = { challengeMapID = 526, raiderIOID = 542, keystoneID = 542, blizzardMapID = 526 },  -- Eco-Dome Al'dani  
-    [378] = { challengeMapID = 377, raiderIOID = 378, keystoneID = 378, blizzardMapID = 377 },  -- Halls of Atonement
-    [525] = { challengeMapID = 525, raiderIOID = 525, keystoneID = 525, blizzardMapID = 525 },  -- Operation: Floodgate
-    [499] = { challengeMapID = 523, raiderIOID = 499, keystoneID = 499, blizzardMapID = 523 },  -- Priory of the Sacred Flame
-    [391] = { challengeMapID = 401, raiderIOID = 391, keystoneID = 391, blizzardMapID = 401 },  -- Tazavesh: Streets of Wonder
-    [392] = { challengeMapID = 402, raiderIOID = 392, keystoneID = 392, blizzardMapID = 402 },  -- Tazavesh: So'leah's Gambit
-    [2441] = { challengeMapID = 402, raiderIOID = 392, keystoneID = 2441, blizzardMapID = 402 }, -- So'leah's Gambit (keystone form)
+    -- CRITICAL: RaiderIO IDs are from actual RaiderIO addon data (verified from debug logs)
+    -- Blizzard challenge map IDs from C_ChallengeMode.GetMapTable(): 499, 542, 378, 525, 503, 392, 391, 505
+    [503] = { challengeMapID = 503, raiderIOID = 15093, keystoneID = 503, blizzardMapID = 503 },  -- Ara-Kara (ARAK)
+    [505] = { challengeMapID = 505, raiderIOID = 14971, keystoneID = 505, blizzardMapID = 505 },  -- The Dawnbreaker (DAWN)
+    [542] = { challengeMapID = 542, raiderIOID = 16104, keystoneID = 542, blizzardMapID = 542 },  -- Eco-Dome Al'dani (EDA)
+    [378] = { challengeMapID = 378, raiderIOID = 12831, keystoneID = 378, blizzardMapID = 378 },  -- Halls of Atonement (HOA)
+    [525] = { challengeMapID = 525, raiderIOID = 15452, keystoneID = 525, blizzardMapID = 525 },  -- Operation: Floodgate (FLOOD)
+    [499] = { challengeMapID = 499, raiderIOID = 14954, keystoneID = 499, blizzardMapID = 499 },  -- Priory of the Sacred Flame (PSF)
+    [391] = { challengeMapID = 391, raiderIOID = 1000000, keystoneID = 391, blizzardMapID = 391 },  -- Tazavesh: Streets (STRT)
+    [392] = { challengeMapID = 392, raiderIOID = 1000001, keystoneID = 392, blizzardMapID = 392 },  -- Tazavesh: So'leah's Gambit (GMBT)
 }
 
 -- Reverse lookup tables (built dynamically)
@@ -132,7 +133,8 @@ function IDMapper:GetActiveSeasonDungeonIDs()
             end
         else
             -- Ultimate fallback - hardcoded current season (TWW S3)
-            dungeonIDs = { 503, 524, 526, 377, 525, 523, 401, 402 }
+            -- Using correct Blizzard challenge map IDs: 499, 542, 378, 525, 503, 392, 391, 505
+            dungeonIDs = { 503, 505, 542, 378, 525, 499, 391, 392 }
         end
     end
     
