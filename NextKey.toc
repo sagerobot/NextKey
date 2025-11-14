@@ -77,7 +77,28 @@ core\adapters\debug.lua
 core\adapters\blizzard.lua
 core\adapters\libopenraid.lua
 core\adapters\raiderio.lua
+
+# Domain-Specific Utilities (Phase 1 Refactor - load before utils.lua shim)
+core\utils\time.lua
+core\utils\player.lua
+core\utils\communication.lua
+core\utils\dungeon.lua
+core\utils\item.lua
+core\utils\scoring.lua
+
+# Backward Compatibility Shim (forwards to domain-specific utils)
 core\utils.lua
+
+# Sorting System (Phase 2 Refactor - must load before UI)
+core\sorting\main.lua
+core\sorting\algorithms\byKeyLevel.lua
+core\sorting\algorithms\byKeyLevelAsc.lua
+core\sorting\algorithms\byIOGain.lua
+core\sorting\algorithms\bySmartSort.lua
+core\sorting\algorithms\byMaxGroupIO.lua
+core\sorting\algorithms\byPlayerCoverage.lua
+core\sorting\algorithms\byItemNeed.lua
+
 core\season.lua
 core\libopenraid.lua
 core\ioCalculator.lua

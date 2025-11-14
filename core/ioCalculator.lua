@@ -552,249 +552,19 @@ function IOCalculator:GetPlayerDungeonScore(playerName, dungeonID)
         -- Return cached result from this refresh cycle
         return self.scoreLookupCache[cacheKey]
     end
-
-    local function getScoreFromProfile(targetPlayer, targetDungeonID)
-        if not NextKey222.ProfilesService or not NextKey222.ProfilesService.GetProfile then
-            return nil
-        end
-
-        local profile = NextKey222.ProfilesService:GetProfile(targetPlayer)
-        if not profile or not profile.dungeonScores then
-            return nil
-        end
-
-        local function resolveScore(scoreEntry)
-            if not scoreEntry then return nil end
-            return scoreEntry.bestScore or scoreEntry.score or scoreEntry.current or nil
-        end
-
-        -- Direct lookup using canonical NextKey ID
-        local scoreData = profile.dungeonScores[targetDungeonID]
-        local resolved = resolveScore(scoreData)
-        if resolved and resolved > 0 then
-            return resolved
-        end
-
-        -- Try alternate identifiers for robustness (keystone/challenge IDs)
-        if NextKey222.IDMapper then
-            local mapping = NextKey222.IDMapper:GetMappingInfo(targetDungeonID)
-            if mapping then
-                local alternatives = {
-                    mapping.challengeMapID,
-                    mapping.keystoneID,
-                    mapping.raiderIOID,
-                    mapping.blizzardMapID
-                }
-                for _, altID in ipairs(alternatives) do
-                    if altID and profile.dungeonScores[altID] then
-                        local altResolved = resolveScore(profile.dungeonScores[altID])
-                        if altResolved and altResolved > 0 then
-                            return altResolved
-                        end
-                    end
-                end
-            end
-        end
-
-        return resolved
-    end
-
-    -- Primary source: ProfilesService (handles real and fake players)
-    local profileScore = getScoreFromProfile(playerName, dungeonID)
-    if profileScore and profileScore > 0 then
-        NextKey222.Debug:Dev("IOCalculator", "Profile service score for", playerName, "dungeon", dungeonID .. ":", profileScore)
-        self.scoreLookupCache[cacheKey] = profileScore
-        return profileScore
-    end
     
-    -- BUGFIX: Direct RaiderIO fallback if ProfilesService returned zero
-    -- This handles the case where LibOpenRaid merged first with io=0
-    if not playerName:match("^FakePlayer") and NextKey222.RaiderIOAdapter then
-        if NextKey222.RaiderIOAdapter:HasPlayerData(playerName) then
-            NextKey222.Debug:Dev("IOCalculator", "ProfilesService returned 0, checking RaiderIO fallback for", playerName, "dungeon", dungeonID)
-            
-            local profile = NextKey222.RaiderIOAdapter:GetProfile(playerName)
-            if profile and profile.dungeonScores and profile.dungeonScores[dungeonID] then
-                local dungeonScore = profile.dungeonScores[dungeonID].bestScore or 0
-                if dungeonScore > 0 then
-                    NextKey222.Debug:Dev("IOCalculator", "RaiderIO fallback found score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
-                    self.scoreLookupCache[cacheKey] = dungeonScore
-                    return dungeonScore
-                end
-            else
-                NextKey222.Debug:Dev("IOCalculator", "RaiderIO fallback: no score found for", playerName, "dungeon", dungeonID)
-            end
-        end
-    end
-
-    -- Check if this is the current player
-    local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
-    local isCurrentPlayer = (playerName == currentPlayer) or 
-                          (playerName:match("^([^%-]+)") == UnitName("player"))
-    
-    -- For current player, use the same reliable method as the UI
-    if isCurrentPlayer and NextKey222.UI then
-        local currentScore = NextKey222.UI:GetDungeonScore(dungeonID)
-        NextKey222.Debug:Dev("IOCalculator", "Current player", playerName, "dungeon", dungeonID, "score via UI method:", currentScore)
-        if currentScore and currentScore > 0 then
-            return currentScore
-        end
-    end
-    
-    -- First priority: Check shared IO data from communications
-    NextKey222.Debug:Dev("IOCalculator", "Checking Communications for", playerName, "dungeon", dungeonID)
-    if NextKey222.Communications then
-        local hasData = NextKey222.Communications:HasIODataForPlayer(playerName)
-        NextKey222.Debug:Dev("IOCalculator", "Communications HasIODataForPlayer(", playerName .. "):", hasData)
-        
-        if hasData then
-            local score = NextKey222.Communications:GetPlayerDungeonScore(playerName, dungeonID)
-            NextKey222.Debug:Dev("IOCalculator", "Communications GetPlayerDungeonScore returned:", score)
-            
-            -- Debug: Show what dungeons are in the Communications cache for Ryuza
-            if playerName:match("Ryuza") then
-                NextKey222.Debug:Dev("IOCalculator", "Dungeons in Communications cache for", playerName .. ":")
-                local playerData = NextKey222.Communications.playerIOCache[playerName]
-                if playerData and playerData.dungeons then
-                    local dungeonCount = 0
-                    for dungID, scoreData in pairs(playerData.dungeons) do
-                        NextKey222.Debug:Dev("IOCalculator", "  Dungeon", dungID .. ":", scoreData.score or "no score")
-                        dungeonCount = dungeonCount + 1
-                    end
-                    NextKey222.Debug:Dev("IOCalculator", "Total dungeons in cache:", dungeonCount)
-                else
-                    NextKey222.Debug:Dev("IOCalculator", "No dungeon data found in cache")
-                end
-            end
-            
-            NextKey222.Debug:Dev("IOCalculator", "Shared IO score for", playerName, "dungeon", dungeonID .. ":", score)
-            return score
-        else
-            -- Debug: Check what's in the cache
-            if NextKey222.Communications.playerIOCache then
-                local cacheCount = 0
-                NextKey222.Debug:Dev("IOCalculator", "Communications cache contents:")
-                for cacheName, _ in pairs(NextKey222.Communications.playerIOCache) do
-                    cacheCount = cacheCount + 1
-                    NextKey222.Debug:Dev("IOCalculator", "  Cache has:", cacheName)
-                end
-                NextKey222.Debug:Dev("IOCalculator", "Total cache entries:", cacheCount)
-            end
-        end
-    end
-    
-    -- Second priority: Check RaiderIO data for real players without NextKey
-    if not playerName:match("^FakePlayer") and NextKey222.RaiderIOAdapter then
-        if NextKey222.RaiderIOAdapter:HasPlayerData(playerName) then
-            NextKey222.Debug:Dev("IOCalculator", "Checking RaiderIO for", playerName, "dungeon", dungeonID)
-            
-            -- Get profile and extract dungeon score
-            local profile = NextKey222.RaiderIOAdapter:GetProfile(playerName)
-            if profile and profile.dungeonScores and profile.dungeonScores[dungeonID] then
-                local dungeonScore = profile.dungeonScores[dungeonID].bestScore or 0
-                NextKey222.Debug:Dev("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
-                NextKey222.Debug:Dev("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
-                return dungeonScore
-            else
-                NextKey222.Debug:Dev("IOCalculator", "No RaiderIO score found for", playerName, "dungeon", dungeonID)
-            end
-        else
-            NextKey222.Debug:Dev("IOCalculator", "No RaiderIO data available for", playerName)
-        end
-    end
-    
-    -- Third priority: Check fake players through legacy method
-    NextKey222.Debug:Dev("IOCalculator", "Checking fake player data for", playerName)
-    NextKey222.Debug:Dev("IOCalculator", "NextKey222.Addon.UI exists:", NextKey222.Addon.UI and "yes" or "no")
-    
-    local fakePlayerData = NextKey222.Addon.UI and NextKey222.Addon.UI:GetFakePlayerData(playerName)
-    NextKey222.Debug:Dev("IOCalculator", "GetFakePlayerData returned:", fakePlayerData and "data found" or "nil")
-    
-    if fakePlayerData then
-        NextKey222.Debug:Dev("IOCalculator", "fakePlayerData.best exists:", fakePlayerData.best and "yes" or "no")
-        if fakePlayerData.best then
-            NextKey222.Debug:Dev("IOCalculator", "Fake player dungeons available:", table.concat(self:GetKeys(fakePlayerData.best), ", "))
-        end
-    end
-    
-    if fakePlayerData and fakePlayerData.best then
-        -- Debug ID mapping for fake players
-        if dungeonID == 2441 or dungeonID == 402 or dungeonID == 391 or dungeonID == 392 then
-            NextKey222.Debug:Dev("IOCalculator", "ID mapping check for", playerName, "looking for dungeonID:", dungeonID)
-            NextKey222.Debug:Dev("IOCalculator", "Fake player has dungeons:", table.concat(self:GetKeys(fakePlayerData.best), ", "))
-        end
-        
-        if fakePlayerData.best[dungeonID] then
-            return fakePlayerData.best[dungeonID].score or 0
-        end
-        
-        -- Try alternative IDs for So'leah's Gambit mapping (392 and 2441 are the same dungeon)
-        if dungeonID == 2441 then
-            -- Try the M+ challenge map ID for So'leah's Gambit
-            if fakePlayerData.best[392] then
-                NextKey222.Debug:Dev("IOCalculator", "Found alternative ID 392 (So'leah's Gambit) for", playerName)
-                return fakePlayerData.best[392].score or 0
-            end
-        elseif dungeonID == 392 then
-            -- Try the keystone form ID for So'leah's Gambit  
-            if fakePlayerData.best[2441] then
-                NextKey222.Debug:Dev("IOCalculator", "Found alternative ID 2441 (So'leah's Gambit keystone) for", playerName)
-                return fakePlayerData.best[2441].score or 0
-            end
-        end
-        
-        -- Note: Streets of Wonder (391) is a separate dungeon, no cross-mapping with So'leah's Gambit
-    end
-    
-    -- Fourth priority: Check stored real player scores (legacy)
-    if self.playerScores[playerName] and self.playerScores[playerName][dungeonID] then
-        local storedScore = self.playerScores[playerName][dungeonID].score or 0
-        if storedScore > 0 then
-            return storedScore
-        end
-    end
-
-    -- Fifth priority: For current player, get live score if no stored data
-    local currentPlayerName = UnitName("player")
-    local isCurrentPlayer = (playerName == currentPlayerName) or 
-                          (playerName:match("^([^%-]+)") == currentPlayerName)
-    
-    -- Debug current player lookup
-    if playerName == "Ryuza-Dalaran" or playerName:match("^Ryuza") then
-        NextKey222.Debug:Dev("IOCalculator", "Current player check:", playerName, "vs", currentPlayerName, "isCurrentPlayer:", isCurrentPlayer)
-    end
-    
-    if isCurrentPlayer and NextKey222.Addon.UI then
-        local liveScore = NextKey222.Addon.UI:GetRaiderIODungeonScore(dungeonID)
-        NextKey222.Debug:Dev("IOCalculator", "Live score for", playerName, "dungeon", dungeonID .. ":", liveScore or "nil")
-        if liveScore and liveScore > 0 then
-            -- Store it for future use
-            self:StorePlayerDungeonScore(playerName, dungeonID, liveScore)
-            return liveScore
-        end
-    end
-    
-    -- Store result in memoization cache for this refresh cycle
-    -- Note: The actual result is determined by the logic above this point
-    -- We need to capture the final result before caching
-    local finalResult = 0 -- This will be replaced by the actual logic flow
-    
-    -- The actual result is determined by the various lookup methods above
-    -- We need to modify each return statement to also cache the result
-    
-    -- For now, we'll implement a simpler approach by wrapping the entire function
-    -- This is a temporary fix - in a full refactor, we'd modify each return path
-    if not self.scoreLookupCache[cacheKey] then
-        -- Call the original logic (we'll refactor this properly in the future)
-        local originalResult = self:_GetPlayerDungeonScore_Original(playerName, dungeonID)
-        self.scoreLookupCache[cacheKey] = originalResult
-    end
-    
-    return self.scoreLookupCache[cacheKey]
+    -- Call internal implementation and cache the result
+    local result = self:_GetPlayerDungeonScore_Internal(playerName, dungeonID)
+    self.scoreLookupCache[cacheKey] = result
+    return result
 end
 
--- PHASE 2: Backup of original function for memoization wrapper
-function IOCalculator:_GetPlayerDungeonScore_Original(playerName, dungeonID)
+--- Internal implementation of dungeon score lookup (without memoization).
+--- This function contains the actual lookup logic across all data sources.
+---@param playerName string The name of the player.
+---@param dungeonID number The ID of the dungeon.
+---@return number|nil The player's score for the dungeon, or nil if not found.
+function IOCalculator:_GetPlayerDungeonScore_Internal(playerName, dungeonID)
     if not playerName or not dungeonID then
         return 0
     end
@@ -918,6 +688,218 @@ function IOCalculator:_GetPlayerDungeonScore_Original(playerName, dungeonID)
             if profile and profile.dungeonScores and profile.dungeonScores[dungeonID] then
                 local dungeonScore = profile.dungeonScores[dungeonID].bestScore or 0
                 NextKey222.Debug:Dev("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
+                NextKey222.Debug:Dev("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
+                return dungeonScore
+            else
+                NextKey222.Debug:Dev("IOCalculator", "No RaiderIO score found for", playerName, "dungeon", dungeonID)
+            end
+        else
+            NextKey222.Debug:Dev("IOCalculator", "No RaiderIO data available for", playerName)
+        end
+    end
+    
+    -- Third priority: Check fake players through legacy method
+    NextKey222.Debug:Dev("IOCalculator", "Checking fake player data for", playerName)
+    NextKey222.Debug:Dev("IOCalculator", "NextKey222.Addon.UI exists:", NextKey222.Addon.UI and "yes" or "no")
+    
+    local fakePlayerData = NextKey222.Addon.UI and NextKey222.Addon.UI:GetFakePlayerData(playerName)
+    NextKey222.Debug:Dev("IOCalculator", "GetFakePlayerData returned:", fakePlayerData and "data found" or "nil")
+    
+    if fakePlayerData then
+        NextKey222.Debug:Dev("IOCalculator", "fakePlayerData.best exists:", fakePlayerData.best and "yes" or "no")
+        if fakePlayerData.best then
+            NextKey222.Debug:Dev("IOCalculator", "Fake player dungeons available:", table.concat(self:GetKeys(fakePlayerData.best), ", "))
+        end
+    end
+    
+    if fakePlayerData and fakePlayerData.best then
+        -- Debug ID mapping for fake players
+        if dungeonID == 2441 or dungeonID == 402 or dungeonID == 391 or dungeonID == 392 then
+            NextKey222.Debug:Dev("IOCalculator", "ID mapping check for", playerName, "looking for dungeonID:", dungeonID)
+            NextKey222.Debug:Dev("IOCalculator", "Fake player has dungeons:", table.concat(self:GetKeys(fakePlayerData.best), ", "))
+        end
+        
+        if fakePlayerData.best[dungeonID] then
+            return fakePlayerData.best[dungeonID].score or 0
+        end
+        
+        -- Try alternative IDs for So'leah's Gambit mapping (392 and 2441 are the same dungeon)
+        if dungeonID == 2441 then
+            -- Try the M+ challenge map ID for So'leah's Gambit
+            if fakePlayerData.best[392] then
+                NextKey222.Debug:Dev("IOCalculator", "Found alternative ID 392 (So'leah's Gambit) for", playerName)
+                return fakePlayerData.best[392].score or 0
+            end
+        elseif dungeonID == 392 then
+            -- Try the keystone form ID for So'leah's Gambit
+            if fakePlayerData.best[2441] then
+                NextKey222.Debug:Dev("IOCalculator", "Found alternative ID 2441 (So'leah's Gambit keystone) for", playerName)
+                return fakePlayerData.best[2441].score or 0
+            end
+        end
+        
+        -- Note: Streets of Wonder (391) is a separate dungeon, no cross-mapping with So'leah's Gambit
+    end
+    
+    -- Fourth priority: Check stored real player scores (legacy)
+    if self.playerScores[playerName] and self.playerScores[playerName][dungeonID] then
+        local storedScore = self.playerScores[playerName][dungeonID].score or 0
+        if storedScore > 0 then
+            return storedScore
+        end
+    end
+
+    -- Fifth priority: For current player, get live score if no stored data
+    local currentPlayerName = UnitName("player")
+    local isCurrentPlayer = (playerName == currentPlayerName) or
+                          (playerName:match("^([^%-]+)") == currentPlayerName)
+    
+    -- Debug current player lookup
+    if playerName == "Ryuza-Dalaran" or playerName:match("^Ryuza") then
+        NextKey222.Debug:Dev("IOCalculator", "Current player check:", playerName, "vs", currentPlayerName, "isCurrentPlayer:", isCurrentPlayer)
+    end
+    
+    if isCurrentPlayer and NextKey222.Addon.UI then
+        local liveScore = NextKey222.Addon.UI:GetRaiderIODungeonScore(dungeonID)
+        NextKey222.Debug:Dev("IOCalculator", "Live score for", playerName, "dungeon", dungeonID .. ":", liveScore or "nil")
+        if liveScore and liveScore > 0 then
+            -- Store it for future use
+            self:StorePlayerDungeonScore(playerName, dungeonID, liveScore)
+            return liveScore
+        end
+    end
+    
+    return 0
+end
+
+--- Internal implementation of dungeon score lookup (without memoization).
+--- This function contains the actual lookup logic across all data sources.
+---@param playerName string The name of the player.
+---@param dungeonID number The ID of the dungeon.
+---@return number|nil The player's score for the dungeon, or nil if not found.
+function IOCalculator:_GetPlayerDungeonScore_Internal(playerName, dungeonID)
+    if not playerName or not dungeonID then
+        return 0
+    end
+
+    local function getScoreFromProfile(targetPlayer, targetDungeonID)
+        if not NextKey222.ProfilesService or not NextKey222.ProfilesService.GetProfile then
+            return nil
+        end
+
+        local profile = NextKey222.ProfilesService:GetProfile(targetPlayer)
+        if not profile or not profile.dungeonScores then
+            return nil
+        end
+
+        local function resolveScore(scoreEntry)
+            if not scoreEntry then return nil end
+            return scoreEntry.bestScore or scoreEntry.score or scoreEntry.current or nil
+        end
+
+        -- Direct lookup using canonical NextKey ID
+        local scoreData = profile.dungeonScores[targetDungeonID]
+        local resolved = resolveScore(scoreData)
+        if resolved and resolved > 0 then
+            return resolved
+        end
+
+        -- Try alternate identifiers for robustness (keystone/challenge IDs)
+        if NextKey222.IDMapper then
+            local mapping = NextKey222.IDMapper:GetMappingInfo(targetDungeonID)
+            if mapping then
+                local alternatives = {
+                    mapping.challengeMapID,
+                    mapping.keystoneID,
+                    mapping.raiderIOID,
+                    mapping.blizzardMapID
+                }
+                for _, altID in ipairs(alternatives) do
+                    if altID and profile.dungeonScores[altID] then
+                        local altResolved = resolveScore(profile.dungeonScores[altID])
+                        if altResolved and altResolved > 0 then
+                            return altResolved
+                        end
+                    end
+                end
+            end
+        end
+
+        return resolved
+    end
+
+    -- Primary source: ProfilesService (handles real and fake players)
+    local profileScore = getScoreFromProfile(playerName, dungeonID)
+    if profileScore and profileScore > 0 then
+        NextKey222.Debug:Dev("IOCalculator", "Profile service score for", playerName, "dungeon", dungeonID .. ":", profileScore)
+        return profileScore
+    end
+
+    -- Check if this is the current player
+    local currentPlayer = UnitName("player") .. "-" .. GetRealmName()
+    local isCurrentPlayer = (playerName == currentPlayer) or
+                          (playerName:match("^([^%-]+)") == UnitName("player"))
+    
+    -- For current player, use the same reliable method as the UI
+    if isCurrentPlayer and NextKey222.UI then
+        local currentScore = NextKey222.UI:GetDungeonScore(dungeonID)
+        NextKey222.Debug:Dev("IOCalculator", "Current player", playerName, "dungeon", dungeonID, "score via UI method:", currentScore)
+        if currentScore and currentScore > 0 then
+            return currentScore
+        end
+    end
+    
+    -- First priority: Check shared IO data from communications
+    NextKey222.Debug:Dev("IOCalculator", "Checking Communications for", playerName, "dungeon", dungeonID)
+    if NextKey222.Communications then
+        local hasData = NextKey222.Communications:HasIODataForPlayer(playerName)
+        NextKey222.Debug:Dev("IOCalculator", "Communications HasIODataForPlayer(", playerName .. "):", hasData)
+        
+        if hasData then
+            local score = NextKey222.Communications:GetPlayerDungeonScore(playerName, dungeonID)
+            NextKey222.Debug:Dev("IOCalculator", "Communications GetPlayerDungeonScore returned:", score)
+            
+            -- Debug: Show what dungeons are in the Communications cache for Ryuza
+            if playerName:match("Ryuza") then
+                NextKey222.Debug:Dev("IOCalculator", "Dungeons in Communications cache for", playerName .. ":")
+                local playerData = NextKey222.Communications.playerIOCache[playerName]
+                if playerData and playerData.dungeons then
+                    local dungeonCount = 0
+                    for dungID, scoreData in pairs(playerData.dungeons) do
+                        NextKey222.Debug:Dev("IOCalculator", "  Dungeon", dungID .. ":", scoreData.score or "no score")
+                        dungeonCount = dungeonCount + 1
+                    end
+                    NextKey222.Debug:Dev("IOCalculator", "Total dungeons in cache:", dungeonCount)
+                else
+                    NextKey222.Debug:Dev("IOCalculator", "No dungeon data found in cache")
+                end
+            end
+            
+            NextKey222.Debug:Dev("IOCalculator", "Shared IO score for", playerName, "dungeon", dungeonID .. ":", score)
+            return score
+        else
+            -- Debug: Check what's in the cache
+            if NextKey222.Communications.playerIOCache then
+                local cacheCount = 0
+                NextKey222.Debug:Dev("IOCalculator", "Communications cache contents:")
+                for cacheName, _ in pairs(NextKey222.Communications.playerIOCache) do
+                    cacheCount = cacheCount + 1
+                    NextKey222.Debug:Dev("IOCalculator", "  Cache has:", cacheName)
+                end
+                NextKey222.Debug:Dev("IOCalculator", "Total cache entries:", cacheCount)
+            end
+        end
+    end
+    
+    -- Second priority: Check RaiderIO data for real players without NextKey
+    if not playerName:match("^FakePlayer") and NextKey222.RaiderIOAdapter then
+        if NextKey222.RaiderIOAdapter:HasPlayerData(playerName) then
+            NextKey222.Debug:Dev("IOCalculator", "Checking RaiderIO for", playerName, "dungeon", dungeonID)
+            
+            -- Get profile and extract dungeon score
+            local profile = NextKey222.RaiderIOAdapter:GetProfile(playerName)
+            if profile and profile.dungeonScores and profile.dungeonScores[dungeonID] then
+                local dungeonScore = profile.dungeonScores[dungeonID].bestScore or 0
                 NextKey222.Debug:Dev("IOCalculator", "RaiderIO score for", playerName, "dungeon", dungeonID .. ":", dungeonScore)
                 return dungeonScore
             else

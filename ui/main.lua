@@ -868,31 +868,50 @@ end
 -- @param mode string The sorting mode ('level', 'score', 'name', etc.)
 -- @return table Sorted array of keystone entries
 function UI:SortKeys(keys, mode)
-    local sorted = {}
+    -- Wrap keys in entry format
+    local entries = {}
     for _, key in ipairs(keys) do
-        table.insert(sorted, { key = key })
+        table.insert(entries, { key = key })
+    end
+
+    -- Use new Sorting service if available
+    if NextKey222.Sorting and NextKey222.Sorting.SortData then
+        -- For IOGainPotential mode, pre-calculate IO gain ranges
+        if mode == "IOGainPotential" then
+            for _, entry in ipairs(entries) do
+                entry.ioGainRange = self:CalculateIOGainRange(entry.key)
+                entry.ioGainPotential = entry.ioGainRange.expected
+            end
+        end
+        
+        local sorted = NextKey222.Sorting:SortData(entries, mode)
+        return sorted
+    end
+
+    -- Fallback to legacy inline sorting if Sorting service unavailable
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("ui", "Sorting service unavailable, using legacy inline sort")
     end
 
     if mode == "HighestKeyLevel" then
-        table.sort(sorted, function(a, b)
+        table.sort(entries, function(a, b)
             return (a.key.level or 0) > (b.key.level or 0)
         end)
     elseif mode == "LowestKeyLevel" then
-        table.sort(sorted, function(a, b)
+        table.sort(entries, function(a, b)
             return (a.key.level or 0) < (b.key.level or 0)
         end)
     elseif mode == "IOGainPotential" then
-        -- Calculate IO gain range for each key (includes expected value)
-        for _, item in ipairs(sorted) do
+        for _, item in ipairs(entries) do
             item.ioGainRange = self:CalculateIOGainRange(item.key)
-            item.ioGainPotential = item.ioGainRange.expected -- For backward compatibility
+            item.ioGainPotential = item.ioGainRange.expected
         end
-        table.sort(sorted, function(a, b)
+        table.sort(entries, function(a, b)
             return (a.ioGainPotential or 0) > (b.ioGainPotential or 0)
         end)
     end
 
-    return sorted
+    return entries
 end
 
 --- Updates sort dropdown options based on current view mode
@@ -901,11 +920,39 @@ function UI:UpdateSortDropdownOptions()
         return
     end
     
+    -- Use new Sorting service if available
+    if NextKey222.Sorting and NextKey222.Sorting.GetAlgorithmsForContext then
+        local context = self.viewMode == "dungeons" and "DUNGEONS" or "KEYSTONES"
+        local algorithms = NextKey222.Sorting:GetAlgorithmsForContext(context)
+        
+        -- Build dropdown list from registered algorithms
+        local dropdownList = {}
+        local firstAlgorithm = nil
+        for _, algo in ipairs(algorithms) do
+            dropdownList[algo.name] = algo.displayName
+            if not firstAlgorithm then
+                firstAlgorithm = algo.name
+            end
+        end
+        
+        self.sortDropdown:SetList(dropdownList)
+        
+        -- Validate current sort mode is valid for this context
+        local currentSort = self:GetCurrentSortMode()
+        if not dropdownList[currentSort] and firstAlgorithm then
+            self:SetCurrentSortMode(firstAlgorithm)
+            self.sortDropdown:SetValue(firstAlgorithm)
+        end
+        
+        return
+    end
+    
+    -- Fallback to hardcoded lists if Sorting service unavailable
     if self.viewMode == "dungeons" then
         -- Dungeon view: Alphabetical, Highest IO, Lowest IO
         self.sortDropdown:SetList({
             Alphabetical = "Alphabetical",
-            HighestIO = "Highest IO Score", 
+            HighestIO = "Highest IO Score",
             LowestIO = "Lowest IO Score"
         })
         -- Set default sort for dungeons if current sort isn't valid
@@ -915,9 +962,9 @@ function UI:UpdateSortDropdownOptions()
             self.sortDropdown:SetValue("Alphabetical")
         end
     else
-        -- Keystone view: original options
-        self.sortDropdown:SetList({ 
-            HighestKeyLevel = "Highest Key Level", 
+        -- Keystone view: fallback options
+        self.sortDropdown:SetList({
+            HighestKeyLevel = "Highest Key Level",
             LowestKeyLevel = "Lowest Key Level",
             IOGainPotential = "IO Gain Potential"
         })

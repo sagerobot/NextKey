@@ -1,12 +1,74 @@
 # NextKey Current Context
 
 ## Current Status
-**Date**: November 11, 2025
+**Date**: November 14, 2025
 **Version**: 0.6.0
-**Current Phase**: Major UI Architecture Release — Independent Two-Window System, Modular UI Complete
+**Current Phase**: Architectural Refactoring — Phase 2 Complete (Sorting System & Service Module Hardening)
 **Authoritative Note**: This file is the canonical snapshot of the current system state for AI and future contributors.
 
 ## Recent Completions
+
+### 0. Phase 2 Architectural Refactoring ✅ **COMPLETE** (November 14, 2025)
+
+#### Phase 2.1: Pluggable Sorting System ✅ **COMPLETE**
+- Implemented registry-based sorting system in [`core/sorting/main.lua`](core/sorting/main.lua:1)
+- Created 7 modular sorting algorithms:
+  - `core/sorting/algorithms/bySmartSort.lua` - Borda count algorithm (priority 100, default)
+  - `core/sorting/algorithms/byMaxGroupIO.lua` - Maximize total group IO gain (priority 90)
+  - `core/sorting/algorithms/byPlayerCoverage.lua` - Maximize benefiting players (priority 85)
+  - `core/sorting/algorithms/byItemNeed.lua` - Prioritize loot targeting (priority 80)
+  - `core/sorting/algorithms/byKeyLevel.lua` - Sort by highest key level (priority 75)
+  - `core/sorting/algorithms/byKeyLevelAsc.lua` - Sort by lowest key level (priority 70)
+  - `core/sorting/algorithms/byIOGain.lua` - IO gain potential (priority 65)
+- UI Integration:
+  - Updated [`ui/main.lua`](ui/main.lua:917) `UpdateSortDropdownOptions()` to dynamically populate from registry
+  - Dropdown now uses `Sorting:GetAlgorithmsForContext("KEYSTONES")` for automatic population
+  - Context-aware filtering (KEYSTONES, DUNGEONS, ORGANIZER)
+  - Priority-based ordering in dropdown
+- Benefits:
+  - Clean algorithm registration via `RegisterAlgorithm(name, metadata, sortFn)`
+  - Easy to add new sorting modes without modifying core code
+  - Metadata-driven UI integration (displayName, description, priority)
+  - Follows PUG Helper compositional architecture pattern
+  - All 7 algorithms properly registered and ready for testing
+- Files Modified:
+  - [`NextKey.toc`](NextKey.toc:92) - Added 4 new algorithm files to load order
+  - [`ui/main.lua`](ui/main.lua:917) - Dynamic dropdown population
+- **Status**: Implementation complete, ready for in-game testing (Phase 2.5)
+
+#### Phase 2.2-2.3: Service Module Validation
+- Validated IOCalculator, ProfilesService, and Scoring as pure service modules
+- Confirmed compliance with service pattern:
+  - ✅ No UI dependencies (synchronous APIs only)
+  - ✅ One-way dependencies (UI → Services)
+  - ✅ SafeRun wrapped critical operations
+  - ✅ Graceful error handling
+- Created comprehensive analysis: [`Documentation/_Architectural_Audit/08_Service_Module_Analysis.md`](Documentation/_Architectural_Audit/08_Service_Module_Analysis.md:1)
+
+#### Phase 2.4: Service Module Improvements
+**IOCalculator - Removed Duplicate Memoization Logic (206 lines removed)**
+- Before: Duplicate score lookup logic in `GetPlayerDungeonScore()` and `_GetPlayerDungeonScore_Original()`
+- After: Clean memoization wrapper + single internal implementation
+- Impact:
+  - Single source of truth for score lookup
+  - Easier maintenance and testing
+  - 206 lines of duplicate code eliminated
+
+**ProfilesService - Event-Based UI Refresh Pattern**
+- Before: Direct UI calls in `RefreshUIComponents()` created soft UI dependency
+- After: Event announcement via `NEXTKEY_PROFILE_UPDATED` message
+- Impact:
+  - Pure service pattern maintained (zero UI knowledge)
+  - UI modules listen and refresh themselves
+  - Better testability and flexibility
+  - Follows established NextKey event patterns
+
+#### Phase 1 Completions (November 13-14, 2025)
+- Split `core/utils.lua` into domain-specific modules:
+  - `core/utils/time.lua`, `core/utils/player.lua`, `core/utils/communication.lua`
+  - `core/utils/dungeon.lua`, `core/utils/item.lua`, `core/utils/scoring.lua`
+- Namespaced `core/constants.lua` by domain
+- Documented module dependencies in [`Documentation/_Architectural_Audit/07_Module_Dependencies.md`](Documentation/_Architectural_Audit/07_Module_Dependencies.md:1)
 
 ### 1. OrganizerState — Single Source of Truth ✅
 - Implemented [`OrganizerState`](core/organizer/state.lua:1) as the central state module for the M+ Group Organizer.

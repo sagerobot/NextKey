@@ -126,8 +126,10 @@ Key module groups:
   - `core/config.lua` — AceDB defaults and schema (`NextKey222.Defaults`).
   - `core/debugService.lua` / `core/debugUI.lua` — Debug system and UI.
   - `core/performance.lua` — Performance helpers.
-  - `core/utils.lua` — Common helpers.
-  - `core/constants.lua`, `core/ids.lua`, `core/uiConfig.lua` — Shared constants/config.
+  - `core/utils.lua` — Legacy common helpers (being phased out).
+  - `core/utils/*.lua` — Domain-specific utilities (time, player, communication, dungeon, item, scoring).
+  - `core/constants.lua` — Namespaced constants by domain.
+  - `core/ids.lua`, `core/uiConfig.lua` — Shared IDs and UI config.
 
 - Data adapters:
   - `core/adapters/blizzard.lua`
@@ -135,11 +137,19 @@ Key module groups:
   - `core/adapters/libopenraid.lua`
   - `core/adapters/debug.lua` — Fake players.
 
-- Profiles & scoring:
-  - `core/profiles.lua`
+- Profiles & scoring (Pure Service Modules):
+  - `core/profiles.lua` — ProfilesService with event-based UI refresh pattern
   - `core/playerIOData.lua`
-  - `core/ioCalculator.lua`
-  - `core/scoring.lua`
+  - `core/ioCalculator.lua` — IOCalculator with optimized memoization (single internal implementation)
+  - `core/scoring.lua` — Scoring service (thin wrappers)
+
+- Sorting system (Pluggable Architecture):
+  - `core/sorting/main.lua` — Registry-based sorting system
+  - `core/sorting/algorithms/bySmartSort.lua` — Default Borda count algorithm
+  - `core/sorting/algorithms/byMaxGroupIO.lua` — Maximize group IO
+  - `core/sorting/algorithms/byPlayerCoverage.lua` — Maximize benefiting players
+  - `core/sorting/algorithms/byKeyLevel.lua` — Sort by key level
+  - `core/sorting/algorithms/byItemNeed.lua` — Loot priority
 
 - Keystone & dungeon model:
   - `core/keystones.lua`

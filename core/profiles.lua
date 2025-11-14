@@ -302,49 +302,24 @@ function ProfilesService:InvalidateOnEvents()
     end
 end
 
---- Helper function to refresh all UI components after profile update
+--- Helper function to announce profile updates via events
+-- This replaces direct UI calls with event announcements for decoupling
 -- @param event string The event that triggered the refresh
 function ProfilesService:RefreshUIComponents(event)
-    -- Refresh Main UI if visible
-    if NextKey222.UI and NextKey222.UI.RefreshResults then
-        if NextKey222.UI:IsMainFrameVisible() then
-            -- CRITICAL: Clear render tracking for spec changes so UI actually re-renders
-            -- Keystones don't change when specs change, but player roles do!
-            NextKey222.UI.lastRenderedKeystoneHash = nil
-            NextKey222.UI.lastRenderedSortMode = nil
-            
-            NextKey222.UI:RefreshResults()
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", "Main UI refresh completed for " .. event)
-            end
-        else
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", "Main UI not visible, skipping refresh for " .. event)
-            end
-        end
-    end
-    
-    -- Refresh RosterBoard if visible
-    if NextKey222.RosterBoard and NextKey222.RosterBoard.IsVisible and NextKey222.RosterBoard:IsVisible() then
-        if NextKey222.RosterBoard.RefreshAllCards then
-            -- CRITICAL: Clear any render caches before refreshing (same as main UI does)
-            -- This ensures spec changes actually trigger a re-render
-            if NextKey222.RosterBoard.lastRenderedState then
-                NextKey222.RosterBoard.lastRenderedState = nil
-            end
-            
-            NextKey222.RosterBoard:RefreshAllCards(true)  -- Pass true to indicate this is a spec change
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", "RosterBoard refresh completed for " .. event .. " (SPEC CHANGE)")
-            end
-        else
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("profiles", "RosterBoard refresh method not available for " .. event)
-            end
+    -- Announce profile update via AceEvent system
+    -- UI modules should register for NEXTKEY_PROFILE_UPDATED to refresh themselves
+    if NextKey222.Addon and NextKey222.Addon.SendMessage then
+        NextKey222.Addon:SendMessage("NEXTKEY_PROFILE_UPDATED", {
+            triggerEvent = event,
+            timestamp = GetTime()
+        })
+        
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("profiles", "Announced NEXTKEY_PROFILE_UPDATED event for " .. event)
         end
     else
         if NextKey222.Debug then
-            NextKey222.Debug:Dev("profiles", "RosterBoard not visible, skipping refresh for " .. event)
+            NextKey222.Debug:Dev("profiles", "WARNING: Cannot announce profile update - AceEvent not available")
         end
     end
 end

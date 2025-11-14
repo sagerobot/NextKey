@@ -364,6 +364,12 @@ local function _create_results_scroll(ui, parent)
 
     parent:AddChild(scroll)
     ui.resultsFrame = scroll
+    
+    -- CRITICAL: Also set keystoneWindow.resultsFrame for independent window architecture
+    if ui.keystoneWindow then
+        ui.keystoneWindow.resultsFrame = scroll
+        log_dev("UIControls: keystoneWindow.resultsFrame reference set")
+    end
 end
 
 local function _create_view_toggle_button(ui, parent)

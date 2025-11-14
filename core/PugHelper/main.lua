@@ -108,9 +108,15 @@ function PUGHelper:RegisterEvents()
     if not NextKey then return end
 
     -- Register for addon-internal messages
-    NextKey:RegisterMessage("LFG_SEARCH_RESULTS_UPDATED", "CacheSearchResults")
-    NextKey:RegisterMessage("LFG_APPLICATION_STATUS_CHANGED", "OnApplicationStatusChanged")
-    NextKey:RegisterMessage("GROUP_INVITE_CONFIRMATION", "OnGroupInvite")
+    NextKey:RegisterMessage("LFG_SEARCH_RESULTS_UPDATED", function()
+        PUGHelper:CacheSearchResults()
+    end)
+    NextKey:RegisterMessage("LFG_APPLICATION_STATUS_CHANGED", function(message, ...)
+        PUGHelper:OnApplicationStatusChanged(...)
+    end)
+    NextKey:RegisterMessage("GROUP_INVITE_CONFIRMATION", function(message, inviteName)
+        PUGHelper:OnGroupInvite(inviteName)
+    end)
 
     -- Register for PUG run completion to handle teleport logic
     NextKey:RegisterMessage("PUG_RUN_COMPLETED", function(message, key_info)
