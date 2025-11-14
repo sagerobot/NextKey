@@ -16,6 +16,15 @@ RosterBoard.optOutSection = nil
 RosterBoard.viewMode = nil -- "ORGANIZER" or "PARTICIPANT"
 RosterBoard.manualGroupCount = nil  -- nil = auto, number = manual override
 
+-- NEW: Local copy of the roster state, updated only via event
+RosterBoard.rosterState = {
+    players = {},
+    bench = {},
+    optOut = {},
+    groups = {},
+    keystones = {}
+}
+
 -- Poll state
 RosterBoard.activePoll = nil
 
@@ -51,27 +60,41 @@ function RosterBoard:Initialize()
         -- Determine view mode
         self.viewMode = self:DetermineViewMode()
         
-        -- Initialize arrays
+        -- Initialize arrays and state
         self.benchCards = {}
         self.groupSlots = {}
         self.groupBackgrounds = {}
         self.groupTitles = {}
         self.groupKeystones = {}
         self.allInteractiveFrames = {}
+        self.rosterState = { players = {}, bench = {}, optOut = {}, groups = {}, keystones = {} }
         
-        -- Note: Spec change events are handled by ProfilesService which automatically
-        -- triggers UI refresh. No need for duplicate event handlers here.
-        Debug:Dev("organizer_ui", "Roster Board initialized (spec changes handled by ProfilesService)")
+        -- REFACTOR: Register for state update events
+        NextKey222:RegisterMessage("ORGANIZER_ROSTER_UPDATED", self.OnRosterUpdated, self)
         
-        Debug:Dev("organizer_ui", "Roster Board initialized successfully")
+        Debug:Dev("organizer_ui", "Roster Board initialized and subscribed to ORGANIZER_ROSTER_UPDATED")
         return true
     end, "RosterBoard:Initialize")
 end
 
--- MARK: Event Registration & Card Refresh
--- Note: Spec change events are handled by ProfilesService (core/profiles.lua:132-302)
--- ProfilesService automatically invalidates cache and triggers UI refresh when specs change
--- This prevents duplicate event handlers and ensures consistent behavior across all UI components
+-- MARK: Event Handlers
+--- Handles the ORGANIZER_ROSTER_UPDATED event from the core state module.
+-- @param eventName string - The name of the event ("ORGANIZER_ROSTER_UPDATED")
+-- @param rosterData table - The complete, new state of the roster.
+function RosterBoard:OnRosterUpdated(eventName, rosterData)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "Received ORGANIZER_ROSTER_UPDATED event")
+
+        -- Store the new authoritative state
+        self.rosterState = rosterData
+
+        -- If the UI is visible, trigger a full redraw to reflect the new state
+        if self:IsVisible() then
+            Debug:Dev("organizer_ui", "UI is visible, triggering full redraw")
+            self:PopulateAllSections()
+        end
+    end, "RosterBoard:OnRosterUpdated")
+end
 
 -- MARK: View Mode Detection
 function RosterBoard:DetermineViewMode()
@@ -174,7 +197,6 @@ function RosterBoard:CreateMainFrame()
         -- Apply view-specific restrictions
         if self:IsParticipant() then
             self:DisableOrganizerControls()
-            self:RequestRosterState()
         end
         
         Debug:Dev("organizer_ui", "Created Roster Board main frame in", self.viewMode, "mode")
@@ -361,6 +383,7 @@ end
 
 -- MARK: Layout Calculation (Uses UIConfig constants)
 function RosterBoard:CalculateOptimalLayout()
+    -- REFACTOR: Use the local rosterState for layout calculations
     local benchPlayers = self:GetBenchPlayers() or {}
     local groupedPlayers = self:GetGroupedPlayers() or {}
     local playerCount = #benchPlayers + #groupedPlayers
@@ -415,92 +438,86 @@ function RosterBoard:CalculateOptimalLayout()
     }
 end
 
+-- REFACTOR: These functions now pull from the local `rosterState`
 function RosterBoard:GetBenchPlayers()
-    return NextKey222.BenchManager:get_bench_players(self)
+    local benchPlayerIDs = {}
+    for playerID, isBenched in pairs(self.rosterState.bench or {}) do
+        if isBenched then
+            table.insert(benchPlayerIDs, playerID)
+        end
+    end
+
+    local benchPlayersData = {}
+    for _, playerID in ipairs(benchPlayerIDs) do
+        if self.rosterState.players and self.rosterState.players[playerID] then
+            table.insert(benchPlayersData, self.rosterState.players[playerID])
+        end
+    end
+    return benchPlayersData
 end
 
 function RosterBoard:GetGroupedPlayers()
-    return NextKey222.SlotManager:get_grouped_players(self)
+    local groupedPlayersData = {}
+    if not self.rosterState.groups then return groupedPlayersData end
+
+    for _, slots in pairs(self.rosterState.groups) do
+        for _, playerID in pairs(slots) do
+            if self.rosterState.players and self.rosterState.players[playerID] then
+                table.insert(groupedPlayersData, self.rosterState.players[playerID])
+            end
+        end
+    end
+    return groupedPlayersData
 end
 
 -- MARK: Data Population
 function RosterBoard:PopulateAllSections()
     return NextKey222.SafeRun(function()
-        Debug:Dev("organizer_ui", "PopulateAllSections called")
-        
-        local allPlayers = self:GetBenchPlayers()
-        Debug:Dev("organizer_ui", "Got", allPlayers and #allPlayers or 0, "players")
-        
-        local benchPlayers = allPlayers or {}
-        
+        Debug:Dev("organizer_ui", "PopulateAllSections called - drawing from local rosterState")
+
+        -- REFACTOR: Use local roster data
+        local benchPlayers = self:GetBenchPlayers()
         if #benchPlayers > 0 then
             Debug:Dev("organizer_ui", "Populating bench with", #benchPlayers, "players")
             self:PopulateBench(benchPlayers)
         end
-        
-        -- CRITICAL FIX: Restore group slot assignments from OrganizerState
-        Debug:Dev("organizer_ui", "Restoring group slot assignments from state")
-        
-        -- DEBUG: Check if OrganizerState has any group data
-        local totalGroupSlots = 0
-        if NextKey222.OrganizerState and NextKey222.OrganizerState.groups then
-            for gIdx, slots in pairs(NextKey222.OrganizerState.groups) do
-                for sIdx, pID in pairs(slots) do
-                    totalGroupSlots = totalGroupSlots + 1
-                    Debug:Dev("organizer_ui", "State has player in group", gIdx, "slot", sIdx, ":", pID)
-                end
-            end
-        end
-        Debug:Dev("organizer_ui", "OrganizerState has", totalGroupSlots, "total players in group slots")
-        
-        if self.groupSlots then
+
+        -- REFACTOR: Restore group slot assignments from local rosterState
+        if self.groupSlots and self.rosterState.groups then
             local restoredCount = 0
             for groupIndex, slots in pairs(self.groupSlots) do
                 for slotIndex, slot in pairs(slots) do
-                    -- Get playerID from state (SafeRun returns the value directly, not (success, result))
-                    local playerID = NextKey222.OrganizerState:GetSlotPlayer(groupIndex, slotIndex)
+                    local playerID = self.rosterState.groups[groupIndex] and self.rosterState.groups[groupIndex][slotIndex]
                     
-                    -- CRITICAL: Check playerID is valid before using it
-                    -- SafeRun may return true/false for success, or the actual value
-                    -- We only want string playerIDs
                     if type(playerID) == "string" and playerID ~= "" then
-                        Debug:Dev("organizer_ui", "Found player in group", groupIndex, "slot", slotIndex, "- playerID:", playerID)
-                        -- Fetch full player data object using the playerID
-                        local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+                        local playerData = self.rosterState.players and self.rosterState.players[playerID]
                         
                         if playerData and type(playerData) == "table" then
-                            -- Create card for this slot using the FULL player data object
-                            local card = NextKey222.PlayerCard:CreateNativeCard(
-                                playerData,
-                                slot,
-                                "role_slot",
-                                "compact"  -- Start compact, will expand on placement
-                            )
+                            local card = NextKey222.PlayerCard:CreateNativeCard(playerData, slot, "role_slot", "compact")
                             
                             if card then
-                                -- Place card in slot using SlotManager
                                 NextKey222.SlotManager:place_card_in_slot(card, slot)
                                 restoredCount = restoredCount + 1
-                                Debug:Dev("organizer_ui", "Restored player to group", groupIndex, "slot", slotIndex, ":", playerID)
-                            else
-                                Debug:Error("Failed to create card for slot player:", playerID)
                             end
-                        else
-                            Debug:Error("GetPlayer returned invalid data for playerID:", playerID, "- type:", type(playerData))
                         end
                     end
                 end
             end
             Debug:Dev("organizer_ui", "Restored", restoredCount, "players to group slots")
         end
+
+        -- REFACTOR: Populate opt-out from local rosterState
+        local optOutPlayerIDs = {}
+        for playerID, isOptOut in pairs(self.rosterState.optOut or {}) do
+            if isOptOut then
+                table.insert(optOutPlayerIDs, playerID)
+            end
+        end
         
-        -- SESSION 4 FIX: Fetch and populate opt-out players from state
-        local optOutPlayerIDs = NextKey222.OrganizerState:GetOptOutPlayers()
         local optOutPlayers = {}
         for _, playerID in ipairs(optOutPlayerIDs) do
-            local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
-            if playerData then
-                table.insert(optOutPlayers, playerData)
+            if self.rosterState.players and self.rosterState.players[playerID] then
+                table.insert(optOutPlayers, self.rosterState.players[playerID])
             end
         end
         
@@ -1157,44 +1174,34 @@ end
 -- @param groupIndex number - Group number
 -- @return string|nil - Formatted group announcement or nil if empty
 function RosterBoard:FormatSingleGroupAnnouncement(groupIndex)
-    if not NextKey222.OrganizerState then
-        Debug:Error("OrganizerState not available")
+    if not self.rosterState then
+        Debug:Error("rosterState not available")
         return nil
     end
-    
-    -- Get group assignments (unwrap SafeRun tuple)
-    local success, assignments = NextKey222.OrganizerState:GetGroupAssignments(groupIndex)
-    if not success or not assignments or not next(assignments) then
-        -- Check if there are any slots at all
+
+    local assignments = self.rosterState.groups and self.rosterState.groups[groupIndex]
+    if not assignments or not next(assignments) then
         if not self.groupSlots or not self.groupSlots[groupIndex] then
-            return nil -- Skip completely empty groups
+            return nil
         end
         assignments = {}
     end
+
+    local keystoneData = self.rosterState.keystones and self.rosterState.keystones[groupIndex]
     
-    -- Get keystone data (unwrap SafeRun tuple)
-    local success2, keystoneData = NextKey222.OrganizerState:GetDesignatedKeystone(groupIndex)
-    if not success2 then
-        keystoneData = nil
-    end
-    
-    -- Build announcement lines
     local lines = {}
-    
-    -- Add group header
     local header = self:FormatGroupHeader(groupIndex, keystoneData)
     if header then
         table.insert(lines, header)
     end
     
-    -- Add player lines
     local playerCount = 0
     for slotIndex = 1, 5 do
         local playerID = assignments and assignments[slotIndex]
         
         if playerID then
-            local pSuccess, playerData = NextKey222.OrganizerState:GetPlayer(playerID)
-            if pSuccess and playerData and type(playerData) == "table" then
+            local playerData = self.rosterState.players and self.rosterState.players[playerID]
+            if playerData and type(playerData) == "table" then
                 local playerLine = self:FormatPlayerLine(playerData, slotIndex)
                 if playerLine then
                     table.insert(lines, playerLine)
@@ -1204,7 +1211,6 @@ function RosterBoard:FormatSingleGroupAnnouncement(groupIndex)
         end
     end
     
-    -- Add PUG needs if there are any players
     if playerCount > 0 then
         local pugNeeds = self:IdentifyPUGNeeds(groupIndex)
         if pugNeeds then
@@ -1213,7 +1219,6 @@ function RosterBoard:FormatSingleGroupAnnouncement(groupIndex)
             end
         end
     else
-        -- Empty group
         table.insert(lines, "  No players assigned")
     end
     
@@ -1737,35 +1742,7 @@ function RosterBoard:FindCompatibleSlotInGroup(card, groupIndex)
     return NextKey222.CardMovement:find_compatible_slot_in_group(self, card, groupIndex)
 end
 
--- MARK: State Synchronization
-function RosterBoard:BroadcastRosterUpdate(updateData)
-    if NextKey222.Communications and NextKey222.Communications.QueueOrganizerUpdate then
-        NextKey222.Communications:QueueOrganizerUpdate(updateData)
-    end
-end
-
-function RosterBoard:RequestRosterState()
-    Debug:Dev("org_sync", "Requesting full roster state from organizer")
-end
-
-function RosterBoard:OnRosterUpdateReceived(message, sender)
-    return NextKey222.SafeRun(function()
-        if self:IsOrganizer() then
-            return
-        end
-        
-        local updateData = message.data
-        
-        if updateData.action == "CARD_MOVED" then
-            Debug:Dev("org_sync", "Received CARD_MOVED update")
-        elseif updateData.action == "KEYSTONE_DESIGNATED" then
-            Debug:Dev("org_sync", "Received KEYSTONE_DESIGNATED update")
-        elseif updateData.action == "ROSTER_STATE_FULL" then
-            Debug:Dev("org_sync", "Received ROSTER_STATE_FULL update")
-        end
-        
-    end, "RosterBoard:OnRosterUpdateReceived")
-end
+-- MARK: State Synchronization (OBSOLETE with AceEvent refactor)
 
 -- MARK: Public Interface
 function RosterBoard:Show()
@@ -2146,8 +2123,13 @@ function RosterBoard:SyncUIToState()
         end
         
         -- Get current state
-        local benchPlayerIDs = NextKey222.OrganizerState:GetBenchPlayers()
-        local optOutPlayerIDs = NextKey222.OrganizerState:GetOptOutPlayers()
+        local benchPlayerIDs = self:GetBenchPlayers()
+        local optOutPlayerIDs = {}
+        for playerID, isOptOut in pairs(self.rosterState.optOut or {}) do
+            if isOptOut then
+                table.insert(optOutPlayerIDs, playerID)
+            end
+        end
         
         -- Clear existing bench cards
         for _, card in ipairs(self.benchCards) do
@@ -2172,24 +2154,21 @@ function RosterBoard:SyncUIToState()
         self.optOutSection.playerCards = {}
         
         -- Rebuild bench from state
-        for _, playerID in ipairs(benchPlayerIDs) do
-            local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
-            if playerData then
-                local card = NextKey222.PlayerCard:CreateNativeCard(
-                    playerData,
-                    self.benchContainer,
-                    "bench",
-                    "compact"
-                )
-                if card then
-                    table.insert(self.benchCards, card)
-                end
+        for _, playerData in ipairs(self:GetBenchPlayers()) do
+            local card = NextKey222.PlayerCard:CreateNativeCard(
+                playerData,
+                self.benchContainer,
+                "bench",
+                "compact"
+            )
+            if card then
+                table.insert(self.benchCards, card)
             end
         end
         
         -- Rebuild opt-out from state
         for _, playerID in ipairs(optOutPlayerIDs) do
-            local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+            local playerData = self.rosterState.players and self.rosterState.players[playerID]
             if playerData then
                 local card = NextKey222.PlayerCard:CreateNativeCard(
                     playerData,

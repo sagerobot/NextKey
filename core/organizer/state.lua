@@ -17,6 +17,20 @@ OrganizerState.groups = {}       -- {[groupIndex][slotIndex] = playerID} - Group
 OrganizerState.keystones = {}    -- {[groupIndex] = {keystone, playerID}} - Designated keystones
 OrganizerState.activePoll = nil  -- {id, startTime, responses, timeout} - Active poll state
 
+-- MARK: Private Methods
+--- Broadcasts the current roster state to all listeners.
+local function BroadcastRosterUpdate()
+    Debug:Dev("organizer_state", "Broadcasting ORGANIZER_ROSTER_UPDATED")
+    local rosterData = {
+        players = OrganizerState.players,
+        bench = OrganizerState.bench,
+        optOut = OrganizerState.optOut,
+        groups = OrganizerState.groups,
+        keystones = OrganizerState.keystones,
+    }
+    NextKey222:SendMessage("ORGANIZER_ROSTER_UPDATED", rosterData)
+end
+
 -- MARK: Initialization
 function OrganizerState:Initialize()
     return NextKey222.SafeRun(function()
@@ -109,6 +123,7 @@ function OrganizerState:SetPlayer(playerID, playerData)
         
         Debug:Dev("organizer_state", "SetPlayer:", playerID, "- stored with roles:", playerData.roles and table.concat(playerData.roles, ",") or "NONE",
                   "specPreferences:", playerData.specPreferences ~= nil, "specDetails:", playerData.specDetails ~= nil)
+        BroadcastRosterUpdate()
     end, "OrganizerState:SetPlayer")
 end
 
@@ -135,6 +150,7 @@ function OrganizerState:UpdatePlayer(playerID, updates)
         self.players[playerID] = playerData
         
         Debug:Dev("organizer_state", "UpdatePlayer:", playerID, "- updates applied")
+        BroadcastRosterUpdate()
     end, "OrganizerState:UpdatePlayer")
 end
 
@@ -181,7 +197,7 @@ function OrganizerState:UpdatePlayerFromPollResponse(playerID, response)
         Debug:Dev("organizer_state", "UpdatePlayerFromPollResponse:", playerID,
                  "- specPreferences:", playerData.specPreferences ~= nil,
                  "specDetails:", playerData.specDetails ~= nil)
-        
+        BroadcastRosterUpdate()
     end, "OrganizerState:UpdatePlayerFromPollResponse")
 end
 
@@ -214,6 +230,9 @@ function OrganizerState:RemovePlayer(playerID)
         end
         
         Debug:Dev("organizer_state", "RemovePlayer:", playerID, "- removed:", existed)
+        if existed then
+            BroadcastRosterUpdate()
+        end
         return existed
         
     end, "OrganizerState:RemovePlayer")
@@ -311,6 +330,7 @@ function OrganizerState:MoveToBench(playerID)
         self.bench[playerID] = true
         
         Debug:Dev("organizer_state", "MoveToBench:", playerID)
+        BroadcastRosterUpdate()
         return true
     end, "OrganizerState:MoveToBench")
 end
@@ -340,6 +360,7 @@ function OrganizerState:MoveToOptOut(playerID)
         self.optOut[playerID] = true
         
         Debug:Dev("organizer_state", "MoveToOptOut:", playerID)
+        BroadcastRosterUpdate()
         return true
     end, "OrganizerState:MoveToOptOut")
 end
@@ -398,6 +419,7 @@ function OrganizerState:MoveToSlot(playerID, groupIndex, slotIndex)
         end
         Debug:User("AFTER SAVE - Total slots in memory:", totalSlots)
         
+        BroadcastRosterUpdate()
         return true
     end, "OrganizerState:MoveToSlot")
 end
@@ -478,6 +500,7 @@ function OrganizerState:AssignToGroup(playerID, groupIndex, slotIndex)
         self.groups[groupIndex][slotIndex] = playerID
         
         Debug:Dev("organizer_state", "AssignToGroup:", playerID, "to group", groupIndex, "slot", slotIndex)
+        BroadcastRosterUpdate()
         return true
     end, "OrganizerState:AssignToGroup")
 end
@@ -505,6 +528,9 @@ function OrganizerState:UnassignFromGroup(playerID)
         end
         
         Debug:Dev("organizer_state", "UnassignFromGroup:", playerID, "- was in group:", wasInGroup)
+        if wasInGroup then
+            BroadcastRosterUpdate()
+        end
         return wasInGroup
     end, "OrganizerState:UnassignFromGroup")
 end
@@ -587,6 +613,7 @@ function OrganizerState:DesignateKeystone(groupIndex, playerID, keystone)
         }
         
         Debug:Dev("organizer_state", "DesignateKeystone: group", groupIndex, "keystone from", playerID)
+        BroadcastRosterUpdate()
         return true
     end, "OrganizerState:DesignateKeystone")
 end
@@ -605,6 +632,9 @@ function OrganizerState:ClearKeystone(groupIndex)
         self.keystones[groupIndex] = nil
         
         Debug:Dev("organizer_state", "ClearKeystone: group", groupIndex, "- had keystone:", hadKeystone)
+        if hadKeystone then
+            BroadcastRosterUpdate()
+        end
         return hadKeystone
     end, "OrganizerState:ClearKeystone")
 end
@@ -938,6 +968,7 @@ function OrganizerState:LoadFromPersistence()
         
         Debug:Dev("organizer_state", "LoadFromPersistence: Restored", restoredCount, "players from SavedVariables")
         
+        BroadcastRosterUpdate()
         return true
         
     end, "OrganizerState:LoadFromPersistence")
@@ -970,6 +1001,7 @@ function OrganizerState:ClearPersistedData()
         Debug:User("Poll data cleared successfully")
         Debug:Dev("organizer_state", "ClearPersistedData: All state cleared")
         
+        BroadcastRosterUpdate()
         return true
         
     end, "OrganizerState:ClearPersistedData")
