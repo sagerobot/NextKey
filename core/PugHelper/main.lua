@@ -32,6 +32,18 @@ function PUGHelper:Initialize()
     self:RegisterEvents()
     self:LoadConfig()
     self:SetHookEnabled(true)
+
+    -- Initialize UI components
+    if NextKey222.PUGInviteNotification and NextKey222.PUGInviteNotification.Initialize then
+        NextKey222.PUGInviteNotification:Initialize()
+    end
+    if NextKey222.PUGTravelAssistant and NextKey222.PUGTravelAssistant.Initialize then
+        NextKey222.PUGTravelAssistant:Initialize()
+    end
+    if NextKey222.PUGApplicationTracker and NextKey222.PUGApplicationTracker.Initialize then
+        NextKey222.PUGApplicationTracker:Initialize()
+    end
+
     if Debug.DEV_MODE then
         Debug:User("PUG Helper initialized - Enabled: " .. (pugConfig.enabled and "YES" or "NO"))
     end
@@ -92,7 +104,39 @@ function PUGHelper:SaveConfig()
 end
 
 function PUGHelper:RegisterEvents()
-    Debug:Dev("pughelper", "PUG Helper events registered via events/handlers.lua")
+    local NextKey = NextKey222.Addon
+    if not NextKey then return end
+
+    -- Register for addon-internal messages
+    NextKey:RegisterMessage("LFG_SEARCH_RESULTS_UPDATED", "CacheSearchResults")
+    NextKey:RegisterMessage("LFG_APPLICATION_STATUS_CHANGED", "OnApplicationStatusChanged")
+    NextKey:RegisterMessage("GROUP_INVITE_CONFIRMATION", "OnGroupInvite")
+
+    -- Register for PUG run completion to handle teleport logic
+    NextKey:RegisterMessage("PUG_RUN_COMPLETED", function(message, key_info)
+        self:HandlePugRunCompleted(key_info)
+    end)
+
+    Debug:Dev("pughelper", "PUG Helper is now listening for addon messages.")
+end
+
+function PUGHelper:HandlePugRunCompleted(key_info)
+    -- This function now contains the logic that was previously coupled
+    -- with the teleport system.
+    local NextKey = NextKey222.Addon
+    if not NextKey or not NextKey.SetTeleportTargetKey or not NextKey.SetTeleportWindowContext then
+        Debug:Dev("pughelper", "Teleport APIs not available; skipping PUG summary setup")
+        return
+    end
+
+    Debug:Dev("pughelper", "PUG run completed. Setting teleport target and context.")
+
+    -- Set teleport target and PUG completion context
+    NextKey:SetTeleportTargetKey(key_info, { broadcast = false })
+    NextKey:SetTeleportWindowContext({
+        mode = "PUG",
+        dungeonComplete = true,
+    })
 end
 
 function PUGHelper:RegisterLFGEvents()
@@ -251,12 +295,10 @@ function PUGHelper:OnChallengeModeCompleted(mapID, level)
         self:TransitionToState(self.STATE.RUN_COMPLETE, "mplus_completed")
     end
 
-    -- Set teleport target and PUG completion context
-    NextKey:SetTeleportTargetKey(key_info, { broadcast = false })
-    NextKey:SetTeleportWindowContext({
-        mode = "PUG",
-        dungeonComplete = true,
-    })
+    -- Announce that a PUG run has completed. Other modules, like the
+    -- teleport manager, can listen for this and react accordingly.
+    local NextKey = NextKey222.Addon
+    NextKey:SendMessage("PUG_RUN_COMPLETED", key_info)
 
     -- NOTE:
     -- We DO NOT call ToggleTeleportWindow() here.
