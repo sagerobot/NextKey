@@ -51,6 +51,20 @@ v0.3.0 + Dev Feature (🧪) = v0.3.5    (+5)
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.9] - 2025-11-14
+### ✨ Enhancements
+- **Pluggable Sorting System:** Implemented registry-based sorting system in `core/sorting/main.lua` with 7 modular sorting algorithms (Smart Sort, Max Group IO, Player Coverage, Item Need, Key Level, Key Level Ascending, IO Gain). Algorithms now register themselves with metadata (displayName, description, priority, context) and the UI dropdown populates dynamically from the registry. This provides a clean, extensible architecture where new sorting modes can be added without modifying core code.
+### 🔧 Maintenance
+- **Utility Modularization:** Split monolithic `core/utils.lua` into 6 domain-specific modules (`time.lua`, `player.lua`, `communication.lua`, `dungeon.lua`, `item.lua`, `scoring.lua`) with a backward compatibility shim maintaining zero breaking changes for existing code (264 lines).
+- **Constants Namespacing:** Reorganized `core/constants.lua` with domain-based namespacing (UI, PERFORMANCE, KEYSTONES, ORGANIZER) for improved code organization and maintainability.
+- **PUG Helper Refactoring:** Isolated PUG Helper into a self-contained, event-driven module with dedicated directories (`core/PugHelper`, `ui/PugHelper`). Module now handles its own event registration using `AceEvent-3.0` messages, decoupled from the central event dispatcher.
+- **Service Module Improvements:** Removed 206 lines of duplicate memoization logic from IOCalculator, refactored ProfilesService to use event-based UI refresh pattern (`NEXTKEY_PROFILE_UPDATED`), and fixed PUG Helper event registration to use inline functions.
+### 📚 Documentation
+- **Architectural Audit:** Created comprehensive architectural audit documentation in `Documentation/_Architectural_Audit/` covering system overview, dependency mapping, refactoring strategy, and modularity checklists (4 core documents totaling 244+ lines).
+- **Sorting System Plan:** Added detailed architectural plan for the new Sorting System in `Documentation/_Refactor_/01_Sorting_System/` with goals, implementation blueprint, and event communication patterns (3 documents totaling 169 lines).
+- **Module Dependencies:** Documented explicit module dependencies, service module analysis, and current implementation details across 5 new documentation files (2,141 lines total).
+- **Memory Bank Updates:** Updated Memory Bank architecture and context documentation to reflect new modular structure and Phase 2 completion status.
+
 ## [v0.6.6] - 2025-11-13
 ### ✨ Enhancements
 - **LibGroupInSpecT Integration:** Integrated LibGroupInSpecT-1.1 library to dramatically improve group member specialization detection accuracy in the M+ Group Organizer. Enhanced the Blizzard adapter to use LibGroupInSpecT as the primary spec source with a robust fallback chain (LibGroupInSpecT → inspection → assigned role), resolving issues where players showed incorrect or missing specialization data in organizer tooltips and role assignments. Added announcement system for group compositions in organizer UI.
