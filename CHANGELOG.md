@@ -51,6 +51,17 @@ v0.3.0 + Dev Feature (🧪) = v0.3.5    (+5)
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.10] - 2025-11-16
+### 🐛 Bug Fixes
+- **Loot Window UI Cleanup:** Fixed critical bug where old item buttons were not properly cleared when switching dungeons, causing stale data to appear across dungeon switches. Added proper cleanup in `LootWindow:Update()` to destroy old frames and prevent data corruption.
+- **Dungeon ID Mismatch:** Corrected dungeon IDs in loot data to match official Blizzard Challenge Mode IDs. Fixed 5 dungeons: Priory of the Sacred Flame (523→499), The Dawnbreaker (524→505), Eco-Dome Al'dani (526→542), Tazavesh: Streets of Wonder (401→391), Tazavesh: So'leah's Gambit (402→392). All 8 dungeons now correctly display their loot items.
+- **Organizer Critical Bug Fixes:** Fixed 4 critical bugs in event-driven organizer implementation: syntax error (extra `end` statements in SyncUIToState), infinite event loop causing C stack overflow (circular OnPlayerMoved → PlaceCardInSlot → MoveToSlot), cards missing text in slots (added skipStateUpdate parameter), and animation crashes during sort (added isAnimating guard flag).
+### 🔧 Maintenance
+- **Event-Driven OrganizerState:** Implemented comprehensive event-driven architecture for M+ Group Organizer. OrganizerState now announces 5 core events on all state mutations (ORGANIZER_PLAYER_ADDED, ORGANIZER_PLAYER_MOVED, ORGANIZER_PLAYER_UPDATED, ORGANIZER_POLL_RESPONSE_RECEIVED, ORGANIZER_STATE_CLEARED). RosterBoard listens and reacts to events with complete decoupling - state has zero UI knowledge. Event-driven updates work alongside backward-compatible direct calls for gradual migration.
+### 📚 Documentation
+- **Organizer Event Architecture:** Created comprehensive architectural analysis documenting the transition to event-driven organizer (2 documents, 1,038 lines total): OrganizerState Call Analysis identifying 32 direct call sites and categorizing into query/mutation operations, and OrganizerState Event Definitions specifying 5 core events with complete payload structures and migration strategy.
+- **System Validation Reports:** Created production-ready validation reports for Teleport System (425 lines) confirming exemplary event-driven architecture with zero refactoring needed, and Loot Tracking System (843 lines) validating clean 3-layer design with robust persistence and season-aware data structure.
+
 ## [v0.6.9] - 2025-11-14
 ### ✨ Enhancements
 - **Pluggable Sorting System:** Implemented registry-based sorting system in `core/sorting/main.lua` with 7 modular sorting algorithms (Smart Sort, Max Group IO, Player Coverage, Item Need, Key Level, Key Level Ascending, IO Gain). Algorithms now register themselves with metadata (displayName, description, priority, context) and the UI dropdown populates dynamically from the registry. This provides a clean, extensible architecture where new sorting modes can be added without modifying core code.
