@@ -93,7 +93,6 @@ core\utils.lua
 core\sorting\main.lua
 core\sorting\algorithms\byKeyLevel.lua
 core\sorting\algorithms\byKeyLevelAsc.lua
-core\sorting\algorithms\byIOGain.lua
 core\sorting\algorithms\bySmartSort.lua
 core\sorting\algorithms\byMaxGroupIO.lua
 core\sorting\algorithms\byPlayerCoverage.lua

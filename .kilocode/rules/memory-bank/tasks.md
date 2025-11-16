@@ -28,7 +28,48 @@ Authoritative recurring workflows for future development. Follow these steps whe
 - Keep season keys consistent across all season-related files.
 - Avoid hardcoding logic outside season helpers.
 
-## 2. OrganizerState or Organizer Protocol Changes
+## 2. Update Item Bonus IDs for New M+ Season
+
+**Purpose:** Update bonus IDs when M+ difficulty tracks change in new expansions/seasons.
+
+**Files to modify:**
+- `core/constants.lua` - KEYSTONES.ITEM_BONUS_IDS table
+
+**Steps:**
+1. Check AtlasLoot GitHub repository for new season bonus IDs:
+   - Repo: `https://github.com/nanderson11/AtlasLootEnhanced`
+   - File: `AtlasLoot/Data/BonusID_re.lua`
+   - Look for the difficulty ID mapping (usually diffID 23 = Mythic Dungeon)
+
+2. Update constants in `core/constants.lua`:
+   ```lua
+   ITEM_BONUS_IDS = {
+       HERO_TRACK = "newBonusID1:newBonusID2",  -- Update from AtlasLoot
+       MYTH_TRACK = "newBonusID1:newBonusID3",  -- If applicable
+   }
+   ```
+
+3. Test in-game:
+   - Open loot window for any dungeon
+   - Hover over items - tooltip should show "Hero 1/8" through "Hero 8/8" upgrade levels
+   - Verify ilvl ranges display correctly (e.g., 694 → 717 ilvl for TWW S3)
+
+**Current Values (TWW Season 3):**
+- HERO_TRACK: "9505:10245" (Mythic Dungeon, diffID 23)
+- MYTH_TRACK: "9505:10246" (Future-proofing)
+
+**How it works:**
+- The bonus ID string is inserted into item links following AtlasLoot's pattern
+- WoW's API reads the bonus IDs and displays the correct difficulty track
+- Format: "item:itemID::::::::::::14:numBonuses:bonusID1:bonusID2"
+- The `BuildEnhancedItemLink()` function in `core/utils/item.lua` assembles these strings
+
+**Important notes:**
+- Always verify bonus IDs match AtlasLoot's current values
+- Test tooltips thoroughly - they should show upgrade tracks automatically
+- No need to modify loot window code - it uses the constants automatically
+
+## 3. OrganizerState or Organizer Protocol Changes
 
 **Purpose:** Safely evolve organizer data model or comms.
 
@@ -52,7 +93,7 @@ Authoritative recurring workflows for future development. Follow these steps whe
 - OrganizerState is the single source of truth; UI must remain view-only.
 - All critical mutations must be `NextKey222.SafeRun`-wrapped with debug logs.
 
-## 3. Teleport Sync / TELEPORT_SELECT Changes
+## 4. Teleport Sync / TELEPORT_SELECT Changes
 
 **Purpose:** Adjust how teleport selection syncs across group.
 
@@ -78,7 +119,7 @@ Authoritative recurring workflows for future development. Follow these steps whe
 **Important notes:**
 - Never introduce alternative direct teleport sync paths; TELEPORT_SELECT + SetTeleportTargetKey is canonical.
 
-## 4. PUG Mode Hardening / PUG Helper Changes
+## 5. PUG Mode Hardening / PUG Helper Changes
 
 **Purpose:** Extend or adjust PUG Helper behavior while preserving stability.
 
@@ -111,7 +152,7 @@ Authoritative recurring workflows for future development. Follow these steps whe
 - Do not add new print-based debug; use `NextKey222.Debug`.
 - Any behavioral changes must be reflected in `context.md` and `status.md`.
 
-## 5. Memory Bank Synchronization
+## 6. Memory Bank Synchronization
 
 **Purpose:** Keep documentation aligned with code after significant changes.
 

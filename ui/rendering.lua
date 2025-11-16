@@ -50,6 +50,7 @@ end
 -- MARK: Keystone Sorting & Metadata
 
 -- Sorts incoming keystone data into a list of entries suitable for rendering.
+-- Uses the pluggable sorting system to apply the selected algorithm.
 -- keys: array of keystone objects from Addon
 -- mode: current sort mode
 -- ui: reference to NextKey222.UI (for helper calls)
@@ -64,23 +65,29 @@ function UIRendering:build_sorted_entries(keys, mode, ui)
         table.insert(entries, { key = key })
     end
 
-    if mode == "HighestKeyLevel" then
-        table.sort(entries, function(a, b)
-            return (a.key.level or 0) > (b.key.level or 0)
-        end)
-    elseif mode == "LowestKeyLevel" then
-        table.sort(entries, function(a, b)
-            return (a.key.level or 0) < (b.key.level or 0)
-        end)
-    elseif mode == "IOGainPotential" then
-        -- IO gain sort delegated through UICalculations via UI wrapper
+    -- Get the algorithm from the sorting system
+    local algorithm = nil
+    if NextKey222.Sorting and NextKey222.Sorting.GetAlgorithm then
+        algorithm = NextKey222.Sorting:GetAlgorithm(mode)
+    end
+
+    -- If algorithm needs IO tooltips, calculate IO gain data for all entries
+    -- NOTE: We calculate ioGainRange (detailed player breakdown) but NOT ioGainPotential
+    -- Each algorithm will calculate its own score from the breakdown data
+    if algorithm and algorithm.showIOTooltips then
         for _, entry in ipairs(entries) do
             entry.ioGainRange = ui:CalculateIOGainRange(entry.key)
-            entry.ioGainPotential = entry.ioGainRange and entry.ioGainRange.expected or 0
+            -- Do NOT pre-calculate ioGainPotential - let algorithms compute their own scores
         end
-        table.sort(entries, function(a, b)
-            return (a.ioGainPotential or 0) > (b.ioGainPotential or 0)
-        end)
+    end
+
+    -- Apply the sorting algorithm from the registry
+    if algorithm and algorithm.sortFunction then
+        table.sort(entries, algorithm.sortFunction)
+        safe_dev("sorting", "Applied algorithm:", mode, "showIOTooltips:", algorithm.showIOTooltips)
+    else
+        -- Fallback: no sorting if algorithm not found
+        safe_dev("sorting", "No algorithm found for mode:", mode)
     end
 
     return entries

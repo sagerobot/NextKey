@@ -86,6 +86,90 @@ SlashCmdList["NKTESTROLE"] = function(msg)
     end
 end
 
+-- MARK: - Bonus ID Finder Helper Functions
+
+--- Extract Bonus IDs from an item link
+local function ExtractBonusIDs(itemLink)
+    if not itemLink or itemLink == "" then
+        return nil
+    end
+    
+    -- Parse the item link to extract bonus IDs
+    local ids = {string.match(itemLink, "item:%d+:%d*:%d*:%d*:%d*:%d*:%d*:%d*:%d*:%d*:%d*:%d*:(%d+):([%d:]+)")}
+    
+    if ids[1] and ids[2] then
+        return tonumber(ids[1]), ids[2]
+    end
+    
+    return nil
+end
+
+--- Find Hero track Bonus IDs from chat messages
+local function FindHeroTrackBonusIDs()
+    print("=== NextKey: Finding Hero Track Bonus IDs ===")
+    print("Instructions:")
+    print("1. Open Dungeon Journal (Shift+J)")
+    print("2. Select any M+ dungeon")
+    print("3. Set difficulty to Mythic")
+    print("4. Shift-click any item into chat")
+    print("5. Press Enter to send the link")
+    print(" ")
+    print("Waiting for item link in chat...")
+    
+    -- Register a temporary event listener for chat messages
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("CHAT_MSG_SAY")
+    frame:RegisterEvent("CHAT_MSG_YELL")
+    frame:RegisterEvent("CHAT_MSG_PARTY")
+    frame:RegisterEvent("CHAT_MSG_PARTY_LEADER")
+    frame:RegisterEvent("CHAT_MSG_RAID")
+    frame:RegisterEvent("CHAT_MSG_RAID_LEADER")
+    frame:RegisterEvent("CHAT_MSG_GUILD")
+    
+    frame:SetScript("OnEvent", function(self, event, message, sender)
+        -- Look for item link in the message
+        local itemLink = message:match("|H(item[^|]+)|h")
+        
+        if itemLink then
+            itemLink = "|H" .. itemLink .. "|h"
+            
+            local numBonuses, bonusIDString = ExtractBonusIDs(itemLink)
+            
+            if numBonuses and bonusIDString then
+                print(" ")
+                print("=== FOUND BONUS IDs ===")
+                print("Number of Bonus IDs:", numBonuses)
+                print("Bonus IDs:", bonusIDString)
+                print(" ")
+                print("Update core/utils/item.lua lines 27-31:")
+                print("local bonusIDs = {")
+                
+                for bonusID in bonusIDString:gmatch("(%d+)") do
+                    print(string.format("    %s,", bonusID))
+                end
+                
+                print("}")
+                print(" ")
+                
+                -- Unregister events
+                self:UnregisterAllEvents()
+                self:SetScript("OnEvent", nil)
+            else
+                print("Could not extract Bonus IDs from item link")
+            end
+        end
+    end)
+    
+    -- Auto-cleanup after 60 seconds
+    C_Timer.After(60, function()
+        if frame:GetScript("OnEvent") then
+            frame:UnregisterAllEvents()
+            frame:SetScript("OnEvent", nil)
+            print("NextKey: Bonus ID finder timed out after 60 seconds")
+        end
+    end)
+end
+
 -- MARK: - Command Definitions
 -- This table defines all available commands and their help text
 -- Makes it easy to add new commands and keep help synchronized
@@ -309,6 +393,31 @@ local TestCommands = {
             "  Types: mixed_skill, beginner, expert, high_keys, raid_group"
         },
         handler = "GeneratePreset"
+    },
+    {
+        cmd = {"io-gap", "iogap"},
+        desc = "Generate IO Gap team (1 expert + 3 beginners) to test Max Group IO vs Max Player Coverage",
+        handler = "GenerateIOGapTeam"
+    },
+    {
+        cmd = {"loot-focus", "lootfocus"},
+        desc = "Generate Loot-Focused team to test Max Item Need sorting",
+        handler = "GenerateLootFocusTeam"
+    },
+    {
+        cmd = {"mixed-levels", "mixedlevels"},
+        desc = "Generate Mixed Key Level team (keys +7 to +16) to test key level vs IO optimization",
+        handler = "GenerateMixedKeyLevelTeam"
+    },
+    {
+        cmd = {"uneven-benefit", "unevenbenefit"},
+        desc = "Generate Uneven Benefit team (dungeon specialists) to test fairness vs efficiency",
+        handler = "GenerateUnevenBenefitTeam"
+    },
+    {
+        cmd = {"algorithm-test", "algotest"},
+        desc = "Generate comprehensive Algorithm Test team to expose all sorting differences",
+        handler = "GenerateAlgorithmTestTeam"
     },
     {
         cmd = {"clear"},
@@ -988,6 +1097,13 @@ function SlashCommands:ShowTestHelp()
         end
     end
     NextKey222.Debug:User(" ")
+    NextKey222.Debug:User("Algorithm Testing Teams:")
+    NextKey222.Debug:User("  /nk test io-gap          - 1 expert + 3 beginners (tests coverage vs efficiency)")
+    NextKey222.Debug:User("  /nk test loot-focus      - Loot targeting team (tests Max Item Need)")
+    NextKey222.Debug:User("  /nk test mixed-levels    - Keys +7 to +16 (tests level vs IO)")
+    NextKey222.Debug:User("  /nk test uneven-benefit  - Specialists (tests fairness)")
+    NextKey222.Debug:User("  /nk test algorithm-test  - Comprehensive test for all algorithms")
+    NextKey222.Debug:User(" ")
     NextKey222.Debug:User("For GUI-based custom player creation:")
     NextKey222.Debug:User("  /nk config → Debug System → Fake Player Tools → Custom Player Builder")
 end
@@ -1060,6 +1176,95 @@ function SlashCommands:CreateCustomPlayer(args)
     else
         NextKey222.Debug:Error("Failed to create player - name may already exist or invalid parameters")
     end
+end
+
+function SlashCommands:GenerateIOGapTeam()
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
+        NextKey222.Debug:User("FakePlayerService not available")
+        return
+    end
+    
+    if not NextKey222.FakePlayerService.GenerateIOGapTeam then
+        NextKey222.Debug:Error("GenerateIOGapTeam method not available - FakePlayerService may need updating")
+        return
+    end
+    
+    local count = NextKey222.FakePlayerService:GenerateIOGapTeam()
+    NextKey222.Debug:User("Generated IO Gap team with " .. count .. " players")
+    NextKey222.Debug:User("  - 1 expert player (3200+ IO)")
+    NextKey222.Debug:User("  - 3 beginner players (800-1200 IO)")
+    NextKey222.Debug:User("This team tests Max Group IO vs Max Player Coverage sorting")
+end
+
+function SlashCommands:GenerateLootFocusTeam()
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
+        NextKey222.Debug:User("FakePlayerService not available")
+        return
+    end
+    
+    if not NextKey222.FakePlayerService.GenerateLootFocusedTeam then
+        NextKey222.Debug:Error("GenerateLootFocusedTeam method not available - FakePlayerService may need updating")
+        return
+    end
+    
+    local count = NextKey222.FakePlayerService:GenerateLootFocusedTeam()
+    NextKey222.Debug:User("Generated Loot-Focused team with " .. count .. " players")
+    NextKey222.Debug:User("  - Players tracking specific items from different dungeons")
+    NextKey222.Debug:User("This team tests Max Item Need sorting")
+end
+
+function SlashCommands:GenerateMixedKeyLevelTeam()
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
+        NextKey222.Debug:User("FakePlayerService not available")
+        return
+    end
+    
+    if not NextKey222.FakePlayerService.GenerateMixedKeyLevelTeam then
+        NextKey222.Debug:Error("GenerateMixedKeyLevelTeam method not available - FakePlayerService may need updating")
+        return
+    end
+    
+    local count = NextKey222.FakePlayerService:GenerateMixedKeyLevelTeam()
+    NextKey222.Debug:User("Generated Mixed Key Level team with " .. count .. " players")
+    NextKey222.Debug:User("  - Keys ranging from +7 to +16")
+    NextKey222.Debug:User("This team tests Highest Key Level vs Max Group IO sorting")
+end
+
+function SlashCommands:GenerateUnevenBenefitTeam()
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
+        NextKey222.Debug:User("FakePlayerService not available")
+        return
+    end
+    
+    if not NextKey222.FakePlayerService.GenerateUnevenBenefitTeam then
+        NextKey222.Debug:Error("GenerateUnevenBenefitTeam method not available - FakePlayerService may need updating")
+        return
+    end
+    
+    local count = NextKey222.FakePlayerService:GenerateUnevenBenefitTeam()
+    NextKey222.Debug:User("Generated Uneven Benefit team with " .. count .. " players")
+    NextKey222.Debug:User("  - Players with specialized dungeon strengths/weaknesses")
+    NextKey222.Debug:User("This team tests Max Player Coverage (fairness) vs Max Group IO (efficiency)")
+end
+
+function SlashCommands:GenerateAlgorithmTestTeam()
+    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
+        NextKey222.Debug:User("FakePlayerService not available")
+        return
+    end
+    
+    if not NextKey222.FakePlayerService.GenerateAlgorithmTestTeam then
+        NextKey222.Debug:Error("GenerateAlgorithmTestTeam method not available - FakePlayerService may need updating")
+        return
+    end
+    
+    local count = NextKey222.FakePlayerService:GenerateAlgorithmTestTeam()
+    NextKey222.Debug:User("Generated comprehensive Algorithm Test team with " .. count .. " players")
+    NextKey222.Debug:User("  - Varied IO levels (800-3500)")
+    NextKey222.Debug:User("  - Mixed key levels (+7 to +15)")
+    NextKey222.Debug:User("  - Dungeon specialists and generalists")
+    NextKey222.Debug:User("  - Loot targeting included")
+    NextKey222.Debug:User("This team is designed to show differences across ALL sorting algorithms")
 end
 
 -- MARK: - Poll Testing Command Handlers
@@ -1929,6 +2134,13 @@ SlashCmdList["NEXTKEYROSTER"] = function()
             NextKey222.Debug:Error("RosterBoard module not available for /nkroster")
         end
     end
+end
+
+-- Bonus ID Finder Command
+SLASH_NEXTKEYBONUSIDS1 = "/nkbonusids"
+SLASH_NEXTKEYBONUSIDS2 = "/nk bonusids"
+SlashCmdList["NEXTKEYBONUSIDS"] = function()
+    FindHeroTrackBonusIDs()
 end
 
 -- Store reference for external access

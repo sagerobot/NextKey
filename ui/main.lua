@@ -922,20 +922,44 @@ function UI:UpdateSortDropdownOptions()
     
     -- Use new Sorting service if available
     if NextKey222.Sorting and NextKey222.Sorting.GetAlgorithmsForContext then
-        local context = self.viewMode == "dungeons" and "DUNGEONS" or "KEYSTONES"
+        -- Dynamic context resolution from window structure
+        local context = (self.keystoneWindow and self.keystoneWindow.context)
+                     or (NextKey222.DungeonWindow and NextKey222.DungeonWindow.context)
+                     or (NextKey222.Sorting and NextKey222.Sorting.contexts and NextKey222.Sorting.contexts.KEYSTONES)
+        
         local algorithms = NextKey222.Sorting:GetAlgorithmsForContext(context)
         
         -- Build dropdown list from registered algorithms
         local dropdownList = {}
+        local algorithmDescriptions = {}  -- Store descriptions for tooltip
         local firstAlgorithm = nil
         for _, algo in ipairs(algorithms) do
             dropdownList[algo.name] = algo.displayName
+            algorithmDescriptions[algo.name] = algo.description
             if not firstAlgorithm then
                 firstAlgorithm = algo.name
             end
         end
         
         self.sortDropdown:SetList(dropdownList)
+        
+        -- Add tooltip showing the description of the currently selected algorithm
+        if self.sortDropdown.frame then
+            self.sortDropdown.frame:SetScript("OnEnter", function(widget)
+                local currentSort = self:GetCurrentSortMode()
+                local description = algorithmDescriptions[currentSort]
+                
+                if description and description ~= "" then
+                    GameTooltip:SetOwner(widget, "ANCHOR_TOP")
+                    GameTooltip:SetText("Sort Mode", 1, 1, 1)
+                    GameTooltip:AddLine(description, nil, nil, nil, true)
+                    GameTooltip:Show()
+                end
+            end)
+            self.sortDropdown.frame:SetScript("OnLeave", function()
+                GameTooltip:Hide()
+            end)
+        end
         
         -- Validate current sort mode is valid for this context
         local currentSort = self:GetCurrentSortMode()

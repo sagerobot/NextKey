@@ -188,7 +188,7 @@ local lootData = {
                 }
             },
             -- MARK: Priory of the Sacred Flame
-            [523] = {
+            [499] = {
                 name = "Priory of the Sacred Flame",
                 items = {
                     [219310] = {
@@ -494,7 +494,7 @@ local lootData = {
                 }
             },
             -- MARK: The Dawnbreaker
-            [524] = {
+            [505] = {
                 name = "The Dawnbreaker",
                 items = {
                     [219312] = {
@@ -704,7 +704,7 @@ local lootData = {
                 }
             },
             -- MARK: Eco-Dome Al'dani
-            [526] = {
+            [542] = {
                 name = "Eco-Dome Al'dani",
                 items = {
                     [242497] = {
@@ -842,7 +842,7 @@ local lootData = {
                 }
             },
             -- MARK: Tazavesh: Streets of Wonder
-            [401] = {
+            [391] = {
                 name = "Tazavesh: Streets of Wonder",
                 items = {
                     [185777] = {
@@ -1052,7 +1052,7 @@ local lootData = {
                 }
             },
             -- MARK: Tazavesh: So'leah's Gambit
-            [402] = {
+            [392] = {
                 name = "Tazavesh: So'leah's Gambit",
                 items = {
                     [185819] = {

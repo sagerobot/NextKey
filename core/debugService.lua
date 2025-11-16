@@ -95,7 +95,8 @@ local DEBUG_CATEGORY_GROUPS = {
             season = { name = "Seasonal Data", description = "Season information and dungeon management" },
             dungeonNameService = { name = "Dungeon Name Service", description = "Dungeon name lookup and mapping" },
             IOCalculator = { name = "IO Score Calculator", description = "IO score calculation algorithms and data" },
-            ioc = { name = "IO Calculation Details", description = "Detailed IO calculation operations and steps" }
+            ioc = { name = "IO Calculation Details", description = "Detailed IO calculation operations and steps" },
+            sorting = { name = "Sorting Algorithms", description = "Keystone sorting algorithm score calculations and comparisons" }
         }
     },
 
@@ -159,6 +160,9 @@ local DebugService = {
         organizer_ui = false,  -- M+ Group Organizer UI
         org_sync = false,  -- M+ Group Organizer sync system
         dragmanager = false,  -- Drag and drop manager
+
+        -- Data Processing
+        sorting = false,  -- Sorting algorithm debug logging
 
         -- Testing & Development
         fakeplayerservice = false,

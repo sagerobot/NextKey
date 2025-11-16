@@ -15,8 +15,9 @@ Sorting:RegisterAlgorithm(
     {
         displayName = "Highest Key Level",
         contexts = { Sorting.contexts.KEYSTONES },
-        description = "Sort keystones by level (highest first)",
-        priority = 100, -- High priority for keystone context
+        description = "Sort by highest key level for challenging content. Differs from IO-based sorts when highest keys don't provide optimal IO gains.",
+        priority = 75, -- High priority but lower than SmartSort (100)
+        showIOTooltips = false -- Pure level-based sort, no IO tooltips
     },
     function(a, b)
         -- Extract key data

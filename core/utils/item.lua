@@ -7,28 +7,58 @@ NextKey222.RegisterModule("ItemUtils", ItemUtils)
 
 -- MARK: Item Utilities
 
---- Generates a hyperlink for an item with a specific item level.
---- This is used to display the correct Hero track item level in tooltips.
----@param itemID number The base item ID.
----@return string itemLink The formatted item hyperlink.
-function ItemUtils:GetHeroTrackItemLink(itemID)
-    -- As of TWW S3, Hero track items from M+ are ilvl 710.
-    -- Try different approaches for Hero track display
-    local itemLevel = 710
+--- Builds an enhanced item link with bonus IDs for M+ difficulty display
+--- Following AtlasLoot's exact assembly pattern from Core/ItemInfo.lua
+--- @param itemID number The base item ID
+--- @param difficultyKey string Optional difficulty key (default: "HERO_TRACK")
+--- @return string itemString The enhanced item string with bonus IDs
+function ItemUtils:BuildEnhancedItemLink(itemID, difficultyKey)
+    difficultyKey = difficultyKey or "HERO_TRACK"
     
-    -- Method 1: Try with a single bonus ID that might work for Hero track
-    -- Method 2: Try with just the item level (no bonus IDs)
-    -- Method 3: Try with different bonus ID combinations
+    -- Step 1: Get bonus ID string from constants (AtlasLoot pattern)
+    local bonusString = NextKey222.Constants.KEYSTONES.ITEM_BONUS_IDS[difficultyKey]
     
-    -- Let's try a simpler approach first - just set the level
-    -- The hyperlink format is: "item:itemID:enchantID:gemID1:gemID2:gemID3:gemID4:suffixID:uniqueID:level:specializationID:rarityID:..."
-    -- Format: item:itemID::::::level
-    return string.format("item:%d::::::%d", itemID, itemLevel)
+    if not bonusString then
+        NextKey222.Debug:Dev("item", "No bonus IDs for difficulty:", difficultyKey, "- using base item ID")
+        return "item:" .. tostring(itemID)
+    end
+    
+    -- Step 2: Calculate number of bonus IDs (count colons + 1)
+    -- This is required by WoW's item string format
+    local _, colonCount = string.gsub(bonusString, ":", "")
+    local numBonuses = colonCount + 1
+    
+    -- Step 3: Assemble the full item string
+    -- Format: "item:itemID::::::::::::context:numBonuses:bonusID1:bonusID2:..."
+    -- Context 14 = Raid/Dungeon loot (standard for M+ items)
+    local itemString = string.format("item:%d::::::::::::14:%d:%s",
+        itemID,
+        numBonuses,
+        bonusString
+    )
+    
+    NextKey222.Debug:Dev("item", "Enhanced item link:", itemID, "->", itemString)
+    return itemString
+end
+
+--- Gets the Epic (purple) quality color for items.
+--- Used to display M+ dungeon items as Epic quality in the loot window.
+--- This is purely visual - it doesn't change the item itself.
+---@return table color The Epic quality color {r, g, b}
+function ItemUtils:GetEpicQualityColor()
+    -- Quality 4 = Epic (purple)
+    local epicQuality = 4
+    if ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[epicQuality] then
+        return ITEM_QUALITY_COLORS[epicQuality]
+    end
+    -- Fallback to purple if color table not available
+    return { r = 0.64, g = 0.21, b = 0.93 }
 end
 
 -- MARK: Module Interface
 
 function ItemUtils:Initialize()
+    NextKey222.Debug:Dev("item", "ItemUtils initialized")
     return true
 end
 

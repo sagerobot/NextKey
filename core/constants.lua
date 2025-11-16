@@ -77,6 +77,21 @@ local Constants = {
         -- Reward thresholds
         HERO_TRACK_MIN_LEVEL = 7,   -- Minimum level for Hero track rewards
         MYTH_TRACK_MIN_LEVEL = 10,  -- Minimum level for Myth track rewards
+        
+        -- MARK: Item Bonus IDs (The War Within Season 3)
+        -- Based on real in-game item data analysis
+        -- Using common bonus IDs that mark items as Hero track without forcing specific ilvls
+        ITEM_BONUS_IDS = {
+            -- Hero Track M+ - Common subset from all Hero items
+            -- 12350 = Hero 1/8 upgrade level
+            -- 10390 = Mythic+ difficulty marker
+            -- 6652 = Season 3 marker
+            -- 10255 = Can be upgraded marker
+            HERO_TRACK = "12350:10390:6652:10255",
+            
+            -- Future-proofing for other difficulties
+            MYTH_TRACK = "12350:10390:6652:10255",  -- Placeholder
+        },
     },
     
     -- MARK: Organizer Constants

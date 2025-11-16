@@ -7,6 +7,32 @@ NextKey222.RegisterModule("OrganizerState", OrganizerState)
 
 local Debug = NextKey222.Debug
 
+-- MARK: Event Announcement Helper
+--- Announces an event to listeners via AceEvent system
+-- @param eventName string - Event name (e.g., "ORGANIZER_PLAYER_ADDED")
+-- @param payload table - Event payload with all necessary context
+-- @return boolean - True if announcement successful
+function OrganizerState:AnnounceEvent(eventName, payload)
+    return NextKey222.SafeRun(function()
+        if not NextKey222.Addon or not NextKey222.Addon.SendMessage then
+            Debug:Error("Cannot announce event - AceEvent system not available:", eventName)
+            return false
+        end
+        
+        -- Ensure timestamp is set
+        if not payload.timestamp then
+            payload.timestamp = GetTime()
+        end
+        
+        -- Announce event to all listeners
+        NextKey222.Addon:SendMessage(eventName, payload)
+        
+        Debug:Dev("organizer_events", "Event announced:", eventName, "- playerID:", payload.playerID or "N/A")
+        
+        return true
+    end, "OrganizerState:AnnounceEvent")
+end
+
 -- MARK: Module State
 -- CRITICAL: This is the SINGLE SOURCE OF TRUTH for all player data
 -- Cards only store playerID references and render from this state
@@ -72,6 +98,9 @@ function OrganizerState:SetPlayer(playerID, playerData)
             return
         end
         
+        -- Check if this is a new player
+        local isNewPlayer = self.players[playerID] == nil
+        
         -- Ensure playerData has ID
         playerData.id = playerID
         
@@ -109,6 +138,17 @@ function OrganizerState:SetPlayer(playerID, playerData)
         
         Debug:Dev("organizer_state", "SetPlayer:", playerID, "- stored with roles:", playerData.roles and table.concat(playerData.roles, ",") or "NONE",
                   "specPreferences:", playerData.specPreferences ~= nil, "specDetails:", playerData.specDetails ~= nil)
+        
+        -- EVENT: Announce player added (only if new)
+        if isNewPlayer then
+            local location = self:GetPlayerLocation(playerID) or "bench"
+            self:AnnounceEvent("ORGANIZER_PLAYER_ADDED", {
+                playerID = playerID,
+                playerData = playerData,
+                location = location,
+                source = "SetPlayer"
+            })
+        end
     end, "OrganizerState:SetPlayer")
 end
 
@@ -135,6 +175,14 @@ function OrganizerState:UpdatePlayer(playerID, updates)
         self.players[playerID] = playerData
         
         Debug:Dev("organizer_state", "UpdatePlayer:", playerID, "- updates applied")
+        
+        -- EVENT: Announce player updated
+        self:AnnounceEvent("ORGANIZER_PLAYER_UPDATED", {
+            playerID = playerID,
+            updates = updates,
+            playerData = playerData,
+            updateType = "generic"
+        })
     end, "OrganizerState:UpdatePlayer")
 end
 
@@ -182,6 +230,34 @@ function OrganizerState:UpdatePlayerFromPollResponse(playerID, response)
                  "- specPreferences:", playerData.specPreferences ~= nil,
                  "specDetails:", playerData.specDetails ~= nil)
         
+        -- EVENT: Announce poll response received (also fires PLAYER_UPDATED)
+        local totalResponses = 0
+        local expectedResponses = 0
+        if self.activePoll then
+            for _ in pairs(self.activePoll.responses) do
+                totalResponses = totalResponses + 1
+            end
+            expectedResponses = self.activePoll.totalMembers or 0
+        end
+        
+        self:AnnounceEvent("ORGANIZER_POLL_RESPONSE_RECEIVED", {
+            playerID = playerID,
+            response = response,
+            playerData = playerData,
+            totalResponses = totalResponses,
+            expectedResponses = expectedResponses
+        })
+        
+        self:AnnounceEvent("ORGANIZER_PLAYER_UPDATED", {
+            playerID = playerID,
+            updates = {
+                specPreferences = response.specPreferences,
+                specDetails = response.specDetails,
+                surveyResponse = playerData.surveyResponse
+            },
+            playerData = playerData,
+            updateType = "poll_response"
+        })
     end, "OrganizerState:UpdatePlayerFromPollResponse")
 end
 
@@ -296,6 +372,9 @@ function OrganizerState:MoveToBench(playerID)
             return false
         end
         
+        -- Capture previous location
+        local fromLocation = self:GetPlayerLocation(playerID)
+        
         -- Remove from other locations
         self.optOut[playerID] = nil
         
@@ -311,6 +390,19 @@ function OrganizerState:MoveToBench(playerID)
         self.bench[playerID] = true
         
         Debug:Dev("organizer_state", "MoveToBench:", playerID)
+        
+        -- EVENT: Announce player moved
+        local playerData = self.players[playerID]
+        if playerData then
+            self:AnnounceEvent("ORGANIZER_PLAYER_MOVED", {
+                playerID = playerID,
+                fromLocation = fromLocation,
+                toLocation = "bench",
+                playerData = playerData,
+                reason = "manual"
+            })
+        end
+        
         return true
     end, "OrganizerState:MoveToBench")
 end
@@ -324,6 +416,9 @@ function OrganizerState:MoveToOptOut(playerID)
         if not playerID then
             return false
         end
+        
+        -- Capture previous location
+        local fromLocation = self:GetPlayerLocation(playerID)
         
         -- Remove from other locations
         self.bench[playerID] = nil
@@ -340,6 +435,19 @@ function OrganizerState:MoveToOptOut(playerID)
         self.optOut[playerID] = true
         
         Debug:Dev("organizer_state", "MoveToOptOut:", playerID)
+        
+        -- EVENT: Announce player moved
+        local playerData = self.players[playerID]
+        if playerData then
+            self:AnnounceEvent("ORGANIZER_PLAYER_MOVED", {
+                playerID = playerID,
+                fromLocation = fromLocation,
+                toLocation = "opt_out",
+                playerData = playerData,
+                reason = "manual"
+            })
+        end
+        
         return true
     end, "OrganizerState:MoveToOptOut")
 end
@@ -355,6 +463,9 @@ function OrganizerState:MoveToSlot(playerID, groupIndex, slotIndex)
         if not playerID or not groupIndex or not slotIndex then
             return false
         end
+        
+        -- Capture previous location
+        local fromLocation = self:GetPlayerLocation(playerID)
         
         -- Remove from other locations
         self.bench[playerID] = nil
@@ -397,6 +508,23 @@ function OrganizerState:MoveToSlot(playerID, groupIndex, slotIndex)
             end
         end
         Debug:User("AFTER SAVE - Total slots in memory:", totalSlots)
+        
+        -- EVENT: Announce player moved
+        local playerData = self.players[playerID]
+        if playerData then
+            local toLocation = {
+                type = "role_slot",
+                groupIndex = groupIndex,
+                slotIndex = slotIndex
+            }
+            self:AnnounceEvent("ORGANIZER_PLAYER_MOVED", {
+                playerID = playerID,
+                fromLocation = fromLocation,
+                toLocation = toLocation,
+                playerData = playerData,
+                reason = "manual"
+            })
+        end
         
         return true
     end, "OrganizerState:MoveToSlot")
@@ -947,6 +1075,22 @@ end
 -- @usage OrganizerState:ClearPersistedData()
 function OrganizerState:ClearPersistedData()
     return NextKey222.SafeRun(function()
+        -- Capture data before clearing
+        local clearedData = {
+            playerCount = 0,
+            benchCount = 0,
+            optOutCount = 0,
+            groupCount = 0,
+            keystoneCount = 0,
+            hadActivePoll = self.activePoll ~= nil
+        }
+        
+        for _ in pairs(self.players) do clearedData.playerCount = clearedData.playerCount + 1 end
+        for _ in pairs(self.bench) do clearedData.benchCount = clearedData.benchCount + 1 end
+        for _ in pairs(self.optOut) do clearedData.optOutCount = clearedData.optOutCount + 1 end
+        for _ in pairs(self.groups) do clearedData.groupCount = clearedData.groupCount + 1 end
+        for _ in pairs(self.keystones) do clearedData.keystoneCount = clearedData.keystoneCount + 1 end
+        
         -- Clear in-memory state
         self.players = {}
         self.bench = {}
@@ -969,6 +1113,12 @@ function OrganizerState:ClearPersistedData()
         
         Debug:User("Poll data cleared successfully")
         Debug:Dev("organizer_state", "ClearPersistedData: All state cleared")
+        
+        -- EVENT: Announce state cleared
+        self:AnnounceEvent("ORGANIZER_STATE_CLEARED", {
+            reason = "manual_clear",
+            clearedData = clearedData
+        })
         
         return true
         

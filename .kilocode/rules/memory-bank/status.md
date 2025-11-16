@@ -1,9 +1,9 @@
 # NextKey Current Status & Requirements
 
 ## Project Status
-**Date**: November 11, 2025
+**Date**: November 16, 2025
 **Version**: 0.6.0
-**Phase**: Active Development — Independent Two-Window Architecture, UI Modularization, M+ Group Organizer
+**Phase**: Phase 3 In Progress — Event-Driven Architecture, Organizer Refactored
 
 This file is the concise status mirror of the current codebase. For complete version history, see [`CHANGELOG.md`](../../../CHANGELOG.md).
 
@@ -18,12 +18,26 @@ This file is the concise status mirror of the current codebase. For complete ver
 - Modern WoW API compatibility using texture-based UI (no deprecated SetBackdrop).
 - Robust drag-and-drop handling using `OnMouseDown` / `OnMouseUp`.
 
-### 2. OrganizerState Integration
+### 2. OrganizerState Integration — Event-Driven Architecture ✅ **COMPLETE** (November 16, 2025)
 - `core/organizer/state.lua` implemented as the SINGLE SOURCE OF TRUTH for organizer data:
   - Players, bench, opt-out, groups, keystones, active poll.
   - SafeRun-wrapped getters/setters and movement APIs.
   - Persistence of real players only; fake players filtered out.
-- Organizer UI (roster board, cards, etc.) now reads from OrganizerState (cards are views only).
+  - **Event-Driven Pattern**:
+    - All mutations announce events via `AnnounceEvent()` helper
+    - 5 core events: PLAYER_ADDED, PLAYER_MOVED, PLAYER_UPDATED, POLL_RESPONSE_RECEIVED, STATE_CLEARED
+    - Complete decoupling: State has zero UI knowledge
+- Organizer UI (roster board, cards, etc.) listens for events and reacts:
+  - Event listeners registered in `RosterBoard:Initialize()`
+  - 5 event handler methods implemented
+  - Visibility guards for performance optimization
+  - Animation guards prevent event handling during sort animations
+  - Cards are views only (read state, react to events)
+- **Critical Bug Fixes**:
+  - Fixed syntax error (extra `end` statements)
+  - Fixed infinite event loop (C stack overflow)
+  - Fixed cards missing text in slots (skipStateUpdate parameter)
+  - Fixed animation crashes during sort (isAnimating guard flag)
 
 ### 3. Handshake & Unified Poll System
 - Organizer discovery and polls standardized via:
@@ -60,10 +74,13 @@ This file is the concise status mirror of the current codebase. For complete ver
 
 ## In Progress / Validation
 
-1. OrganizerState & Organizer
-   - Live group validation:
-     - End-to-end: handshake → poll → OrganizerState → UI.
-     - Persistence, reload, and fake-player filtering.
+1. OrganizerState & Organizer (Optional Real-World Validation)
+   - Code-level validation: ✅ COMPLETE
+   - Event-driven architecture: ✅ COMPLETE
+   - Recommended real-world validation:
+     - End-to-end: handshake → poll → OrganizerState → events → UI
+     - Persistence, reload, and fake-player filtering
+     - Monitor with debug category `organizer_events`
 
 2. Teleport Sync (TELEPORT_SELECT)
    - 5-man:

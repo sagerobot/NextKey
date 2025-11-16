@@ -8,9 +8,9 @@ local Sorting = {
     
     -- Context-based filtering metadata
     contexts = {
-        KEYSTONES = "keystones",
-        DUNGEONS = "dungeons",
-        ORGANIZER = "organizer",
+        KEYSTONES = "KEYSTONES",
+        DUNGEONS = "DUNGEONS",
+        ORGANIZER = "ORGANIZER",
     },
 }
 
@@ -47,6 +47,7 @@ function Sorting:RegisterAlgorithm(name, metadata, sortFunction)
         contexts = metadata.contexts or {},
         description = metadata.description or "",
         priority = metadata.priority or 0,
+        showIOTooltips = metadata.showIOTooltips, -- Flag for UI tooltip display
         sortFunction = sortFunction,
     }
     
@@ -90,6 +91,7 @@ function Sorting:GetAlgorithmsForContext(context)
                 displayName = algo.displayName,
                 description = algo.description,
                 priority = algo.priority,
+                showIOTooltips = algo.showIOTooltips,
             })
         end
     end
@@ -183,6 +185,7 @@ function Sorting:GetAllAlgorithms()
             contexts = algo.contexts,
             description = algo.description,
             priority = algo.priority,
+            showIOTooltips = algo.showIOTooltips,
         }
     end
     return results

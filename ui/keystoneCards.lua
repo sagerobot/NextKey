@@ -91,11 +91,21 @@ function KeystoneCards:AddKeyRow(UI, entry)
         justifyH = "LEFT"
     })
 
-    -- Add prominent IO gain display for IOGainPotential sort mode
+    -- Add prominent IO gain display based on algorithm metadata
     local ioGainText = nil
     local regularViewIORange = nil  -- Store ioRange in outer scope for button creation later
     local currentSortMode = UI:GetCurrentSortMode()
-    if currentSortMode == "IOGainPotential" and entry.ioGainRange then
+    
+    -- Check if current algorithm wants IO tooltips displayed
+    local showIOTooltips = false
+    if NextKey222.Sorting and NextKey222.Sorting.GetAlgorithm then
+        local algorithm = NextKey222.Sorting:GetAlgorithm(currentSortMode)
+        if algorithm and algorithm.showIOTooltips ~= nil then
+            showIOTooltips = algorithm.showIOTooltips
+        end
+    end
+    
+    if showIOTooltips and entry.ioGainRange then
         -- PERFORMANCE: Only show IO gain if we already calculated it during sorting
         -- Don't recalculate here - use pre-calculated data only
         local ioRange = entry.ioGainRange
@@ -313,22 +323,24 @@ function KeystoneCards:AddKeyRowCompact(UI, entry)
     local currentSortMode = UI:GetCurrentSortMode()
     local compactIORange = nil
     local showCompactIO = false
-    if currentSortMode == "IOGainPotential" and entry.ioGainRange then
+    
+    -- Check if current algorithm wants IO tooltips displayed
+    local showIOTooltips = false
+    if NextKey222.Sorting and NextKey222.Sorting.GetAlgorithm then
+        local algorithm = NextKey222.Sorting:GetAlgorithm(currentSortMode)
+        if algorithm and algorithm.showIOTooltips ~= nil then
+            showIOTooltips = algorithm.showIOTooltips
+        end
+    end
+    
+    if showIOTooltips and entry.ioGainRange then
         -- PERFORMANCE: Only show IO gain if we already calculated it during sorting
         -- Don't recalculate here - use pre-calculated data only
         compactIORange = entry.ioGainRange
         showCompactIO = true
     end
 
-    local fullText
-    if showCompactIO then
-        fullText = string.format("%s | %s", nameDisplay, keyDisplay)
-    elseif currentSortMode == "IOGainPotential" and entry.ioGainPotential then
-        local gainDisplay = string.format("|cff00ff00+%.1f IO|r", entry.ioGainPotential)
-        fullText = string.format("%s | %s | %s", nameDisplay, keyDisplay, gainDisplay)
-    else
-        fullText = string.format("%s | %s", nameDisplay, keyDisplay)
-    end
+    local fullText = string.format("%s | %s", nameDisplay, keyDisplay)
     
     local mainText = NextKey222.UIComponents:CreateText("small", frame, {
         text = fullText,

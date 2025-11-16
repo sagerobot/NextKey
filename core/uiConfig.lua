@@ -94,8 +94,6 @@ local UIConfig = {
         CARD_SPACING = 0,               -- Spacing between teleport cards (reduced from 8)
         COMPACT_ICON_SIZE = 48,         -- Icon size in compact mode
         COMPACT_SPACING = 4,            -- Spacing between compact icons
-        FOOTER_INSTRUCTION_FULL = "Compact mode in /nk opt",
-        FOOTER_INSTRUCTION_COMPACT = "Click to TP"
     },
     
     -- MARK: Hearthstone Selector Configuration (from ui/hearthstoneSelector.lua)
@@ -230,6 +228,47 @@ local UIConfig = {
         GROUP_BUTTON_SIZE = 20,          -- Small icon buttons
         GROUP_BUTTON_SPACING = 3,        -- Gap between [-] and [+]
         GROUP_BUTTON_RIGHT_MARGIN = 2    -- Distance from right edge
+    },
+    
+    -- MARK: Window Status Messages (Rotating Tips)
+    STATUS_MESSAGES = {
+        -- Main Keystone Window
+        MAIN_WINDOW = {
+            "Use /nk to quickly open NextKey",
+            "Pick your hearthstone in /nk opt",
+            "Use Smart Sort for fair and balanced IO gains for all players",
+            "Set loot targets to prioritize specific dungeonsm click 'Open Dungeon View'",
+            "Open the Multi Group Organizer with /nk org",
+            "Open the Teleport window anywhere with /nk tp",
+        },
+        
+        -- Dungeon Overview Window
+        DUNGEON_WINDOW = {
+            "Track your progress across all M+ dungeons",
+            "Click Loot to set item targets for a dungeon",
+            "Use /nk dungeons to open this window",
+            "Click Teleport to travel to any dungeon",
+            "Sort by Highest IO to see your best runs",
+        },
+        
+        -- Teleport Window (keep these SHORT - window is compact)
+        TELEPORT_WINDOW = {
+            "Click to TP",
+            "Compact in /nk opt",
+            "Change hearth in opt",
+            "Leaders sync keys",
+        },
+        
+        -- M+ Group Organizer (wide window - can use longer descriptive tips)
+        ORGANIZER_WINDOW = {
+            "Drag player cards from the bench to group slots - invalid role placements will bounce back",
+            "Use Poll Group to collect spec preferences from all group members before organizing",
+            "The Organize button will auto-fill groups by role based on player preferences and availability",
+            "Click Announce to share the finalized group composition in raid or guild chat",
+            "Click the keystone icon on a player card to designate which key that group will run",
+            "Players who opt out will appear in the bottom section and won't be auto-organized",
+            "Use the dropdown to choose different organization algorithms for your raid composition",
+        }
     }
 }
 
@@ -240,6 +279,34 @@ NextKey222.RegisterModule("UIConfig", UIConfig)
 -- Module interface
 function UIConfig:Initialize()
     return true
+end
+
+-- MARK: Get Rotating Status Message
+--- Gets a rotating status message for a specific window with version prefix
+-- @param windowKey string - Which window's messages to use (MAIN_WINDOW, DUNGEON_WINDOW, etc.)
+-- @return string - Version + rotating message
+function UIConfig:GetStatusMessage(windowKey)
+    -- Get version string
+    local version = "v0.5.32"  -- Fallback only
+    if NextKey and NextKey.version_full then
+        version = NextKey.version_full
+    elseif NextKey and NextKey.version then
+        version = "v" .. NextKey.version
+    end
+    
+    -- Get messages for this window
+    local messages = self.STATUS_MESSAGES[windowKey]
+    if not messages or #messages == 0 then
+        return version
+    end
+    
+    -- Calculate rotating index based on time (changes every ~10 seconds)
+    local index = 1
+    if GetTime then
+        index = (math.floor(GetTime() / 10) % #messages) + 1
+    end
+    
+    return version .. " - " .. messages[index]
 end
 
 -- DEPRECATED: GetWindowHeight with viewMode parameter

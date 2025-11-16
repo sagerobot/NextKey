@@ -60,4 +60,4 @@ This addresses your goal of reducing bloat and keeping the code clean and unders
     *   Look for opportunities to simplify logic. If you have multiple functions that were attempts at a solution, choose the one that works and delete the others.
 
 *   [ ] **Is the code clear and easy to understand?**
-    *   Are the variable and function names descriptive? Does it need comments to explain *what* it's doing, or is the code self-explanatory? (Comments should explain the *why*, not the *what*).
+    *   Are the variable and function names descriptive? Does it need comments to explain what it's doing? ALL code should have comments explaining **both WHAT and WHY** for code readability (especially helpful for newer developers).

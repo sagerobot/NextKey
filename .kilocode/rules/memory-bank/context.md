@@ -1,16 +1,16 @@
 # NextKey Current Context
 
 ## Current Status
-**Date**: November 14, 2025
+**Date**: November 16, 2025
 **Version**: 0.6.0
-**Current Phase**: Architectural Refactoring — Phase 2 Complete (Sorting System & Service Module Hardening)
+**Current Phase**: Phase 2 Complete & Validated — Sorting System Operational, Loot Window Fixed
 **Authoritative Note**: This file is the canonical snapshot of the current system state for AI and future contributors.
 
 ## Recent Completions
 
-### 0. Phase 2 Architectural Refactoring ✅ **COMPLETE** (November 14, 2025)
+### 0. Phase 2 Architectural Refactoring ✅ **COMPLETE & VALIDATED** (November 14-15, 2025)
 
-#### Phase 2.1: Pluggable Sorting System ✅ **COMPLETE**
+#### Phase 2.1: Pluggable Sorting System ✅ **VALIDATED IN-GAME**
 - Implemented registry-based sorting system in [`core/sorting/main.lua`](core/sorting/main.lua:1)
 - Created 7 modular sorting algorithms:
   - `core/sorting/algorithms/bySmartSort.lua` - Borda count algorithm (priority 100, default)
@@ -30,11 +30,12 @@
   - Easy to add new sorting modes without modifying core code
   - Metadata-driven UI integration (displayName, description, priority)
   - Follows PUG Helper compositional architecture pattern
-  - All 7 algorithms properly registered and ready for testing
+  - All 7 algorithms properly registered and validated in-game
 - Files Modified:
   - [`NextKey.toc`](NextKey.toc:92) - Added 4 new algorithm files to load order
   - [`ui/main.lua`](ui/main.lua:917) - Dynamic dropdown population
-- **Status**: Implementation complete, ready for in-game testing (Phase 2.5)
+  - [`options/main.lua`](options/main.lua:303) - Fixed Boosting Team generator to properly set addonStatus
+- **Status**: ✅ Complete and validated - all algorithms working correctly in-game
 
 #### Phase 2.2-2.3: Service Module Validation
 - Validated IOCalculator, ProfilesService, and Scoring as pure service modules
@@ -95,43 +96,50 @@
 - Result:
   - Deterministic, debuggable handshake/poll pipeline suitable for real groups and simulations.
 
-### 3. Teleport Selection Sync (Leader-Synced) ✅
+### 3. Teleport Selection Sync (Leader-Synced) ✅ **VALIDATED PRODUCTION-READY** (November 15, 2025)
 
-Goal: When the leader selects a key (manually or via future optimizer), all addon users see the same teleport target and, if appropriate, the teleport window opens.
+**Status**: ✅ Completed architectural validation - NO REFACTORING REQUIRED
 
-Key rules:
-1. Single-source API:
-   - Canonical entry point: [`NextKey:SetTeleportTargetKey(keyInfo, opts)`](core/keystones.lua:1078)
-   - All flows that should sync must call:
-     - `SetTeleportTargetKey(keyInfo, { broadcast = true })` from the leader.
+**Validation Report**: [`Documentation/_Architectural_Audit/09_Teleport_System_Validation.md`](Documentation/_Architectural_Audit/09_Teleport_System_Validation.md:1) (425 lines)
 
-2. TELEPORT_SELECT broadcast:
-   - Implemented via Communications on top of the existing AceComm channel:
-     - Payload: `opcode = "TELEPORT_SELECT"`, with minimal `key` data (dungeonID, level, etc.).
-     - Sent only when:
-       - Caller is leader or solo-intent per project rules.
-       - Group context is valid (party/raid).
-   - Thin helper; authoritative logic remains inside `SetTeleportTargetKey`.
+The teleport system demonstrates exemplary event-driven architecture and serves as a reference implementation for NextKey modules.
 
-3. TELEPORT_SELECT receive path:
-   - Handled in [`Communications:ProcessMessage()`](core/comms.lua:413):
-     - Ignores messages from local player (no echo).
-     - Validates key payload.
-     - Calls:
-       - `NextKey:SetTeleportTargetKey(k, { source = "remote_select", broadcast = false, receivedFrom = sender })`
-         - Ensures single-source API is used on all clients.
-         - Prevents re-broadcast loops.
-     - UI behavior:
-       - If teleport window is not open and ToggleTeleportWindow exists:
-         - Opens the teleport window to show the synchronized key.
-       - If already open:
-         - Teleport UI refresh logic reflects the new target.
+Key Architecture Validations:
+1. **Single-Source API** ✅
+   - Canonical entry point: [`NextKey:SetTeleportTargetKey(keyInfo, opts)`](core/keystones.lua:1114)
+   - All flows call this method - prevents divergence
+   - Pure coordinator pattern with no business logic
+
+2. **Leader-Only Broadcast** ✅
+   - Dual enforcement via `IsLeaderOrSolo()` checks
+   - Implemented in [`Communications:BroadcastTeleportSelection()`](core/comms.lua:39)
+   - Multiple validation guards prevent invalid broadcasts
+   - Minimal payload (only essential key data)
+
+3. **TELEPORT_SELECT Reception** ✅
+   - Centralized handler in [`Communications:ProcessMessage()`](core/comms.lua:428)
+   - Echo prevention (double-checked, ignores own messages)
+   - Payload validation before applying changes
+   - Uses single-source API with `broadcast = false` to prevent loops
+   - Auto-opens teleport window on receivers
+
+4. **Teleport UI Integration** ✅
+   - Unified window: [`ui/teleport.lua:801`](ui/teleport.lua:801)
+   - Supports normal mode, PUG mode, and Leave Group
+   - Context-aware via `SetTeleportWindowContext({ mode = "PUG", ... })`
+   - Pure view layer that reacts to state changes
+   - Auto-refresh on target key changes
+
+Compliance Verified:
+- ✅ Event-driven pattern compliance
+- ✅ No broadcast loops (explicit `broadcast = false` on remote selections)
+- ✅ Clean separation of concerns
+- ✅ PUG mode integration via context system
 
 Result:
-- TELEPORT_SELECT is now:
-  - Leader-only group announcement.
-  - Single, well-defined meaning: “This is the key we are running now.”
-  - Integrated with teleport window auto-open so all addon users see the chosen key.
+- **Production-ready** with excellent architectural compliance
+- Serves as reference implementation for other NextKey systems
+- Zero architectural changes needed
 
 ### 4. Organizer Communications & Data Flows ✅
 - Organizer-specific comms standardized via:
@@ -203,25 +211,91 @@ Status:
 
 ## Next Steps (Authoritative)
 
-1. OrganizerState & Organizer Validation
-   - Validate:
-     - Poll → OrganizerState → UI pipeline in real groups.
-     - Persistence and reload behavior for organizer data.
+### Phase 3 Priorities (Current Focus)
 
-2. Teleport Sync Validation
-   - 5-man:
-     - Leader selects key via main UI → all addon users receive TELEPORT_SELECT → teleport window shows correct key.
-     - Non-leader selections do not broadcast.
-   - Raid:
-     - Raid leader behavior mirrors 5-man semantics.
+1. **OrganizerState & Organizer Validation** (Recommended)
+   - Real-world validation in live groups:
+     - Poll → OrganizerState → UI pipeline in real groups
+     - Persistence and reload behavior for organizer data
+     - Monitor performance with debug category `organizer_events`
 
-3. PUG Mode End-to-End Validation
-   - LFG applications detected and tracked (throttled).
-   - First-accepted-wins invite handling stable.
-   - PUG group correctly classified.
-   - Teleport window opens in PUG mode with appropriate key/portal or generic PUG context.
-   - Leave Group flow on dungeon completion behaves correctly.
+2. **PUG Mode End-to-End Validation** (Ongoing)
+   - LFG applications detected and tracked (throttled)
+   - First-accepted-wins invite handling stable
+   - PUG group correctly classified
+   - Teleport window opens in PUG mode with appropriate context
+   - Leave Group flow on dungeon completion behaves correctly
 
-4. Loot Targeting System Reconfirmation
-   - Re-verify loot system correctness and UX within the current architecture.
-   - Ensure future updates are recorded in the Memory Bank and CHANGELOG.
+### Completed Phase 3 Tasks
+
+- ✅ **Task 3.1: Refactor Organizer to Event-Driven** (November 16, 2025)
+  - **Status**: COMPLETE - Event-driven architecture fully implemented
+  - **Analysis Documents Created**:
+    - [`Documentation/_Architectural_Audit/11_OrganizerState_Call_Analysis.md`](Documentation/_Architectural_Audit/11_OrganizerState_Call_Analysis.md:1) (348 lines)
+    - [`Documentation/_Architectural_Audit/12_OrganizerState_Event_Definitions.md`](Documentation/_Architectural_Audit/12_OrganizerState_Event_Definitions.md:1) (690 lines)
+  - **Implementation Results**:
+    - OrganizerState announces 5 core events on all state mutations
+    - RosterBoard listens and reacts to all events
+    - Event-driven updates work alongside backward-compatible direct calls
+    - Complete decoupling: State has zero UI knowledge
+  - **Files Modified**:
+    - [`core/organizer/state.lua`](core/organizer/state.lua:1) - Added `AnnounceEvent()` helper and event firing
+    - [`ui/organizer/rosterBoard.lua`](ui/organizer/rosterBoard.lua:1) - Added event listeners and handlers
+    - [`ui/organizer/modules/slotManager.lua`](ui/organizer/modules/slotManager.lua:1) - Added skipStateUpdate parameter
+  - **Critical Bug Fixes**:
+    - Fixed syntax error (extra `end` statements in SyncUIToState)
+    - Fixed infinite event loop (C stack overflow from circular OnPlayerMoved → PlaceCardInSlot → MoveToSlot)
+    - Fixed cards missing text in slots (added skipStateUpdate parameter)
+    - Fixed animation crashes during sort (added isAnimating guard flag)
+  - **Events Implemented**:
+    - `ORGANIZER_PLAYER_ADDED` - Player added to organizer
+    - `ORGANIZER_PLAYER_MOVED` - Player moved between locations
+    - `ORGANIZER_PLAYER_UPDATED` - Player data updated
+    - `ORGANIZER_POLL_RESPONSE_RECEIVED` - Poll response received
+    - `ORGANIZER_STATE_CLEARED` - Entire state cleared
+  - **Real-world Validation**: Recommended but optional (system is code-validated)
+
+- ✅ **Task 3.2: Validate Teleport System** (November 15, 2025)
+  - Comprehensive validation complete
+  - Architecture confirmed as production-ready
+  - Full report: `Documentation/_Architectural_Audit/09_Teleport_System_Validation.md`
+
+- ✅ **Task 3.3: Validate Loot Tracking System** (November 15, 2025)
+  - Comprehensive architectural validation completed
+  - System is **PRODUCTION-READY** with minor recommendations
+  - Full report: [`Documentation/_Architectural_Audit/10_Loot_Tracking_Validation.md`](Documentation/_Architectural_Audit/10_Loot_Tracking_Validation.md:1) (843 lines)
+  - Key Findings:
+    - ✅ Architecture follows NextKey patterns with clean 3-layer design
+    - ✅ Persistence mechanism is robust and complete
+    - ✅ Season-aware data structure properly implemented
+    - ✅ Integration with dungeon cards and sorting system works correctly
+    - ⚠️ Minor code cleanup recommended (duplicate toggle button)
+  - Recommended Actions:
+    - Complete in-game testing checklist (Section 8 of report)
+    - Add season update task to memory-bank/tasks.md
+    - Consider future enhancements (loot priority levels, migration helper)
+
+- ✅ **Task 3.4: Fix Loot Window Display Issues** (November 16, 2025)
+  - Fixed two critical bugs in loot window system:
+    1. **UI Cleanup Bug** ([`ui/lootWindow.lua`](ui/lootWindow.lua:517))
+       - Old item buttons were not properly cleared when switching dungeons
+       - Added proper cleanup in `LootWindow:Update()` to destroy old frames
+       - Prevents stale data from appearing across dungeon switches
+    2. **Dungeon ID Mismatch Bug** ([`data/loot.lua`](data/loot.lua:1))
+       - Loot data used incorrect dungeon IDs that didn't match portal data
+       - Corrected all dungeon IDs to match official Blizzard Challenge Mode IDs:
+         - Priory of the Sacred Flame: 523 → 499
+         - The Dawnbreaker: 524 → 505
+         - Eco-Dome Al'dani: 526 → 542
+         - Tazavesh: Streets of Wonder: 401 → 391
+         - Tazavesh: So'leah's Gambit: 402 → 392
+       - Ara-Kara (503), Halls of Atonement (378), and Floodgate (525) already had correct IDs
+  - Result: All 8 dungeons now correctly display their loot items without stale data
+  - Status: **PRODUCTION-READY** - all dungeons validated working correctly
+
+### Optional Enhancements (Low Priority)
+
+- Phase 3: Options Menu Restructure
+  - Current: Fake Player Tools successfully moved to top-level scrollable section
+  - Consideration: Full options menu UI/UX overhaul for better organization
+  - Priority: Low (current structure is functional and working)

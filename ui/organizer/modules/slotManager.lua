@@ -287,9 +287,10 @@ end
 --- Place a card into a role slot
 -- @param card Player card frame
 -- @param slot Slot frame
-function SlotManager:place_card_in_slot(card, slot)
+function SlotManager:place_card_in_slot(card, slot, skipStateUpdate)
     return NextKey222.SafeRun(function()
-        Debug:Dev("organizer_ui", "Placing card in slot:", slot.groupIndex, slot.roleLabel)
+        Debug:Dev("organizer_ui", "Placing card in slot:", slot.groupIndex, slot.roleLabel,
+                 "skipStateUpdate:", skipStateUpdate or false)
         
         -- Hide empty label
         if slot.emptyLabel then
@@ -327,10 +328,13 @@ function SlotManager:place_card_in_slot(card, slot)
         
         card:Show()
         
-        -- CRITICAL FIX: Save to OrganizerState for persistence
-        if card.playerData and card.playerData.id then
+        -- CRITICAL: Only update state if this is a user-initiated action
+        -- Event-driven updates should skip this to prevent infinite loops
+        if not skipStateUpdate and card.playerData and card.playerData.id then
             NextKey222.OrganizerState:MoveToSlot(card.playerData.id, slot.groupIndex, slot.slotIndex)
             Debug:Dev("organizer_ui", "Saved player to OrganizerState - group", slot.groupIndex, "slot", slot.slotIndex)
+        else
+            Debug:Dev("organizer_ui", "Skipped state update (event-driven placement)")
         end
         
         Debug:Dev("organizer_ui", "Card placed in slot successfully")

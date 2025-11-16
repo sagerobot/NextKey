@@ -13,6 +13,9 @@ local DungeonWindow = {
     controls = nil,
     sortDropdown = nil,
     totalScoreLabel = nil,
+    
+    -- Context for sorting system
+    context = nil,  -- Will be set to Sorting.contexts.DUNGEONS during initialization
 }
 
 NextKey222.DungeonWindow = DungeonWindow
@@ -61,6 +64,21 @@ function DungeonWindow:CreateFrame()
     frame:SetHeight(NextKey222.UIConfig.WINDOW.DUNGEON_HEIGHT or 788)
     frame:EnableResize(false)
     frame:Hide()
+    
+    -- Set status text using centralized UIConfig system
+    local UIConfig = NextKey222 and NextKey222.UIConfig
+    if UIConfig and UIConfig.GetStatusMessage then
+        frame:SetStatusText(UIConfig:GetStatusMessage("DUNGEON_WINDOW"))
+    else
+        -- Fallback if UIConfig not available
+        local version = "v0.5.32"
+        if NextKey and NextKey.version_full then
+            version = NextKey.version_full
+        elseif NextKey and NextKey.version then
+            version = "v" .. NextKey.version
+        end
+        frame:SetStatusText(version)
+    end
 
     -- Apply backdrop with configurable opacity
     if NextKey222.UIComponents then
@@ -626,6 +644,14 @@ end
 -- MARK: Initialization
 
 function DungeonWindow:Initialize()
+    -- Set context for sorting system
+    if NextKey222.Sorting and NextKey222.Sorting.contexts then
+        self.context = NextKey222.Sorting.contexts.DUNGEONS
+        log_dev("DungeonWindow context set to:", self.context)
+    else
+        log_dev("WARNING: Sorting service not available during DungeonWindow initialization")
+    end
+    
     log_dev("DungeonWindow module initialized")
     return true
 end

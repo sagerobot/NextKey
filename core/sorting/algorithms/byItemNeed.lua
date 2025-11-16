@@ -15,9 +15,10 @@ Sorting:RegisterAlgorithm(
     {
         displayName = "Max Item Need",
         contexts = { Sorting.contexts.KEYSTONES },
-        description = "Prioritize dungeons with tracked loot items",
+        description = "Same as Max Group IO but prioritizes dungeons with tracked loot items. Only differs when players have active loot tracking enabled (see Loot Window).",
         priority = 80,
-        icon = "Interface\\Icons\\INV_Misc_Note_01"
+        icon = "Interface\\Icons\\INV_Misc_Note_01",
+        showIOTooltips = true -- Show IO gain tooltips for this algorithm
     },
     function(a, b)
         -- Max Item Need prioritizes keystones for dungeons with tracked loot
@@ -36,11 +37,13 @@ Sorting:RegisterAlgorithm(
                 end
             end
             
-            -- Secondary: Add IO gain as tiebreaker
-            if entry.ioGainPotential then
-                score = score + entry.ioGainPotential
-            elseif entry.ioGainRange and entry.ioGainRange.expected then
-                score = score + entry.ioGainRange.expected
+            -- Secondary: Add total group IO gain as tiebreaker
+            if entry.ioGainRange and entry.ioGainRange.playerBreakdown then
+                local totalIO = 0
+                for playerName, playerData in pairs(entry.ioGainRange.playerBreakdown) do
+                    totalIO = totalIO + (playerData.expected or 0)
+                end
+                score = score + totalIO
             end
             
             return score

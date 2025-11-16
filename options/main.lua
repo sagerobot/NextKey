@@ -186,26 +186,28 @@ local function create_developer_tools_group()
             return not (dbg and dbg.enabled)
         end,
     }
-
-    -- Fake player presets / addon matrix
-    dev_args.team_header = {
+    
+    -- MARK: Section 1 - Quick Teams
+    dev_args.quickteams_header = {
         type = "header",
-        name = "Fake Player Generation",
+        name = "Quick Teams",
         order = 5,
     }
-
-    dev_args.preset_addons = {
+    
+    dev_args.quickteams_description = {
         type = "description",
-        name = "Configure and generate fake players for testing suggestions and UI flows.",
+        name = "Preset team compositions for quick testing",
         order = 6,
         fontSize = "small",
     }
-
+    
+    -- Addon config toggles
     dev_args.addon_nextkey = {
         type = "toggle",
         name = "Preset: Players Have NextKey",
         desc = "Fake players are considered to have NextKey installed.",
         order = 7,
+        width = "full",
         get = function()
             local dbg = ensure_debug()
             if not dbg then return false end
@@ -218,14 +220,14 @@ local function create_developer_tools_group()
             dbg.presetAddonConfig = dbg.presetAddonConfig or {}
             dbg.presetAddonConfig.nextkey = v and true or false
         end,
-        width = "full",
     }
-
+    
     dev_args.addon_raiderio = {
         type = "toggle",
         name = "Preset: Players Have RaiderIO",
         desc = "Fake players are considered to have RaiderIO data.",
         order = 8,
+        width = "full",
         get = function()
             local dbg = ensure_debug()
             if not dbg then return false end
@@ -238,332 +240,275 @@ local function create_developer_tools_group()
             dbg.presetAddonConfig = dbg.presetAddonConfig or {}
             dbg.presetAddonConfig.raiderio = v and true or false
         end,
-        width = "full",
     }
-
-    -- Preset teams (using existing FakePlayerService helpers)
-    local function make_preset_button(key, name, desc, order)
-        return {
-            type = "execute",
-            name = name,
-            desc = desc,
-            order = order,
-            func = function()
-                if not ensure_debug() or not NextKey222.Addon or not NextKey222.Addon.GeneratePresetTeam then
-                    if Debug then
-                        Debug:User("devtools", "Preset generator not available.")
-                    end
-                    return
-                end
-                NextKey222.Addon:ClearFakePlayers()
-                local count = NextKey222.Addon:GeneratePresetTeam(key)
-                if Debug then
-                    Debug:User("devtools", ("Generated %d fake players (%s)"):format(count or 0, key))
-                end
-                refresh_ui()
-            end,
-        }
-    end
-
-    dev_args.gen_mixed = make_preset_button(
-        "mixed_skill",
-        "Mixed Skill Team",
-        "4 players with varied IO for realistic testing.",
-        10
-    )
-
-    dev_args.gen_beginner = make_preset_button(
-        "beginner",
-        "Beginner Team",
-        "Lower IO players for fallback/path testing.",
-        11
-    )
-
-    dev_args.gen_expert = make_preset_button(
-        "expert",
-        "Expert Team",
-        "High IO players for pushing scenarios.",
-        12
-    )
     
-    -- NEW: 19-player role-aware team (replaces Organizer team for simplicity)
-    dev_args.gen_organizer = {
+    dev_args.spacer1 = {
+        type = "header",
+        name = "",
+        order = 9,
+    }
+    
+    -- Quick team buttons
+    dev_args.gen_mixed = {
         type = "execute",
-        name = "19-Player Team (Fills Your Role)",
-        desc = "Detects your current role and generates 19 players for a 20-player raid (4T/4H/12D). Varied skill tiers, 80% have keystones.",
-        order = 13,
+        name = "Mixed Skill (4 players)",
+        desc = "4 players with varied IO for realistic testing.",
+        order = 10,
         func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.Generate19PlayerTeam then
-                if Debug then
-                    Debug:User("devtools", "19-player team generator not available.")
-                end
+            if not ensure_debug() or not NextKey222.Addon or not NextKey222.Addon.GeneratePresetTeam then
+                if Debug then Debug:User("devtools", "Preset generator not available.") end
                 return
             end
-            local count = NextKey222.FakePlayerService:Generate19PlayerTeam()
-            if Debug then
-                Debug:User("devtools", ("Generated %d players for raid team"):format(count or 0))
-            end
+            NextKey222.Addon:ClearFakePlayers()
+            local count = NextKey222.Addon:GeneratePresetTeam("mixed_skill")
+            if Debug then Debug:User("devtools", ("Generated %d fake players (mixed_skill)"):format(count or 0)) end
             refresh_ui()
         end,
     }
-
-    -- NEW: Keystone Scenarios header
-    dev_args.keystone_header = {
+    
+    dev_args.gen_beginner = {
+        type = "execute",
+        name = "Beginner Team",
+        desc = "Lower IO players for fallback/path testing.",
+        order = 11,
+        func = function()
+            if not ensure_debug() or not NextKey222.Addon or not NextKey222.Addon.GeneratePresetTeam then
+                if Debug then Debug:User("devtools", "Preset generator not available.") end
+                return
+            end
+            NextKey222.Addon:ClearFakePlayers()
+            local count = NextKey222.Addon:GeneratePresetTeam("beginner")
+            if Debug then Debug:User("devtools", ("Generated %d fake players (beginner)"):format(count or 0)) end
+            refresh_ui()
+        end,
+    }
+    
+    dev_args.gen_expert = {
+        type = "execute",
+        name = "Expert Team",
+        desc = "High IO players for pushing scenarios.",
+        order = 12,
+        func = function()
+            if not ensure_debug() or not NextKey222.Addon or not NextKey222.Addon.GeneratePresetTeam then
+                if Debug then Debug:User("devtools", "Preset generator not available.") end
+                return
+            end
+            NextKey222.Addon:ClearFakePlayers()
+            local count = NextKey222.Addon:GeneratePresetTeam("expert")
+            if Debug then Debug:User("devtools", ("Generated %d fake players (expert)"):format(count or 0)) end
+            refresh_ui()
+        end,
+    }
+    
+    dev_args.gen_boosting_team = {
+        type = "execute",
+        name = "Boosting Team (3 boosters + 1 carry)",
+        desc = "Tests Max Group IO vs Player Coverage - 3 expert players + 1 beginner to showcase algorithm differences.",
+        order = 13,
+        func = function()
+            if not ensure_debug() or not NextKey222.Addon or not NextKey222.Addon.GeneratePresetTeam then
+                if Debug then Debug:User("devtools", "Preset generator not available.") end
+                return
+            end
+            NextKey222.Addon:ClearFakePlayers()
+            
+            -- Use GeneratePreset to ensure proper addon config and score generation
+            -- Create 3 experts
+            for i = 1, 3 do
+                if NextKey222.FakePlayerService and NextKey222.FakePlayerService.CreatePlayer then
+                    -- Get addon configuration from debug state (same as other presets)
+                    local addonConfig = { nextkey = true, raiderio = true }
+                    if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+                        local dbg = NextKey222.Addon.db.global.debug
+                        if dbg.presetAddonConfig then
+                            addonConfig = dbg.presetAddonConfig
+                        end
+                    end
+                    
+                    NextKey222.FakePlayerService:CreatePlayer({
+                        tier = "expert",
+                        class = ({"WARRIOR", "PALADIN", "PRIEST"})[i],
+                        addonStatus = addonConfig,
+                    })
+                end
+            end
+            
+            -- Create 1 beginner
+            if NextKey222.FakePlayerService and NextKey222.FakePlayerService.CreatePlayer then
+                local addonConfig = { nextkey = true, raiderio = true }
+                if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+                    local dbg = NextKey222.Addon.db.global.debug
+                    if dbg.presetAddonConfig then
+                        addonConfig = dbg.presetAddonConfig
+                    end
+                end
+                
+                NextKey222.FakePlayerService:CreatePlayer({
+                    tier = "beginner",
+                    class = "HUNTER",
+                    addonStatus = addonConfig,
+                })
+            end
+            
+            if Debug then Debug:User("devtools", "Generated boosting team (3 experts + 1 beginner)") end
+            refresh_ui()
+        end,
+    }
+    
+    dev_args.gen_high_keys = {
+        type = "execute",
+        name = "High Keys Team",
+        desc = "Team with high-level keystones for challenge testing.",
+        order = 14,
+        func = function()
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateLevelRange then
+                if Debug then Debug:User("devtools", "High keys generator not available.") end
+                return
+            end
+            NextKey222.Addon:ClearFakePlayers()
+            local count = NextKey222.FakePlayerService:GenerateLevelRange(15, 18, 4)
+            if Debug then Debug:User("devtools", ("Generated %d players with high keys"):format(count or 0)) end
+            refresh_ui()
+        end,
+    }
+    
+    dev_args.spacer2 = {
         type = "header",
-        name = "Keystone Scenarios",
+        name = "",
         order = 15,
     }
     
-    dev_args.keystone_desc = {
-        type = "description",
-        name = "Test keystone selection logic with specific key configurations.",
+    dev_args.clear_fake = {
+        type = "execute",
+        name = "Clear All Fake Players",
+        desc = "Remove all fake players from the system.",
+        confirm = true,
         order = 16,
+        func = function()
+            if NextKey222.Addon and NextKey222.Addon.ClearFakePlayers then
+                NextKey222.Addon:ClearFakePlayers()
+                refresh_ui()
+            end
+        end,
+    }
+    
+    -- MARK: Section 2 - Algorithm Test Scenarios
+    dev_args.algorithmtests_header = {
+        type = "header",
+        name = "Algorithm Test Scenarios",
+        order = 20,
+    }
+    
+    dev_args.algorithmtests_description = {
+        type = "description",
+        name = "Edge case generators that differentiate sorting algorithms",
+        order = 21,
         fontSize = "small",
     }
     
-    -- NEW: Diverse Keys (with level selector)
-    dev_args.diverse_keys_level = {
-        type = "select",
-        name = "Diverse Keys Level",
-        desc = "Select keystone level for diverse key generation.",
-        order = 17,
-        values = {
-            [7] = "+7 (KSM)",
-            [10] = "+10 (Hero Track)",
-            [12] = "+12 (KSH)",
-            [15] = "+15 (Myth Track)",
-            [18] = "+18 (Expert)",
-            [20] = "+20 (Title Push)",
-        },
-        get = function()
-            local dbg = ensure_debug()
-            return (dbg and dbg.diverseKeysLevel) or 10
-        end,
-        set = function(_, v)
-            local dbg = ensure_debug()
-            if not dbg then return end
-            dbg.diverseKeysLevel = v
-        end,
-    }
-    
-    dev_args.gen_diverse_keys = {
+    dev_args.iogap = {
         type = "execute",
-        name = "Generate: Diverse Keys",
-        desc = "4 players, each with different dungeon at selected level.",
-        order = 18,
-        func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateDiverseKeys then
-                if Debug then
-                    Debug:User("devtools", "Diverse keys generator not available.")
-                end
-                return
-            end
-            local dbg = ensure_debug()
-            local level = (dbg and dbg.diverseKeysLevel) or 10
-            local count = NextKey222.FakePlayerService:GenerateDiverseKeys(level, 4)
-            if Debug then
-                Debug:User("devtools", ("Generated %d players with diverse +%d keys"):format(count or 0, level))
-            end
-            refresh_ui()
-        end,
-    }
-    
-    -- NEW: Level Range buttons
-    dev_args.gen_ksm_range = {
-        type = "execute",
-        name = "KSM Range (7-10)",
-        desc = "4 players with keys in KSM range (7-10).",
-        order = 19,
-        func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateLevelRange then
-                if Debug then
-                    Debug:User("devtools", "Level range generator not available.")
-                end
-                return
-            end
-            local count = NextKey222.FakePlayerService:GenerateLevelRange(7, 10, 4)
-            if Debug then
-                Debug:User("devtools", ("Generated %d players with KSM range keys"):format(count or 0))
-            end
-            refresh_ui()
-        end,
-    }
-    
-    dev_args.gen_ksh_range = {
-        type = "execute",
-        name = "KSH Range (11-12)",
-        desc = "4 players with keys in KSH range (11-12).",
-        order = 20,
-        func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateLevelRange then
-                if Debug then
-                    Debug:User("devtools", "Level range generator not available.")
-                end
-                return
-            end
-            local count = NextKey222.FakePlayerService:GenerateLevelRange(11, 12, 4)
-            if Debug then
-                Debug:User("devtools", ("Generated %d players with KSH range keys"):format(count or 0))
-            end
-            refresh_ui()
-        end,
-    }
-    
-    dev_args.gen_expert_range = {
-        type = "execute",
-        name = "Expert Range (15-18)",
-        desc = "4 players with keys in expert range (15-18).",
-        order = 21,
-        func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateLevelRange then
-                if Debug then
-                    Debug:User("devtools", "Level range generator not available.")
-                end
-                return
-            end
-            local count = NextKey222.FakePlayerService:GenerateLevelRange(15, 18, 4)
-            if Debug then
-                Debug:User("devtools", ("Generated %d players with expert range keys"):format(count or 0))
-            end
-            refresh_ui()
-        end,
-    }
-    
-    -- NEW: Role Composition header
-    dev_args.add_single_header = {
-        type = "header",
-        name = "Single Fake Player",
+        name = "IO Gap Test",
+        desc = "MaxGroupIO vs SmartSort differentiation - creates team where algorithms produce different rankings",
         order = 22,
-    }
-
-    dev_args.add_single_tier = {
-        type = "select",
-        name = "Single Player Skill Tier",
-        desc = "Select the skill tier for the next fake player, or Random.",
-        order = 23,
-        values = {
-            random = "Random Tier",
-            title = "Title (3600-3800 IO)",
-            elite = "Elite (3300-3600 IO)",
-            expert = "Expert (3100-3400 IO)",
-            skilled = "Skilled (2900-3100 IO)",
-            competent = "Competent (2500-2900 IO)",
-            average = "Average (2000-2600 IO)",
-            casual = "Casual (1500-2000 IO)",
-            beginner = "Beginner (1000-1500 IO)",
-        },
-        get = function()
-            local dbg = ensure_debug()
-            dbg.singlePlayerTier = dbg.singlePlayerTier or "random"
-            return dbg.singlePlayerTier
-        end,
-        set = function(_, value)
-            local dbg = ensure_debug()
-            if not dbg then return end
-            dbg.singlePlayerTier = value or "random"
+        func = function()
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.RunScenario then
+                if Debug then Debug:User("devtools", "Scenario system not available.") end
+                return
+            end
+            NextKey222.FakePlayerService:RunScenario("io_gap")
+            if NextKey222.FakePlayerService.ShowAlgorithmComparison then
+                NextKey222.FakePlayerService:ShowAlgorithmComparison()
+            end
+            refresh_ui()
         end,
     }
-
-    dev_args.add_single_player = {
+    
+    dev_args.lootpriority = {
         type = "execute",
-        name = "Add Single Fake Player",
-        desc = "Add one fake player using the selected skill tier. Does not clear existing fake players.",
+        name = "Loot Priority Test",
+        desc = "ItemNeed vs other algorithms - tests loot-based sorting",
+        order = 23,
+        func = function()
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.RunScenario then
+                if Debug then Debug:User("devtools", "Scenario system not available.") end
+                return
+            end
+            NextKey222.FakePlayerService:RunScenario("loot_priority")
+            if NextKey222.FakePlayerService.ShowAlgorithmComparison then
+                NextKey222.FakePlayerService:ShowAlgorithmComparison()
+            end
+            refresh_ui()
+        end,
+    }
+    
+    dev_args.coverage = {
+        type = "execute",
+        name = "Coverage Test",
+        desc = "PlayerCoverage edge case - uneven benefit distribution",
         order = 24,
         func = function()
-            local dbg = ensure_debug()
-            if not dbg then return end
-
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.CreatePlayer then
-                if Debug then
-                    Debug:User("devtools", "FakePlayerService not available.")
-                end
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.RunScenario then
+                if Debug then Debug:User("devtools", "Scenario system not available.") end
                 return
             end
-
-            local tier = dbg.singlePlayerTier or "random"
-            if tier == "random" then
-                -- Use FakePlayerService default tier distribution
-                local name = NextKey222.FakePlayerService:CreatePlayer({})
-                if name and Debug then
-                    Debug:User("devtools", ("Added fake player %s with random tier"):format(name))
-                end
-            else
-                local name = NextKey222.FakePlayerService:CreatePlayer({ tier = tier })
-                if name and Debug then
-                    Debug:User("devtools", ("Added fake player %s (tier: %s)"):format(name, tier))
-                end
+            NextKey222.FakePlayerService:RunScenario("coverage_test")
+            if NextKey222.FakePlayerService.ShowAlgorithmComparison then
+                NextKey222.FakePlayerService:ShowAlgorithmComparison()
             end
-
             refresh_ui()
         end,
     }
-
-    dev_args.role_header = {
+    
+    dev_args.comprehensive = {
+        type = "execute",
+        name = "Comprehensive Suite",
+        desc = "All 7 algorithms should produce different results - maximum variance",
+        order = 25,
+        func = function()
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.RunScenario then
+                if Debug then Debug:User("devtools", "Scenario system not available.") end
+                return
+            end
+            NextKey222.FakePlayerService:RunScenario("comprehensive")
+            if NextKey222.FakePlayerService.ShowAlgorithmComparison then
+                NextKey222.FakePlayerService:ShowAlgorithmComparison()
+            end
+            refresh_ui()
+        end,
+    }
+    
+    dev_args.spacer_algo = {
         type = "header",
-        name = "Role Composition",
+        name = "",
+        order = 26,
+    }
+    
+    dev_args.showcomparison = {
+        type = "execute",
+        name = "Show Algorithm Comparison",
+        desc = "Compare how all 7 algorithms rank current keys",
+        order = 27,
+        func = function()
+            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.ShowAlgorithmComparison then
+                if Debug then Debug:User("devtools", "Algorithm comparison not available.") end
+                return
+            end
+            NextKey222.FakePlayerService:ShowAlgorithmComparison()
+        end,
+    }
+    
+    -- MARK: Section 3 - Custom Player Builder (FLATTENED)
+    dev_args.custombuilder_header = {
+        type = "header",
+        name = "Custom Player Builder",
         order = 30,
     }
     
-    dev_args.role_desc = {
+    dev_args.custombuilder_description = {
         type = "description",
-        name = "Generate specific role layouts for testing group formation.",
-        order = 23,
-        fontSize = "small",
-    }
-    
-    -- NEW: Role-aware 4-player team button
-    dev_args.gen_standard_comp = {
-        type = "execute",
-        name = "4-Player Team (Fills Your Role)",
-        desc = "Detects your current role and generates 4 players to complete a 5-man team (1T/1H/3D). Uses 'competent' tier for balanced testing.",
-        order = 24,
-        func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.Generate4PlayerTeam then
-                if Debug then
-                    Debug:User("devtools", "4-player team generator not available.")
-                end
-                return
-            end
-            local count = NextKey222.FakePlayerService:Generate4PlayerTeam()
-            if Debug then
-                Debug:User("devtools", ("Generated %d players to complete your team"):format(count or 0))
-            end
-            refresh_ui()
-        end,
-    }
-    
-    -- NEW: Role-aware 19-player team button
-    dev_args.gen_19_player_team = {
-        type = "execute",
-        name = "19-Player Team (Fills Your Role)",
-        desc = "Detects your current role and generates 19 players for a 20-player raid (4T/4H/12D). Varied skill tiers, 80% have keystones.",
-        order = 24.5,
-        func = function()
-            if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.Generate19PlayerTeam then
-                if Debug then
-                    Debug:User("devtools", "19-player team generator not available.")
-                end
-                return
-            end
-            local count = NextKey222.FakePlayerService:Generate19PlayerTeam()
-            if Debug then
-                Debug:User("devtools", ("Generated %d players for raid team"):format(count or 0))
-            end
-            refresh_ui()
-        end,
-    }
-
-    -- MARK: Custom Player Builder
-    dev_args.custom_builder_header = {
-        type = "header",
-        name = "Custom Player Builder",
-        order = 25,
-    }
-    
-    dev_args.custom_builder_desc = {
-        type = "description",
-        name = "Create fully customized fake players with precise control over all attributes.",
-        order = 26,
+        name = "Create fully customized fake players with precise control over all attributes",
+        order = 31,
         fontSize = "small",
     }
     
@@ -782,6 +727,208 @@ local function create_developer_tools_group()
         end,
     }
     
+    -- MARK: Per-Dungeon Tuning (Phase 2.1)
+    dev_args.perdungeontuning = {
+        type = "group",
+        name = "Per-Dungeon Tuning",
+        inline = false,
+        order = 31.5,
+        args = {
+            header = {
+                type = "description",
+                name = "Adjust performance per dungeon relative to base skill tier. Use modifiers from -4 (much weaker) to +4 (much stronger) for precise control over each dungeon's score.",
+                order = 0,
+                fontSize = "small",
+            },
+        }
+    }
+    
+    -- Dynamically add sliders for each dungeon
+    do
+        local dungeons = get_active_season_dungeons()
+        local order = 1
+        
+        for dungeonIDStr, dungeonName in pairs(dungeons) do
+            local dungeonID = tonumber(dungeonIDStr)
+            if dungeonID then
+                dev_args.perdungeontuning.args["dungeon_" .. dungeonID] = {
+                    type = "range",
+                    name = dungeonName,
+                    desc = string.format("Modifier: -4 (much weaker) to +4 (much stronger) for %s", dungeonName),
+                    min = -4,
+                    max = 4,
+                    step = 1,
+                    get = function()
+                        local form = ensure_debug_add_form()
+                        form.dungeonOverrides = form.dungeonOverrides or {}
+                        local override = form.dungeonOverrides[dungeonID]
+                        if override and override.modifier then
+                            return override.modifier
+                        end
+                        return 0
+                    end,
+                    set = function(_, val)
+                        local form = ensure_debug_add_form()
+                        form.dungeonOverrides = form.dungeonOverrides or {}
+                        if val == 0 then
+                            -- Remove override when set to 0 (neutral)
+                            form.dungeonOverrides[dungeonID] = nil
+                        else
+                            form.dungeonOverrides[dungeonID] = { modifier = val }
+                        end
+                        notify_options_changed()
+                    end,
+                    order = order
+                }
+                order = order + 1
+            end
+        end
+        
+        -- Reset button
+        dev_args.perdungeontuning.args.reset = {
+            type = "execute",
+            name = "Reset All to Tier Default",
+            desc = "Clear all per-dungeon modifiers",
+            func = function()
+                local form = ensure_debug_add_form()
+                form.dungeonOverrides = {}
+                notify_options_changed()
+            end,
+            order = 99
+        }
+    end
+    
+    -- MARK: Loot Targeting Section (Phase 2.2)
+    dev_args.loottargeting = {
+        type = "group",
+        name = "Loot Targeting",
+        inline = false,
+        order = 31.7,
+        args = {
+            description = {
+                type = "description",
+                name = "Assign loot targets to test the 'Max Item Need' sorting algorithm. Select dungeons this player needs loot from.",
+                order = 0,
+                fontSize = "small",
+            },
+            targetdungeons = {
+                type = "multiselect",
+                name = "Target Dungeons",
+                desc = "Select dungeons this player needs loot from",
+                values = function()
+                    return get_active_season_dungeons()
+                end,
+                get = function(_, dungeonID)
+                    local form = ensure_debug_add_form()
+                    form.lootDungeons = form.lootDungeons or {}
+                    return form.lootDungeons[tonumber(dungeonID)] == true
+                end,
+                set = function(_, dungeonID, value)
+                    local form = ensure_debug_add_form()
+                    form.lootDungeons = form.lootDungeons or {}
+                    local id = tonumber(dungeonID)
+                    form.lootDungeons[id] = value or nil
+                    notify_options_changed()
+                end,
+                order = 1
+            },
+            itempreview = {
+                type = "description",
+                name = function()
+                    local form = ensure_debug_add_form()
+                    local lootDungeons = form.lootDungeons or {}
+                    
+                    local selectedCount = 0
+                    for _ in pairs(lootDungeons) do
+                        selectedCount = selectedCount + 1
+                    end
+                    
+                    if selectedCount == 0 then
+                        return "|cffaaaaaa(No dungeons selected)|r"
+                    end
+                    
+                    local text = "|cff00ff00Featured items from selected dungeons:|r\n"
+                    for dungeonID in pairs(lootDungeons) do
+                        local dungeons = get_active_season_dungeons()
+                        local dungeonName = dungeons[tostring(dungeonID)] or ("Dungeon " .. dungeonID)
+                        
+                        if addon and addon.GetFeaturedItems then
+                            local items = addon:GetFeaturedItems(dungeonID) or {}
+                            if #items > 0 then
+                                text = text .. string.format("\n|cffffd700%s:|r", dungeonName)
+                                for _, itemID in ipairs(items) do
+                                    local itemName = GetItemInfo(itemID)
+                                    if itemName then
+                                        text = text .. string.format("\n  • %s", itemName)
+                                    else
+                                        text = text .. string.format("\n  • Item %d (loading...)", itemID)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    return text
+                end,
+                order = 2,
+                fontSize = "small",
+            },
+            randomloot = {
+                type = "execute",
+                name = "Assign Random Loot (1-3 Dungeons)",
+                desc = "Automatically assign 1-3 featured items as loot targets",
+                func = function()
+                    local form = ensure_debug_add_form()
+                    form.lootDungeons = {}
+                    
+                    local dungeons = get_active_season_dungeons()
+                    local dungeonIDs = {}
+                    for idStr in pairs(dungeons) do
+                        table.insert(dungeonIDs, tonumber(idStr))
+                    end
+                    
+                    if #dungeonIDs == 0 then
+                        if Debug then
+                            Debug:User("No dungeons available for loot targeting")
+                        end
+                        return
+                    end
+                    
+                    -- Shuffle dungeon IDs
+                    for i = #dungeonIDs, 2, -1 do
+                        local j = math.random(i)
+                        dungeonIDs[i], dungeonIDs[j] = dungeonIDs[j], dungeonIDs[i]
+                    end
+                    
+                    -- Select 1-3 random dungeons
+                    local numDungeons = math.random(1, math.min(3, #dungeonIDs))
+                    for i = 1, numDungeons do
+                        form.lootDungeons[dungeonIDs[i]] = true
+                    end
+                    
+                    if Debug then
+                        Debug:User("devtools", string.format("Assigned %d random loot target dungeon(s)", numDungeons))
+                    end
+                    notify_options_changed()
+                end,
+                order = 3
+            },
+            clearloot = {
+                type = "execute",
+                name = "Clear All Loot Targets",
+                desc = "Remove all selected loot target dungeons",
+                func = function()
+                    local form = ensure_debug_add_form()
+                    form.lootDungeons = {}
+                    if Debug then
+                        Debug:User("devtools", "Cleared all loot targets")
+                    end
+                    notify_options_changed()
+                end,
+                order = 4
+            }
+        }
+    }
+    
     -- Preview
     dev_args.builder_preview = {
         type = "description",
@@ -879,6 +1026,41 @@ local function create_developer_tools_group()
                 return
             end
             
+            -- Build loot targets from selected dungeons (Phase 2.2)
+            local lootTargets = nil
+            local hasLootDungeons = form.lootDungeons and next(form.lootDungeons) ~= nil
+            
+            if hasLootDungeons and addon and addon.GetFeaturedItems then
+                lootTargets = {}
+                for dungeonID in pairs(form.lootDungeons) do
+                    local featuredItems = addon:GetFeaturedItems(dungeonID) or {}
+                    if #featuredItems > 0 then
+                        -- Take 1-2 random items from featured
+                        local itemCount = math.random(1, math.min(2, #featuredItems))
+                        local selectedItems = {}
+                        
+                        -- Shuffle and select
+                        local shuffled = {}
+                        for i, itemID in ipairs(featuredItems) do
+                            shuffled[i] = itemID
+                        end
+                        for i = #shuffled, 2, -1 do
+                            local j = math.random(i)
+                            shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+                        end
+                        
+                        for i = 1, itemCount do
+                            table.insert(selectedItems, shuffled[i])
+                        end
+                        
+                        lootTargets[dungeonID] = {
+                            itemIDs = selectedItems,
+                            priority = "high"
+                        }
+                    end
+                end
+            end
+            
             -- Build config
             local config = {
                 name = form.name,
@@ -888,6 +1070,8 @@ local function create_developer_tools_group()
                 io = (form.tier or form.tier == "") and nil or form.io,
                 keystoneDungeon = form.keystoneDungeon,
                 keystoneLevel = form.keystoneLevel,
+                dungeonOverrides = form.dungeonOverrides,  -- Phase 2.1
+                lootTargets = lootTargets  -- Phase 2.2
             }
             
             -- Create player
@@ -905,8 +1089,15 @@ local function create_developer_tools_group()
                     Debug:User("devtools", string.format("Created custom player: %s", playerName))
                 end
                 
-                -- Reset form
-                ensure_debug().addForm = { best = {} }
+                -- Reset form (preserve best table structure)
+                local dbg = ensure_debug()
+                if dbg then
+                    dbg.addForm = {
+                        best = {},
+                        dungeonOverrides = {},
+                        lootDungeons = {}
+                    }
+                end
                 
                 notify_options_changed()
                 refresh_ui()
@@ -924,104 +1115,344 @@ local function create_developer_tools_group()
         desc = "Clear all fields and start over",
         order = 36,
         func = function()
-            ensure_debug().addForm = { best = {} }
+            local dbg = ensure_debug()
+            if dbg then
+                dbg.addForm = {
+                    best = {},
+                    dungeonOverrides = {},
+                    lootDungeons = {}
+                }
+            end
             notify_options_changed()
         end,
     }
-
-    -- Custom team
-    dev_args.custom_header = {
-        type = "header",
-        name = "Custom Team",
+    
+    -- MARK: Section 4 - Keystone Scenarios
+    dev_args.keystonescenarios = {
+        type = "group",
+        name = "Keystone Scenarios",
+        inline = true,
+        order = 30,
+        args = {
+            description = {
+                type = "description",
+                name = "Keystone configuration generators for testing different scenarios",
+                order = 0,
+                fontSize = "small",
+            },
+            
+            diverse_keys = {
+                type = "execute",
+                name = "Diverse Keys",
+                desc = "All different dungeons at same level - tests dungeon variety",
+                order = 1,
+                func = function()
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateDiverseKeys then
+                        if Debug then Debug:User("devtools", "Diverse Keys generator not available.") end
+                        return
+                    end
+                    local count = NextKey222.FakePlayerService:GenerateDiverseKeys(10, 4)
+                    if Debug then Debug:User("devtools", ("Generated %d players with diverse keys"):format(count or 0)) end
+                    refresh_ui()
+                end,
+            },
+            
+            level_spread = {
+                type = "execute",
+                name = "Level Spread",
+                desc = "Wide key level range (+7 to +15) - tests level-based sorting",
+                order = 2,
+                func = function()
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GenerateLevelRange then
+                        if Debug then Debug:User("devtools", "Level Spread generator not available.") end
+                        return
+                    end
+                    local count = NextKey222.FakePlayerService:GenerateLevelRange(7, 15, 4)
+                    if Debug then Debug:User("devtools", ("Generated %d players with level spread"):format(count or 0)) end
+                    refresh_ui()
+                end,
+            },
+        },
+    }
+    
+    -- MARK: Section 5 - Advanced Operations
+    dev_args.advancedops = {
+        type = "group",
+        name = "Advanced Operations",
+        inline = false,
         order = 40,
+        args = {
+            description = {
+                type = "description",
+                name = "Save/load team configurations and bulk operations for advanced testing",
+                order = 0,
+                fontSize = "small",
+            },
+            
+            -- Save/Load Teams
+            saveload_header = {
+                type = "header",
+                name = "Save/Load Teams",
+                order = 1,
+            },
+            
+            team_name = {
+                type = "input",
+                name = "Team Name",
+                desc = "Name for saving/loading team configurations",
+                order = 2,
+                width = "full",
+                get = function()
+                    local dbg = ensure_debug()
+                    if not dbg then return "" end
+                    dbg.teamName = dbg.teamName or ""
+                    return dbg.teamName
+                end,
+                set = function(_, value)
+                    local dbg = ensure_debug()
+                    if not dbg then return end
+                    dbg.teamName = value
+                end,
+            },
+            
+            team_description = {
+                type = "input",
+                name = "Description",
+                desc = "Optional description for this team configuration",
+                order = 3,
+                width = "full",
+                multiline = 3,
+                get = function()
+                    local dbg = ensure_debug()
+                    if not dbg then return "" end
+                    dbg.teamDescription = dbg.teamDescription or ""
+                    return dbg.teamDescription
+                end,
+                set = function(_, value)
+                    local dbg = ensure_debug()
+                    if not dbg then return end
+                    dbg.teamDescription = value
+                end,
+            },
+            
+            save_team = {
+                type = "execute",
+                name = "Save Current Team",
+                desc = "Save current fake players as a named configuration",
+                order = 4,
+                func = function()
+                    local dbg = ensure_debug()
+                    if not dbg or not dbg.teamName or dbg.teamName == "" then
+                        if Debug then Debug:Error("Please enter a team name") end
+                        return
+                    end
+                    
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.SaveCurrentTeam then
+                        if Debug then Debug:Error("Save team feature not available") end
+                        return
+                    end
+                    
+                    local success = NextKey222.FakePlayerService:SaveCurrentTeam(dbg.teamName, dbg.teamDescription)
+                    if success then
+                        if Debug then Debug:User("devtools", string.format("Saved team '%s'", dbg.teamName)) end
+                        notify_options_changed()
+                    end
+                end,
+            },
+            
+            load_team = {
+        type = "select",
+        name = "Load Team",
+        desc = "Select a saved team to load",
+        order = 96,
+                values = function()
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.GetSavedTeams then
+                        return {}
+                    end
+                    
+                    local teams = NextKey222.FakePlayerService:GetSavedTeams()
+                    local values = {}
+                    for name, data in pairs(teams) do
+                        local desc = data.description and data.description ~= "" and data.description or "No description"
+                        values[name] = string.format("%s (%d players)", name, #(data.players or {}))
+                    end
+                    return values
+                end,
+                get = function()
+                    return nil
+                end,
+                set = function(_, value)
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.LoadTeam then
+                        if Debug then Debug:Error("Load team feature not available") end
+                        return
+                    end
+                    
+                    local success = NextKey222.FakePlayerService:LoadTeam(value)
+                    if success then
+                        if Debug then Debug:User("devtools", string.format("Loaded team '%s'", value)) end
+                        refresh_ui()
+                    end
+                end,
+            },
+            
+            delete_team = {
+                type = "execute",
+                name = "Delete Selected Team",
+                desc = "Delete the team specified in the Team Name field",
+                confirm = true,
+                order = 6,
+                func = function()
+                    local dbg = ensure_debug()
+                    if not dbg or not dbg.teamName or dbg.teamName == "" then
+                        if Debug then Debug:Error("Please enter a team name to delete") end
+                        return
+                    end
+                    
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.DeleteTeam then
+                        if Debug then Debug:Error("Delete team feature not available") end
+                        return
+                    end
+                    
+                    local success = NextKey222.FakePlayerService:DeleteTeam(dbg.teamName)
+                    if success then
+                        if Debug then Debug:User("devtools", string.format("Deleted team '%s'", dbg.teamName)) end
+                        dbg.teamName = ""
+                        dbg.teamDescription = ""
+                        notify_options_changed()
+                    else
+                        if Debug then Debug:Error(string.format("Team '%s' not found", dbg.teamName)) end
+                    end
+                end,
+            },
+            
+            -- Bulk Operations
+            bulk_header = {
+                type = "header",
+                name = "Bulk Operations",
+                order = 10,
+            },
+            
+            bulk_add_loot = {
+                type = "execute",
+                name = "Add Random Loot to All Players",
+                desc = "Assign random loot targets to all fake players (1-3 dungeons each)",
+                order = 11,
+                func = function()
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.BulkAddLoot then
+                        if Debug then Debug:Error("Bulk loot feature not available") end
+                        return
+                    end
+                    
+                    NextKey222.FakePlayerService:BulkAddLoot()
+                    refresh_ui()
+                end,
+            },
+            
+            bulk_randomize_keys = {
+                type = "execute",
+                name = "Randomize All Keystones",
+                desc = "Assign random keystones to all fake players",
+                order = 12,
+                func = function()
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.BulkRandomizeKeys then
+                        if Debug then Debug:Error("Bulk randomize feature not available") end
+                        return
+                    end
+                    
+                    NextKey222.FakePlayerService:BulkRandomizeKeys()
+                    refresh_ui()
+                end,
+            },
+            
+            bulk_io_adjustment = {
+                type = "range",
+                name = "IO Adjustment",
+                desc = "Amount to add/subtract from all player IO scores",
+                order = 13,
+                min = -1000,
+                max = 1000,
+                step = 50,
+                get = function()
+                    local dbg = ensure_debug()
+                    if not dbg then return 0 end
+                    dbg.bulkIOAdjustment = dbg.bulkIOAdjustment or 0
+                    return dbg.bulkIOAdjustment
+                end,
+                set = function(_, value)
+                    local dbg = ensure_debug()
+                    if not dbg then return end
+                    dbg.bulkIOAdjustment = value
+                end,
+            },
+            
+            bulk_apply_io = {
+                type = "execute",
+                name = "Apply IO Adjustment",
+                desc = "Add/subtract IO from all fake players",
+                order = 14,
+                func = function()
+                    local dbg = ensure_debug()
+                    if not dbg or not dbg.bulkIOAdjustment then
+                        if Debug then Debug:Error("No IO adjustment value set") end
+                        return
+                    end
+                    
+                    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService.BulkAdjustIO then
+                        if Debug then Debug:Error("Bulk IO adjustment feature not available") end
+                        return
+                    end
+                    
+                    NextKey222.FakePlayerService:BulkAdjustIO(dbg.bulkIOAdjustment)
+                    refresh_ui()
+                end,
+            },
+        },
     }
-
-    dev_args.custom_count = {
-        type = "range",
-        name = "Team Size",
-        desc = "Generate N random fake players.",
-        min = 1,
-        max = 12,
-        step = 1,
-        order = 41,
-        get = function()
-            local dbg = ensure_debug()
-            return (dbg and dbg.customTeamSize) or 4
-        end,
-        set = function(_, v)
-            local dbg = ensure_debug()
-            if not dbg then return end
-            dbg.customTeamSize = v
-        end,
-    }
-
-    dev_args.gen_custom = {
-        type = "execute",
-        name = "Generate Custom Team",
-        desc = "Generate random fake players using current preset settings.",
-        order = 42,
-        func = function()
-            local dbg = ensure_debug()
-            if not dbg or not NextKey222.Addon or not NextKey222.Addon.AddRandomFakePlayers then
-                if Debug then
-                    Debug:User("devtools", "Custom generator not available.")
-                end
-                return
-            end
-            local size = dbg.customTeamSize or 4
-            NextKey222.Addon:ClearFakePlayers()
-            local count = NextKey222.Addon:AddRandomFakePlayers(size)
-            if Debug then
-                Debug:User("devtools", ("Generated %d custom fake players"):format(count or 0))
-            end
-            refresh_ui()
-        end,
-    }
-
-    -- Status + clear
-    dev_args.status = {
-        type = "description",
-        name = function()
-            local players = get_players()
-            local total = #players
-            if total == 0 then
-                return "No fake players currently generated."
-            end
-            return ("Active fake players: %d"):format(total)
-        end,
+    
+    -- MARK: Section 6 - Debug & Validation
+    dev_args.debugvalidation = {
+        type = "group",
+        name = "Debug & Validation",
+        inline = false,
         order = 50,
-        fontSize = "medium",
-    }
-
-    dev_args.clear_fake = {
-        type = "execute",
-        name = "Clear All Fake Players",
-        confirm = true,
-        order = 51,
-        func = function()
-            if NextKey222.Addon and NextKey222.Addon.ClearFakePlayers then
-                NextKey222.Addon:ClearFakePlayers()
-                refresh_ui()
-            end
-        end,
-    }
-
-    -- Existing targeted test hooks (e.g., PUG Helper test) are kept but scoped here.
-    dev_args.test_pug_helper = {
-        type = "execute",
-        name = "Test PUG Application Tracking",
-        desc = "Run PUG Helper application tracking test (if available).",
-        order = 60,
-        func = function()
-            if NextKey222.PUGHelper and NextKey222.PUGHelper.TestApplicationTracking then
-                NextKey222.PUGHelper:TestApplicationTracking()
-                if Debug then
-                    Debug:User("devtools", "PUG Helper: TestApplicationTracking invoked.")
-                end
-            elseif Debug then
-                Debug:User("devtools", "PUG Helper test API not available.")
-            end
-        end,
+        args = {
+            description = {
+                type = "description",
+                name = "Status display and debugging tools",
+                order = 0,
+                fontSize = "small",
+            },
+            
+            status = {
+                type = "description",
+                name = function()
+                    local players = get_players()
+                    local total = #players
+                    if total == 0 then
+                        return "|cFF808080No fake players currently generated.|r"
+                    end
+                    
+                    -- Count by role
+                    local tanks, healers, dps = 0, 0, 0
+                    for _, player in ipairs(players) do
+                        if player.role == "TANK" then
+                            tanks = tanks + 1
+                        elseif player.role == "HEALER" then
+                            healers = healers + 1
+                        else
+                            dps = dps + 1
+                        end
+                    end
+                    
+                    return string.format(
+                        "|cFF00FF00Active Players: %d|r\n  • Tanks: %d\n  • Healers: %d\n  • DPS: %d",
+                        total, tanks, healers, dps
+                    )
+                end,
+                order = 1,
+                fontSize = "medium",
+            },
+        },
     }
 
     return {
@@ -1337,102 +1768,36 @@ function NextKey222.SetupOptions()
                 },
             },
 
-            -- 6. Debug System (with Fake Player Tools as final tab)
-            debugSystem = (function()
-                local debugOptions = NextKey222.DebugUI and NextKey222.DebugUI.CreateDebugOptions and NextKey222.DebugUI:CreateDebugOptions() or {
-                    type = "group",
-                    name = "Debug System",
-                    order = 80,
-                    args = {
-                        description = {
-                            type = "description",
-                            name = "Debug UI not available. Please ensure core/debugUI.lua is loaded.",
-                            fontSize = "medium",
-                        },
+            -- 6. Debug System
+            debugSystem = NextKey222.DebugUI and NextKey222.DebugUI.CreateDebugOptions and NextKey222.DebugUI:CreateDebugOptions() or {
+                type = "group",
+                name = "Debug System",
+                order = 80,
+                args = {
+                    description = {
+                        type = "description",
+                        name = "Debug UI not available. Please ensure core/debugUI.lua is loaded.",
+                        fontSize = "medium",
                     },
+                },
+            },
+
+            -- 7. Fake Player Tools (top-level scrollable section)
+            fakePlayerTools = (function()
+                local devTools = create_developer_tools_group()
+                
+                return {
+                    type = "group",
+                    name = "Fake Player Tools",
+                    order = 90,
+                    hidden = function()
+                        local DebugService = NextKey222.Debug
+                        local dbg = ensure_debug()
+                        -- Show if either full debug OR basic tools are enabled
+                        return not ((DebugService and DebugService.enabled) or (dbg and dbg.basicToolsEnabled))
+                    end,
+                    args = devTools.args or {},
                 }
-                
-                
-                -- Add Fake Player Tools as a final tab
-                if debugOptions.args then
-                    debugOptions.args.fakePlayerTools = {
-                        type = "group",
-                        name = "Fake Player Tools",
-                        desc = "Developer tools for generating and managing fake players for testing",
-                        order = 300,
-                        hidden = function()
-                            local DebugService = NextKey222.Debug
-                            local dbg = ensure_debug()
-                            -- Show if either full debug OR basic tools are enabled
-                            return not ((DebugService and DebugService.enabled) or (dbg and dbg.basicToolsEnabled))
-                        end,
-                        args = (function()
-                            local devTools = create_developer_tools_group()
-                            local generationArgs = {}
-                            
-                            if devTools and devTools.args then
-                                -- Widgets to show in Basic Tools mode (filtered subset)
-                                local basicToolsWhitelist = {
-                                    gen_standard_comp = true,
-                                    gen_organizer = true,
-                                    custom_builder_header = true,
-                                    custom_builder_desc = true,
-                                    builder_name = true,
-                                    builder_name_counter = true,
-                                    builder_class = true,
-                                    builder_spec = true,
-                                    builder_tier = true,
-                                    builder_io = true,
-                                    builder_keystone_dungeon = true,
-                                    builder_keystone_level = true,
-                                    builder_preview = true,
-                                    builder_create = true,
-                                    builder_reset = true,
-                                    status = true,
-                                    clear_fake = true,
-                                }
-                                
-                                -- Copy developer tool items with filtering
-                                for k, v in pairs(devTools.args) do
-                                    if k ~= "header" and k ~= "enable_debug_mode" and k ~= "enable_basic_tools" and k ~= "basic_tools_disabled_info" then
-                                        -- Clone the widget config
-                                        local widgetCopy = {}
-                                        for key, val in pairs(v) do
-                                            widgetCopy[key] = val
-                                        end
-                                        
-                                        -- Add hidden function to filter in Basic mode
-                                        local originalHidden = widgetCopy.hidden
-                                        widgetCopy.hidden = function(...)
-                                            -- Check if original widget was hidden
-                                            if originalHidden and originalHidden(...) then
-                                                return true
-                                            end
-                                            
-                                            -- Filter based on mode
-                                            local dbg = ensure_debug()
-                                            local isDebugMode = dbg and dbg.enabled
-                                            local isBasicMode = dbg and dbg.basicToolsEnabled and not isDebugMode
-                                            
-                                            -- In Basic mode, hide widgets not in whitelist
-                                            if isBasicMode and not basicToolsWhitelist[k] then
-                                                return true
-                                            end
-                                            
-                                            return false
-                                        end
-                                        
-                                        generationArgs[k] = widgetCopy
-                                    end
-                                end
-                            end
-                            
-                            return generationArgs
-                        end)()
-                    }
-                end
-                
-                return debugOptions
             end)(),
         },
     }

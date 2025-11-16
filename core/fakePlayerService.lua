@@ -370,42 +370,134 @@ local function removeFromStorage(playerName)
 end
 
 -- MARK: Player Generation Logic
-local function generateDungeonScores(tier, dungeonIDs)
+
+--- Generates dungeon scores with optional per-dungeon overrides for precise control
+-- @param tier string Skill tier (elite, expert, skilled, etc.)
+-- @param dungeonIDs table List of dungeon IDs
+-- @param dungeonOverrides table Optional per-dungeon overrides map:
+--   - [dungeonID] = { modifier = -4 to +4 } -- Adjust level relative to tier
+--   - [dungeonID] = { score = 2850 } -- Explicit score override
+-- @param specialization table DEPRECATED - use dungeonOverrides instead
+--   - expertDungeons: List of dungeon indices where player excels (high scores)
+--   - weakDungeons: List of dungeon indices where player struggles (low scores)
+-- @return table Dungeon scores map
+local function generateDungeonScores(tier, dungeonIDs, dungeonOverrides, specialization)
     local scores = {}
     local tierConfig = SKILL_TIERS[tier] or SKILL_TIERS.average
     local baseLevel = math.random(tierConfig.baseLevel[1], tierConfig.baseLevel[2])
     
-    for _, dungeonID in ipairs(dungeonIDs) do
-        -- Add variation per dungeon
-        local variation = math.random(-3, 3)
-        local level = math.max(2, baseLevel + variation)
-        
-        -- Determine if timed
-        local timingChance = tierConfig.timingChance
-        local levelPenalty = math.max(0, (level - 15) * 0.02)
-        local timed = math.random() < (timingChance - levelPenalty)
-        
-        -- Determine chests for timed runs
-        local chests = 0
-        if timed then
-            local skillBonus = (tierConfig.timingChance - 0.15) * 2  -- Scale skill bonus
-            local chestRand = math.random()
-            if chestRand < 0.1 + skillBonus then chests = 3
-            elseif chestRand < 0.3 + skillBonus then chests = 2
-            elseif chestRand < 0.6 + skillBonus then chests = 1
+    -- Build specialization lookup for backward compatibility (DEPRECATED)
+    local expertDungeonMap = {}
+    local weakDungeonMap = {}
+    
+    if specialization then
+        if specialization.expertDungeons then
+            for _, idx in ipairs(specialization.expertDungeons) do
+                if dungeonIDs[idx] then
+                    expertDungeonMap[dungeonIDs[idx]] = true
+                end
             end
         end
         
-        -- Calculate score
-        local score = calculateScoreForRun(level, timed, chests)
+        if specialization.weakDungeons then
+            for _, idx in ipairs(specialization.weakDungeons) do
+                if dungeonIDs[idx] then
+                    weakDungeonMap[dungeonIDs[idx]] = true
+                end
+            end
+        end
+    end
+    
+    for _, dungeonID in ipairs(dungeonIDs) do
+        -- Check for explicit override first (new system)
+        local override = dungeonOverrides and dungeonOverrides[dungeonID]
         
-        scores[dungeonID] = {
-            level = level,
-            chests = chests,
-            timed = timed,
-            score = score,
-            dataSource = "fake_generated"
-        }
+        if override and override.score then
+            -- Explicit score override
+            scores[dungeonID] = {
+                level = 0, -- Unknown level for explicit score
+                chests = 0,
+                timed = true, -- Assume timed for explicit scores
+                score = override.score,
+                dataSource = "fake_override_explicit"
+            }
+        elseif override and override.modifier then
+            -- Modifier-based override (new system)
+            local adjustedLevel = math.max(2, math.min(30, baseLevel + override.modifier))
+            local timingModifier = override.modifier > 0 and 0.15 or (override.modifier < 0 and -0.15 or 0)
+            
+            local timingChance = tierConfig.timingChance + timingModifier
+            local levelPenalty = math.max(0, (adjustedLevel - 15) * 0.02)
+            local timed = math.random() < math.max(0.1, math.min(0.99, timingChance - levelPenalty))
+            
+            local chests = 0
+            if timed then
+                local skillBonus = (tierConfig.timingChance - 0.15) * 2
+                local chestRand = math.random()
+                if chestRand < 0.1 + skillBonus then chests = 3
+                elseif chestRand < 0.3 + skillBonus then chests = 2
+                elseif chestRand < 0.6 + skillBonus then chests = 1
+                end
+            end
+            
+            local score = calculateScoreForRun(adjustedLevel, timed, chests)
+            
+            scores[dungeonID] = {
+                level = adjustedLevel,
+                chests = chests,
+                timed = timed,
+                score = score,
+                dataSource = "fake_override_modifier"
+            }
+        else
+            -- Legacy specialization system or normal generation
+            local levelModifier = 0
+            local timingModifier = 0
+            
+            if expertDungeonMap[dungeonID] then
+                -- Expert in this dungeon: +4 levels, +15% timing chance
+                levelModifier = 4
+                timingModifier = 0.15
+            elseif weakDungeonMap[dungeonID] then
+                -- Weak in this dungeon: -4 levels, -15% timing chance
+                levelModifier = -4
+                timingModifier = -0.15
+            else
+                -- Average: small random variation
+                levelModifier = math.random(-1, 1)
+            end
+            
+            -- Calculate level with specialization
+            local variation = math.random(-2, 2) + levelModifier
+            local level = math.max(2, baseLevel + variation)
+            
+            -- Determine if timed (with specialization modifier)
+            local timingChance = tierConfig.timingChance + timingModifier
+            local levelPenalty = math.max(0, (level - 15) * 0.02)
+            local timed = math.random() < math.max(0.1, math.min(0.99, timingChance - levelPenalty))
+            
+            -- Determine chests for timed runs
+            local chests = 0
+            if timed then
+                local skillBonus = (tierConfig.timingChance - 0.15) * 2
+                local chestRand = math.random()
+                if chestRand < 0.1 + skillBonus then chests = 3
+                elseif chestRand < 0.3 + skillBonus then chests = 2
+                elseif chestRand < 0.6 + skillBonus then chests = 1
+                end
+            end
+            
+            -- Calculate score
+            local score = calculateScoreForRun(level, timed, chests)
+            
+            scores[dungeonID] = {
+                level = level,
+                chests = chests,
+                timed = timed,
+                score = score,
+                dataSource = "fake_generated"
+            }
+        end
     end
     
     return scores
@@ -532,6 +624,12 @@ end
 --   - addonStatus: table (optional) { nextkey = bool, raiderio = bool }
 --   - keystoneLevel: number (optional) Level of keystone to generate
 --   - keystoneDungeon: number (optional) Specific dungeon ID for keystone
+--   - dungeonOverrides: table (optional) Per-dungeon score overrides:
+--       - [dungeonID] = { modifier = -4 to +4 } -- Adjust level relative to tier
+--       - [dungeonID] = { score = 2850 } -- Explicit score override
+--   - specialization: table (optional, DEPRECATED - use dungeonOverrides instead)
+--       - expertDungeons: List of dungeon indices where player excels (high scores)
+--       - weakDungeons: List of dungeon indices where player struggles (low scores)
 -- @return string|nil Player name if created, nil on failure
 function FakePlayerService:CreatePlayer(config)
     if not isInitialized then
@@ -575,10 +673,10 @@ function FakePlayerService:CreatePlayer(config)
         local tierConfig = SKILL_TIERS[tier] or SKILL_TIERS.average
         local baseLevel = math.random(tierConfig.baseLevel[1], tierConfig.baseLevel[2])
         
-        -- Generate dungeon scores
+        -- Generate dungeon scores with overrides/specialization
         local dungeonScores = {}
         if #dungeonIDs > 0 then
-            dungeonScores = generateDungeonScores(tier, dungeonIDs)
+            dungeonScores = generateDungeonScores(tier, dungeonIDs, config.dungeonOverrides, config.specialization)
         end
         
         -- Generate or use provided keystone
@@ -645,8 +743,22 @@ function FakePlayerService:CreatePlayer(config)
         	specName = specInfo and specInfo.specName or nil,
         	specializations = specializationData,  -- NEW: Store all specs for GenerateSpecPreferences
         	heroismCaster = capabilities.heroism,
-        	battleResCaster = capabilities.battleRes
+        	battleResCaster = capabilities.battleRes,
+        	lootTargets = {},  -- NEW: Phase 2.2 - Loot targeting
+        	hasLootTargets = false  -- NEW: Phase 2.2 - Quick check flag
         }
+        
+        -- Handle loot targets if provided (Phase 2.2)
+        if config.lootTargets then
+            if config.lootTargets == "random" then
+                -- Auto-assign random loot targets
+                self:assignRandomLootTargets(playerData, { numDungeons = math.random(1, 3), itemsPerDungeon = math.random(1, 2) })
+            elseif type(config.lootTargets) == "table" then
+                -- Use provided loot targets
+                playerData.lootTargets = config.lootTargets
+                playerData.hasLootTargets = next(config.lootTargets) ~= nil
+            end
+        end
 
         -- Save to storage
         saveToStorage(playerName, playerData)
@@ -947,7 +1059,7 @@ function FakePlayerService:GeneratePreset(presetType, count)
     end, "FakePlayerService:GeneratePreset") or 0
 end
 
---- Generates random fake players
+--- Generates random fake players with per-dungeon specialization for realistic diversity
 -- @param count number Number of players to generate
 -- @param addonMix table (optional) DEPRECATED - uses global addon config from options
 -- @return number Count of players created
@@ -972,14 +1084,26 @@ function FakePlayerService:GenerateRandomPlayers(count, addonMix)
             end
         end
         
-        NextKey222.Debug:Dev("fakeplayerservice", "Generating", count, "random fake players",
-            "NextKey:", addonConfig.nextkey and "YES" or "NO", 
+        NextKey222.Debug:Dev("fakeplayerservice", "Generating", count, "random fake players with specialization",
+            "NextKey:", addonConfig.nextkey and "YES" or "NO",
             "RaiderIO:", addonConfig.raiderio and "YES" or "NO")
+        
+        -- Create diverse specialization patterns
+        local specializationPatterns = {
+            { expertDungeons = {1, 2}, weakDungeons = {3, 4} },  -- Expert in dungeons 1-2, weak in 3-4
+            { expertDungeons = {3, 4}, weakDungeons = {5, 6} },  -- Expert in dungeons 3-4, weak in 5-6
+            { expertDungeons = {5, 6}, weakDungeons = {1, 2} },  -- Expert in dungeons 5-6, weak in 1-2
+            nil  -- Generalist with no specialization
+        }
         
         local created = 0
         for i = 1, count do
+            -- Cycle through specialization patterns
+            local pattern = specializationPatterns[((i - 1) % #specializationPatterns) + 1]
+            
             local playerName = self:CreatePlayer({
-                addonStatus = addonConfig  -- Use global addon config
+                addonStatus = addonConfig,
+                specialization = pattern
             })
             
             if playerName then
@@ -987,7 +1111,7 @@ function FakePlayerService:GenerateRandomPlayers(count, addonMix)
             end
         end
         
-        NextKey222.Debug:Dev("fakeplayerservice", "Created", created, "random fake players")
+        NextKey222.Debug:User("Created " .. created .. " random fake players with diverse dungeon specializations")
         return created
     end, "FakePlayerService:GenerateRandomPlayers") or 0
 end
@@ -1668,6 +1792,631 @@ function FakePlayerService:GenerateOrganizerTeam()
     end, "FakePlayerService:GenerateOrganizerTeam") or 0
 end
 
+-- MARK: Algorithm Testing Scenarios (Phase 2.3)
+
+--- Algorithm scenario templates that create edge cases to differentiate sorting algorithms
+-- Each scenario is a structured definition with metadata and generator function
+FakePlayerService.AlgorithmScenarios = {
+    -- Test MaxGroupIO vs SmartSort
+    io_gap = {
+        name = "IO Gap Test",
+        description = "Creates a scenario where MaxGroupIO and SmartSort produce different rankings",
+        generator = function(self)
+            -- Player 1: Very high IO, but only benefits from one dungeon
+            local dungeonIDs = {}
+            if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+                dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+            end
+            
+            if #dungeonIDs < 4 then
+                NextKey222.Debug:Error("IO Gap scenario requires at least 4 dungeons")
+                return {}
+            end
+            
+            local p1 = self:CreatePlayer({
+                tier = "elite",
+                dungeonOverrides = {
+                    [dungeonIDs[1]] = { modifier = -4 },  -- Weak in dungeon 1
+                    [dungeonIDs[2]] = { modifier = 4 },  -- Strong in dungeon 2 only
+                },
+                keystoneDungeon = dungeonIDs[2],
+                keystoneLevel = 15
+            })
+            
+            -- Player 2: Medium IO, but benefits from multiple dungeons
+            local p2 = self:CreatePlayer({
+                tier = "skilled",
+                dungeonOverrides = {
+                    [dungeonIDs[1]] = { modifier = -2 },
+                    [dungeonIDs[3]] = { modifier = -2 },
+                    [dungeonIDs[4]] = { modifier = -2 },
+                },
+                keystoneDungeon = dungeonIDs[1],
+                keystoneLevel = 12
+            })
+            
+            -- Player 3-4: Fill out party
+            local p3 = self:CreatePlayer({
+                tier = "competent",
+                keystoneDungeon = dungeonIDs[3],
+                keystoneLevel = 11
+            })
+            
+            local p4 = self:CreatePlayer({
+                tier = "average",
+                keystoneDungeon = dungeonIDs[4],
+                keystoneLevel = 10
+            })
+            
+            return {p1, p2, p3, p4}
+        end
+    },
+    
+    -- Test ItemNeed vs others
+    loot_priority = {
+        name = "Loot Priority Test",
+        description = "Creates a scenario where ItemNeed sorting differs significantly",
+        generator = function(self)
+            local dungeonIDs = {}
+            if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+                dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+            end
+            
+            if #dungeonIDs < 4 then
+                NextKey222.Debug:Error("Loot Priority scenario requires at least 4 dungeons")
+                return {}
+            end
+            
+            -- Player 1: High IO, no loot targets
+            local p1 = self:CreatePlayer({
+                tier = "expert",
+                keystoneDungeon = dungeonIDs[1],
+                keystoneLevel = 14
+            })
+            
+            -- Player 2: Medium IO, CRITICAL loot target
+            local p2 = self:CreatePlayer({
+                tier = "skilled",
+                keystoneDungeon = dungeonIDs[2],
+                keystoneLevel = 12,
+                lootTargets = "random"  -- Auto-assign random loot
+            })
+            
+            -- Player 3: Low IO, high priority loot
+            local p3 = self:CreatePlayer({
+                tier = "competent",
+                keystoneDungeon = dungeonIDs[3],
+                keystoneLevel = 10,
+                lootTargets = "random"
+            })
+            
+            -- Player 4: No loot, medium IO
+            local p4 = self:CreatePlayer({
+                tier = "average",
+                keystoneDungeon = dungeonIDs[4],
+                keystoneLevel = 9
+            })
+            
+            return {p1, p2, p3, p4}
+        end
+    },
+    
+    -- Test PlayerCoverage edge case
+    coverage_test = {
+        name = "Coverage Test",
+        description = "Tests PlayerCoverage algorithm with uneven benefit distribution",
+        generator = function(self)
+            local dungeonIDs = {}
+            if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+                dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+            end
+            
+            if #dungeonIDs < 4 then
+                NextKey222.Debug:Error("Coverage scenario requires at least 4 dungeons")
+                return {}
+            end
+            
+            -- Player 1: Benefits from keys 1, 2, 3
+            local p1 = self:CreatePlayer({
+                tier = "skilled",
+                dungeonOverrides = {
+                    [dungeonIDs[1]] = { modifier = -3 },
+                    [dungeonIDs[2]] = { modifier = -3 },
+                    [dungeonIDs[3]] = { modifier = -3 },
+                },
+                keystoneDungeon = dungeonIDs[1],
+                keystoneLevel = 12
+            })
+            
+            -- Player 2: Benefits from keys 1, 2 only
+            local p2 = self:CreatePlayer({
+                tier = "competent",
+                dungeonOverrides = {
+                    [dungeonIDs[1]] = { modifier = -2 },
+                    [dungeonIDs[2]] = { modifier = -2 },
+                },
+                keystoneDungeon = dungeonIDs[2],
+                keystoneLevel = 11
+            })
+            
+            -- Player 3: Benefits from key 1 only
+            local p3 = self:CreatePlayer({
+                tier = "average",
+                dungeonOverrides = {
+                    [dungeonIDs[1]] = { modifier = -4 },
+                },
+                keystoneDungeon = dungeonIDs[3],
+                keystoneLevel = 10
+            })
+            
+            -- Player 4: Benefits from key 4 only (unique)
+            local p4 = self:CreatePlayer({
+                tier = "beginner",
+                dungeonOverrides = {
+                    [dungeonIDs[4]] = { modifier = -4 },
+                },
+                keystoneDungeon = dungeonIDs[4],
+                keystoneLevel = 8
+            })
+            
+            return {p1, p2, p3, p4}
+        end
+    },
+    
+    -- Comprehensive test (all 7 algorithms should produce different rankings)
+    comprehensive = {
+        name = "Comprehensive Test",
+        description = "Creates maximum variance across all 7 sorting algorithms",
+        generator = function(self)
+            local dungeonIDs = {}
+            if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+                dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+            end
+            
+            if #dungeonIDs < 4 then
+                NextKey222.Debug:Error("Comprehensive scenario requires at least 4 dungeons")
+                return {}
+            end
+            
+            return {
+                -- High IO, high key, no loot
+                self:CreatePlayer({
+                    tier = "elite",
+                    keystoneDungeon = dungeonIDs[1],
+                    keystoneLevel = 16,
+                    dungeonOverrides = { [dungeonIDs[1]] = { modifier = 3 } }
+                }),
+                
+                -- Medium IO, medium key, high-priority loot
+                self:CreatePlayer({
+                    tier = "skilled",
+                    keystoneDungeon = dungeonIDs[2],
+                    keystoneLevel = 12,
+                    lootTargets = "random"
+                }),
+                
+                -- Low IO, low key, benefits many players
+                self:CreatePlayer({
+                    tier = "competent",
+                    keystoneDungeon = dungeonIDs[3],
+                    keystoneLevel = 8,
+                    dungeonOverrides = {
+                        [dungeonIDs[1]] = { modifier = -4 },
+                        [dungeonIDs[2]] = { modifier = -4 },
+                        [dungeonIDs[3]] = { modifier = -4 },
+                    }
+                }),
+                
+                -- Medium IO, very high key
+                self:CreatePlayer({
+                    tier = "average",
+                    keystoneDungeon = dungeonIDs[4],
+                    keystoneLevel = 15,
+                    dungeonOverrides = { [dungeonIDs[4]] = { modifier = 4 } }
+                })
+            }
+        end
+    }
+}
+
+--- Run a scenario by name and add players to the fake player pool
+-- @param scenarioName string Name of the scenario (e.g., "io_gap", "loot_priority")
+-- @return table Array of player names created
+function FakePlayerService:RunScenario(scenarioName)
+    if not isInitialized then
+        NextKey222.Debug:Error("FakePlayerService not initialized")
+        return {}
+    end
+    
+    return NextKey222.SafeRun(function()
+        local scenario = self.AlgorithmScenarios[scenarioName]
+        if not scenario then
+            NextKey222.Debug:Error("Unknown scenario:", scenarioName)
+            return {}
+        end
+        
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        NextKey222.Debug:User(string.format("Running scenario: %s - %s", scenario.name, scenario.description))
+        
+        -- Generate players using scenario generator
+        local playerNames = scenario.generator(self)
+        
+        NextKey222.Debug:User(string.format("Created %d players for scenario '%s'", #playerNames, scenario.name))
+        return playerNames
+    end, "FakePlayerService:RunScenario") or {}
+end
+
+--- Show algorithm comparison for current fake players
+-- Displays how all 7 sorting algorithms rank the same set of keys
+function FakePlayerService:ShowAlgorithmComparison()
+    if not isInitialized then
+        NextKey222.Debug:Error("FakePlayerService not initialized")
+        return
+    end
+    
+    return NextKey222.SafeRun(function()
+        -- Get all current keystones
+        local keystones = {}
+        if NextKey222.Keystones and NextKey222.Keystones.GetAllKeystones then
+            keystones = NextKey222.Keystones:GetAllKeystones() or {}
+        end
+        
+        if #keystones == 0 then
+            NextKey222.Debug:User("No keystones available to analyze")
+            return
+        end
+        
+        -- Get all algorithms for KEYSTONES context
+        local algorithms = {}
+        if NextKey222.Sorting and NextKey222.Sorting.GetAlgorithmsForContext then
+            algorithms = NextKey222.Sorting:GetAlgorithmsForContext("KEYSTONES") or {}
+        end
+        
+        if #algorithms == 0 then
+            NextKey222.Debug:User("No sorting algorithms available")
+            return
+        end
+        
+        NextKey222.Debug:User(string.format("|cff00ff00=== Algorithm Comparison (%d algorithms, %d keys) ===|r", #algorithms, #keystones))
+        
+        -- Run each algorithm and capture rankings
+        local rankings = {}
+        local uniqueRankings = {}
+        
+        for _, algo in ipairs(algorithms) do
+            local sorted = NextKey222.Sorting:SortData(keystones, algo.name) or {}
+            
+            -- Build ranking signature
+            local rankStr = ""
+            for i, key in ipairs(sorted) do
+                if i > 1 then rankStr = rankStr .. "," end
+                rankStr = rankStr .. tostring(key.dungeonID) .. ":" .. tostring(key.level)
+            end
+            
+            rankings[algo.displayName] = rankStr
+            uniqueRankings[rankStr] = (uniqueRankings[rankStr] or 0) + 1
+            
+            -- Display ranking
+            NextKey222.Debug:User(string.format("|cffFFD700%s:|r", algo.displayName))
+            for i, key in ipairs(sorted) do
+                local dungeonName = "Unknown"
+                if NextKey222.Addon and NextKey222.Addon.PortalData and NextKey222.Addon.PortalData.dungeons then
+                    local dungeonData = NextKey222.Addon.PortalData.dungeons[key.dungeonID]
+                    if dungeonData then
+                        dungeonName = dungeonData.alias or dungeonData.name or "Unknown"
+                    end
+                end
+                
+                NextKey222.Debug:User(string.format("  %d. %s +%d", i, dungeonName, key.level))
+            end
+        end
+        
+        -- Calculate variance metrics
+        local numUnique = 0
+        for _ in pairs(uniqueRankings) do
+            numUnique = numUnique + 1
+        end
+        
+        NextKey222.Debug:User(string.format("|cff00ff00Variance Analysis:|r"))
+        NextKey222.Debug:User(string.format("  Total Algorithms: %d", #algorithms))
+        NextKey222.Debug:User(string.format("  Unique Rankings: %d", numUnique))
+        
+        if numUnique == 1 then
+            NextKey222.Debug:User("|cffFF0000WARNING: All algorithms produce IDENTICAL rankings!|r")
+            NextKey222.Debug:User("This team does not test algorithm differentiation.")
+        elseif numUnique < #algorithms / 2 then
+            NextKey222.Debug:User("|cffFFFF00CAUTION: Low algorithm variance.|r")
+            NextKey222.Debug:User("Consider using a scenario designed for testing.")
+        else
+            NextKey222.Debug:User("|cff00ff00GOOD: Algorithms produce diverse rankings.|r")
+        end
+        
+    end, "FakePlayerService:ShowAlgorithmComparison")
+end
+
+-- MARK: Legacy Algorithm Testing Team Generators (Deprecated - Use RunScenario instead)
+
+--- Generate team that exposes Max Player Coverage vs Max Group IO difference
+-- DEPRECATED: Use RunScenario("io_gap") instead
+-- @return number Count of players created
+function FakePlayerService:GenerateIOGapTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        -- Clear existing fake players
+        self:ClearAllPlayers()
+        
+        -- Get addon configuration
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        -- Get season dungeons
+        local dungeonIDs = {}
+        if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+            dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+        end
+        
+        if #dungeonIDs < 2 then
+            NextKey222.Debug:Error("IO Gap Team requires at least 2 dungeons")
+            return 0
+        end
+        
+        -- Create 1 expert
+        local expert = self:CreatePlayer({ tier = "expert", addonStatus = addonConfig })
+        
+        -- Create 3 beginners
+        local created = expert and 1 or 0
+        for i = 1, 3 do
+            local name = self:CreatePlayer({ tier = "beginner", addonStatus = addonConfig })
+            if name then created = created + 1 end
+        end
+        
+        -- Set up IO gap scenario (expert high in one dungeon, beginners low everywhere)
+        if expert then
+            -- Expert timed +15 in first dungeon, beginners only timed +8
+            self:SetDungeonBest(expert, dungeonIDs[1], 15, true, 2)
+            -- Give expert a +16 key to create the choice
+            self:SetKeystone(expert, dungeonIDs[1], 16)
+        end
+        
+        NextKey222.Debug:User("Generated IO Gap Team (1 expert + 3 beginners) - test Coverage vs Max IO")
+        return created
+    end, "FakePlayerService:GenerateIOGapTeam") or 0
+end
+
+--- Generate team that exposes Max Item Need difference
+-- Creates 4 average players - users should enable loot tracking to see difference
+-- @return number Count of players created
+function FakePlayerService:GenerateLootFocusedTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        self:ClearAllPlayers()
+        
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        local dungeonIDs = {}
+        if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+            dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+        end
+        
+        if #dungeonIDs < 2 then
+            NextKey222.Debug:Error("Loot Focused Team requires at least 2 dungeons")
+            return 0
+        end
+        
+        local created = 0
+        for i = 1, 4 do
+            local name = self:CreatePlayer({ tier = "average", addonStatus = addonConfig })
+            if name then created = created + 1 end
+        end
+        
+        NextKey222.Debug:User("Generated Loot-Focused Team - enable loot tracking in Loot Window to see Max Item Need differ")
+        return created
+    end, "FakePlayerService:GenerateLootFocusedTeam") or 0
+end
+
+--- Generate team with wide key level spread
+-- Creates 4 competent players with +7, +10, +13, +16 keys
+-- Expected behavior:
+--   - Highest Key Level: Selects +16 (may have low IO gain)
+--   - Max Group IO: Selects optimal IO level (likely +13)
+-- @return number Count of players created
+function FakePlayerService:GenerateMixedKeyLevelTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        self:ClearAllPlayers()
+        
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        local dungeonIDs = {}
+        if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+            dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+        end
+        
+        if #dungeonIDs < 4 then
+            NextKey222.Debug:Error("Mixed Key Levels Team requires at least 4 dungeons")
+            return 0
+        end
+        
+        local levels = {7, 10, 13, 16}
+        local created = 0
+        
+        for i = 1, 4 do
+            local name = self:CreatePlayer({
+                tier = "competent",
+                keystoneDungeon = dungeonIDs[i],
+                keystoneLevel = levels[i],
+                addonStatus = addonConfig
+            })
+            
+            if name then
+                -- Set best runs to make +13 optimal (players haven't timed above +12)
+                for _, dungeonID in ipairs(dungeonIDs) do
+                    self:SetDungeonBest(name, dungeonID, 12, true, 1)
+                end
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User("Generated Mixed Key Levels Team (+7/+10/+13/+16) - test Level vs IO optimization")
+        return created
+    end, "FakePlayerService:GenerateMixedKeyLevelTeam") or 0
+end
+
+--- Generate team with uneven dungeon specialization using per-dungeon specialization system
+-- Creates 4 skilled players each specialized in different dungeons
+-- Expected behavior:
+--   - Max Player Coverage: Selects key where most players benefit
+--   - Max Group IO: May select key where only specialists benefit heavily
+-- @return number Count of players created
+function FakePlayerService:GenerateUnevenBenefitTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        self:ClearAllPlayers()
+        
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        local dungeonIDs = {}
+        if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+            dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+        end
+        
+        if #dungeonIDs < 4 then
+            NextKey222.Debug:Error("Uneven Benefit Team requires at least 4 dungeons")
+            return 0
+        end
+        
+        local created = 0
+        
+        -- Create specialization patterns where each player excels in ONE dungeon
+        local specializationPatterns = {
+            { expertDungeons = {1}, weakDungeons = {2, 3, 4} },  -- Expert in dungeon 1 only
+            { expertDungeons = {2}, weakDungeons = {1, 3, 4} },  -- Expert in dungeon 2 only
+            { expertDungeons = {3}, weakDungeons = {1, 2, 4} },  -- Expert in dungeon 3 only
+            { expertDungeons = {4}, weakDungeons = {1, 2, 3} }   -- Expert in dungeon 4 only
+        }
+        
+        for i = 1, 4 do
+            local name = self:CreatePlayer({
+                tier = "skilled",
+                addonStatus = addonConfig,
+                specialization = specializationPatterns[i]
+            })
+            
+            if name then
+                -- Give them a key in their specialty dungeon
+                if dungeonIDs[i] then
+                    self:SetKeystone(name, dungeonIDs[i], 14)
+                end
+                
+                created = created + 1
+            end
+        end
+        
+        NextKey222.Debug:User("Generated Uneven Benefit Team (dungeon specialists using specialization system)")
+        return created
+    end, "FakePlayerService:GenerateUnevenBenefitTeam") or 0
+end
+
+--- Generate team optimized for exposing all algorithm differences
+-- Combines elements of all scenarios above
+-- @return number Count of players created
+function FakePlayerService:GenerateAlgorithmTestTeam()
+    if not isInitialized then
+        NextKey222.Debug:Dev("fakeplayerservice", "Service not initialized")
+        return 0
+    end
+    
+    return NextKey222.SafeRun(function()
+        self:ClearAllPlayers()
+        
+        local addonConfig = { nextkey = true, raiderio = true }
+        if NextKey222.Addon and NextKey222.Addon.db and NextKey222.Addon.db.global and NextKey222.Addon.db.global.debug then
+            local dbg = NextKey222.Addon.db.global.debug
+            if dbg.presetAddonConfig then
+                addonConfig = dbg.presetAddonConfig
+            end
+        end
+        
+        local dungeonIDs = {}
+        if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+            dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+        end
+        
+        if #dungeonIDs < 4 then
+            NextKey222.Debug:Error("Algorithm Test Team requires at least 4 dungeons")
+            return 0
+        end
+        
+        -- Varied skill tiers
+        local expert = self:CreatePlayer({ tier = "expert", addonStatus = addonConfig })
+        local skilled = self:CreatePlayer({ tier = "skilled", addonStatus = addonConfig })
+        local average = self:CreatePlayer({ tier = "average", addonStatus = addonConfig })
+        local beginner = self:CreatePlayer({ tier = "beginner", addonStatus = addonConfig })
+        
+        local created = 0
+        if expert then created = created + 1 end
+        if skilled then created = created + 1 end
+        if average then created = created + 1 end
+        if beginner then created = created + 1 end
+        
+        -- Mixed key levels
+        if expert then self:SetKeystone(expert, dungeonIDs[1], 16) end
+        if skilled then self:SetKeystone(skilled, dungeonIDs[2], 12) end
+        if average then self:SetKeystone(average, dungeonIDs[3], 9) end
+        if beginner then self:SetKeystone(beginner, dungeonIDs[4], 7) end
+        
+        -- Uneven dungeon coverage
+        if expert then self:SetDungeonBest(expert, dungeonIDs[1], 15, true, 2) end
+        if skilled then self:SetDungeonBest(skilled, dungeonIDs[2], 13, true, 1) end
+        if average then self:SetDungeonBest(average, dungeonIDs[3], 10, true, 0) end
+        if beginner then self:SetDungeonBest(beginner, dungeonIDs[4], 8, false, 0) end
+        
+        NextKey222.Debug:User("Generated Algorithm Test Team - comprehensive scenario for all sorting differences")
+        return created
+    end, "FakePlayerService:GenerateAlgorithmTestTeam") or 0
+end
+
 -- MARK: Public API - Data Modification
 
 --- Sets a fake player's best run for a dungeon
@@ -1831,6 +2580,89 @@ function FakePlayerService:ListAllSpecs()
         end
     end
     return specs
+end
+
+-- MARK: Loot Targeting (Phase 2.2)
+
+--- Assign random loot targets to a player
+-- @param playerData table The player data structure
+-- @param config table Optional configuration { numDungeons = 1-3, itemsPerDungeon = 1-2 }
+function FakePlayerService:assignRandomLootTargets(playerData, config)
+    if not playerData then
+        NextKey222.Debug:Error("assignRandomLootTargets: playerData is nil")
+        return
+    end
+    
+    config = config or {}
+    local numDungeons = config.numDungeons or math.random(1, 3)
+    local itemsPerDungeon = config.itemsPerDungeon or math.random(1, 2)
+    
+    playerData.lootTargets = {}
+    
+    -- Get all dungeon IDs
+    local dungeonIDs = {}
+    if NextKey222.Addon and NextKey222.Addon.GetActiveSeasonDungeonIDs then
+        dungeonIDs = NextKey222.Addon:GetActiveSeasonDungeonIDs() or {}
+    end
+    
+    if #dungeonIDs == 0 then
+        NextKey222.Debug:Dev("fakeplayerservice", "No dungeon IDs available for loot targeting")
+        return
+    end
+    
+    -- Shuffle and take numDungeons
+    local shuffled = {}
+    for i, id in ipairs(dungeonIDs) do
+        shuffled[i] = id
+    end
+    for i = #shuffled, 2, -1 do
+        local j = math.random(i)
+        shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+    end
+    
+    -- Assign loot targets
+    for i = 1, math.min(numDungeons, #shuffled) do
+        local dungeonID = shuffled[i]
+        
+        -- Get featured items for this dungeon
+        local featuredItems = {}
+        if NextKey222.Addon and NextKey222.Addon.GetFeaturedItems then
+            featuredItems = NextKey222.Addon:GetFeaturedItems(dungeonID) or {}
+        end
+        
+        if #featuredItems > 0 then
+            local targetItems = {}
+            local itemCount = math.min(itemsPerDungeon, #featuredItems)
+            
+            -- Shuffle featured items
+            local shuffledItems = {}
+            for j, itemID in ipairs(featuredItems) do
+                shuffledItems[j] = itemID
+            end
+            for j = #shuffledItems, 2, -1 do
+                local k = math.random(j)
+                shuffledItems[j], shuffledItems[k] = shuffledItems[k], shuffledItems[j]
+            end
+            
+            -- Take first N items
+            for j = 1, itemCount do
+                table.insert(targetItems, shuffledItems[j])
+            end
+            
+            playerData.lootTargets[dungeonID] = {
+                itemIDs = targetItems,
+                priority = ({"high", "medium", "low"})[math.random(1, 3)]
+            }
+        end
+    end
+    
+    playerData.hasLootTargets = next(playerData.lootTargets) ~= nil
+    
+    NextKey222.Debug:Dev("fakeplayerservice", string.format(
+        "Assigned loot targets to %s: %d dungeons",
+        playerData.name,
+        numDungeons
+    ))
 end
 
 -- MARK: Module Initialization Check

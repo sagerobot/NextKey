@@ -55,9 +55,19 @@ NextKey.build_counter = 35
 NextKey.version_major = 0
 NextKey.version_minor = 6
 NextKey.version_patch = 9
+NextKey.version_stage = "alpha"  -- "alpha", "beta", or "" for release
 NextKey.game_version = version
 NextKey.gametoc = tvs
+
+-- Build base version string
 NextKey.version = string.format("%d.%d.%d", NextKey.version_major, NextKey.version_minor, NextKey.version_patch)
+
+-- Build full version string with stage (if applicable)
+if NextKey.version_stage and NextKey.version_stage ~= "" then
+    NextKey.version_full = string.format("v%s-%s", NextKey.version, NextKey.version_stage)
+else
+    NextKey.version_full = "v" .. NextKey.version
+end
 
 -- MARK: Namespace Organization
 -- Organized component namespaces
@@ -235,7 +245,7 @@ NextKey222.StartUp = {
         end
         
         NextKey.isInitialized = true
-        NextKey222.Debug:User("NextKey v" .. NextKey.version .. " initialized successfully")
+        NextKey222.Debug:User("NextKey " .. NextKey.version_full .. " initialized successfully")
     end
 }
 

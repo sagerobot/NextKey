@@ -41,8 +41,6 @@ local CARD_HEIGHT = UIConfig.TELEPORT_CARD.CARD_HEIGHT
 local CARD_PADDING = UIConfig.TELEPORT_CARD.CARD_PADDING
 local WINDOW_WIDTH = UIConfig.TELEPORT_CARD.WINDOW_WIDTH
 local CARD_SPACING = UIConfig.TELEPORT_CARD.CARD_SPACING
-local FOOTER_INSTRUCTION_FULL = UIConfig.TELEPORT_CARD.FOOTER_INSTRUCTION_FULL
-local FOOTER_INSTRUCTION_COMPACT = UIConfig.TELEPORT_CARD.FOOTER_INSTRUCTION_COMPACT
 local SEASON_PORTALS = {
     -- The War Within Season 3 dungeon teleports.
     [503] = { mapID = 503, spellID = 445417, name = "Ara-Kara, City of Echoes", alias = "Ara", destination = "Ara-Kara, City of Echoes" }, -- Real ID for Ara-Kara
@@ -688,9 +686,21 @@ local function UpdateTeleportWindowContent(window)
         end
     end
 
+    -- Set status text using centralized UIConfig system
+    local UIConfig = NextKey222 and NextKey222.UIConfig
     if widget and widget.SetStatusText then
-        local instruction = isCompactModeEnabled() and FOOTER_INSTRUCTION_COMPACT or FOOTER_INSTRUCTION_FULL
-        widget:SetStatusText(instruction)
+        if UIConfig and UIConfig.GetStatusMessage then
+            widget:SetStatusText(UIConfig:GetStatusMessage("TELEPORT_WINDOW"))
+        else
+            -- Fallback if UIConfig not available
+            local version = "v0.5.32"
+            if NextKey and NextKey.version_full then
+                version = NextKey.version_full
+            elseif NextKey and NextKey.version then
+                version = "v" .. NextKey.version
+            end
+            widget:SetStatusText(version)
+        end
     end
 end
 
@@ -730,12 +740,35 @@ function addon:EnsureTeleportWindow()
     if mainContainer.SetTitle then
         mainContainer:SetTitle("NextKey")
     end
+    
+    -- Set status text using centralized UIConfig system
+    local UIConfig = NextKey222 and NextKey222.UIConfig
     if mainContainer.SetStatusText then
-        local instruction = isCompactModeEnabled() and FOOTER_INSTRUCTION_COMPACT or FOOTER_INSTRUCTION_FULL
-        mainContainer:SetStatusText(instruction)
+        if UIConfig and UIConfig.GetStatusMessage then
+            mainContainer:SetStatusText(UIConfig:GetStatusMessage("TELEPORT_WINDOW"))
+        else
+            -- Fallback if UIConfig not available
+            local version = "v0.5.32"
+            if NextKey and NextKey.version_full then
+                version = NextKey.version_full
+            elseif NextKey and NextKey.version then
+                version = "v" .. NextKey.version
+            end
+            mainContainer:SetStatusText(version)
+        end
     elseif frame.SetStatusText then
-        local instruction = isCompactModeEnabled() and FOOTER_INSTRUCTION_COMPACT or FOOTER_INSTRUCTION_FULL
-        frame:SetStatusText(instruction)
+        if UIConfig and UIConfig.GetStatusMessage then
+            frame:SetStatusText(UIConfig:GetStatusMessage("TELEPORT_WINDOW"))
+        else
+            -- Fallback if UIConfig not available
+            local version = "v0.5.32"
+            if NextKey and NextKey.version_full then
+                version = NextKey.version_full
+            elseif NextKey and NextKey.version then
+                version = "v" .. NextKey.version
+            end
+            frame:SetStatusText(version)
+        end
     end
     frame:SetWidth(WINDOW_WIDTH)
     frame:Hide()

@@ -1,6 +1,7 @@
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
 local Utils = NextKey222.Utils
+local ItemUtils = NextKey222.ItemUtils
 local DungeonCards = NextKey.DungeonCards
 local UIComponents = NextKey222.UIComponents
 
@@ -166,12 +167,13 @@ local function CreateItemRow(itemEntry, parent)
     row:SetScript("OnEnter", function()
         applyHighlight(true)
         GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-        local itemLink = Utils:GetHeroTrackItemLink(itemID)
-        if itemLink then
-            GameTooltip:SetHyperlink(itemLink)
-        else
-            GameTooltip:SetItemByID(itemID)
-        end
+        
+        -- Use enhanced item link with Hero track bonus IDs
+        local enhancedLink = ItemUtils:BuildEnhancedItemLink(itemID, "HERO_TRACK")
+        GameTooltip:SetHyperlink(enhancedLink)
+        
+        -- Note: Removed hardcoded Hero track ilvl lines
+        -- The tooltip now shows correct Hero 1/8 → 8/8 info automatically from bonus IDs
         GameTooltip:Show()
     end)
 
@@ -237,7 +239,13 @@ local function CreateItemRow(itemEntry, parent)
     statusLabel:SetJustifyH("RIGHT")
     statusLabel:SetTextColor(0.8, 0.8, 0.8)
 
-    local item = Item:CreateFromItemID(itemID)
+    -- Always display item names in Epic (purple) quality color
+    local epicColor = ItemUtils:GetEpicQualityColor()
+    
+    -- Create Item object with enhanced link for proper quality and ilvl display
+    local enhancedLink = ItemUtils:BuildEnhancedItemLink(itemID, "HERO_TRACK")
+    local item = Item:CreateFromItemLink(enhancedLink)
+    
     if item then
         local initialName = item:GetItemName()
         if initialName then
@@ -246,20 +254,17 @@ local function CreateItemRow(itemEntry, parent)
 
         item:ContinueOnItemLoad(function()
             local itemNameText = item:GetItemName()
-            local itemQuality = C_Item.GetItemQualityByID(itemID)
+            
+            -- Always use Epic (purple) color for M+ loot window items
+            nameLabel:SetTextColor(epicColor.r, epicColor.g, epicColor.b)
 
             if itemNameText then
                 nameLabel:SetText(itemNameText)
             end
-
-            if itemQuality and ITEM_QUALITY_COLORS[itemQuality] then
-                local color = ITEM_QUALITY_COLORS[itemQuality]
-                nameLabel:SetTextColor(color.r, color.g, color.b)
-            end
         end)
     else
         nameLabel:SetText(itemData.name or ("Item " .. itemID))
-        nameLabel:SetTextColor(1, 0.2, 0.2)
+        nameLabel:SetTextColor(1, 0.2, 0.2) -- Red for error case
     end
 
     local function UpdateRunCounter()
@@ -481,11 +486,6 @@ function LootWindow:Show(dungeonID)
             end
         end)
         
-        -- Create toggle button
-        local toggleBtn = CreateFrame("Button", nil, frame)
-        toggleBtn:SetSize(80, 24)
-        -- Toggle button already created above, ensure dropdown reference exists before script execution
-        
         -- Create content container (no scroll bar needed with dynamic sizing)
         local contentContainer = CreateFrame("Frame", nil, frame)
         contentContainer:SetPoint("TOPLEFT", dropdownLabel, "BOTTOMLEFT", 0, -10)
@@ -516,6 +516,21 @@ end
 
 function LootWindow:Update()
     if not self.dungeonID then return end
+    
+    -- Clear any existing item buttons FIRST to prevent stale data
+    if self.itemButtons then
+        for _, button in ipairs(self.itemButtons) do
+            if button then
+                button:Hide()
+                button:SetParent(nil)
+                button:ClearAllPoints()
+                button:SetScript("OnEnter", nil)
+                button:SetScript("OnLeave", nil)
+                button:SetScript("OnMouseUp", nil)
+            end
+        end
+    end
+    self.itemButtons = {}
     
     -- Get dungeon name from portal data with fallback
     local dungeonName = nil

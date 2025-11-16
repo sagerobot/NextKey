@@ -15,8 +15,9 @@ Sorting:RegisterAlgorithm(
     {
         displayName = "Lowest Key Level",
         contexts = { Sorting.contexts.KEYSTONES },
-        description = "Sort keystones by level (lowest first)",
-        priority = 90, -- Lower priority than HighestKeyLevel
+        description = "Sort by lowest key level for easier completions. Useful for vault filling or newer players. May overlap with other sorts in balanced groups.",
+        priority = 70, -- Lower priority than HighestKeyLevel (75)
+        showIOTooltips = false -- Pure level-based sort, no IO tooltips
     },
     function(a, b)
         -- Extract key data

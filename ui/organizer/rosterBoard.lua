@@ -59,6 +59,38 @@ function RosterBoard:Initialize()
         self.groupKeystones = {}
         self.allInteractiveFrames = {}
         
+        -- MARK: Event-Driven Architecture - Register listeners for OrganizerState events
+        if NextKey222.Addon and NextKey222.Addon.RegisterMessage then
+            -- Register listener for player added events
+            NextKey222.Addon:RegisterMessage("ORGANIZER_PLAYER_ADDED", function(event, payload)
+                self:OnPlayerAdded(payload)
+            end)
+            
+            -- Register listener for player moved events
+            NextKey222.Addon:RegisterMessage("ORGANIZER_PLAYER_MOVED", function(event, payload)
+                self:OnPlayerMoved(payload)
+            end)
+            
+            -- Register listener for player updated events
+            NextKey222.Addon:RegisterMessage("ORGANIZER_PLAYER_UPDATED", function(event, payload)
+                self:OnPlayerUpdated(payload)
+            end)
+            
+            -- Register listener for poll response received events
+            NextKey222.Addon:RegisterMessage("ORGANIZER_POLL_RESPONSE_RECEIVED", function(event, payload)
+                self:OnPollResponseReceived(payload)
+            end)
+            
+            -- Register listener for state cleared events
+            NextKey222.Addon:RegisterMessage("ORGANIZER_STATE_CLEARED", function(event, payload)
+                self:OnStateCleared(payload)
+            end)
+            
+            Debug:Dev("organizer_events", "Registered 5 event listeners for OrganizerState events")
+        else
+            Debug:Error("Cannot register event listeners - AceEvent system not available")
+        end
+        
         -- Note: Spec change events are handled by ProfilesService which automatically
         -- triggers UI refresh. No need for duplicate event handlers here.
         Debug:Dev("organizer_ui", "Roster Board initialized (spec changes handled by ProfilesService)")
@@ -135,7 +167,20 @@ function RosterBoard:CreateMainFrame()
         frame:SetLayout("Fill")  -- Unused, but required by AceGUI
         frame:EnableResize(false)
         
-        frame:SetStatusText("M+ Group Organizer - Drag players between bench and groups")
+        -- Set status text using centralized UIConfig system
+        local UIConfig = NextKey222 and NextKey222.UIConfig
+        if UIConfig and UIConfig.GetStatusMessage then
+            frame:SetStatusText(UIConfig:GetStatusMessage("ORGANIZER_WINDOW"))
+        else
+            -- Fallback if UIConfig not available
+            local version = "v0.5.32"
+            if NextKey and NextKey.version_full then
+                version = NextKey.version_full
+            elseif NextKey and NextKey.version then
+                version = "v" .. NextKey.version
+            end
+            frame:SetStatusText(version .. " - M+ Group Organizer - Drag players between bench and groups")
+        end
         
         -- Set callback for close button
         frame:SetCallback("OnClose", function(widget)
@@ -1491,6 +1536,9 @@ function RosterBoard:ExecuteSimpleSort()
             return
         end
         
+        -- Set animation flag to prevent event handling during animation
+        self.isAnimating = true
+        
         -- Disable organize button during execution
         if self.organizeButton then
             self.organizeButton:SetDisabled(true)
@@ -1563,6 +1611,9 @@ end
 
 function RosterBoard:OnSortComplete()
     Debug:Dev("organizer", "Sort animation sequence completed")
+    
+    -- Clear animation flag
+    self.isAnimating = false
     
     -- Re-enable organize button
     self:ResetOrganizeButton()
@@ -2216,4 +2267,135 @@ function RosterBoard:SyncUIToState()
                  #self.optOutSection.playerCards, "opt-out")
         
     end, "RosterBoard:SyncUIToState")
+end
+
+-- MARK: Event Handlers (Event-Driven Architecture)
+--- Handler for ORGANIZER_PLAYER_ADDED event
+-- @param payload table - Event payload {playerID, playerData, location, source, timestamp}
+function RosterBoard:OnPlayerAdded(payload)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_events", "OnPlayerAdded:", payload.playerID, "location:", payload.location)
+        
+        -- Only update UI if window is visible
+        if not self:IsVisible() then
+            return
+        end
+        
+        -- Add player to appropriate location
+        if payload.location == "bench" then
+            self:AddPlayerToBench(payload.playerData)
+        elseif payload.location == "opt_out" then
+            self:AddPlayerToOptOut(payload.playerData)
+        elseif type(payload.location) == "table" and payload.location.type == "role_slot" then
+            -- Player added directly to slot (rare case)
+            local groupIndex = payload.location.groupIndex
+            local slotIndex = payload.location.slotIndex
+            if self.groupSlots and self.groupSlots[groupIndex] and self.groupSlots[groupIndex][slotIndex] then
+                local slot = self.groupSlots[groupIndex][slotIndex]
+                local card = NextKey222.PlayerCard:CreateNativeCard(
+                    payload.playerData,
+                    slot,
+                    "role_slot",
+                    "compact"
+                )
+                if card then
+                    NextKey222.SlotManager:place_card_in_slot(card, slot)
+                end
+            end
+        end
+        
+    end, "RosterBoard:OnPlayerAdded")
+end
+
+--- Handler for ORGANIZER_PLAYER_MOVED event
+-- @param payload table - Event payload {playerID, fromLocation, toLocation, playerData, reason, timestamp}
+function RosterBoard:OnPlayerMoved(payload)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_events", "OnPlayerMoved:", payload.playerID,
+                 "from:", payload.fromLocation, "to:", payload.toLocation)
+        
+        -- Only update UI if window is visible
+        if not self:IsVisible() then
+            return
+        end
+        
+        -- CRITICAL: Don't sync UI during animations - it destroys cards being animated
+        if self.isAnimating then
+            Debug:Dev("organizer_events", "OnPlayerMoved - skipping sync (animation in progress)")
+            return
+        end
+        
+        -- CRITICAL: Event handlers should ONLY update UI, not call state mutations
+        -- The state has already changed - we just need to refresh the visual representation
+        Debug:Dev("organizer_events", "OnPlayerMoved - triggering full UI sync (state already updated)")
+        
+        -- Instead of trying to move individual cards (which causes recursion),
+        -- just rebuild the UI from the current state
+        self:SyncUIToState()
+        
+    end, "RosterBoard:OnPlayerMoved")
+end
+
+--- Handler for ORGANIZER_PLAYER_UPDATED event
+-- @param payload table - Event payload {playerID, updates, playerData, updateType, timestamp}
+function RosterBoard:OnPlayerUpdated(payload)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_events", "OnPlayerUpdated:", payload.playerID,
+                 "type:", payload.updateType)
+        
+        -- Only update UI if window is visible
+        if not self:IsVisible() then
+            return
+        end
+        
+        -- Refresh the specific player's card
+        self:RefreshSingleCardByPlayerID(payload.playerID)
+        
+    end, "RosterBoard:OnPlayerUpdated")
+end
+
+--- Handler for ORGANIZER_POLL_RESPONSE_RECEIVED event
+-- @param payload table - Event payload {playerID, response, playerData, timestamp, totalResponses, expectedResponses}
+function RosterBoard:OnPollResponseReceived(payload)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_events", "OnPollResponseReceived:", payload.playerID,
+                 "progress:", payload.totalResponses, "/", payload.expectedResponses)
+        
+        -- Only update UI if window is visible
+        if not self:IsVisible() then
+            return
+        end
+        
+        -- Update poll progress UI
+        self:UpdatePollProgress()
+        
+        -- Refresh the specific player's card to show poll response
+        self:RefreshSingleCardByPlayerID(payload.playerID)
+        
+    end, "RosterBoard:OnPollResponseReceived")
+end
+
+--- Handler for ORGANIZER_STATE_CLEARED event
+-- @param payload table - Event payload {reason, clearedData, timestamp}
+function RosterBoard:OnStateCleared(payload)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_events", "OnStateCleared:", payload.reason,
+                 "players:", payload.clearedData.playerCount)
+        
+        -- Only update UI if window is visible
+        if not self:IsVisible() then
+            return
+        end
+        
+        -- Rebuild the entire UI from scratch
+        local wasVisible = self:IsVisible()
+        self:Hide()
+        
+        if wasVisible then
+            C_Timer.After(0.1, function()
+                self:Show()
+            end)
+        end
+        
+    end, "RosterBoard:OnStateCleared")
 end

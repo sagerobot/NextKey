@@ -128,29 +128,20 @@ local function _wire_on_close(ui, widget, kind)
 end
 
 local function _select_footer_message()
-    -- Get current version from addon
-    local version = "v0.5.32"
-    if NextKey and NextKey.version then
-        version = "alpha-v" .. NextKey.version
+    -- Use centralized UIConfig status message system
+    local UIConfig = NextKey222 and NextKey222.UIConfig
+    if UIConfig and UIConfig.GetStatusMessage then
+        return UIConfig:GetStatusMessage("MAIN_WINDOW")
     end
     
-    local tips = {
-        "Use /nk to quickly open NextKey",
-        "Pick your hearthstone in /nk opt",
-        "Click the X button to close windows",
-        "Use Smart Sort for balanced IO gains",
-        "Set loot targets to prioritize specific dungeons",
-        "Open the M+ Organizer with /nk org",
-        "Open the Teleport window anywhere with /nk tp",
-    }
-
-    local index = 1
-    if GetTime then
-        -- Rotate tip based on time, changing every ~10 seconds
-        index = (math.floor(GetTime() / 10) % #tips) + 1
+    -- Fallback if UIConfig not available
+    local version = "v0.5.32"
+    if NextKey and NextKey.version_full then
+        version = NextKey.version_full
+    elseif NextKey and NextKey.version then
+        version = "v" .. NextKey.version
     end
-
-    return version .. " - " .. tips[index]
+    return version
 end
 
 -- Legacy close handler (keystone window only) retained for compatibility.
@@ -231,6 +222,14 @@ function MainWindow:CreateMainFrame(ui)
     ui.keystoneWindow = ui.keystoneWindow or {}
     ui.keystoneWindow.frame = frame
     ui.keystoneWindow.controls = nil  -- Will be set by UIControls
+    
+    -- Set context for sorting system
+    if NextKey222.Sorting and NextKey222.Sorting.contexts then
+        ui.keystoneWindow.context = NextKey222.Sorting.contexts.KEYSTONES
+        log_dev("MainWindow: keystoneWindow context set to:", ui.keystoneWindow.context)
+    else
+        log_dev("WARNING: Sorting service not available during MainWindow initialization")
+    end
 
     -- Attach header controls and layout via UIControls when available (Phase 5 wiring)
     if NextKey222.UIControls and NextKey222.UIControls.AttachHeaderControls then

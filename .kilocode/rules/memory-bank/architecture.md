@@ -13,6 +13,7 @@ All significant systems are organized under the `NextKey222` namespace, initiali
 3. Error Resilience: All critical operations use `NextKey222.SafeRun()` wrapper.
 4. Performance Monitoring: Critical paths may use `NextKey222.Performance` profiling.
 5. Centralized Debug: `NextKey222.Debug` is the only debug/log facility.
+6. Separation of Concerns: UI modules handle display/input only. Business logic lives in core services. UI must never contain data processing or business rules.
 
 ## File Structure & Load Order
 
@@ -246,7 +247,7 @@ Responsibilities:
 
 #### OrganizerState ([`core/organizer/state.lua`](core/organizer/state.lua:1))
 
-Single source of truth for organizer:
+Single source of truth for organizer with **event-driven architecture**:
 
 - Tracks:
   - `players`, `bench`, `optOut`, `groups`, `keystones`, `activePoll`.
@@ -255,10 +256,19 @@ Single source of truth for organizer:
   - Location moves: bench, opt-out, specific slots.
   - Keystone designation per group.
   - Poll lifecycle & responses, persisted state.
+- **Event Announcements** (November 16, 2025):
+  - All state mutations fire events via `AnnounceEvent()` helper
+  - 5 core events: `ORGANIZER_PLAYER_ADDED`, `ORGANIZER_PLAYER_MOVED`, `ORGANIZER_PLAYER_UPDATED`, `ORGANIZER_POLL_RESPONSE_RECEIVED`, `ORGANIZER_STATE_CLEARED`
+  - Complete payloads include all necessary context (no additional queries needed)
+  - Events use AceEvent-3.0 `SendMessage()` for pub/sub pattern
 - Persistence:
   - Saves only real players to SavedVariables.
   - Restores state on load, rehydrating bench/groups/keystones/opt-out.
-- All organizer UI (roster board, cards, etc.) read from OrganizerState; cards are views only.
+- **Architecture Pattern**:
+  - State has zero UI knowledge (pure event announcements)
+  - UI modules listen and react to events
+  - Direct calls still supported for backward compatibility
+  - All organizer UI (roster board, cards, etc.) are views only
 
 #### Organizer Communications ([`core/organizer/comms.lua`](core/organizer/comms.lua:1))
 
@@ -271,9 +281,15 @@ Single source of truth for organizer:
 - `core/organizer/survey.lua` + `ui/organizer/surveyDialog.lua`:
   - Poll creation, polling UI, participant responses.
 - `ui/organizer/rosterBoard.lua` & modules:
-  - RosterBoard uses OrganizerState for deterministic layouts.
+  - **Event-Driven UI** (November 16, 2025):
+    - Registers 5 event listeners in `Initialize()`
+    - Event handlers: `OnPlayerAdded`, `OnPlayerMoved`, `OnPlayerUpdated`, `OnPollResponseReceived`, `OnStateCleared`
+    - Visibility guards prevent updates when UI hidden (performance optimization)
+    - Animation guards prevent event handling during sort animations
+  - RosterBoard uses OrganizerState for deterministic layouts (read-only queries).
   - `benchManager`, `slotManager`, `cardMovement`, `keystoneManager`:
     - Encapsulate layout and drag/drop/keystone designation.
+    - `slotManager.place_card_in_slot()` has `skipStateUpdate` parameter to prevent circular event loops
   - Animation & UX handled via `animationQueue.lua`.
 
 ### 5. Teleport System ([`ui/teleport.lua`](ui/teleport.lua:1), `core/keystones.lua`, `core/comms.lua`)
@@ -460,3 +476,16 @@ for navigation and consistency.
 - PUG Helper Composition:
   - Clear separation of state/applications/detection/UI.
   - Uses shared teleport UI to avoid fragmentation.
+
+## Modularity Standards
+
+NextKey follows strict modularity principles to ensure code is maintainable and extensible:
+
+1. **Code Isolation**: All modules use local scope and NextKey222 namespace
+2. **Event-Driven Communication**: Modules announce state changes, don't call each other directly
+3. **UI/Logic Separation**: Business logic in core/, UI code in ui/
+4. **Code Health**: Remove dead code, simplify complex logic, document both what AND why
+
+For detailed refactoring guidance, see:
+- `Documentation/_Architectural_Audit/04_Modularity_Checklist.md` - Reusable checklist for file/feature refactoring
+- `Documentation/_Architectural_Audit/06_Implementation_Checklist.md` - Step-by-step refactor execution plan

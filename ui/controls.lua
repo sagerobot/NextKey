@@ -29,7 +29,7 @@ local function _create_sort_dropdown(ui, parent)
     end
 
     local dropdown = NextKey222.UIComponents:CreateDropdown("primary", nil, {
-        label = "Sort Mode",
+        label = "Sort Mode |TInterface\\Common\\help-i:20:20:0:0|t",
         width = NextKey222.UIConfig and NextKey222.UIConfig.CONTROLS and NextKey222.UIConfig.CONTROLS.SORT_DROPDOWN_WIDTH or 200,
         onValueChanged = function(_, _, key)
             if not ui or not ui.SetCurrentSortMode then
@@ -66,6 +66,46 @@ local function _create_sort_dropdown(ui, parent)
             end
         end,
     })
+    
+    -- Add dynamic tooltip to the dropdown label that updates based on current sort mode
+    if dropdown.label then
+        dropdown.label:SetScript("OnEnter", function(widget)
+            -- Get current sort mode
+            local currentMode = ui:GetCurrentSortMode()
+            local algorithm = nil
+            
+            if NextKey222.Sorting and NextKey222.Sorting.GetAlgorithm and currentMode then
+                algorithm = NextKey222.Sorting:GetAlgorithm(currentMode)
+            end
+            
+            GameTooltip:SetOwner(widget, "ANCHOR_TOP")
+            GameTooltip:SetText("Sort Mode Information", 1, 1, 1)
+            
+            if algorithm then
+                -- Display name and description (yellow/white)
+                GameTooltip:AddLine(" ", 1, 1, 1)
+                GameTooltip:AddLine(algorithm.displayName or currentMode, 1, 0.82, 0, false)
+                if algorithm.description then
+                    GameTooltip:AddLine(algorithm.description, 1, 1, 1, true)
+                end
+                
+                -- IO tooltip status (grey, concise)
+                GameTooltip:AddLine(" ", 1, 1, 1)
+                if algorithm.showIOTooltips then
+                    GameTooltip:AddLine("IO Tooltips: ON", 0.7, 0.7, 0.7, false)
+                else
+                    GameTooltip:AddLine("IO Tooltips: OFF", 0.7, 0.7, 0.7, false)
+                end
+            else
+                GameTooltip:AddLine("Select a sort mode from the dropdown", 0.8, 0.8, 0.8, true)
+            end
+            
+            GameTooltip:Show()
+        end)
+        dropdown.label:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+    end
 
     ui.sortDropdown = dropdown
     ui.headerWidgets.sortDropdown = dropdown
