@@ -1,9 +1,9 @@
 # NextKey Current Status & Requirements
 
 ## Project Status
-**Date**: November 16, 2025
+**Date**: November 17, 2025
 **Version**: 0.6.0
-**Phase**: Phase 3 In Progress — Event-Driven Architecture, Organizer Refactored
+**Phase**: Phase 4 In Progress — Event-Driven Core Module Refactoring
 
 This file is the concise status mirror of the current codebase. For complete version history, see [`CHANGELOG.md`](../../../CHANGELOG.md).
 
@@ -153,7 +153,65 @@ This file is the concise status mirror of the current codebase. For complete ver
    - ✅ Toggle buttons work correctly
    - ✅ No UI conflicts between windows
 
+### 7. Phase 4.1: Communications Refactor — Week 1 ✅ **COMPLETE** (November 16, 2025)
+
+- PlayerDataService extracted (379 lines)
+- Event infrastructure implemented in Communications
+- COMM_EVENTS constants added (14 events)
+- Debug category `player_data` added and validated
+- Analysis document created (878 lines)
+- Status: ✅ Event system operational, validated in-game
+
+### 8. Phase 4.2: Keystones Event-Driven Refactor ✅ **COMPLETE** (November 17, 2025)
+
+- `core/keystones.lua` refactored to event-driven architecture:
+  - Added `AnnounceEvent()` helper method
+  - 5 state mutation methods fire events
+  - Complete event payloads with context
+  - Debug logging via `keystones` category
+- KEYSTONE_EVENTS added to constants (6 events):
+  - `KEYSTONE_PLAYER_DETECTED` - Player keystone detected/changed
+  - `KEYSTONE_PLAYER_REMOVED` - Player keystone removed
+  - `KEYSTONE_SCAN_COMPLETE` - Party scan completed
+  - `KEYSTONE_GUILD_RECEIVED` - Guild keystone received
+  - `KEYSTONE_TELEPORT_SELECTED` - Teleport target selected
+  - `KEYSTONE_TELEPORT_CLEARED` - Teleport target cleared
+- UI event listeners implemented:
+  - `ui/main.lua`: 3 event handlers with recursion guards
+  - `ui/teleport.lua`: 2 event handlers for teleport UI
+  - Event registration in boot PostInit phase
+- Critical bug fixes:
+  - Nil-safety for `payload.sourceCounts`
+  - C stack overflow prevention with `_handlingKeystoneEvent` guard
+- Analysis document: `Documentation/_Architectural_Audit/14_Keystones_Event_Analysis.md` (1104 lines)
+- Status: ✅ Production-ready, validated in-game
+
 ## Upcoming Priorities
+
+**Phase 4.3: Profiles Event-Driven Refactor** (Next Task)
+
+1. Review Profiles architecture (caching, invalidation, updates)
+2. Define 3 profile events (UPDATED, INVALIDATED, CACHED)
+3. Implement event announcements in ProfilesService
+4. Update UI consumers to listen for events
+5. Test with spec changes, cache expiration, multiple players
+6. Estimated: 3-5 days
+
+**Phase 4.1: Communications Refactor (Weeks 2-3)** (Ongoing)
+
+Week 2 Tasks:
+1. Extract keystone sharing logic → KeystoneService (may leverage Keystones events)
+2. Remove direct UI calls from Communications
+3. Complete organizer routing verification
+4. End-to-end communication path testing
+
+Week 3 Tasks:
+1. Remove legacy playerIOCache from Communications
+2. Deprecate direct call methods
+3. Reduce Communications from 1357 → <500 lines
+4. Final validation and documentation
+
+**Other Priorities**
 
 1. Complete PUG Mode validation and mark hardened path as stable.
 2. Reconfirm Loot Targeting System behavior and update docs if needed.

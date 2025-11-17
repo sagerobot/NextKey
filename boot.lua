@@ -408,6 +408,12 @@ NextKey222.StartUp:RegisterPhaseHandler("PostInit", function()
         NextKey222.Debug:Error("Warning: UI system not available for initialization")
     end
     
+    -- Register teleport window event listeners
+    if NextKey and NextKey.RegisterTeleportEventListeners then
+        NextKey222.Debug:Dev("startup", "Registering teleport window event listeners")
+        NextKey.SafeRun(function() NextKey:RegisterTeleportEventListeners() end, "Register teleport event listeners")
+    end
+    
     -- Initialize GroupSuggestions
     if NextKey222.GroupSuggestions and NextKey222.GroupSuggestions.Initialize then
         NextKey222.Debug:Dev("startup", "Initializing GroupSuggestions")

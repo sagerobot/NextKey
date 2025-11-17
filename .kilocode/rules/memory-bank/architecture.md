@@ -152,8 +152,11 @@ Key module groups:
   - `core/sorting/algorithms/byKeyLevel.lua` — Sort by key level
   - `core/sorting/algorithms/byItemNeed.lua` — Loot priority
 
-- Keystone & dungeon model:
-  - `core/keystones.lua`
+- Keystone & dungeon model (Event-Driven Architecture - November 17, 2025):
+  - `core/keystones.lua` — Event-driven keystone state management
+    - 6 KEYSTONE_EVENTS announced on state changes
+    - Complete event payloads with context
+    - Events: PLAYER_DETECTED, PLAYER_REMOVED, SCAN_COMPLETE, GUILD_RECEIVED, TELEPORT_SELECTED, TELEPORT_CLEARED
   - `core/dungeonCards.lua`
   - `data/portals.lua`
   - `data/loot.lua`
@@ -162,9 +165,14 @@ Key module groups:
   - `core/dungeonNameMatcher.lua`
   - `core/activityToDungeonMap.lua`
 
-- Communications:
-  - `core/comms.lua` — Central AceComm router, IO sharing, TELEPORT_SELECT, organizer routing.
-  - `core/libopenraid.lua` — LibOpenRaid integration.
+- Communications (Phase 4.1 Refactoring):
+  - `core/comms.lua` — Central AceComm router transitioning to pure message router (event-driven)
+  - `core/playerDataService.lua` — Extracted IO data management (November 16, 2025)
+  - `core/libopenraid.lua` — LibOpenRaid integration
+  - Event infrastructure:
+    - 14 COMM_EVENTS defined in constants.lua
+    - All opcodes announce events via AnnounceEvent()
+    - Modules listen for events instead of direct calls
 
 - Organizer:
   - `core/organizer/state.lua` — OrganizerState (authoritative state).
@@ -220,28 +228,52 @@ Single-file initialization:
   - No `print()` — always use `NextKey222.Debug`.
 - Used across all systems (boot, comms, organizer, PUG, teleport).
 
-### 3. Communications Core ([`core/comms.lua`](core/comms.lua:413))
+### 3. Communications Core ([`core/comms.lua`](core/comms.lua:413)) — Event-Driven Refactor ✅ In Progress
 
-Responsibilities:
+**Current Status** (November 16, 2025): Transitioning to pure message router with event-driven architecture
 
-- Registers AceComm prefix (`COMM_PREFIX`).
-- Serializes/deserializes messages via AceSerializer.
-- Throttling & batching for group-size-scaled load.
-- IO sharing:
-  - `PLAYER_IO_UPDATE`, `REQUEST_PLAYER_IO`.
-  - `playerIOCache` with validation and cleanup.
-- Handles:
-  - `SYNC`, preferences, legacy dungeon scores.
-  - Guild keystone share (`KEYSTONE_REQUEST` / `KEYSTONE_SHARE`).
+**Phase 4.1 Architecture**:
+
+Core Responsibilities (Pure Router):
+- Registers AceComm prefix (`COMM_PREFIX`)
+- Serializes/deserializes messages via AceSerializer
+- Throttling & batching for group-size-scaled load
+- **Event Announcements** (NEW):
+  - All 12 opcodes announce events via `AnnounceEvent()`
+  - Event mapping via `GetEventNameForOpcode()`
+  - 14 COMM_EVENTS defined in constants.lua
+
+Business Logic Extraction:
+- **PlayerDataService** ([`core/playerDataService.lua`](core/playerDataService.lua:1)) ✅ **EXTRACTED**:
+  - Manages playerIOCache independently
+  - Handles `PLAYER_IO_UPDATE`, `REQUEST_PLAYER_IO`
+  - Announces `PLAYER_IO_UPDATED`, `PLAYER_IO_CACHE_CLEANED` events
+  - Listens for `COMM_EVENTS.PLAYER_IO_RECEIVED`, `COMM_EVENTS.PLAYER_IO_REQUEST`
+
+- Keystone Sharing (Week 2):
+  - Will extract `KEYSTONE_REQUEST` / `KEYSTONE_SHARE` to KeystoneService
+
 - TELEPORT_SELECT:
-  - Special opcode:
-    - Ignores own messages.
-    - Validates `key` (dungeonID, level).
-    - Calls `NextKey:SetTeleportTargetKey(k, { source = "remote_select", broadcast = false, receivedFrom = sender })`.
-    - Ensures teleport window visible/updated as needed.
+  - Announces `COMM_EVENTS.TELEPORT_SELECT` event
+  - Legacy handler maintained for backward compatibility
+  - Validates `key` (dungeonID, level)
+  - Calls `NextKey:SetTeleportTargetKey(k, { source = "remote_select", broadcast = false, receivedFrom = sender })`
+
 - Organizer integration:
-  - Routes organizer opcodes (ORG_*), poll requests/responses, organizer data exchange.
-  - Delegates poll handling to survey and organizer UI modules.
+  - Routes organizer opcodes (ORG_*)
+  - Announces organizer events (already event-driven)
+  - Delegates poll handling to survey and organizer UI modules
+
+**Event Flow**:
+1. Network message received → Deserialize
+2. Announce event via `AnnounceEvent(eventName, payload)`
+3. Domain modules listen and react
+4. Legacy handlers run for backward compatibility (during migration)
+
+**Migration Status**:
+- ✅ Week 1: PlayerDataService extracted, event infrastructure implemented
+- 🚧 Week 2: Extract keystone logic, remove direct UI calls
+- ⏳ Week 3: Remove legacy handlers, reduce to <500 lines
 
 ### 4. OrganizerState & Organizer Stack
 
@@ -428,17 +460,18 @@ Strategies:
 
 ## Critical Paths
 
-1. Keystone Detection:
-   - Scan + APIs → Profiles → IOCalculator → UI rendering.
+1. Keystone Detection (Event-Driven):
+   - Scan + APIs → Keystones announces events → UI listeners react → UI rendering.
+   - Events: PLAYER_DETECTED, SCAN_COMPLETE, GUILD_RECEIVED
 
 2. IO / Comms:
    - Request/Share IO → Validate → Cache → UI updates.
 
-3. Teleport Sync:
-   - Leader SetTeleportTargetKey(broadcast=true) → TELEPORT_SELECT → receivers SetTeleportTargetKey(remote_select) → teleport window update.
+3. Teleport Sync (Event-Driven):
+   - Leader SetTeleportTargetKey(broadcast=true) → TELEPORT_SELECT → receivers SetTeleportTargetKey(remote_select) → Keystones announces TELEPORT_SELECTED → Teleport window updates.
 
-4. Organizer:
-   - Poll → OrganizerComms → OrganizerState → RosterBoard (views) → persisted state.
+4. Organizer (Event-Driven):
+   - Poll → OrganizerComms → OrganizerState announces events → RosterBoard listeners react → UI updates → persisted state.
 
 5. PUG Helper:
    - LFG apps → trackedApplications → primary invite lock → PUG detection → PUG context → Teleport window.

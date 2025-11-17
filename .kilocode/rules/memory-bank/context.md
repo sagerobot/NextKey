@@ -1,14 +1,101 @@
 # NextKey Current Context
 
 ## Current Status
-**Date**: November 16, 2025
+**Date**: November 17, 2025
 **Version**: 0.6.0
-**Current Phase**: Phase 2 Complete & Validated — Sorting System Operational, Loot Window Fixed
+**Current Phase**: Phase 4 In Progress — Event-Driven Core Module Refactoring
 **Authoritative Note**: This file is the canonical snapshot of the current system state for AI and future contributors.
 
 ## Recent Completions
 
-### 0. Phase 2 Architectural Refactoring ✅ **COMPLETE & VALIDATED** (November 14-15, 2025)
+### 0. Phase 4.2: Keystones Event-Driven Refactor ✅ **COMPLETE** (November 17, 2025)
+
+**Event-Driven Architecture Implementation**
+
+- Created comprehensive analysis: [`Documentation/_Architectural_Audit/14_Keystones_Event_Analysis.md`](Documentation/_Architectural_Audit/14_Keystones_Event_Analysis.md:1) (1104 lines)
+  - Identified 7 state change categories
+  - Defined 6 events with complete payload structures
+  - Created step-by-step implementation plan
+  - Testing checklist and success criteria
+
+- Implemented event infrastructure in Keystones: [`core/keystones.lua`](core/keystones.lua:1)
+  - Added `AnnounceEvent()` helper method with SafeRun wrapper
+  - Updated 5 state mutation methods to fire events:
+    - `ScanPlayerKeystone()` → `KEYSTONE_PLAYER_DETECTED`
+    - Player removal → `KEYSTONE_PLAYER_REMOVED`
+    - `CollectPartyKeys()` → `KEYSTONE_SCAN_COMPLETE`
+    - `StoreGuildKeystone()` → `KEYSTONE_GUILD_RECEIVED`
+    - `SetTeleportTargetKey()` → `KEYSTONE_TELEPORT_SELECTED` / `KEYSTONE_TELEPORT_CLEARED`
+  - All events include complete payloads with context
+  - Debug logging via `keystones` category
+
+- Added KEYSTONE_EVENTS to constants: [`core/constants.lua`](core/constants.lua:1) (lines 64-80)
+  - 6 event definitions for all keystone state changes
+  - Includes player detection, scanning, guild reception, teleport selection
+
+- Implemented UI event listeners:
+  - [`ui/main.lua`](ui/main.lua:1) (lines 359-456):
+    - `OnPlayerKeystoneDetected()` - triggers UI refresh
+    - `OnKeystoneScanComplete()` - updates scan status and refreshes results
+    - `OnTeleportSelected()` - logs selection
+    - Recursion guards with `_handlingKeystoneEvent` flag
+  - [`ui/teleport.lua`](ui/teleport.lua:1) (lines 897-961):
+    - `OnTeleportSelectedEvent()` - refreshes teleport window
+    - `OnTeleportClearedEvent()` - hides teleport window
+  - Event registration in [`boot.lua`](boot.lua:1) PostInit phase
+
+- Critical Bug Fixes:
+  - Fixed nil-safety error when accessing `payload.sourceCounts`
+  - Fixed C stack overflow (infinite event loop) with guard flag
+  - Recursion prevention with `_handlingKeystoneEvent` guard
+
+**Status**: ✅ Complete and validated in-game — All workflows working correctly
+
+### 1. Phase 4.1: Communications Refactor — Week 1 ✅ **COMPLETE** (November 16, 2025)
+
+**Analysis & PlayerDataService Extraction**
+
+- Created comprehensive refactor analysis: [`Documentation/_Architectural_Audit/13_Communications_Refactor_Analysis.md`](Documentation/_Architectural_Audit/13_Communications_Refactor_Analysis.md:1) (878 lines)
+  - Identified 5 major problems in Communications architecture
+  - Documented all 12 opcodes and their handling
+  - Defined 14 COMM_EVENTS for opcode → event mapping
+  - Created 3-week extraction plan
+
+- Extracted PlayerDataService: [`core/playerDataService.lua`](core/playerDataService.lua:1) (379 lines)
+  - Moved 240+ lines of IO data management from Communications
+  - Manages playerIOCache independently
+  - Event-driven architecture:
+    - Listens: `COMM_EVENTS.PLAYER_IO_RECEIVED`, `COMM_EVENTS.PLAYER_IO_REQUEST`
+    - Announces: `PLAYER_IO_UPDATED`, `PLAYER_IO_CACHE_CLEANED`
+  - Key methods:
+    - `CreateIOPackage(playerName)` — builds IO data packet
+    - `SharePlayerIOData()` — broadcasts via Communications
+    - `OnIODataReceived(payload)` — processes received IO data
+    - `EnsureCurrentPlayerIOData()` — lazy initialization
+
+- Implemented event infrastructure in Communications:
+  - Added `AnnounceEvent()` helper method
+  - All 12 opcodes announce events via `GetEventNameForOpcode()`
+  - Added `RegisterEventListeners()` for backward compatibility
+  - Event flow: Network message → Parse → AnnounceEvent → Legacy handlers
+  - Maintains dual-path system during migration
+
+- Added COMM_EVENTS to constants: [`core/constants.lua`](core/constants.lua:1)
+  - 14 event definitions for all communication types
+  - Includes organizer events, IO events, keystone events, teleport events
+
+- Added debug category: `player_data` (Data Processing group)
+  - Available in `/nk config` → Debug System
+  - Validated operational in-game
+
+**Status**: ✅ Week 1 Complete — Event system operational, PlayerDataService extracted and validated
+
+**Next Steps (Week 2)**:
+- Extract keystone sharing logic → KeystoneService
+- Remove direct UI calls from Communications
+- Complete end-to-end communication path testing
+
+### 1. Phase 2 Architectural Refactoring ✅ **COMPLETE & VALIDATED** (November 14-15, 2025)
 
 #### Phase 2.1: Pluggable Sorting System ✅ **VALIDATED IN-GAME**
 - Implemented registry-based sorting system in [`core/sorting/main.lua`](core/sorting/main.lua:1)
@@ -211,7 +298,51 @@ Status:
 
 ## Next Steps (Authoritative)
 
-### Phase 3 Priorities (Current Focus)
+### Phase 4 Priorities (Current Focus)
+
+**Phase 4.2: Keystones Event-Driven** ✅ **COMPLETE** (November 17, 2025)
+- Event-driven architecture implemented and validated
+- 6 events announced on all state changes
+- UI consumers listening and reacting correctly
+- No performance impact, production-ready
+
+**Phase 4.3: Next Task - Profiles Event-Driven** (Upcoming)
+
+1. Review Profiles Architecture
+   - Analyze current caching strategy
+   - Identify invalidation rules and triggers
+   - Document update patterns
+
+2. Define Profile Events
+   - `PROFILE_UPDATED` - Profile data changed
+   - `PROFILE_INVALIDATED` - Cache invalidated
+   - `PROFILE_CACHED` - New profile cached
+
+3. Implement Event Announcements
+   - Fire events on profile changes
+   - Fire events on cache invalidation
+   - Include complete context in payloads
+
+4. Update UI Consumers
+   - Replace direct polling with event listeners
+   - React to profile changes via events
+   - Test with spec changes and cache expiration
+
+**Phase 4.1: Communications Refactor - Remaining Work**
+
+Week 2 Tasks:
+1. Extract keystone sharing logic → KeystoneService (may leverage existing Keystones events)
+2. Remove direct UI calls from Communications
+3. Complete organizer routing verification
+4. End-to-end communication path testing
+
+Week 3 Tasks:
+1. Remove legacy playerIOCache from Communications
+2. Deprecate direct call methods
+3. Reduce Communications from 1357 → <500 lines
+4. Final validation and documentation
+
+### Phase 3 Priorities (Completed)
 
 1. **OrganizerState & Organizer Validation** (Recommended)
    - Real-world validation in live groups:

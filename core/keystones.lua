@@ -7,6 +7,27 @@ NextKey222.Keystones = Keystones
 -- Register with module system
 NextKey222.RegisterModule("Keystones", Keystones)
 
+-- MARK: Event Announcement Helper (Phase 4.2)
+--- Announces keystone events via AceEvent system
+--- @param eventName string The event name from KEYSTONE_EVENTS
+--- @param payload table The event payload data
+function Keystones:AnnounceEvent(eventName, payload)
+    return NextKey222.SafeRun(function()
+        if not NextKey222.Addon or not NextKey222.Addon.SendMessage then
+            NextKey222.Debug:Dev("keystones", "Cannot announce event - AceEvent not ready:", eventName)
+            return
+        end
+        
+        -- Ensure timestamp
+        if not payload.timestamp then
+            payload.timestamp = GetTime()
+        end
+        
+        NextKey222.Debug:Dev("keystones", "Announcing event:", eventName)
+        NextKey222.Addon:SendMessage(eventName, payload)
+    end, "Keystones:AnnounceEvent")
+end
+
 -- Get addon reference (available after boot)
 local function GetNextKey()
     return NextKey222.Addon
@@ -378,7 +399,17 @@ function NextKey:ScanPlayerKeystone()
     local owner = self.playerFullName or GetUtils().safeGetName("player")
     local class = self.playerClass ~= "" and self.playerClass or GetUtils().safeGetClass("player") or ""
 
-    return {
+    -- Detect if keystone changed
+    local previousKeystone = self.playerKeystone
+    local keystoneChanged = false
+    
+    if previousKeystone and mapID then
+        keystoneChanged = (previousKeystone.dungeonID ~= mapID) or (previousKeystone.level ~= level)
+    elseif not previousKeystone and mapID then
+        keystoneChanged = true
+    end
+    
+    local newKeystone = {
         dungeonID = mapID,
         level = level or 0,
         ownerName = owner,
@@ -387,6 +418,29 @@ function NextKey:ScanPlayerKeystone()
         source = "player",
         timestamp = GetUtils().currentTime(),
     }
+    
+    -- Announce PLAYER_DETECTED event if keystone detected or changed
+    if keystoneChanged then
+        NextKey222.Keystones:AnnounceEvent(
+            NextKey222.Constants.KEYSTONE_EVENTS.PLAYER_DETECTED,
+            {
+                playerName = owner,
+                playerShort = self.playerShortName,
+                dungeonID = mapID,
+                level = level or 0,
+                class = class,
+                source = "player",
+                dungeonName = self:GetDungeonName(mapID),
+                previous = previousKeystone and {
+                    dungeonID = previousKeystone.dungeonID,
+                    level = previousKeystone.level
+                } or nil,
+                timestamp = GetUtils().currentTime()
+            }
+        )
+    end
+    
+    return newKeystone
 end
 
 -- MARK: Guild Keystone Collection
@@ -406,7 +460,21 @@ function NextKey:StoreGuildKeystone(playerName, dungeonID, level, source)
         timestamp = GetTime()
     }
     
-    print("NextKey GUILD STORE: Stored keystone for", shortName, "- Level", level, "dungeon", dungeonID)
+    -- Announce guild keystone received event
+    NextKey222.Keystones:AnnounceEvent(
+        NextKey222.Constants.KEYSTONE_EVENTS.GUILD_RECEIVED,
+        {
+            playerName = playerName,
+            playerShort = shortName,
+            dungeonID = dungeonID,
+            level = level,
+            source = source or "guild-comm",
+            dungeonName = self:GetDungeonName(dungeonID),
+            timestamp = GetTime()
+        }
+    )
+    
+    NextKey222.Debug:Dev("keystones", "Stored guild keystone for", shortName, "- Level", level, "dungeon", dungeonID)
 end
 
 -- Get stored guild keystones
@@ -530,6 +598,20 @@ function NextKey:CollectPartyKeys()
         self.playerKeystone = Keystones.copyKey(playerKey)
         NextKey222.Debug:Dev("keystones", "Player keystone detected:", playerKey.dungeonID, "level", playerKey.level)
     else
+        -- Announce removal event if we had a keystone before
+        if self.playerKeystone then
+            NextKey222.Keystones:AnnounceEvent(
+                NextKey222.Constants.KEYSTONE_EVENTS.PLAYER_REMOVED,
+                {
+                    playerName = self.playerFullName,
+                    previous = {
+                        dungeonID = self.playerKeystone.dungeonID,
+                        level = self.playerKeystone.level
+                    },
+                    timestamp = GetTime()
+                }
+            )
+        end
         self.playerKeystone = nil
     end
 
@@ -783,6 +865,41 @@ function NextKey:CollectPartyKeys()
             end
         end
     end
+
+    -- Calculate source counts for scan complete event
+    local sourceCounts = {
+        blizzard = 0,
+        libopenraid = 0,
+        rio = 0,
+        debug = 0,
+        total = #keys
+    }
+    
+    for _, key in ipairs(keys) do
+        local source = key.source or "unknown"
+        if source == "blizzard" or source == "blizzard-api" then
+            sourceCounts.blizzard = sourceCounts.blizzard + 1
+        elseif source == "libopenraid" or source == "libopenraid-direct" then
+            sourceCounts.libopenraid = sourceCounts.libopenraid + 1
+        elseif source == "rio" then
+            sourceCounts.rio = sourceCounts.rio + 1
+        elseif source == "debug" then
+            sourceCounts.debug = sourceCounts.debug + 1
+        end
+    end
+    
+    -- Announce scan complete event
+    NextKey222.Keystones:AnnounceEvent(
+        NextKey222.Constants.KEYSTONE_EVENTS.SCAN_COMPLETE,
+        {
+            keystones = keys,
+            playerCount = #keys,
+            keystoneCount = sourceCounts.total,
+            sources = sourceCounts,
+            scanType = IsInRaid() and "raid" or (IsInGroup() and "party" or "solo"),
+            timestamp = GetTime()
+        }
+    )
 
     self.cachedKeys = keys
     return keys
@@ -1114,6 +1231,7 @@ end
 function NextKey:SetTeleportTargetKey(key, opts)
     opts = opts or {}
     local same = self:IsKeySelected(key)
+    local previousKey = self.teleportTargetKey
 
     if key and key.dungeonID then
         self.teleportTargetKey = Keystones.copyKey({
@@ -1128,11 +1246,48 @@ function NextKey:SetTeleportTargetKey(key, opts)
             timestamp = GetUtils().currentTime(),
         })
         
-        -- DEBUG: Log teleport target setting
+        -- Announce teleport selected event
+        NextKey222.Keystones:AnnounceEvent(
+            NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_SELECTED,
+            {
+                dungeonID = key.dungeonID,
+                level = key.level,
+                ownerName = key.ownerName,
+                ownerShort = key.ownerShort,
+                class = key.class,
+                io = key.io,
+                source = opts.source or key.source,
+                receivedFrom = opts.receivedFrom,
+                broadcast = opts.broadcast or false,
+                dungeonName = self:GetDungeonName(key.dungeonID),
+                previous = previousKey and {
+                    dungeonID = previousKey.dungeonID,
+                    level = previousKey.level,
+                    ownerName = previousKey.ownerName
+                } or nil,
+                timestamp = GetUtils().currentTime()
+            }
+        )
+        
         NextKey222.Debug:User("SetTeleportTargetKey: " .. (key.ownerName or "Unknown") .. " - " ..
                               (self:GetDungeonName(key.dungeonID) or "Unknown") ..
                               " +" .. (key.level or 0) .. " (source: " .. (key.source or "unknown") .. ")")
     else
+        -- Announce teleport cleared event
+        if previousKey then
+            NextKey222.Keystones:AnnounceEvent(
+                NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_CLEARED,
+                {
+                    previous = {
+                        dungeonID = previousKey.dungeonID,
+                        level = previousKey.level,
+                        ownerName = previousKey.ownerName
+                    },
+                    timestamp = GetTime()
+                }
+            )
+        end
+        
         self.teleportTargetKey = nil
         NextKey222.Debug:User("SetTeleportTargetKey: Cleared teleport target")
     end

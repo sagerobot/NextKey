@@ -101,6 +101,10 @@ core\sorting\algorithms\byItemNeed.lua
 core\season.lua
 core\libopenraid.lua
 core\ioCalculator.lua
+
+# Player Data Service (Phase 4 Refactor - extracted from Communications)
+core\playerDataService.lua
+
 core\groupSuggestions.lua
 core\keystones.lua
 core\raiderio.lua

@@ -882,6 +882,72 @@ function addon:RefreshTeleportWindow()
     UpdateTeleportWindowContent(self.teleportWindow)
 end
 
+-- MARK: Keystone Event Listeners
+
+--- Registers event listeners for keystone events affecting teleport window
+function addon:RegisterTeleportEventListeners()
+    if not self or not self.RegisterMessage then
+        if NextKey222.Debug then
+            NextKey222.Debug:Error("TeleportWindow: Cannot register event listeners - RegisterMessage not available")
+        end
+        return
+    end
+
+    -- Listen for teleport selection changes
+    self:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_SELECTED, function(event, payload)
+        addon:OnTeleportSelectedEvent(payload)
+    end)
+
+    -- Listen for teleport cleared
+    self:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_CLEARED, function(event, payload)
+        addon:OnTeleportClearedEvent(payload)
+    end)
+
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("teleport", "Registered 2 keystone event listeners for teleport window")
+    end
+end
+
+--- Event handler: Teleport target selected
+function addon:OnTeleportSelectedEvent(payload)
+    if not payload then return end
+
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("teleport", string.format(
+            "TeleportWindow received TELEPORT_SELECTED event: dungeonID=%s, level=%s, source=%s",
+            tostring(payload.dungeonID),
+            tostring(payload.level),
+            payload.source or "unknown"
+        ))
+    end
+
+    -- Refresh teleport window if it's open
+    if self.teleportWindow and self.teleportWindow.frame and self.teleportWindow.frame:IsShown() then
+        self:RefreshTeleportWindow()
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("teleport", "Teleport window refreshed after TELEPORT_SELECTED event")
+        end
+    end
+end
+
+--- Event handler: Teleport target cleared
+function addon:OnTeleportClearedEvent(payload)
+    if not payload then return end
+
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("teleport", "TeleportWindow received TELEPORT_CLEARED event")
+    end
+
+    -- Close teleport window if it's open
+    if self.teleportWindow and self.teleportWindow.frame and self.teleportWindow.frame:IsShown() then
+        self.teleportWindow.frame:Hide()
+        self:ClearTeleportWindowContext()
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("teleport", "Teleport window hidden after TELEPORT_CLEARED event")
+        end
+    end
+end
+
 -- MARK: Testing Functions
 -- =====================================================
 -- Test functions for verifying the teleport window polish

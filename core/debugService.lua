@@ -96,7 +96,8 @@ local DEBUG_CATEGORY_GROUPS = {
             dungeonNameService = { name = "Dungeon Name Service", description = "Dungeon name lookup and mapping" },
             IOCalculator = { name = "IO Score Calculator", description = "IO score calculation algorithms and data" },
             ioc = { name = "IO Calculation Details", description = "Detailed IO calculation operations and steps" },
-            sorting = { name = "Sorting Algorithms", description = "Keystone sorting algorithm score calculations and comparisons" }
+            sorting = { name = "Sorting Algorithms", description = "Keystone sorting algorithm score calculations and comparisons" },
+            player_data = { name = "Player Data Service", description = "Player IO data management, caching, and sharing (Phase 4)" }
         }
     },
 
@@ -163,6 +164,7 @@ local DebugService = {
 
         -- Data Processing
         sorting = false,  -- Sorting algorithm debug logging
+        player_data = false,  -- Player Data Service (Phase 4 refactor)
 
         -- Testing & Development
         fakeplayerservice = false,

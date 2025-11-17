@@ -18,7 +18,63 @@ local Constants = {
         PREFERENCE = "PREFERENCE",  -- Player dungeon preference updates
         LOOT_TARGET = "LOOT_TARGET", -- Player loot target updates
         PLAYER_IO_UPDATE = "PLAYER_IO_UPDATE", -- New standardized IO data sharing
-        REQUEST_PLAYER_IO = "REQUEST_PLAYER_IO" -- Request IO data from party members
+        REQUEST_PLAYER_IO = "REQUEST_PLAYER_IO", -- Request IO data from party members
+        
+        -- Organizer opcodes
+        ORG_POLL_REQUEST = "ORG_POLL_REQUEST",   -- Organizer poll request
+        ORG_POLL_RESPONSE = "ORG_POLL_RESPONSE", -- Organizer poll response
+        ORGANIZER_DATA = "ORGANIZER_DATA",       -- Organizer data sharing
+        REQUEST_ORGANIZER_DATA = "REQUEST_ORGANIZER_DATA", -- Request organizer data
+        
+        -- Legacy opcodes
+        PREFERENCE_UPDATE = "PREFERENCE_UPDATE",
+        DUNGEON_SCORES = "DUNGEON_SCORES"
+    },
+    
+    -- Phase 4 Refactor: Communication events for event-driven architecture
+    -- These events are announced by Communications and consumed by domain modules
+    COMM_EVENTS = {
+        -- Player IO Events
+        PLAYER_IO_RECEIVED = "COMM_PLAYER_IO_RECEIVED",
+        PLAYER_IO_REQUEST = "COMM_PLAYER_IO_REQUEST",
+        
+        -- Keystone Events
+        KEYSTONE_RECEIVED = "COMM_KEYSTONE_RECEIVED",
+        KEYSTONE_REQUEST = "COMM_KEYSTONE_REQUEST",
+        
+        -- Teleport Events
+        TELEPORT_SELECT = "COMM_TELEPORT_SELECT",
+        
+        -- Organizer Events
+        ORG_POLL_REQUEST = "COMM_ORG_POLL_REQUEST",
+        ORG_POLL_RESPONSE = "COMM_ORG_POLL_RESPONSE",
+        ORG_ADDON_PING = "COMM_ORG_ADDON_PING",
+        ORG_ADDON_PONG = "COMM_ORG_ADDON_PONG",
+        ORG_DATA = "COMM_ORG_DATA",
+        ORG_DATA_REQUEST = "COMM_ORG_DATA_REQUEST",
+        
+        -- Preference Events
+        PREFERENCE_UPDATE = "COMM_PREFERENCE_UPDATE",
+        
+        -- Legacy Events
+        DUNGEON_SCORES = "COMM_DUNGEON_SCORES",
+        SYNC = "COMM_SYNC"
+    },
+    
+    -- Phase 4.2: Keystone state change events for event-driven architecture
+    -- These events are announced by Keystones module when keystone state changes
+    KEYSTONE_EVENTS = {
+        -- Player Keystone Events
+        PLAYER_DETECTED = "NEXTKEY_KEYSTONE_PLAYER_DETECTED",
+        PLAYER_REMOVED = "NEXTKEY_KEYSTONE_PLAYER_REMOVED",
+        
+        -- Party/Guild Keystone Events
+        SCAN_COMPLETE = "NEXTKEY_KEYSTONE_SCAN_COMPLETE",
+        GUILD_RECEIVED = "NEXTKEY_KEYSTONE_GUILD_RECEIVED",
+        
+        -- Teleport Target Events
+        TELEPORT_SELECTED = "NEXTKEY_KEYSTONE_TELEPORT_SELECTED",
+        TELEPORT_CLEARED = "NEXTKEY_KEYSTONE_TELEPORT_CLEARED"
     },
     
     -- Message throttling and reliability settings

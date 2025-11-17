@@ -1,14 +1,16 @@
--- MARK: Communications Module (Simplified - LibOpenRaid handles keystones)
+-- MARK: Communications Module (Pure Message Router - Phase 4 Refactor)
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
 local AceSerializer = LibStub:GetLibrary("AceSerializer-3.0")
 
 -- Communications module for NextKey-specific data (preferences, settings, etc.)
+-- PHASE 4: Transitioning to pure message router pattern
+-- Business logic being extracted to domain modules (PlayerDataService, etc.)
 local Communications = {
     throttleTimers = {},
     messageQueue = {},
     isProcessing = false,
-    -- Storage for received IO data from other players
+    -- Storage for received IO data from other players (LEGACY - being moved to PlayerDataService)
     playerIOCache = {},
     
     -- PHASE 3: Communication Batching System
@@ -30,6 +32,22 @@ local Communications = {
 
 NextKey222.Communications = Communications
 NextKey222.RegisterModule("Communications", Communications)
+
+-- MARK: Event Announcement Helper (Phase 4)
+--- Announces communication events via AceEvent system
+--- @param eventName string The event name from COMM_EVENTS
+--- @param payload table The event payload data
+function Communications:AnnounceEvent(eventName, payload)
+    return NextKey222.SafeRun(function()
+        if not NextKey222.Addon or not NextKey222.Addon.SendMessage then
+            NextKey222.Debug:Dev("comms", "Cannot announce event - AceEvent not ready:", eventName)
+            return
+        end
+        
+        NextKey222.Debug:Dev("comms", "Announcing event:", eventName)
+        NextKey222.Addon:SendMessage(eventName, payload)
+    end, "Communications:AnnounceEvent")
+end
 
 -- MARK: Teleport Selection Broadcast (Leader → Party)
 -- Broadcasts the currently selected teleport key from the leader so all clients
@@ -409,7 +427,7 @@ function Communications:SendSync()
     return true
 end
 
--- MARK: Message Processing
+-- MARK: Message Processing (Phase 4: Event-Driven Router)
 function Communications:ProcessMessage(prefix, message, distribution, sender)
     if prefix ~= NextKey222.Constants.COMM_PREFIX then
         return
@@ -423,6 +441,19 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
     if not payload then
         NextKey222.Debug:Dev("comms", "Failed to parse message from", sender)
         return
+    end
+    
+    -- PHASE 4: Announce raw message event for all opcodes
+    -- This allows modules to listen for specific message types
+    local eventName = self:GetEventNameForOpcode(payload.opcode)
+    if eventName then
+        self:AnnounceEvent(eventName, {
+            opcode = payload.opcode,
+            sender = sender,
+            distribution = distribution,
+            payload = payload,
+            timestamp = GetTime()
+        })
     end
 
     -- Handle leader-selected teleport sync (TELEPORT_SELECT)
@@ -474,7 +505,8 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
         return
     end
 
-    -- Handle standard message types
+    -- PHASE 4: Route messages to appropriate handlers
+    -- Legacy direct processing maintained for backward compatibility during migration
     if payload.opcode == NextKey222.Constants.COMM_OPCODES.SYNC then
         self:ProcessSync(payload, sender)
     elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.PREFERENCE_UPDATE then
@@ -482,8 +514,10 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
     elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.DUNGEON_SCORES then
         self:ProcessDungeonScores(payload, sender)
     elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.PLAYER_IO_UPDATE then
+        -- PHASE 4: Legacy handler maintained for backward compatibility
         self:ProcessPlayerIOUpdate(payload, sender)
     elseif payload.opcode == NextKey222.Constants.COMM_OPCODES.REQUEST_PLAYER_IO then
+        -- PHASE 4: Legacy handler maintained for backward compatibility
         self:ProcessPlayerIORequest(payload, sender)
     elseif payload.opcode == "KEYSTONE_REQUEST" then
         self:ProcessKeystoneRequest(payload, sender)
@@ -500,6 +534,30 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
     else
         NextKey222.Debug:Dev("comms", "Unknown opcode:", payload.opcode, "from", sender)
     end
+end
+
+-- MARK: Opcode to Event Name Mapping (Phase 4)
+--- Maps communication opcodes to event names
+--- @param opcode string The communication opcode
+--- @return string|nil The event name or nil if no mapping exists
+function Communications:GetEventNameForOpcode(opcode)
+    -- Map opcodes to COMM_EVENTS constants
+    local mapping = {
+        [NextKey222.Constants.COMM_OPCODES.PLAYER_IO_UPDATE] = NextKey222.Constants.COMM_EVENTS.PLAYER_IO_RECEIVED,
+        [NextKey222.Constants.COMM_OPCODES.REQUEST_PLAYER_IO] = NextKey222.Constants.COMM_EVENTS.PLAYER_IO_REQUEST,
+        ["KEYSTONE_SHARE"] = NextKey222.Constants.COMM_EVENTS.KEYSTONE_RECEIVED,
+        ["KEYSTONE_REQUEST"] = NextKey222.Constants.COMM_EVENTS.KEYSTONE_REQUEST,
+        ["TELEPORT_SELECT"] = NextKey222.Constants.COMM_EVENTS.TELEPORT_SELECT,
+        [NextKey222.Constants.COMM_OPCODES.ORG_POLL_REQUEST] = NextKey222.Constants.COMM_EVENTS.ORG_POLL_REQUEST,
+        [NextKey222.Constants.COMM_OPCODES.ORG_POLL_RESPONSE] = NextKey222.Constants.COMM_EVENTS.ORG_POLL_RESPONSE,
+        ["ORG_ADDON_PING"] = NextKey222.Constants.COMM_EVENTS.ORG_ADDON_PING,
+        ["ORG_ADDON_PONG"] = NextKey222.Constants.COMM_EVENTS.ORG_ADDON_PONG,
+        [NextKey222.Constants.COMM_OPCODES.PREFERENCE_UPDATE] = NextKey222.Constants.COMM_EVENTS.PREFERENCE_UPDATE,
+        [NextKey222.Constants.COMM_OPCODES.DUNGEON_SCORES] = NextKey222.Constants.COMM_EVENTS.DUNGEON_SCORES,
+        [NextKey222.Constants.COMM_OPCODES.SYNC] = NextKey222.Constants.COMM_EVENTS.SYNC,
+    }
+    
+    return mapping[opcode]
 end
 
 function Communications:ProcessSync(payload, sender)
@@ -630,10 +688,14 @@ function Communications:Initialize()
         NextKey222.Debug:Dev("startup", "[!] Cannot register comm prefix - NextKey addon not ready")
     end
     
+    -- PHASE 4: Register event listeners for backward compatibility
+    -- These allow Communications to respond to events from new domain modules
+    self:RegisterEventListeners()
+    
     -- Initialize storage
     self.throttleTimers = {}
     self.partyDungeonScores = {}
-    self.playerIOCache = {}  -- New IO data cache
+    self.playerIOCache = {}  -- LEGACY: Being migrated to PlayerDataService
     
     -- PHASE 3: Initialize batching system
     self.batchQueue = {}
@@ -661,8 +723,51 @@ function Communications:Initialize()
     -- Note: Current player IO data will be generated on-demand to avoid initialization recursion
     -- EnsureCurrentPlayerIOData() is called when actually needed by IOCalculator
     
-    NextKey222.Debug:Dev("startup", "Communications module initialized successfully with IO data sharing and batching")
+    NextKey222.Debug:Dev("startup", "Communications module initialized successfully with event-driven architecture (Phase 4)")
     return true
+end
+
+-- MARK: Event Listener Registration (Phase 4)
+--- Registers event listeners for communication events
+--- This allows Communications to maintain backward compatibility during migration
+function Communications:RegisterEventListeners()
+    if not NextKey222.Addon or not NextKey222.Addon.RegisterMessage then
+        NextKey222.Debug:Error("Cannot register event listeners - AceEvent not ready")
+        return false
+    end
+    
+    NextKey222.SafeRun(function()
+        -- Listen for PLAYER_IO_RECEIVED events (from PlayerDataService)
+        -- This maintains UI refresh compatibility during migration
+        NextKey222.Addon:RegisterMessage(NextKey222.Constants.COMM_EVENTS.PLAYER_IO_RECEIVED, function(event, payload)
+            Communications:OnPlayerIOReceived(payload)
+        end)
+        
+        NextKey222.Debug:Dev("comms", "Event listeners registered for Phase 4 migration")
+    end, "Communications:RegisterEventListeners")
+    
+    return true
+end
+
+-- MARK: Event Handlers (Phase 4)
+--- Handles PLAYER_IO_RECEIVED events
+--- Maintains backward compatibility by triggering UI refresh
+function Communications:OnPlayerIOReceived(payload)
+    NextKey222.SafeRun(function()
+        if not payload or not payload.sender or not payload.payload then
+            return
+        end
+        
+        local sender = payload.sender
+        local ioData = payload.payload.ioData
+        
+        NextKey222.Debug:Dev("comms", "Event handler: PLAYER_IO_RECEIVED from", sender)
+        
+        -- Trigger UI refresh if available (legacy compatibility)
+        if NextKey222.UI and NextKey222.UI.OnPlayerIOUpdated then
+            NextKey222.UI:OnPlayerIOUpdated(sender, ioData)
+        end
+    end, "Communications:OnPlayerIOReceived")
 end
 
 -- MARK: PHASE 3 - Communication Batching System

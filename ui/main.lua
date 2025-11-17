@@ -350,7 +350,124 @@ function UI:Initialize()
         NextKey222.UIInitialization:InitializeUI(self)
     end
 
+    -- Register keystone event listeners
+    self:RegisterKeystoneEventListeners()
+
     return true
+end
+
+-- MARK: Keystone Event Listeners
+
+--- Registers event listeners for keystone state changes
+function UI:RegisterKeystoneEventListeners()
+    if not NextKey222.Addon then
+        if NextKey222.Debug then
+            NextKey222.Debug:Error("UI: Cannot register keystone event listeners - Addon not available")
+        end
+        return
+    end
+
+    -- Listen for player keystone detection
+    NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.PLAYER_DETECTED, function(event, payload)
+        self:OnPlayerKeystoneDetected(payload)
+    end)
+
+    -- Listen for scan completion
+    NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.SCAN_COMPLETE, function(event, payload)
+        self:OnKeystoneScanComplete(payload)
+    end)
+
+    -- Listen for teleport selection
+    NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_SELECTED, function(event, payload)
+        self:OnTeleportSelected(payload)
+    end)
+
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("ui", "Registered 3 keystone event listeners")
+    end
+end
+
+--- Event handler: Player keystone detected
+function UI:OnPlayerKeystoneDetected(payload)
+    if not payload then return end
+    
+    -- Guard against recursive event handling
+    if self._handlingKeystoneEvent then
+        return
+    end
+
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("keystones", string.format(
+            "UI received PLAYER_DETECTED event: player=%s, dungeonID=%s, level=%s",
+            payload.playerName or "nil",
+            tostring(payload.dungeonID),
+            tostring(payload.level)
+        ))
+    end
+
+    -- Invalidate cached data
+    self.lastRenderedKeystoneHash = nil
+
+    -- Schedule debounced refresh (guards against recursion internally)
+    self:ScheduleRender()
+end
+
+--- Event handler: Keystone scan complete
+function UI:OnKeystoneScanComplete(payload)
+    if not payload then return end
+    
+    -- Guard against recursive event handling
+    if self._handlingKeystoneEvent then
+        return
+    end
+
+    if NextKey222.Debug then
+        local sourceCounts = payload.sourceCounts or {}
+        NextKey222.Debug:Dev("keystones", string.format(
+            "UI received SCAN_COMPLETE event: party=%d, guild=%d, fake=%d, total=%d",
+            sourceCounts.party or 0,
+            sourceCounts.guild or 0,
+            sourceCounts.fake or 0,
+            payload.totalKeystones or 0
+        ))
+    end
+
+    -- Set guard flag
+    self._handlingKeystoneEvent = true
+
+    -- Invalidate cached data
+    self.lastRenderedKeystoneHash = nil
+
+    -- Refresh both windows if visible
+    if self.keystoneWindow and self.keystoneWindow.frame and self.keystoneWindow.frame:IsShown() then
+        if self.RenderResults then
+            self:RenderResults()
+        end
+    end
+
+    if NextKey222.DungeonWindow and NextKey222.DungeonWindow:IsVisible() then
+        NextKey222.DungeonWindow:Render()
+    end
+    
+    -- Clear guard flag
+    self._handlingKeystoneEvent = false
+end
+
+--- Event handler: Teleport target selected
+function UI:OnTeleportSelected(payload)
+    if not payload then return end
+
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("keystones", string.format(
+            "UI received TELEPORT_SELECTED event: dungeonID=%s, level=%s, source=%s",
+            tostring(payload.dungeonID),
+            tostring(payload.level),
+            payload.source or "unknown"
+        ))
+    end
+
+    -- Teleport selection is handled by the teleport window module
+    -- UI main doesn't need to take action beyond logging
 end
 
 --- Determines whether debug mode is currently enabled
