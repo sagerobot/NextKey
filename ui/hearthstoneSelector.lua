@@ -163,30 +163,7 @@ local function SetButtonTexture(button, itemID, itemType, texture, retries)
     else
         -- Retry loading the texture after a short delay (longer for better reliability)
         C_Timer.After(0.7, function()
-            local retryTexture = nil
-            
-            if itemType == "toy" then
-                local _, _, toyTexture = C_ToyBox.GetToyInfo(itemID)
-                retryTexture = toyTexture
-            elseif itemType == "spell" then
-                if C_Spell and C_Spell.GetSpellTexture then
-                    retryTexture = C_Spell.GetSpellTexture(itemID)
-                end
-                if not retryTexture then
-                    local _, _, spellTexture = GetSpellInfo(itemID)
-                    retryTexture = spellTexture
-                end
-            elseif itemType == "item" then
-                -- Request item data load FIRST (important for reliability)
-                if C_Item and C_Item.RequestLoadItemDataByID then
-                    C_Item.RequestLoadItemDataByID(itemID)
-                end
-                local _, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(itemID)
-                retryTexture = itemTexture
-            end
-            
-            NextKey222.Debug:Dev("hearthstoneSelector", "Retry", retries - 1, "for", itemID, "texture:", retryTexture or "nil")
-            
+            local retryTexture = HearthstoneData.GetHearthstoneTexture(itemID, itemType)
             -- Retry with decremented retries count
             SetButtonTexture(button, itemID, itemType, retryTexture, retries - 1)
         end)

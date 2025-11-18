@@ -76,12 +76,12 @@ function KeystoneCards:AddKeyRow(UI, entry)
         hasHeroism = entry.hasHeroism,
         hasBattleRes = entry.hasBattleRes
     }
-    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, NextKey222.UIConfig.ICON.SIZE, playerData)
+    local icon = NextKey222.UIComponents:CreateNativeClassIcon(frame, classToken, NextKey222.UIConfig.ICON.SIZE, playerData)
     -- Position class icon with simple vertical centering (using positive offset for downward positioning)
     icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -20)  -- 20px from top for visual centering
     
     -- Create role icon using component factory
-    local roleIcon = NextKey222.UIComponents:CreateRoleIcon(frame, entry.role, NextKey222.UIConfig.ICON.ROLE_SIZE)
+    local roleIcon = NextKey222.UIComponents:CreateNativeRoleIcon(frame, entry.role, NextKey222.UIConfig.ICON.ROLE_SIZE)
     roleIcon:SetPoint("TOPLEFT", icon, "TOPRIGHT", 6, 0)
     
     -- Create formatted player name text using component system
@@ -141,7 +141,7 @@ function KeystoneCards:AddKeyRow(UI, entry)
     end
 
     -- Create select button using component factory
-    local selectBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select")
+    local selectBtn = NextKey222.UIComponents:CreateNativeButton(frame, "select")
     -- Position button with simple vertical centering
     selectBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -20)  -- 20px from top for visual centering
     
@@ -245,7 +245,7 @@ function KeystoneCards:AddKeyRow(UI, entry)
 
     -- Debug helper: allow removing individual fake players directly from the card
     if UI:IsDebugMode() and NextKey222.FakePlayerService and ownerName and NextKey222.FakePlayerService:IsFakePlayer(ownerName) then
-        local deleteBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select")
+        local deleteBtn = NextKey222.UIComponents:CreateNativeButton(frame, "select")
         deleteBtn:SetText("Delete")
         deleteBtn:SetSize(selectBtn:GetWidth(), selectBtn:GetHeight())
         -- Position Delete button directly below Select with minimal spacing for vertical centering
@@ -308,11 +308,11 @@ function KeystoneCards:AddKeyRowCompact(UI, entry)
         hasHeroism = entry.hasHeroism,
         hasBattleRes = entry.hasBattleRes
     }
-    local icon = NextKey222.UIComponents:CreateClassIcon(frame, classToken, 20, playerData)
+    local icon = NextKey222.UIComponents:CreateNativeClassIcon(frame, classToken, 20, playerData)
     icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -6)
     
     -- Create role icon for compact view (smaller size)
-    local roleIcon = NextKey222.UIComponents:CreateRoleIcon(frame, entry.role, 12)
+    local roleIcon = NextKey222.UIComponents:CreateNativeRoleIcon(frame, entry.role, 12)
     roleIcon:SetPoint("TOPLEFT", icon, "TOPRIGHT", 2, 0)
     
     -- Create compact single-line text using component system
@@ -355,7 +355,7 @@ function KeystoneCards:AddKeyRowCompact(UI, entry)
         and NextKey222.FakePlayerService:IsFakePlayer(ownerName)
 
     -- Create compact select button
-    local selectBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select_compact")
+    local selectBtn = NextKey222.UIComponents:CreateNativeButton(frame, "select_compact")
     selectBtn:ClearAllPoints()
     selectBtn:SetPoint("RIGHT", frame, "RIGHT", -6, 0)
     if isFakePlayer then
@@ -412,7 +412,7 @@ function KeystoneCards:AddKeyRowCompact(UI, entry)
 
     local deleteBtn = nil
     if isFakePlayer then
-        deleteBtn = NextKey222.UIComponents:CreateButtonLegacy(frame, "select_compact")
+        deleteBtn = NextKey222.UIComponents:CreateNativeButton(frame, "select_compact")
         deleteBtn:SetText("Del")
         deleteBtn:SetSize(52, 18)
         deleteBtn:ClearAllPoints()

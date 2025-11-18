@@ -927,12 +927,14 @@ function Components:CreateScrollFrame(scrollFrameType, parent, config)
     return widget
 end
 
--- MARK: Legacy Factory Functions (for backward compatibility)
+-- MARK: Native Frame Factory Functions
+-- These functions create or configure native WoW frames rather than AceGUI widgets.
+-- Used for high-performance or custom-layout components like cards.
 
 --- Creates a card container for keystone/dungeon display
 -- @param height number Height of the container
 -- @param compact boolean Whether to use compact layout
--- @return AceGUI-Container The configured container
+-- @return AceGUI-Container The configured container (SimpleGroup with custom backdrop frame)
 function Components:CreateCardContainer(height, compact)
     local container = AceGUI:Create("SimpleGroup")
 
@@ -975,13 +977,13 @@ function Components:CreateCardContainer(height, compact)
     return container
 end
 
---- Creates a class icon with tooltip support
+--- Creates a native class icon frame with tooltip support
 -- @param parent Frame Parent frame
 -- @param classToken string Class token (e.g., "WARRIOR")
 -- @param size number Icon size
 -- @param playerData table Player data for tooltip
 -- @return Frame The class icon frame
-function Components:CreateClassIcon(parent, classToken, size, playerData)
+function Components:CreateNativeClassIcon(parent, classToken, size, playerData)
     local icon = CreateFrame("Frame", nil, parent)
     icon:SetSize(size, size)
     
@@ -1013,12 +1015,12 @@ function Components:CreateClassIcon(parent, classToken, size, playerData)
     return icon
 end
 
---- Creates a role icon
+--- Creates a native role icon frame
 -- @param parent Frame Parent frame
 -- @param role string Role ("TANK", "HEALER", "DAMAGER")
 -- @param size number Icon size
 -- @return Frame The role icon frame
-function Components:CreateRoleIcon(parent, role, size)
+function Components:CreateNativeRoleIcon(parent, role, size)
     local icon = CreateFrame("Frame", nil, parent)
     icon:SetSize(size, size)
 
@@ -1059,13 +1061,13 @@ function Components:CreateRoleIcon(parent, role, size)
     return icon
 end
 
---- Creates a select button (LEGACY - for backward compatibility)
+--- Creates a native button frame with standardized styling
 -- @param parent Frame Parent frame
 -- @param buttonType string Button type ("select" or "select_compact")
 -- @param text string Button text (optional)
 -- @param onClick function Button click handler
 -- @return Frame The button frame
-function Components:CreateButtonLegacy(parent, buttonType, text, onClick)
+function Components:CreateNativeButton(parent, buttonType, text, onClick)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
 
     local config = BUTTON_CONFIGS[buttonType] or BUTTON_CONFIGS[Components.BUTTON_SELECT]
@@ -1093,6 +1095,20 @@ function Components:CreateButtonLegacy(parent, buttonType, text, onClick)
     end
 
     return button
+end
+
+-- MARK: Legacy Aliases (Deprecated)
+
+function Components:CreateClassIcon(...)
+    return self:CreateNativeClassIcon(...)
+end
+
+function Components:CreateRoleIcon(...)
+    return self:CreateNativeRoleIcon(...)
+end
+
+function Components:CreateButtonLegacy(...)
+    return self:CreateNativeButton(...)
 end
 
 -- MARK: Text Formatting Utilities

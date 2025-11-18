@@ -103,26 +103,12 @@ function UIPerformance:QueueFramePacedRender(ui)
     end
 
     -- Queue data preparation work
+    -- This task is responsible for populating the render queue with individual items
     table.insert(st.work_queue, {
         type = "prepare_data",
         ui = ui,
         priority = 1,
     })
-
-    -- Queue rendering work based on current view
-    if ui.viewMode == "dungeons" then
-        table.insert(st.render_queue, {
-            type = "render_dungeons",
-            ui = ui,
-            priority = 1,
-        })
-    else
-        table.insert(st.render_queue, {
-            type = "render_keystones",
-            ui = ui,
-            priority = 1,
-        })
-    end
 
     if not st.is_processing then
         self:StartFramePacing(ui)
@@ -132,6 +118,20 @@ function UIPerformance:QueueFramePacedRender(ui)
         "UIPerformance: queued frame-paced render (group=%d, effective=%d, view=%s)",
         group_size, effective_size, ui.viewMode or "keystones"
     ))
+end
+
+--- Enqueue a batch of render items
+-- @param ui table UI module instance
+-- @param items table Array of render items
+function UIPerformance:EnqueueRenderItems(ui, items)
+    local st = _get_ui_state(ui)
+    if not st or not items then return end
+    
+    for _, item in ipairs(items) do
+        table.insert(st.render_queue, item)
+    end
+    
+    log_dev("ui", string.format("UIPerformance: enqueued %d render items", #items))
 end
 
 --- Start the frame pacing update loop for a UI if not already running.
@@ -239,7 +239,15 @@ function UIPerformance:ExecuteRenderItem(ui, render)
         return
     end
 
-    if render.type == "render_dungeons" then
+    if render.type == "render_card" then
+        if render.callback then
+            if SafeRun then
+                SafeRun(render.callback, "UIPerformance:RenderCard", ui, render.data)
+            else
+                render.callback(ui, render.data)
+            end
+        end
+    elseif render.type == "render_dungeons" then
         if ui.RenderDungeonCards then
             if SafeRun then
                 SafeRun(ui.RenderDungeonCards, "UIPerformance:RenderDungeonCards", ui)

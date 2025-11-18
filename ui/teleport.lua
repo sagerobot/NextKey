@@ -63,27 +63,9 @@ local function safeGetItemInfo(itemID)
         return GetItemInfo(itemID)
     end
 end
-
-local function getHearthName()
-    local name = select(1, safeGetItemInfo(UIConfig.ITEM.HEARTHSTONE_ID))
-    return name or "Hearthstone"
-end
-
-local function safeGetSpellInfo(spellID)
-    if GetSpellInfo then
-        return GetSpellInfo(spellID)
-    end
-    if C_Spell and C_Spell.GetSpellInfo then
-        local info = C_Spell.GetSpellInfo(spellID)
-        if info then
-            return info.name, nil, info.iconID
-        end
-    end
-    return nil, nil, nil
-end
-
 local function playerKnowsSpell(spellID)
     if not spellID then return false end
+    
     if C_SpellBook and C_SpellBook.IsSpellInSpellBook then
         if C_SpellBook.IsSpellInSpellBook(spellID, SPELL_BANK_PLAYER) then
             return true
@@ -92,9 +74,11 @@ local function playerKnowsSpell(spellID)
             return true
         end
     end
+    
     if IsSpellKnown and IsSpellKnown(spellID) then return true end
     if IsSpellKnownOrOverridesKnown and IsSpellKnownOrOverridesKnown(spellID) then return true end
     if IsPlayerSpell and IsPlayerSpell(spellID) then return true end
+    
     return false
 end
 

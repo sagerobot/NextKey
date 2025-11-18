@@ -43,6 +43,7 @@ Critical load order (from [`NextKey.toc`](NextKey.toc:1)):
     - core/uiScale.lua
     - core/responsive.lua
     - core/performance.lua
+    - ui/performance.lua
     - ui/performanceOptimizer.lua
     - events/performanceHandlers.lua
     - core/validation.lua
@@ -91,6 +92,11 @@ Critical load order (from [`NextKey.toc`](NextKey.toc:1)):
     - ui/dungeonCards.lua
     - ui/lootWindow.lua
     - ui/hearthstoneSelector.lua
+    - ui/metadata.lua
+    - ui/profiles.lua
+    - ui/rendering.lua
+    - ui/ioCalculations.lua
+    - ui/keystoneCards.lua
 18. Organizer UI:
     - ui/organizer/dragManager.lua
     - ui/organizer/playerCard.lua
@@ -198,7 +204,11 @@ Key module groups:
 - Teleport & shared UI:
   - `ui/teleport.lua` — Unified teleport window (normal + PUG modes).
   - `ui/components.lua` — Component factory.
-  - `ui/main.lua`, `ui/dungeonCards.lua`, `ui/lootWindow.lua`, `ui/hearthstoneSelector.lua`.
+  - `ui/main.lua` — Thin facade for UI coordination.
+  - `ui/metadata.lua` — Metadata enrichment service.
+  - `ui/profiles.lua` — UI-level profile caching.
+  - `ui/rendering.lua` — Rendering orchestration.
+  - `ui/performance.lua` — Frame pacing and render queuing.
 
 ## Key Components
 

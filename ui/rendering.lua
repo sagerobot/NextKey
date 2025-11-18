@@ -116,6 +116,8 @@ end
 -- ui: NextKey222.UI instance
 -- keys: array from Addon:GetAvailableKeys()
 -- mode: current sort mode
+-- Prepares keystone data for rendering (sorting, enrichment) and either renders immediately
+-- or queues render items if frame pacing is active.
 function UIRendering:render_keystones(ui, keys, mode)
     if not ui or not ui.resultsFrame then
         safe_dev("ui", "UIRendering:render_keystones: missing resultsFrame")
@@ -184,20 +186,46 @@ function UIRendering:render_keystones(ui, keys, mode)
         or (#entries > 5)
     self.cached_use_compact_mode = use_compact
 
-    -- Enrich & render each entry
-    for _, entry in ipairs(entries) do
-        self:enrich_entry_metadata(ui, entry)
-        table.insert(self.cached_items, entry)
+    -- Check if we should use frame pacing
+    local use_pacing = false
+    if NextKey222.UIPerformance and NextKey222.UIPerformance.state and NextKey222.UIPerformance.state[ui] then
+        use_pacing = NextKey222.UIPerformance.state[ui].is_processing
+    end
 
-        local render_func = use_compact and ui.AddKeyRowCompact or ui.AddKeyRow
-        local ok = NextKey222.SafeRun(render_func, "Render keystone card", ui, entry)
-        if not ok then
-            safe_error("Failed to render keystone card for",
-                entry.key and (entry.key.ownerName or "unknown") or "nil")
+    if use_pacing then
+        -- Queue render items
+        local render_items = {}
+        for _, entry in ipairs(entries) do
+            self:enrich_entry_metadata(ui, entry)
+            table.insert(self.cached_items, entry)
+            
+            local render_func = use_compact and ui.AddKeyRowCompact or ui.AddKeyRow
+            table.insert(render_items, {
+                type = "render_card",
+                callback = render_func,
+                data = entry,
+                priority = 1
+            })
+        end
+        
+        NextKey222.UIPerformance:EnqueueRenderItems(ui, render_items)
+        safe_dev("ui", "Enqueued", #render_items, "keystone render items")
+    else
+        -- Render immediately
+        for _, entry in ipairs(entries) do
+            self:enrich_entry_metadata(ui, entry)
+            table.insert(self.cached_items, entry)
+
+            local render_func = use_compact and ui.AddKeyRowCompact or ui.AddKeyRow
+            local ok = NextKey222.SafeRun(render_func, "Render keystone card", ui, entry)
+            if not ok then
+                safe_error("Failed to render keystone card for",
+                    entry.key and (entry.key.ownerName or "unknown") or "nil")
+            end
         end
     end
 
-    -- Update control visibility after render
+    -- Update control visibility after render (or queueing)
     if ui.UpdateKeystoneControlsVisibility then
         ui:UpdateKeystoneControlsVisibility()
     end
@@ -211,6 +239,16 @@ function UIRendering:render_keystones(ui, keys, mode)
             ui.headerWidgets.organizerBtn.frame:Hide()
             safe_dev("ui", "Organizer button hidden (keystone count =", self.cached_items_count, ")")
         end
+    end
+end
+
+-- Prepares render data (called by UIPerformance worker)
+function UIRendering:prepare_render(ui)
+    if not ui then return end
+    
+    -- Trigger a render pass which will now queue items if pacing is active
+    if ui.RenderResults then
+        ui:RenderResults()
     end
 end
 

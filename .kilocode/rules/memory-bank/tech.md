@@ -289,6 +289,20 @@ end)
 
 **Key rule**: AceEvent's `SendMessage(name, data)` results in callbacks receiving `(name, data)` as separate parameters via CallbackHandler's Dispatch mechanism.
 
+**Method Registration Note**:
+When registering via method name string:
+```lua
+self:RegisterMessage("EVENT", "MethodName")
+```
+AceEvent calls `self["MethodName"](self, event, payload)`.
+So the handler signature MUST be:
+```lua
+function Module:MethodName(event, payload)
+    -- event is the event name
+    -- payload is the data
+end
+```
+
 ### Error Handling Requirements
 - Validate all function inputs
 - Provide meaningful error messages

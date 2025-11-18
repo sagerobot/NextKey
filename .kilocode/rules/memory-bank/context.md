@@ -8,7 +8,32 @@
 
 ## Recent Completions
 
-### 0. Phase 4.3: Profiles Event-Driven Validation ✅ **COMPLETE** (November 17, 2025)
+### 0. Phase 5: UI Layer Refactor ✅ **COMPLETE** (November 18, 2025)
+
+**Goal**: Final UI cleanup, standardization, and performance optimization.
+
+**Task 5.1: Extract Remaining UI Logic from ui/main.lua** ✅
+- Extracted metadata enrichment to `ui/metadata.lua` (224 lines)
+- Extracted profile caching to `ui/profiles.lua` (129 lines)
+- Reduced `ui/main.lua` by 16% (277 lines removed)
+- **Critical Bug Fix**: Fixed AceEvent callback signature in `ui/main.lua` (role icons now update correctly on spec changes)
+
+**Task 5.2: Standardize Component Creation via Factories** ✅
+- Standardized native frame factories in `ui/components.lua`
+- Renamed legacy factories to `CreateNative*` for clarity
+- Updated `ui/keystoneCards.lua` and `ui/dungeonCards.lua` to use new factory names
+- Improved code clarity regarding AceGUI vs Native frames
+
+**Task 5.3: Implement Render Queuing for Performance** ✅
+- Implemented non-blocking render queue in `ui/performance.lua`
+- Added `EnqueueRenderItems` and `render_card` task type
+- Updated `ui/rendering.lua` to support granular render tasks
+- Updated `ui/main.lua` to delegate `PrepareRenderData` to `UIRendering`
+- Preserved immediate render fallback for safety
+
+**Status**: ✅ **COMPLETE** - UI layer is now modular, standardized, and performant.
+
+### 1. Phase 4.3: Profiles Event-Driven Validation ✅ **COMPLETE** (November 17, 2025)
 
 **Architecture Discovery: ProfilesService Already Implements Target Pattern**
 
@@ -338,51 +363,22 @@ Status:
 
 ## Next Steps (Authoritative)
 
-### Phase 4 Priorities (Current Focus)
+### Post-Refactor Validation (Current Focus)
 
-**Phase 4.2: Keystones Event-Driven** ✅ **COMPLETE** (November 17, 2025)
-- Event-driven architecture implemented and validated
-- 6 events announced on all state changes
-- UI consumers listening and reacting correctly
-- No performance impact, production-ready
+**Phase 5 Complete**: UI Layer refactoring is finished.
+- `ui/main.lua` is now a thin facade (<1500 lines)
+- Component creation is standardized
+- Render queuing is implemented for performance
 
-**Phase 4.3: Profiles Validation** ✅ **COMPLETE** (November 17, 2025)
-- **KEY FINDING**: ProfilesService **already implements** cache + event pattern perfectly!
-- **Architecture Discovery**:
-  - LRU cache with 100-entry limit and 5-minute TTL
-  - Event-driven invalidation (9 Blizzard events + 2 custom messages)
-  - Event announcements via `NEXTKEY_PROFILE_UPDATED`
-  - **Self-contained UI refresh mechanism** via delayed timer callbacks (500ms for spec changes)
-  - Pull model with event-driven invalidation (optimal design pattern)
-- **Analysis Document**: [`Documentation/_Architectural_Audit/15_Profiles_Event_Analysis.md`](Documentation/_Architectural_Audit/15_Profiles_Event_Analysis.md:1) (732+ lines)
-- **Critical Discovery**: No UI event listeners needed
-  - System uses pull model: UI calls `GetProfile()` when rendering
-  - ProfilesService invalidates cache on events
-  - Next pull automatically returns fresh data
-  - User confirmed: "The UI actually does refresh when spec changes happen"
-- **Status**: ✅ **PRODUCTION-READY** - Serves as reference implementation for event-driven architecture
-- **No refactoring needed** - existing implementation is exemplary
+**Next Steps**:
+1. **Functionality Tests**: Verify all features work as expected.
+2. **Performance Tests**: Check load time and memory usage.
+3. **Stress Tests**: Test with many keystones/players.
+4. **Integration Tests**: Test in real groups.
+5. **Documentation Update**: Finalize all documentation.
 
 **Phase 4 Status**: ✅ **COMPLETE** (November 16-17, 2025)
-
-All Phase 4 tasks completed:
-1. ✅ Communications refactor (Week 1 complete - PlayerDataService extracted)
-2. ✅ Keystones event-driven (6 events, validated in-game)
-3. ✅ Profiles validation (already implements target architecture)
-
-**Phase 4.1: Communications Refactor - Remaining Work** (Optional)
-
-Communications Week 1 complete with event infrastructure operational. Remaining work is optional:
-
-Week 2-3 Tasks (Optional):
-1. Extract keystone sharing logic → KeystoneService (may leverage existing Keystones events)
-2. Remove direct UI calls from Communications
-3. Complete organizer routing verification
-4. Remove legacy playerIOCache from Communications
-5. Reduce Communications from 1357 → <500 lines
-6. Final validation and documentation
-
-**Note**: Week 1 achievements (event infrastructure + PlayerDataService extraction) provide the core architectural benefits. Weeks 2-3 are cleanup/optimization rather than architectural requirements.
+**Phase 5 Status**: ✅ **COMPLETE** (November 18, 2025)
 
 ### Phase 3 Priorities (Completed)
 

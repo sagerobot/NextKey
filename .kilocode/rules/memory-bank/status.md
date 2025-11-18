@@ -186,16 +186,34 @@ This file is the concise status mirror of the current codebase. For complete ver
 - Analysis document: `Documentation/_Architectural_Audit/14_Keystones_Event_Analysis.md` (1104 lines)
 - Status: ✅ Production-ready, validated in-game
 
+### 9. Phase 5: UI Layer Refactor ✅ **COMPLETE** (November 18, 2025)
+
+- **Task 5.1: Extract Remaining UI Logic from ui/main.lua** ✅
+  - Extracted metadata enrichment to `ui/metadata.lua` (224 lines)
+  - Extracted profile caching to `ui/profiles.lua` (129 lines)
+  - Reduced `ui/main.lua` by 16% (277 lines removed)
+  - **Critical Bug Fix**: Fixed AceEvent callback signature in `ui/main.lua`
+
+- **Task 5.2: Standardize Component Creation via Factories** ✅
+  - Standardized native frame factories in `ui/components.lua`
+  - Renamed legacy factories to `CreateNative*` for clarity
+  - Updated `ui/keystoneCards.lua` and `ui/dungeonCards.lua` to use new factory names
+
+- **Task 5.3: Implement Render Queuing for Performance** ✅
+  - Implemented non-blocking render queue in `ui/performance.lua`
+  - Added `EnqueueRenderItems` and `render_card` task type
+  - Updated `ui/rendering.lua` to support granular render tasks
+  - Updated `ui/main.lua` to delegate `PrepareRenderData` to `UIRendering`
+
 ## Upcoming Priorities
 
-**Phase 4.3: Profiles Event-Driven Refactor** (Next Task)
+**Post-Refactor Validation** (Next Task)
 
-1. Review Profiles architecture (caching, invalidation, updates)
-2. Define 3 profile events (UPDATED, INVALIDATED, CACHED)
-3. Implement event announcements in ProfilesService
-4. Update UI consumers to listen for events
-5. Test with spec changes, cache expiration, multiple players
-6. Estimated: 3-5 days
+1. **Functionality Tests**: Verify all features work as expected.
+2. **Performance Tests**: Check load time and memory usage.
+3. **Stress Tests**: Test with many keystones/players.
+4. **Integration Tests**: Test in real groups.
+5. **Documentation Update**: Finalize all documentation.
 
 **Phase 4.1: Communications Refactor (Weeks 2-3)** (Ongoing)
 

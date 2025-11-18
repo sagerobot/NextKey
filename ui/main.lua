@@ -44,6 +44,8 @@ local UI = {
 }
 
 NextKey222.UI = UI
+-- Embed AceEvent-3.0 for robust event handling
+LibStub("AceEvent-3.0"):Embed(UI)
 NextKey222.RegisterModule("UI", UI)
 
 -- MARK: Module References
@@ -409,20 +411,12 @@ function UI:Initialize()
         -- Register keystone event listeners
         self:RegisterKeystoneEventListeners()
         
-        -- EXACT Organizer Pattern - Direct registration in Initialize()
-        if NextKey222.Addon and NextKey222.Addon.RegisterMessage then
-            -- Register listener for profile updates (spec changes, role changes)
-            NextKey222.Addon:RegisterMessage("NEXTKEY_PROFILE_UPDATED", function(event, payload)
-                self:OnProfileUpdated(payload)
-            end)
+        -- Register listener for profile updates (spec changes, role changes)
+        -- Using embedded AceEvent-3.0 for robust handling
+        self:RegisterMessage("NEXTKEY_PROFILE_UPDATED", "OnProfileUpdated")
             
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("ui", "Direct registration: NEXTKEY_PROFILE_UPDATED listener")
-            end
-        else
-            if NextKey222.Debug then
-                NextKey222.Debug:Error("UI: Cannot register profile event listeners - Addon not available")
-            end
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "Registered NEXTKEY_PROFILE_UPDATED listener via embedded AceEvent")
         end
 
         return true
@@ -464,59 +458,13 @@ end
 
 -- MARK: Profile Event Listeners
 
---- Registers event listeners for profile updates
-function UI:RegisterProfileEventListeners()
-    return NextKey222.SafeRun(function()
-        -- CRITICAL DEBUG: Prove this function is being called
-        if NextKey222.Debug then
-            NextKey222.Debug:Dev("ui", "========================================")
-            NextKey222.Debug:Dev("ui", "RegisterProfileEventListeners() CALLED!")
-            NextKey222.Debug:Dev("ui", "NextKey222.Addon exists:", NextKey222.Addon ~= nil)
-            NextKey222.Debug:Dev("ui", "========================================")
-        end
-        
-        if not NextKey222.Addon then
-            if NextKey222.Debug then
-                NextKey222.Debug:Error("UI: Cannot register profile event listeners - Addon not available")
-            end
-            return
-        end
-
-        -- Listen for profile updates (spec changes, etc.)
-        -- EXACTLY match Organizer pattern - callback inside SafeRun
-        
-        if NextKey222.Debug then
-            NextKey222.Debug:Dev("ui", "About to register NEXTKEY_PROFILE_UPDATED listener...")
-            NextKey222.Debug:Dev("ui", "NextKey222.Addon type:", type(NextKey222.Addon))
-            NextKey222.Debug:Dev("ui", "RegisterMessage exists:", NextKey222.Addon.RegisterMessage ~= nil)
-        end
-        
-        -- Callback defined INSIDE SafeRun scope like Organizer
-        local function HandleProfileUpdate(event, payload)
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("ui", "========================================")
-                NextKey222.Debug:Dev("ui", "PROFILE UPDATE CALLBACK FIRED!")
-                NextKey222.Debug:Dev("ui", "event=", tostring(event))
-                NextKey222.Debug:Dev("ui", "payload type=", type(payload))
-                if payload then
-                    NextKey222.Debug:Dev("ui", "payload.triggerEvent=", tostring(payload.triggerEvent))
-                    NextKey222.Debug:Dev("ui", "payload.playerName=", tostring(payload.playerName))
-                end
-                NextKey222.Debug:Dev("ui", "========================================")
-            end
-            self:OnProfileUpdated(payload)
-        end
-        
-        NextKey222.Addon:RegisterMessage("NEXTKEY_PROFILE_UPDATED", HandleProfileUpdate)
-        
-        if NextKey222.Debug then
-            NextKey222.Debug:Dev("ui", "Successfully registered NEXTKEY_PROFILE_UPDATED listener")
-        end
-    end, "UI:RegisterProfileEventListeners")
-end
+-- RegisterProfileEventListeners is DEPRECATED/REMOVED
+-- Event registration is now handled directly in Initialize() via embedded AceEvent-3.0
 
 --- Event handler: Profile updated (spec change, etc.)
-function UI:OnProfileUpdated(payload)
+function UI:OnProfileUpdated(event, payload)
+    -- When registered via method name string, AceEvent calls as: method(self, event, payload)
+    -- So 'event' is the event name, and 'payload' is the data
     if not payload then return end
 
     if NextKey222.Debug then
@@ -1579,6 +1527,11 @@ function UI:PrepareRenderData()
 
     if NextKey and NextKey.Keystones and NextKey.Keystones.ScanAllKeystones then
         NextKey.SafeRun(NextKey.Keystones.ScanAllKeystones, "Prepare keystone scan")
+    end
+
+    -- Delegate to UIRendering to prepare and queue render items
+    if NextKey222.UIRendering and NextKey222.UIRendering.prepare_render then
+        NextKey222.UIRendering:prepare_render(self)
     end
 
     Debug:Dev("ui", "Prepared render data")

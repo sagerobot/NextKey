@@ -33,3 +33,11 @@ TODO.local.md
 # Local test files
 test_local.lua
 local_*.lua
+
+# Release artifacts
+*.zip
+NextKey/
+
+# Local AI & Tools
+.kilocode/
+.luacheck_cache

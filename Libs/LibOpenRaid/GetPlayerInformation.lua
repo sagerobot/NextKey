@@ -44,7 +44,18 @@ local GetSpellInfo = GetSpellInfo or function(spellID)
                 spellInfo.maxRange, spellInfo.spellID, spellInfo.originalIconID
     end
 end
-local GetSpellCooldown = C_Spell and C_Spell.GetSpellCooldown or GetSpellCooldown
+local GetSpellCooldown = function(spellID)
+    if C_Spell and C_Spell.GetSpellCooldown then
+        local cooldownInfo = C_Spell.GetSpellCooldown(spellID)
+        if cooldownInfo then
+            return cooldownInfo.startTime, cooldownInfo.duration, cooldownInfo.isEnabled, cooldownInfo.modRate
+        end
+        return 0, 0, 0, 0
+    elseif _G.GetSpellCooldown then
+        return _G.GetSpellCooldown(spellID)
+    end
+    return 0, 0, 0, 0
+end
 local GetDetailedItemLevelInfo = C_Item.GetDetailedItemLevelInfo or GetDetailedItemLevelInfo
 local GetSpellTabInfo = GetSpellTabInfo or (function(tabLine)
     if not tabLine then return nil end
