@@ -2,7 +2,7 @@
 ## Title: NextKey
 ## Notes: Intelligently ranks Mythic+ keys for your group.
 ## Author: Gemini & User
-## Version: 0.6.10
+## Version: 0.6.11
 ## X-Category: Dungeons
 ## SavedVariables: NextKeyDB
 ## OptionalDeps: RaiderIO
