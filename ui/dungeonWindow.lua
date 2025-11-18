@@ -555,6 +555,11 @@ function DungeonWindow:Show()
         return
     end
 
+    -- Clear UI profile cache to ensure fresh data after spec changes
+    if NextKey222.ProfileCache and NextKey222.ProfileCache.clear_cache then
+        NextKey222.ProfileCache:clear_cache()
+    end
+
     self.frame:Show()
     log_dev("Dungeon window shown")
 

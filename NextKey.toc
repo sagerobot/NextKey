@@ -43,6 +43,8 @@ ui\dungeonWindow.lua
 # UI Calculation & Orchestration Modules (Phases 3-6)
 ui\ioCalculations.lua
 ui\rendering.lua
+ui\profiles.lua
+ui\metadata.lua
 ui\performance.lua
 ui\viewManager.lua
 ui\mainWindow.lua

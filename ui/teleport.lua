@@ -886,26 +886,28 @@ end
 
 --- Registers event listeners for keystone events affecting teleport window
 function addon:RegisterTeleportEventListeners()
-    if not self or not self.RegisterMessage then
-        if NextKey222.Debug then
-            NextKey222.Debug:Error("TeleportWindow: Cannot register event listeners - RegisterMessage not available")
+    return NextKey222.SafeRun(function()
+        if not self or not self.RegisterMessage then
+            if NextKey222.Debug then
+                NextKey222.Debug:Error("TeleportWindow: Cannot register event listeners - RegisterMessage not available")
+            end
+            return
         end
-        return
-    end
 
-    -- Listen for teleport selection changes
-    self:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_SELECTED, function(event, payload)
-        addon:OnTeleportSelectedEvent(payload)
-    end)
+        -- Listen for teleport selection changes
+        self:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_SELECTED, function(event, payload)
+            addon:OnTeleportSelectedEvent(payload)
+        end)
 
-    -- Listen for teleport cleared
-    self:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_CLEARED, function(event, payload)
-        addon:OnTeleportClearedEvent(payload)
-    end)
+        -- Listen for teleport cleared
+        self:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_CLEARED, function(event, payload)
+            addon:OnTeleportClearedEvent(payload)
+        end)
 
-    if NextKey222.Debug then
-        NextKey222.Debug:Dev("teleport", "Registered 2 keystone event listeners for teleport window")
-    end
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("teleport", "Registered 2 keystone event listeners for teleport window")
+        end
+    end, "RegisterTeleportEventListeners")
 end
 
 --- Event handler: Teleport target selected

@@ -97,7 +97,8 @@ local DEBUG_CATEGORY_GROUPS = {
             IOCalculator = { name = "IO Score Calculator", description = "IO score calculation algorithms and data" },
             ioc = { name = "IO Calculation Details", description = "Detailed IO calculation operations and steps" },
             sorting = { name = "Sorting Algorithms", description = "Keystone sorting algorithm score calculations and comparisons" },
-            player_data = { name = "Player Data Service", description = "Player IO data management, caching, and sharing (Phase 4)" }
+            player_data = { name = "Player Data Service", description = "Player IO data management, caching, and sharing (Phase 4)" },
+            metadata = { name = "Metadata Enrichment", description = "Keystone metadata enrichment and profile resolution (Phase 5)" }
         }
     },
 
@@ -165,6 +166,7 @@ local DebugService = {
         -- Data Processing
         sorting = false,  -- Sorting algorithm debug logging
         player_data = false,  -- Player Data Service (Phase 4 refactor)
+        metadata = false,  -- Metadata enrichment (Phase 5)
 
         -- Testing & Development
         fakeplayerservice = false,

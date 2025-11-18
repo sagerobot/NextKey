@@ -88,6 +88,18 @@ function UI:ShowMainFrame()
         return
     end
 
+    -- Clear UI profile cache to ensure fresh data after spec changes
+    if NextKey222.ProfileCache and NextKey222.ProfileCache.clear_cache then
+        NextKey222.ProfileCache:clear_cache()
+    end
+    
+    -- CRITICAL FIX: Always invalidate render hash when opening window
+    -- This ensures spec changes that happened before window opened are reflected
+    self.lastRenderedKeystoneHash = nil
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("ui", "Invalidated render hash on window open (ensures fresh profile data)")
+    end
+
     MainWindow:ShowMainFrame(self)
 end
 
@@ -225,13 +237,14 @@ function UI:RenderResults()
         return
     end
 
-    local current_hash = self.GetKeystoneListHash and self:GetKeystoneListHash(keys) or nil
+    -- Use combined render hash that includes both keystones AND profile state
+    local current_hash = self.GetRenderHash and self:GetRenderHash(keys) or nil
     if current_hash
         and self.lastRenderedKeystoneHash == current_hash
         and self.lastRenderedSortMode == mode
     then
         if NextKey222.Debug and NextKey222.Debug.Dev then
-            NextKey222.Debug:Dev("keystones", "Skipping fallback render - no keystone or sort changes detected")
+            NextKey222.Debug:Dev("keystones", "Skipping fallback render - no changes detected (keystones + profiles)")
         end
         return
     end
@@ -249,7 +262,7 @@ function UI:RenderResults()
     self.cachedItems = {}
     local items = self.SortKeys and self:SortKeys(keys, mode) or {}
 
-    local use_compact = shouldUseCompactMode(#items)
+    local use_compact = NextKey222.Utilities and NextKey222.Utilities:ShouldUseCompactMode(#items) or (#items > 5)
     self.cachedUseCompactMode = use_compact
     self.cachedItemsCount = #items
 
@@ -311,6 +324,48 @@ function UI:GetKeystoneListHash(keys)
     return "empty"
 end
 
+--- Gets a hash representing current profile state (spec, role) for render cache invalidation
+-- @return string Hash of current player's profile state
+function UI:GetProfileStateHash()
+    local player = UnitName("player")
+    if player then
+        local realm = GetRealmName()
+        local playerName = player .. "-" .. realm
+        
+        -- Get current profile
+        local profile = self:GetPlayerProfileCached(playerName)
+        if profile then
+            -- Hash includes spec ID and role - changes to either will invalidate render cache
+            local specID = profile.specID or 0
+            local role = profile.role or "NONE"
+            local hash = tostring(specID) .. "|" .. role
+            
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("ui", "Profile state hash for", playerName, ":", hash)
+            end
+            
+            return hash
+        end
+    end
+    
+    return "none"
+end
+
+--- Gets combined render hash including both keystone list and profile state
+-- @param keys table List of keystones
+-- @return string Combined hash for render cache invalidation
+function UI:GetRenderHash(keys)
+    local keystoneHash = self:GetKeystoneListHash(keys)
+    local profileHash = self:GetProfileStateHash()
+    local combined = keystoneHash .. "|profile:" .. profileHash
+    
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("ui", "Combined render hash:", combined)
+    end
+    
+    return combined
+end
+
 -- Frame pacing (facade)
 
 function UI:QueueFramePacedRender()
@@ -331,59 +386,179 @@ end
 -- Initialization (facade)
 
 function UI:Initialize()
-    if NextKey222.Debug then
-        NextKey222.Debug:Dev("ui", "UI module initialized (facade)")
-    end
+    return NextKey222.SafeRun(function()
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "UI module initialized (facade)")
+        end
 
-    if NextKey222.ConfigurationContext then
-        self.configContext = NextKey222.ConfigurationContext
-    end
+        if NextKey222.ConfigurationContext then
+            self.configContext = NextKey222.ConfigurationContext
+        end
 
-    if UIPerformance and UIPerformance.Initialize_for_ui then
-        UIPerformance:Initialize_for_ui(self)
-    end
+        if UIPerformance and UIPerformance.Initialize_for_ui then
+            UIPerformance:Initialize_for_ui(self)
+        end
 
-    -- ViewManager no longer needed for two-window system
-    -- Each window is independent
+        -- ViewManager no longer needed for two-window system
+        -- Each window is independent
 
-    if NextKey222.UIInitialization and NextKey222.UIInitialization.InitializeUI then
-        NextKey222.UIInitialization:InitializeUI(self)
-    end
+        if NextKey222.UIInitialization and NextKey222.UIInitialization.InitializeUI then
+            NextKey222.UIInitialization:InitializeUI(self)
+        end
 
-    -- Register keystone event listeners
-    self:RegisterKeystoneEventListeners()
+        -- Register keystone event listeners
+        self:RegisterKeystoneEventListeners()
+        
+        -- EXACT Organizer Pattern - Direct registration in Initialize()
+        if NextKey222.Addon and NextKey222.Addon.RegisterMessage then
+            -- Register listener for profile updates (spec changes, role changes)
+            NextKey222.Addon:RegisterMessage("NEXTKEY_PROFILE_UPDATED", function(event, payload)
+                self:OnProfileUpdated(payload)
+            end)
+            
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("ui", "Direct registration: NEXTKEY_PROFILE_UPDATED listener")
+            end
+        else
+            if NextKey222.Debug then
+                NextKey222.Debug:Error("UI: Cannot register profile event listeners - Addon not available")
+            end
+        end
 
-    return true
+        return true
+    end, "UI:Initialize")
 end
 
 -- MARK: Keystone Event Listeners
 
 --- Registers event listeners for keystone state changes
 function UI:RegisterKeystoneEventListeners()
-    if not NextKey222.Addon then
-        if NextKey222.Debug then
-            NextKey222.Debug:Error("UI: Cannot register keystone event listeners - Addon not available")
+    return NextKey222.SafeRun(function()
+        if not NextKey222.Addon then
+            if NextKey222.Debug then
+                NextKey222.Debug:Error("UI: Cannot register keystone event listeners - Addon not available")
+            end
+            return
         end
-        return
-    end
 
-    -- Listen for player keystone detection
-    NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.PLAYER_DETECTED, function(event, payload)
-        self:OnPlayerKeystoneDetected(payload)
-    end)
+        -- Listen for player keystone detection
+        NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.PLAYER_DETECTED, function(event, payload)
+            self:OnPlayerKeystoneDetected(payload)
+        end)
 
-    -- Listen for scan completion
-    NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.SCAN_COMPLETE, function(event, payload)
-        self:OnKeystoneScanComplete(payload)
-    end)
+        -- Listen for scan completion
+        NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.SCAN_COMPLETE, function(event, payload)
+            self:OnKeystoneScanComplete(payload)
+        end)
 
-    -- Listen for teleport selection
-    NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_SELECTED, function(event, payload)
-        self:OnTeleportSelected(payload)
-    end)
+        -- Listen for teleport selection
+        NextKey222.Addon:RegisterMessage(NextKey222.Constants.KEYSTONE_EVENTS.TELEPORT_SELECTED, function(event, payload)
+            self:OnTeleportSelected(payload)
+        end)
+
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "Registered 3 keystone event listeners")
+        end
+    end, "UI:RegisterKeystoneEventListeners")
+end
+
+-- MARK: Profile Event Listeners
+
+--- Registers event listeners for profile updates
+function UI:RegisterProfileEventListeners()
+    return NextKey222.SafeRun(function()
+        -- CRITICAL DEBUG: Prove this function is being called
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "========================================")
+            NextKey222.Debug:Dev("ui", "RegisterProfileEventListeners() CALLED!")
+            NextKey222.Debug:Dev("ui", "NextKey222.Addon exists:", NextKey222.Addon ~= nil)
+            NextKey222.Debug:Dev("ui", "========================================")
+        end
+        
+        if not NextKey222.Addon then
+            if NextKey222.Debug then
+                NextKey222.Debug:Error("UI: Cannot register profile event listeners - Addon not available")
+            end
+            return
+        end
+
+        -- Listen for profile updates (spec changes, etc.)
+        -- EXACTLY match Organizer pattern - callback inside SafeRun
+        
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "About to register NEXTKEY_PROFILE_UPDATED listener...")
+            NextKey222.Debug:Dev("ui", "NextKey222.Addon type:", type(NextKey222.Addon))
+            NextKey222.Debug:Dev("ui", "RegisterMessage exists:", NextKey222.Addon.RegisterMessage ~= nil)
+        end
+        
+        -- Callback defined INSIDE SafeRun scope like Organizer
+        local function HandleProfileUpdate(event, payload)
+            if NextKey222.Debug then
+                NextKey222.Debug:Dev("ui", "========================================")
+                NextKey222.Debug:Dev("ui", "PROFILE UPDATE CALLBACK FIRED!")
+                NextKey222.Debug:Dev("ui", "event=", tostring(event))
+                NextKey222.Debug:Dev("ui", "payload type=", type(payload))
+                if payload then
+                    NextKey222.Debug:Dev("ui", "payload.triggerEvent=", tostring(payload.triggerEvent))
+                    NextKey222.Debug:Dev("ui", "payload.playerName=", tostring(payload.playerName))
+                end
+                NextKey222.Debug:Dev("ui", "========================================")
+            end
+            self:OnProfileUpdated(payload)
+        end
+        
+        NextKey222.Addon:RegisterMessage("NEXTKEY_PROFILE_UPDATED", HandleProfileUpdate)
+        
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "Successfully registered NEXTKEY_PROFILE_UPDATED listener")
+        end
+    end, "UI:RegisterProfileEventListeners")
+end
+
+--- Event handler: Profile updated (spec change, etc.)
+function UI:OnProfileUpdated(payload)
+    if not payload then return end
 
     if NextKey222.Debug then
-        NextKey222.Debug:Dev("ui", "Registered 3 keystone event listeners")
+        NextKey222.Debug:Dev("ui", "UI received NEXTKEY_PROFILE_UPDATED event:", payload.triggerEvent or "unknown")
+        NextKey222.Debug:Dev("ui", "  payload.playerName:", payload.playerName or "nil")
+    end
+
+    -- Clear UI profile cache to ensure fresh data
+    if NextKey222.ProfileCache and NextKey222.ProfileCache.clear_cache then
+        NextKey222.ProfileCache:clear_cache()
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "Cleared ProfileCache")
+        end
+    end
+    
+    -- CRITICAL FIX: Always invalidate render hash, even if window doesn't exist yet
+    -- This ensures spec changes during initialization are reflected when window first opens
+    self.lastRenderedKeystoneHash = nil
+    if NextKey222.Debug then
+        NextKey222.Debug:Dev("ui", "Invalidated render hash (ensures fresh data on next window open)")
+    end
+
+    -- Refresh keystone window if visible
+    if self.keystoneWindow and self.keystoneWindow.frame and self.keystoneWindow.frame:IsShown() then
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "Refreshing keystone window after profile update")
+        end
+        if self.RenderResults then
+            self:RenderResults()
+        end
+    else
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "Keystone window not visible - will use fresh data on next open")
+        end
+    end
+
+    -- Refresh dungeon window if visible
+    if NextKey222.DungeonWindow and NextKey222.DungeonWindow:IsVisible() then
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("ui", "Refreshing dungeon window after profile update")
+        end
+        NextKey222.DungeonWindow:Render()
     end
 end
 
@@ -622,59 +797,6 @@ function UI:PlayerProvidesBattleRes(profile, classToken, specID)
 end
 
 
--- MARK: Private Helper Functions
--- =====================================================
--- Utility functions for frame management and UI effects
--- NOTE: These are now delegated to the Utilities module
--- =====================================================
-
----Track auxiliary frames for cleanup (delegates to Utilities module)
----@param self table UI module instance (unused, kept for compatibility)
----@param frame table Frame to track
-local function trackAuxFrame(self, frame)
-    if NextKey222.Utilities then
-        NextKey222.Utilities:TrackAuxFrame(frame)
-    else
-        if NextKey222.Debug and NextKey222.Debug.Error then
-            NextKey222.Debug:Error("Utilities module not available - frame tracking may fail")
-        end
-    end
-end
-
----Add dark background overlay to frame content (delegates to Utilities module)
----@param frame table Frame to darken
-local function darkenContent(frame)
-    if NextKey222.Utilities then
-        NextKey222.Utilities:DarkenContent(frame)
-    else
-        if NextKey222.Debug and NextKey222.Debug.Error then
-            NextKey222.Debug:Error("Utilities module not available - darkenContent may fail")
-        end
-    end
-end
-
---- Determines if compact mode should be used based on player count (delegates to Utilities module)
--- @param playerCount number The total number of players/entries
--- @return boolean true if compact mode should be enabled
-local function shouldUseCompactMode(playerCount)
-    if NextKey222.Utilities then
-        return NextKey222.Utilities:ShouldUseCompactMode(playerCount)
-    end
-    -- Fallback if module not loaded
-    return playerCount > 5
-end
-
---- Gets the dungeon alias for compact display (delegates to Utilities module)
--- @param dungeonID number The dungeon ID
--- @return string The short alias for the dungeon
-local function getDungeonAlias(dungeonID)
-    if NextKey222.Utilities then
-        return NextKey222.Utilities:GetDungeonAlias(dungeonID)
-    end
-    -- Fallback if module not loaded
-    return "UNK"
-end
-
 -- MARK: Main Frame Creation (delegated to MainWindow/UIControls)
 -- ui/main.lua no longer owns frame construction; see:
 -- - NextKey222.MainWindow:CreateMainFrame(ui)
@@ -712,144 +834,30 @@ function UI:GetFakePlayerData(playerName)
     return nil
 end
 
+--- Get a player's profile with caching (delegates to ProfileCache module)
+-- @param playerName string The player name
+-- @return table|nil The player's profile
 function UI:GetPlayerProfileCached(playerName)
-    if not playerName then return nil end
-    self.profileCache = self.profileCache or {}
-    if self.profileCache[playerName] then
-        return self.profileCache[playerName]
+    if NextKey222.ProfileCache and NextKey222.ProfileCache.get_cached_profile then
+        return NextKey222.ProfileCache:get_cached_profile(playerName)
     end
-
-    -- Debug logging to track profile system calls
-    if playerName:find("Ryuza") then
-        if NextKey222.Debug then
-            NextKey222.Debug:Dev("ui", string.format("GetPlayerProfileCached called for: %s, ProfilesService exists: %s",
-                playerName,
-                NextKey222.ProfilesService and "YES" or "NO"))
-        end
+    
+    -- Fallback if ProfileCache not loaded
+    if NextKey222.Debug then
+        NextKey222.Debug:Error("UI: ProfileCache module not available")
     end
-
-    if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
-        local profile = NextKey222.ProfilesService:GetProfile(playerName)
-        
-        -- Debug logging to track profile data
-        if playerName:find("Ryuza") then
-            if NextKey222.Debug then
-                NextKey222.Debug:Dev("ui", string.format("Profile retrieved for %s: class=%s, role=%s, specName=%s, specID=%s",
-                    playerName,
-                    profile and profile.class or "nil",
-                    profile and profile.role or "nil",
-                    profile and profile.specName or "nil",
-                    profile and profile.specID or "nil"))
-            end
-        end
-        
-        self.profileCache[playerName] = profile
-        return profile
-    end
-
     return nil
 end
 
+--- Enrich keystone entry metadata (delegates to MetadataEnricher module)
+-- @param entry table The keystone entry to enrich
 function UI:EnrichEntryMetadata(entry)
-    if not entry or not entry.key then return end
-
-    local ownerName = entry.key.ownerName or "Unknown"
-    entry.ownerName = ownerName
-
-    local normalizedName = NextKey222.UIComponents and NextKey222.UIComponents:NormalizePlayerName(ownerName) or ownerName
-    entry.normalizedOwnerName = normalizedName
-
-    local profile = self:GetPlayerProfileCached(normalizedName)
-
-    -- Debug logging for Evoker role issue
-    if ownerName:find("Ryuza") or (profile and profile.class == "EVOKER") then
-        NextKey222.Debug:Dev("ui", string.format("EnrichEntryMetadata Debug: ownerName=%s, normalizedName=%s, profile=%s",
-            ownerName, normalizedName, profile and "exists" or "nil"))
-        if profile then
-            NextKey222.Debug:Dev("ui", string.format("Profile Data: class=%s, role=%s, specName=%s, specID=%s",
-                profile.class or "nil",
-                profile.role or "nil",
-                profile.specName or "nil",
-                profile.specID or "nil"))
-        end
-    end
-
-    entry.profile = profile
-    entry.specName = profile and profile.specName or nil
-    entry.specID = profile and profile.specID or nil
-    
-    -- PHASE 1: Diagnostic logging - track role determination in UI
-    if NextKey222.Debug and (ownerName:find("Ryuza") or (profile and profile.class == "EVOKER")) then
-        NextKey222.Debug:Dev("ui", string.format("EnrichEntryMetadata BEFORE role detection: ownerName=%s, specID=%s, profile.role=%s",
-            ownerName, entry.specID or "nil", profile and profile.role or "nil"))
-    end
-    
-    -- Use spec-to-role mapping for reliable role detection (same as tooltip)
-    if entry.specID and NextKey222.UIComponents and NextKey222.UIComponents.GetRoleFromSpecID then
-        entry.role = NextKey222.UIComponents:GetRoleFromSpecID(entry.specID, "DAMAGER")
-        
-        -- PHASE 1: Diagnostic logging - track GetRoleFromSpecID result
-        if NextKey222.Debug and (ownerName:find("Ryuza") or (profile and profile.class == "EVOKER")) then
-            NextKey222.Debug:Dev("ui", string.format("GetRoleFromSpecID(%d) returned: %s", entry.specID or -1, entry.role or "nil"))
-        end
+    if NextKey222.MetadataEnricher and NextKey222.MetadataEnricher.enrich_entry_metadata then
+        NextKey222.MetadataEnricher:enrich_entry_metadata(self, entry)
     else
-        -- Fallback to profile role
-        entry.role = (profile and profile.role) or "DAMAGER"
-        -- Normalize role to uppercase to ensure consistency
-        if entry.role then
-            entry.role = string.upper(entry.role)
-        end
-        
-        -- PHASE 1: Diagnostic logging - track fallback usage
-        if NextKey222.Debug and (ownerName:find("Ryuza") or (profile and profile.class == "EVOKER")) then
-            NextKey222.Debug:Dev("ui", string.format("FALLBACK to profile.role: %s (normalized to %s)",
-                profile and profile.role or "nil", entry.role))
-        end
-    end
-    
-    -- PHASE 1: Diagnostic logging - final role value for UI display
-    if NextKey222.Debug and (ownerName:find("Ryuza") or (profile and profile.class == "EVOKER")) then
-        NextKey222.Debug:Dev("ui", string.format("EnrichEntryMetadata COMPLETE: final entry.role = %s (will be used for icon display)",
-            entry.role or "nil"))
-    end
-
-    local classToken = entry.key.class or (profile and profile.class)
-    local specID = profile and profile.specID
-
-    entry.hasHeroism = self:PlayerProvidesHeroism(profile, classToken, specID)
-    entry.hasBattleRes = self:PlayerProvidesBattleRes(profile, classToken, specID)
-
-    if entry.key.dungeonID then
-        entry.dungeonName = NextKey222.Addon:GetDungeonName(entry.key.dungeonID) or ("Dungeon " .. entry.key.dungeonID)
-    else
-        entry.dungeonName = "No Dungeon"
-    end
-    entry.keyLevel = entry.key.level or 0
-
-    local expected = entry.ioGainRange and entry.ioGainRange.expected or entry.ioGainPotential or 0
-    entry.expectedGain = expected or 0
-
-    if entry.ioGainRange and entry.ioGainRange.playerBreakdown then
-        local breakdown = entry.ioGainRange.playerBreakdown[normalizedName]
-        if breakdown then
-            entry.currentDungeonIO = breakdown.current or 0
-        end
-    end
-
-    if not entry.currentDungeonIO then
-        if NextKey222.IOCalculator and entry.key.dungeonID then
-            entry.currentDungeonIO = NextKey222.IOCalculator:GetPlayerDungeonScore(normalizedName, entry.key.dungeonID) or 0
-        else
-            entry.currentDungeonIO = 0
-        end
-    end
-
-    if entry.profile and entry.profile.capabilities then
-        if entry.profile.capabilities.heroism then
-            entry.hasHeroism = true
-        end
-        if entry.profile.capabilities.battleRes then
-            entry.hasBattleRes = true
+        -- Fallback if MetadataEnricher not loaded
+        if NextKey222.Debug then
+            NextKey222.Debug:Error("UI: MetadataEnricher module not available")
         end
     end
 end
@@ -1504,49 +1512,20 @@ function UI:CountTable(t)
     return count
 end
 
---- Calculates group IO gain totals at key breakpoints (untimed/timed/+2/+3)
+--- Calculates group IO gain totals at key breakpoints (delegates to UICalculations module)
 -- @param keyInfo table Keystone information (expects .level and .dungeonID)
 -- @param playerBreakdown table Map of playerName -> { current, range = {min, expected, max} }
 -- @return table|nil { untimed={total,average}, timed={...}, plus2={...}, plus3={...} }
 function UI:CalculateBreakpointRanges(keyInfo, playerBreakdown)
-    if not keyInfo or not playerBreakdown or not NextKey222.IOCalculator then
-        return nil
+    if NextKey222.UICalculations and NextKey222.UICalculations.calculate_breakpoint_ranges then
+        return NextKey222.UICalculations:calculate_breakpoint_ranges(keyInfo, playerBreakdown)
     end
-
-    local level = tonumber(keyInfo.level) or 0
-    if level <= 0 then return nil end
-
-    local count = 0
-    local totals = { untimed = 0, timed = 0, plus2 = 0, plus3 = 0 }
-
-    for _, pdata in pairs(playerBreakdown) do
-        count = count + 1
-        local pr = pdata.range or {}
-
-        -- Use per-player range for untimed/timed/+3 directly (consistent with IOCalculator)
-        local minGain = tonumber(pr.min) or 0
-        local expectedGain = tonumber(pr.expected) or 0
-        local maxGain = tonumber(pr.max) or 0
-
-        totals.untimed = totals.untimed + math.max(0, minGain)
-        totals.timed   = totals.timed   + math.max(0, expectedGain)
-        totals.plus3   = totals.plus3   + math.max(0, maxGain)
-
-        -- For +2, linearly interpolate the gain between timed (20% bonus) and 3-chest (40% bonus)
-        local timedGainClamped = math.max(0, expectedGain)
-        local maxGainClamped = math.max(timedGainClamped, maxGain)
-        local gainPlus2 = timedGainClamped + (maxGainClamped - timedGainClamped) * 0.5
-        totals.plus2 = totals.plus2 + gainPlus2
+    
+    -- Fallback if UICalculations not loaded
+    if NextKey222.Debug then
+        NextKey222.Debug:Error("UI: UICalculations module not available")
     end
-
-    if count == 0 then return nil end
-
-    return {
-        untimed = { total = totals.untimed, average = totals.untimed / count },
-        timed   = { total = totals.timed,   average = totals.timed   / count },
-        plus2   = { total = totals.plus2,   average = totals.plus2   / count },
-        plus3   = { total = totals.plus3,   average = totals.plus3   / count },
-    }
+    return nil
 end
 
 -- (IsMainFrameVisible facade is defined near the top of the file)
@@ -1673,14 +1652,17 @@ function UI:OnSpecChanged(unitID)
     
     Debug:Dev("ui", "OnSpecChanged: Handling spec change for", playerName)
     
-    -- Invalidate cache for this specific player
+    -- Invalidate ProfilesService cache for this specific player
     if NextKey222.ProfilesService then
         NextKey222.ProfilesService:InvalidatePlayerCache(playerName)
-        Debug:Dev("ui", "Invalidated profile cache for", playerName)
+        Debug:Dev("ui", "Invalidated ProfilesService cache for", playerName)
     end
     
-    -- Clear UI's profile cache for this player
-    if self.profileCache then
+    -- Clear UI's profile cache for this player (delegates to ProfileCache module)
+    if NextKey222.ProfileCache and NextKey222.ProfileCache.invalidate_cache then
+        NextKey222.ProfileCache:invalidate_cache(playerName)
+    elseif self.profileCache then
+        -- Fallback to local cache if ProfileCache module not available
         self.profileCache[playerName] = nil
         Debug:Dev("ui", "Cleared UI profile cache for", playerName)
     end

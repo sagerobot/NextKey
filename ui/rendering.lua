@@ -94,91 +94,18 @@ function UIRendering:build_sorted_entries(keys, mode, ui)
 end
 
 -- Enriches a single entry with profile/role/heroism/res info and dungeon labels.
--- This mirrors the logic currently in ui/main.lua:EnrichEntryMetadata.
+-- Delegates to MetadataEnricher module for consistent enrichment logic.
 function UIRendering:enrich_entry_metadata(ui, entry)
     if not entry or not entry.key then
         return
     end
 
-    local owner_name = entry.key.ownerName or "Unknown"
-    entry.ownerName = owner_name
-
-    local normalized_name = NextKey222.UIComponents
-        and NextKey222.UIComponents:NormalizePlayerName(owner_name)
-        or owner_name
-    entry.normalizedOwnerName = normalized_name
-
-    local profile = ui:GetPlayerProfileCached(normalized_name)
-    entry.profile = profile
-    entry.specName = profile and profile.specName or nil
-    entry.specID = profile and profile.specID or nil
-
-    -- Role resolution: prioritize profile.role (which comes from Blizzard adapter)
-    if profile and profile.role then
-        -- Profile already has role from adapter/finalization
-        entry.role = string.upper(profile.role)
-    elseif entry.specID
-        and NextKey222.UIComponents
-        and NextKey222.UIComponents.GetRoleFromSpecID
-    then
-        -- Fallback to spec-to-role mapping
-        entry.role = NextKey222.UIComponents:GetRoleFromSpecID(entry.specID, "DAMAGER")
+    -- Delegate to MetadataEnricher module
+    if NextKey222.MetadataEnricher and NextKey222.MetadataEnricher.enrich_entry_metadata then
+        NextKey222.MetadataEnricher:enrich_entry_metadata(ui, entry)
     else
-        -- Final fallback
-        entry.role = "DAMAGER"
-    end
-
-    -- Heroism / Battle Res flags via PlayerCapabilities
-    local class_token = entry.key.class or (profile and profile.class)
-    local spec_id = profile and profile.specID
-
-    entry.hasHeroism = ui:PlayerProvidesHeroism(profile, class_token, spec_id)
-    entry.hasBattleRes = ui:PlayerProvidesBattleRes(profile, class_token, spec_id)
-
-    -- Dungeon name
-    if entry.key.dungeonID then
-        entry.dungeonName = NextKey222.Addon:GetDungeonName(entry.key.dungeonID)
-            or ("Dungeon " .. entry.key.dungeonID)
-    else
-        entry.dungeonName = "No Dungeon"
-    end
-
-    entry.keyLevel = entry.key.level or 0
-
-    -- Expected IO gain
-    local expected = entry.ioGainRange
-        and entry.ioGainRange.expected
-        or entry.ioGainPotential
-        or 0
-    entry.expectedGain = expected or 0
-
-    -- Current dungeon IO from breakdown or calculators
-    if entry.ioGainRange and entry.ioGainRange.playerBreakdown then
-        local breakdown = entry.ioGainRange.playerBreakdown[normalized_name]
-        if breakdown then
-            entry.currentDungeonIO = breakdown.current or 0
-        end
-    end
-
-    if not entry.currentDungeonIO then
-        if NextKey222.IOCalculator and entry.key.dungeonID then
-            entry.currentDungeonIO = NextKey222.IOCalculator:GetPlayerDungeonScore(
-                normalized_name,
-                entry.key.dungeonID
-            ) or 0
-        else
-            entry.currentDungeonIO = 0
-        end
-    end
-
-    -- Capability flags from profile capabilities (mirrors existing safety)
-    if entry.profile and entry.profile.capabilities then
-        if entry.profile.capabilities.heroism then
-            entry.hasHeroism = true
-        end
-        if entry.profile.capabilities.battleRes then
-            entry.hasBattleRes = true
-        end
+        -- Fallback if module not loaded
+        safe_error("UIRendering: MetadataEnricher module not available")
     end
 end
 
@@ -195,25 +122,31 @@ function UIRendering:render_keystones(ui, keys, mode)
         return
     end
 
-    local uicalc = _get_uicalc()
-    local keystone_hash = uicalc
-        and uicalc:get_keystone_list_hash(keys)
-        or ui:GetKeystoneListHash(keys)
+    -- Use combined hash that includes BOTH keystones AND profile state (spec/role changes)
+    local combined_hash = ui.GetRenderHash and ui:GetRenderHash(keys) or nil
+    
+    if not combined_hash then
+        -- Fallback to keystone-only hash if GetRenderHash unavailable
+        local uicalc = _get_uicalc()
+        combined_hash = uicalc
+            and uicalc:get_keystone_list_hash(keys)
+            or ui:GetKeystoneListHash(keys)
+    end
 
-    -- Skip if nothing changed (same behavior as existing code)
+    -- Skip if nothing changed (includes spec/role changes via profile state hash)
     if self.last_rendered_keystone_hash
-        and self.last_rendered_keystone_hash == keystone_hash
+        and self.last_rendered_keystone_hash == combined_hash
         and self.last_rendered_sort_mode == mode
     then
-        safe_dev("keystones", "Skipping render - no changes detected")
+        safe_dev("keystones", "Skipping render - no changes detected (keystones + profiles)")
         return
     end
 
-    self.last_rendered_keystone_hash = keystone_hash
+    self.last_rendered_keystone_hash = combined_hash
     self.last_rendered_sort_mode = mode
 
     safe_dev("ui_contamination", "[UIRendering] Rendering - hash:",
-        keystone_hash ~= nil and "present" or "nil",
+        combined_hash ~= nil and "present" or "nil",
         "mode:", mode)
 
     -- Clear existing content and aux frames

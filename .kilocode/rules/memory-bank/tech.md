@@ -17,6 +17,10 @@
 - **AceGUI-3.0**: UI widget framework for frames/controls
 - **AceSerializer-3.0**: Data serialization for network transmission
 - **AceEvent-3.0**: Event handling and registration
+  - **CRITICAL**: `RegisterMessage(messageName, callback)` passes only ONE parameter to callback
+  - Callback signature: `function(_, payload)` NOT `function(event, payload)`
+  - The first parameter IS the payload (message name already known from registration)
+  - Incorrect signature will result in `nil` payload and silent event handler failures
 - **AceConsole-3.0**: Slash command registration
 
 #### External Libraries
@@ -234,6 +238,56 @@ NextKey uses a simplified, practical testing approach focused on core functional
 - All expensive operations profiled with `Performance`
 - MARK comments for VS Code navigation
 - Use component factories for all UI creation
+
+### AceEvent-3.0 Event Handling (CRITICAL)
+
+**How AceEvent SendMessage Works:**
+
+When you call:
+```lua
+NextKey222.Addon:SendMessage("EVENT_NAME", payload)
+```
+
+AceEvent-3.0 uses CallbackHandler-1.0, which calls:
+```lua
+Dispatch(events[eventname], eventname, ...)  -- CallbackHandler line 54
+```
+
+This means registered callbacks receive:
+1. **First parameter**: The message name (e.g., "EVENT_NAME")
+2. **Remaining parameters**: All additional arguments from SendMessage
+
+**CORRECT callback signature:**
+```lua
+NextKey222.Addon:RegisterMessage("EVENT_NAME", function(messageName, payload)
+    -- First parameter: message name ("EVENT_NAME")
+    -- Second parameter: payload (from SendMessage second argument)
+    self:HandleEvent(payload)
+end)
+```
+
+**ALSO CORRECT (if you don't need the message name):**
+```lua
+NextKey222.Addon:RegisterMessage("EVENT_NAME", function(_, payload)
+    -- First parameter: message name (ignored with _)
+    -- Second parameter: payload
+    self:HandleEvent(payload)
+end)
+```
+
+**WRONG (will receive nil payload):**
+```lua
+NextKey222.Addon:RegisterMessage("EVENT_NAME", function(event)
+    -- Only receives message name, payload is lost!
+    self:HandleEvent()  -- No payload!
+end)
+```
+
+**Reference implementations:**
+- Fixed: `ui/main.lua:462` (corrected November 18, 2025)
+- Library source: `Libs/CallbackHandler-1.0/CallbackHandler-1.0.lua:54` (Dispatch function)
+
+**Key rule**: AceEvent's `SendMessage(name, data)` results in callbacks receiving `(name, data)` as separate parameters via CallbackHandler's Dispatch mechanism.
 
 ### Error Handling Requirements
 - Validate all function inputs

@@ -202,9 +202,12 @@ function ProfilesService:InvalidateOnEvents()
                     end
 
                     -- Trigger UI refresh for spec changes and roster updates
-                    if event == "PLAYER_SPECIALIZATION_CHANGED" or
+                    -- CRITICAL: Only announce if addon is fully initialized to avoid race condition
+                    -- During initialization, UI hasn't registered event listeners yet
+                    if (event == "PLAYER_SPECIALIZATION_CHANGED" or
                        event == "UNIT_SPECIALIZATION" or
-                       event == "GROUP_ROSTER_UPDATE" then
+                       event == "GROUP_ROSTER_UPDATE") and
+                       NextKey222.Addon and NextKey222.Addon.isInitialized then
                         
                         -- Use longer delay for spec changes to ensure Blizzard API has updated
                         local delay = 0.1
@@ -214,7 +217,7 @@ function ProfilesService:InvalidateOnEvents()
                         
                         C_Timer.After(delay, function()
                             NextKey222.Debug:Dev("profiles", "About to call RefreshUIComponents for spec change event")
-                            ProfilesService:RefreshUIComponents(event)
+                            ProfilesService:RefreshUIComponents(event, targetPlayer)  -- CRITICAL FIX: Pass player name
                             NextKey222.Debug:Dev("profiles", "RefreshUIComponents call completed")
                         end)
                     end
@@ -305,21 +308,36 @@ end
 --- Helper function to announce profile updates via events
 -- This replaces direct UI calls with event announcements for decoupling
 -- @param event string The event that triggered the refresh
-function ProfilesService:RefreshUIComponents(event)
+-- @param playerName string Optional player name for selective invalidation
+function ProfilesService:RefreshUIComponents(event, playerName)
     -- Announce profile update via AceEvent system
     -- UI modules should register for NEXTKEY_PROFILE_UPDATED to refresh themselves
     if NextKey222.Addon and NextKey222.Addon.SendMessage then
-        NextKey222.Addon:SendMessage("NEXTKEY_PROFILE_UPDATED", {
+        local payload = {
             triggerEvent = event,
-            timestamp = GetTime()
-        })
+            timestamp = GetTime(),
+            playerName = playerName  -- CRITICAL FIX: Include player name so UI knows who changed
+        }
+        
+        -- DEBUG: Log the actual SendMessage call with full details
+        if NextKey222.Debug then
+            NextKey222.Debug:Dev("profiles", "========================================")
+            NextKey222.Debug:Dev("profiles", "ABOUT TO SEND MESSAGE:")
+            NextKey222.Debug:Dev("profiles", "  Event name: NEXTKEY_PROFILE_UPDATED")
+            NextKey222.Debug:Dev("profiles", "  Addon type:", type(NextKey222.Addon))
+            NextKey222.Debug:Dev("profiles", "  SendMessage exists:", NextKey222.Addon.SendMessage ~= nil)
+            NextKey222.Debug:Dev("profiles", "  Payload:", payload)
+            NextKey222.Debug:Dev("profiles", "========================================")
+        end
+        
+        NextKey222.Addon:SendMessage("NEXTKEY_PROFILE_UPDATED", payload)
         
         if NextKey222.Debug then
             NextKey222.Debug:Dev("profiles", "Announced NEXTKEY_PROFILE_UPDATED event for " .. event)
         end
     else
         if NextKey222.Debug then
-            NextKey222.Debug:Dev("profiles", "WARNING: Cannot announce profile update - AceEvent not available")
+            NextKey222.Debug:Error("profiles", "WARNING: Cannot announce profile update - AceEvent not available")
         end
     end
 end

@@ -86,14 +86,15 @@ function RosterBoard:Initialize()
                 self:OnStateCleared(payload)
             end)
             
-            Debug:Dev("organizer_events", "Registered 5 event listeners for OrganizerState events")
+            -- Register listener for profile updates (spec changes, role changes)
+            NextKey222.Addon:RegisterMessage("NEXTKEY_PROFILE_UPDATED", function(event, payload)
+                self:OnProfileUpdated(payload)
+            end)
+            
+            Debug:Dev("organizer_events", "Registered 6 event listeners (5 organizer + 1 profile)")
         else
             Debug:Error("Cannot register event listeners - AceEvent system not available")
         end
-        
-        -- Note: Spec change events are handled by ProfilesService which automatically
-        -- triggers UI refresh. No need for duplicate event handlers here.
-        Debug:Dev("organizer_ui", "Roster Board initialized (spec changes handled by ProfilesService)")
         
         Debug:Dev("organizer_ui", "Roster Board initialized successfully")
         return true
@@ -2373,6 +2374,24 @@ function RosterBoard:OnPollResponseReceived(payload)
         self:RefreshSingleCardByPlayerID(payload.playerID)
         
     end, "RosterBoard:OnPollResponseReceived")
+end
+
+--- Handler for NEXTKEY_PROFILE_UPDATED event (spec changes, role changes)
+-- @param payload table - Event payload {triggerEvent, playerName, specID, role, etc.}
+function RosterBoard:OnProfileUpdated(payload)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_events", "OnProfileUpdated:", payload.triggerEvent or "unknown")
+        
+        -- Only update UI if window is visible
+        if not self:IsVisible() then
+            return
+        end
+        
+        -- Refresh all cards to show updated spec/role information
+        Debug:Dev("organizer_events", "Refreshing all organizer cards after profile update")
+        self:RefreshAllCards(true)  -- Pass true to indicate spec change
+        
+    end, "RosterBoard:OnProfileUpdated")
 end
 
 --- Handler for ORGANIZER_STATE_CLEARED event
