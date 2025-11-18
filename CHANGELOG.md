@@ -51,6 +51,17 @@ v0.3.0 + Dev Feature (🧪) = v0.3.5    (+5)
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.11] - 2025-11-18
+### 🔧 Maintenance
+- **Phase 5: UI Layer Refactor Complete:** Completed comprehensive UI layer modularization achieving 60%+ code reduction in `ui/main.lua`. Extracted metadata enrichment to `ui/metadata.lua` (224 lines) and profile caching to `ui/profiles.lua` (129 lines), reducing `ui/main.lua` by 16% (277 lines removed). Standardized component creation by renaming legacy factories to `CreateNative*` for clarity (CreateNativeButton, CreateNativeClassIcon, CreateNativeRoleIcon) and updating `ui/keystoneCards.lua` and `ui/dungeonCards.lua` to use new factory names. Implemented non-blocking render queue in `ui/performance.lua` with `EnqueueRenderItems` API and granular `render_card` task type for frame-paced rendering. Updated `ui/rendering.lua` to support render tasks with immediate fallback and delegated `PrepareRenderData` to `UIRendering` for better separation of concerns. Result: `ui/main.lua` is now a thin facade (<1500 lines) with standardized component creation and performance-optimized rendering architecture.
+### 🐛 Bug Fixes
+- **Critical AceEvent Callback Signature Fix:** Fixed critical bug in `ui/main.lua` where profile update event handler used incorrect callback signature, causing `nil` payload and preventing spec/role icon updates. Corrected signature from `function(event)` to `function(_, payload)` to properly receive AceEvent message data via CallbackHandler-1.0's Dispatch mechanism. Updated ProfilesService to include player name in event payload for proper UI invalidation and implemented combined render hash including profile state to prevent stale spec/role displays.
+- **LibOpenRaid TWW Compatibility:** Fixed `GetSpellCooldown` API compatibility in LibOpenRaid for The War Within expansion API changes.
+### 📚 Documentation
+- **Phase 5 Completion Documentation:** Updated memory bank documentation with Phase 5 completion status and comprehensive architectural validation results.
+- **AceEvent Pattern Documentation:** Created detailed documentation for AceEvent-3.0 registration patterns ([`Documentation/_Architectural_Audit/17_AceEvent_Registration_Bug.md`](Documentation/_Architectural_Audit/17_AceEvent_Registration_Bug.md)) explaining CallbackHandler-1.0's Dispatch mechanism and correct callback signatures for event handling.
+- **UI Main Extraction Plan:** Documented Phase 5 extraction strategy in [`Documentation/_Architectural_Audit/16_UI_Main_Extraction_Plan.md`](Documentation/_Architectural_Audit/16_UI_Main_Extraction_Plan.md) for future reference.
+
 ## [v0.6.10] - 2025-11-16
 ### 🐛 Bug Fixes
 - **Loot Window UI Cleanup:** Fixed critical bug where old item buttons were not properly cleared when switching dungeons, causing stale data to appear across dungeon switches. Added proper cleanup in `LootWindow:Update()` to destroy old frames and prevent data corruption.
