@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Score Calculations Module
+-- MARK: Score Calculations
 -- =====================================================
 -- Score retrieval and color calculation functions
 -- Extracted from ui/main.lua for better organization
@@ -14,7 +14,7 @@ NextKey222.RegisterModule("ScoreCalculations", ScoreCalculations)
 -- Cache for dungeon level/chest data
 ScoreCalculations.dungeonLevelCache = {}
 
--- MARK: Color Calculation Functions
+-- MARK: Color Functions
 
 --- Gets appropriate color for individual dungeon scores (proportional system)
 -- @param score number The individual dungeon IO score
@@ -108,7 +108,7 @@ function ScoreCalculations:FormatColoredTotalScore(totalScore)
     return string.format("|cFF%sTotal IO: %.0f|r", colorHex, totalScore)
 end
 
--- MARK: Score Retrieval Functions
+-- MARK: Score Retrieval
 
 --- Helper function to get dungeon score from WoW API (MrMythical approach)
 -- @param dungeonID number The dungeon ID to get the score for
@@ -401,7 +401,7 @@ function ScoreCalculations:GetDungeonLevelAndChests(dungeonID)
     return 0, 0
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
 
 function ScoreCalculations:Initialize()
     Debug:Dev("scorecalculations", "ScoreCalculations module initialized")

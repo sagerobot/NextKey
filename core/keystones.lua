@@ -7,7 +7,7 @@ NextKey222.Keystones = Keystones
 -- Register with module system
 NextKey222.RegisterModule("Keystones", Keystones)
 
--- MARK: Event Announcement Helper (Phase 4.2)
+-- MARK: Event Announcement
 --- Announces keystone events via AceEvent system
 --- @param eventName string The event name from KEYSTONE_EVENTS
 --- @param payload table The event payload data
@@ -101,17 +101,17 @@ local function getBlizzardMythicPlusScore(playerName)
         return nil
 end
 
----@type table<string, function>
-local Keystones = {
-    ---Create a new keystone entry with optional RaiderIO data
-    ---@param dungeonID number
-    ---@param level number
-    ---@param ownerName string
-    ---@param ownerShort string?
-    ---@param class string?
-    ---@param source string?
-    ---@return KeystoneEntry
-    createKeyEntry = function(dungeonID, level, ownerName, ownerShort, class, source)
+-- MARK: Keystone Entry Functions
+
+---Create a new keystone entry with optional RaiderIO data
+---@param dungeonID number
+---@param level number
+---@param ownerName string
+---@param ownerShort string?
+---@param class string?
+---@param source string?
+---@return KeystoneEntry
+local function createKeyEntry(dungeonID, level, ownerName, ownerShort, class, source)
         local entry = {
             dungeonID = dungeonID,
             level = level or 2,
@@ -160,23 +160,23 @@ local Keystones = {
             end
         end
         
-        return entry
-    end,
-    
-    ---Deep copy a keystone entry
-    ---@param key KeystoneEntry|number|table
-    ---@return KeystoneEntry?
-    copyKey = function(self, key)
+    return entry
+end
+
+---Deep copy a keystone entry
+---@param key KeystoneEntry|number|table
+---@return KeystoneEntry?
+local function copyKey(key)
         if not key then return nil end
         
         -- Handle case where key is just a dungeon ID number
         if type(key) == "number" then
-            return Keystones.createKeyEntry(key, 2, "Unknown")
+            return createKeyEntry(key, 2, "Unknown")
         end
         
         -- Handle case where key is just dungeonID and level
         if type(key) == "table" and not key.ownerName then
-            return Keystones.createKeyEntry(
+            return createKeyEntry(
                 key.dungeonID or 0,
                 key.level or 2,
                 "Unknown",
@@ -187,7 +187,7 @@ local Keystones = {
         end
         
         -- Copy full key entry
-        return Keystones.createKeyEntry(
+        return createKeyEntry(
             key.dungeonID,
             key.level,
             key.ownerName,
@@ -195,10 +195,13 @@ local Keystones = {
             key.class,
             key.source
         )
-    end
-}
+end
 
--- MARK: Keystone Scanning & Discovery
+-- Expose functions in Keystones module
+Keystones.createKeyEntry = createKeyEntry
+Keystones.copyKey = copyKey
+
+-- MARK: Keystone Scanning
 
 ---Scan RaiderIO data for all party members
 ---@return KeystoneEntry[] keys Array of keystone entries with RaiderIO data
@@ -248,7 +251,7 @@ function NextKey:ScanPartyRaiderIO()
             end
             
             -- Create entry with detected or default keystone info
-            local entry = Keystones.createKeyEntry(
+            local entry = createKeyEntry(
                 keystoneMapID, -- Use detected mapID or 0
                 keystoneLevel, -- Use detected level or 0
                 name,
@@ -515,7 +518,7 @@ end
 
 
 
--- MARK: Keystone Collection & Management
+-- MARK: Keystone Collection
 function NextKey:CollectPartyKeys()
     local keys = {}
     local seen = {}
@@ -575,10 +578,10 @@ function NextKey:CollectPartyKeys()
             
             if newPriority > existingPriority then
                 NextKey222.Debug:Dev("keystones", "  Replacing with higher priority source:", entry.source)
-                keys[existingIndex] = Keystones.copyKey(entry)
+                keys[existingIndex] = copyKey(entry)
             elseif newPriority == existingPriority and (entry.dungeonID or 0) > (existingKey.dungeonID or 0) then
                 NextKey222.Debug:Dev("keystones", "  Replacing with better dungeonID:", entry.dungeonID, ">", existingKey.dungeonID)
-                keys[existingIndex] = Keystones.copyKey(entry)
+                keys[existingIndex] = copyKey(entry)
             else
                 NextKey222.Debug:Dev("keystones", "  Keeping existing keystone")
             end
@@ -586,16 +589,16 @@ function NextKey:CollectPartyKeys()
         end
         
         NextKey222.Debug:Dev("keystones", "Added new keystone:", entry.ownerName, "->", normalizedOwner, "level:", entry.level, "source:", entry.source)
-        table.insert(keys, Keystones.copyKey(entry))
+        table.insert(keys, copyKey(entry))
     end
 
     local playerKey = self:ScanPlayerKeystone()
     if playerKey then
         if type(playerKey) == "number" then
-            playerKey = Keystones.createKeyEntry(playerKey, 2, self.playerFullName)
+            playerKey = createKeyEntry(playerKey, 2, self.playerFullName)
         end
         addKey(playerKey)
-        self.playerKeystone = Keystones.copyKey(playerKey)
+        self.playerKeystone = copyKey(playerKey)
         NextKey222.Debug:Dev("keystones", "Player keystone detected:", playerKey.dungeonID, "level", playerKey.level)
     else
         -- Announce removal event if we had a keystone before
@@ -788,7 +791,7 @@ function NextKey:CollectPartyKeys()
                         local mappedDungeonID = dungeonID
                         local dungeons = NextKey222.Addon.PortalData and NextKey222.Addon.PortalData.dungeons or {}
                         if next(dungeons) then
-                            -- Try to find a mapping for the mythicPlusMapID
+                            -- Try to find a mapping for mythicPlusMapID
                             for nkDungeonID, dungeonData in pairs(dungeons) do
                                 if (dungeonData.mythicPlusMapID and dungeonData.mythicPlusMapID == dungeonID) or 
                                    (dungeonData.mapID and dungeonData.mapID == dungeonID) or
@@ -799,7 +802,7 @@ function NextKey:CollectPartyKeys()
                                 end
                             end
                             
-                            -- If no mapping found, keep the original ID but log it
+                            -- If no mapping found, keep original ID but log it
                             if mappedDungeonID == dungeonID and dungeonID > 0 then
                                 NextKey222.Debug:Dev("keystones", "No mapping found for mythicPlusMapID", dungeonID, "- using as-is")
                             end
@@ -852,7 +855,7 @@ function NextKey:CollectPartyKeys()
             
             if not alreadyExists then
                 NextKey222.Debug:Dev("keystones", "Attempting to copy keystone:", guildKey.ownerName, "Level", guildKey.level, "DungeonID", guildKey.dungeonID)
-                local copied = Keystones.copyKey(guildKey)
+                local copied = copyKey(guildKey)
                 if copied then
                     table.insert(keys, copied)
                     NextKey222.Debug:Dev("keystones", "Successfully added guild keystone from", guildKey.ownerName, "Level", copied.level, "Dungeon", copied.dungeonID)
@@ -925,7 +928,7 @@ function NextKey:GetAvailableKeys()
             if entry then
 
                 
-                local copied = Keystones.copyKey(entry)
+                local copied = copyKey(entry)
                 if copied then
                     table.insert(copy, copied)
 
@@ -934,7 +937,7 @@ function NextKey:GetAvailableKeys()
         end
     end
     
-    -- If Guild view is enabled, restrict to online guild members and exclude the player
+    -- If Guild view is enabled, restrict to online guild members and exclude player
     if NextKey222.UI and NextKey222.UI.showGuildKeys then
         NextKey222.Debug:Dev("keystones", "Guild view enabled, filtering keys")
         local onlineGuild = self:GetOnlineGuildMemberNames(false) -- include player in the set
@@ -998,7 +1001,7 @@ function NextKey:GetAvailableKeys()
                 end
                 
                 if isPartyMember then
-                    -- Additional deduplication: only keep the best keystone per player
+                    -- Additional deduplication: only keep best keystone per player
                     local playerShort = playerName:match("^([^%-]+)") or playerName
                     local existingKey = seenPlayers[playerShort]
                     
@@ -1116,7 +1119,7 @@ function NextKey:GetPartyMemberNames()
     local partyMembers = {}
     local currentRealm = GetRealmName()
     
-    -- Add the current player (with full name)
+    -- Add current player (with full name)
     local playerName = UnitName("player")
     if playerName then
         local playerFullName = playerName
@@ -1182,14 +1185,14 @@ function NextKey:GetPartyMemberNames()
 end
 
 ---Get a set of short names for online guild members
----@param excludePlayer boolean? if true, the current player will be excluded
+---@param excludePlayer boolean? if true, current player will be excluded
 ---@return table<string, boolean> set map of shortName => true
 function NextKey:GetOnlineGuildMemberNames(excludePlayer)
     local set = {}
     if not IsInGuild or not IsInGuild() then
         return set
     end
-    -- Ask the client to refresh roster data (non-blocking)
+    -- Ask client to refresh roster data (non-blocking)
     if C_GuildInfo and C_GuildInfo.GuildRoster then
         pcall(C_GuildInfo.GuildRoster)
     end
@@ -1234,7 +1237,7 @@ function NextKey:SetTeleportTargetKey(key, opts)
     local previousKey = self.teleportTargetKey
 
     if key and key.dungeonID then
-        self.teleportTargetKey = Keystones.copyKey({
+        self.teleportTargetKey = copyKey({
             dungeonID = key.dungeonID,
             level = key.level,
             ownerName = key.ownerName,
@@ -1292,7 +1295,7 @@ function NextKey:SetTeleportTargetKey(key, opts)
         NextKey222.Debug:User("SetTeleportTargetKey: Cleared teleport target")
     end
 
-    -- When leader (or solo) chooses a key and broadcast=true, share the selection via addon comms
+    -- When leader (or solo) chooses a key and broadcast=true, share selection via addon comms
     if opts.broadcast and self:IsLeaderOrSolo() and key and key.dungeonID and key.level then
         if NextKey222.Communications and NextKey222.Communications.BroadcastTeleportSelection then
             NextKey222.Communications:BroadcastTeleportSelection(self.teleportTargetKey)
@@ -1314,7 +1317,7 @@ function NextKey:SetTeleportTargetKey(key, opts)
 end
 
 function NextKey:SetTeleportWindowContext(context)
-    Debug:Dev("teleport", "SetTeleportWindowContext called with mode:", context and context.mode or "nil")
+    NextKey222.Debug:Dev("teleport", "SetTeleportWindowContext called with mode:", context and context.mode or "nil")
     self.teleportWindowContext = context
     
     -- Refresh the teleport window if it's open to apply the new context
@@ -1329,7 +1332,7 @@ end
 
 function NextKey:ClearTeleportWindowContext()
     self.teleportWindowContext = nil
-    Debug:Dev("teleport", "Teleport window context cleared.")
+    NextKey222.Debug:Dev("teleport", "Teleport window context cleared.")
     
     -- Refresh the teleport window if it's open to remove contextual elements
     if self.RefreshTeleportWindow then
@@ -1372,19 +1375,6 @@ function NextKey:IsLeaderOrSolo()
     return false
 end
 
-function Keystones.copyKey(entry)
-    return {
-        dungeonID = entry.dungeonID,
-        level = entry.level,
-        ownerName = entry.ownerName,
-        ownerShort = entry.ownerShort,
-        class = entry.class,
-        io = entry.io,
-        source = entry.source,
-        receivedFrom = entry.receivedFrom,
-        timestamp = entry.timestamp,
-    }
-end
 
 -- MARK: Dungeon Teleport Handler
 function NextKey:HandleTeleportClick(dungeonID, dungeonData)
@@ -1415,11 +1405,11 @@ function NextKey:HandleTeleportClick(dungeonID, dungeonData)
             end
             
             return false
-        end)
+        end) -- Close pcall here
         
         if not success then
             self:Print(string.format("Teleport spell not available for %s", dungeonData.name))
-            -- Show teleport window as fallback
+            -- Show the teleport window as fallback
             if NextKey222.TeleportWindow then
                 NextKey222.TeleportWindow:Show()
             end
@@ -1444,7 +1434,7 @@ end
 
 -- Scan player's current keystone (NextKey222 namespace version)
 function Keystones:ScanPlayerKeystone()
-    -- Delegate to the global NextKey function for compatibility
+    -- Delegate to global NextKey function for compatibility
     local NextKey = NextKey222.Addon
     if NextKey and NextKey.ScanPlayerKeystone then
         NextKey222.Debug:Dev("keystones", "Delegating ScanPlayerKeystone to NextKey.Addon")
@@ -1547,7 +1537,7 @@ function Keystones:TestVisualDetection()
     scanButton:SetScript("OnClick", function()
         NextKey222.Debug:Dev("keystones", "Manual keystone scan triggered")
         
-        -- Trigger keystone scan
+        -- Trigger the keystone scan
         local NextKey = NextKey222.Addon
         if NextKey and NextKey.CollectPartyKeys then
             local keys = NextKey:CollectPartyKeys()
@@ -1567,7 +1557,7 @@ function Keystones:TestVisualDetection()
     openMainButton:SetPoint("BOTTOMRIGHT", -20, 20)
     openMainButton:SetText("Open NextKey")
     openMainButton:SetScript("OnClick", function()
-        -- Open main NextKey window
+        -- Open the main NextKey window
         if NextKey222.UI and NextKey222.UI.ToggleMainFrame then
             NextKey222.UI:ToggleMainFrame()
         else

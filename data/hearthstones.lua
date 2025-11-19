@@ -4,7 +4,7 @@
 
 local _, NextKey222 = ...
 
--- MARK: Hearthstone Database
+-- MARK: Database
 -- Complete list of hearthstone toys, items, and spells
 -- Format: {id = itemID, type = "toy"|"item"|"spell", name = "Display Name"}
 NextKey222.HearthstoneData = {

@@ -1,4 +1,4 @@
--- MARK: Configuration Context Manager
+-- MARK: Config Manager
 -- Dynamic configuration system that adapts UI based on context
 -- Reduces conditional code by providing centralized context-aware configuration
 
@@ -10,7 +10,7 @@ NextKey222.ConfigurationContext = ConfigurationContext
 -- Register with module system
 NextKey222.RegisterModule("ConfigurationContext", ConfigurationContext)
 
--- MARK: Context State Tracking
+-- MARK: State Tracking
 -- Tracks all relevant UI state that affects configuration
 
 ConfigurationContext.context = {
@@ -37,7 +37,7 @@ ConfigurationContext.context = {
     isValid = false
 }
 
--- MARK: Configuration Resolution System
+-- MARK: Config System
 -- Merges base configuration with context-specific overrides
 
 ConfigurationContext.baseConfig = {
@@ -109,7 +109,7 @@ ConfigurationContext.baseConfig = {
     }
 }
 
--- MARK: Context Update Functions
+-- MARK: Update Functions
 -- Functions to update context state and invalidate cache
 
 --- Updates the debug mode state in context
@@ -193,7 +193,7 @@ function ConfigurationContext:SetSortMode(sortMode)
     end
 end
 
--- MARK: Context Evaluation Functions
+-- MARK: Evaluation Funcs
 -- Functions to evaluate context conditions
 
 --- Evaluates if debug controls should be shown
@@ -222,7 +222,7 @@ function ConfigurationContext:ShouldUseCompactMode()
     return self.context.useCompactMode
 end
 
--- MARK: Configuration Resolution Functions
+-- MARK: Resolution Funcs
 -- Functions to resolve configuration based on context
 
 --- Resolves window configuration based on current context
@@ -304,7 +304,7 @@ function ConfigurationContext:GetResolvedConfig(elementType)
     return resolvedConfig
 end
 
--- MARK: Cache Management
+-- MARK: Cache Mgmt
 -- Functions to manage configuration cache
 
 --- Invalidates the configuration cache
@@ -321,7 +321,7 @@ function ConfigurationContext:ClearCache()
     Debug:Dev("config", "Configuration cache cleared")
 end
 
--- MARK: Context Synchronization
+-- MARK: Sync Functions
 -- Functions to synchronize context with actual UI state
 
 --- Synchronizes context with current UI state
@@ -365,7 +365,7 @@ function ConfigurationContext:SynchronizeWithUI(uiModule)
     Debug:Dev("config", "Context synchronized with UI state")
 end
 
--- MARK: Module Initialization
+-- MARK: Init
 function ConfigurationContext:Initialize()
     Debug:Dev("config", "Configuration Context module initialized")
     return true

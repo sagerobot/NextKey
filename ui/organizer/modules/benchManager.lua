@@ -204,7 +204,7 @@ function BenchManager:BuildPlayerDataFromParty(memberName)
     return playerData
 end
 
--- MARK: Individual Operations
+-- MARK: Single Operations
 --- Add a single player to the bench
 -- @param rosterBoard RosterBoard instance
 -- @param playerData Player data object
@@ -492,7 +492,7 @@ function BenchManager:check_and_resize_window(rosterBoard)
     end
 end
 
--- MARK: Button State Management
+-- MARK: Button State
 --- Update the enabled/disabled state of the Recall All button
 -- @param rosterBoard RosterBoard instance
 function BenchManager:update_recall_button_state(rosterBoard)
@@ -516,7 +516,7 @@ function BenchManager:update_recall_button_state(rosterBoard)
     Debug:Dev("organizer_ui", "Recall button state:", hasSlottedCards and "ENABLED" or "DISABLED")
 end
 
--- MARK: Recall All Cards
+-- MARK: Recall All
 --- Recalls all player cards from M+ group slots back to the bench with animation
 -- @param rosterBoard RosterBoard instance
 function BenchManager:recall_all_cards(rosterBoard)
@@ -585,7 +585,8 @@ function BenchManager:recall_all_cards(rosterBoard)
     end, "BenchManager:recall_all_cards")
 end
 
--- MARK: Rebuild (DEPRECATED - Will be removed in Week 3)
+-- MARK: Rebuild (Legacy)
+-- DEPRECATED: Will be removed in Week 3
 --- Rebuild bench after poll completion (LEGACY)
 -- @param rosterBoard RosterBoard instance
 function BenchManager:rebuild_bench_after_poll(rosterBoard)

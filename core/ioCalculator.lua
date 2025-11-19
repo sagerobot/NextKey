@@ -1,4 +1,4 @@
--- MARK: IO Calculator Module
+-- MARK: IO Calculator
 -- Rating calculation logic based on MythicPlanner.com algorithm
 -- Implements the exact formulas used by mythicplanner.com for accurate IO gain predictions
 
@@ -8,7 +8,7 @@ local IOCalculator = {
     playerScores = {},
     fakePlayerScores = {},
     
-    -- MARK: Refresh Cycle Memoization (Phase 2 Optimization)
+    -- MARK: Refresh Cycle Memo
     -- Cache lookups within a single refresh cycle to avoid redundant API calls
     refreshCycleID = 0,
     scoreLookupCache = {},
@@ -17,7 +17,7 @@ local IOCalculator = {
 NextKey222.IOCalculator = IOCalculator
 NextKey222.RegisterModule("IOCalculator", IOCalculator)
 
--- MARK: Dungeon Base Score Matrix
+-- MARK: Dungeon Base Scores
 -- Base scores for each key level (based on MythicPlanner.com data)
 local dungeonMatrix = {
     [2] = { base = 155, min = 125, max = 170 },
@@ -41,7 +41,7 @@ local dungeonMatrix = {
     [20] = { base = 485, min = 290, max = 500 },
 }
 
--- MARK: Initialization & Setup
+-- MARK: Initialization
 --- Initializes the IOCalculator module.
 --- This function resets the player score caches and logs the initialization.
 function IOCalculator:Initialize()
@@ -51,7 +51,7 @@ function IOCalculator:Initialize()
     return true
 end
 
--- MARK: Utility Functions for Score Estimation
+-- MARK: Score Estimation
 -- These functions provide utility for score estimation and time approximation
 
 --- Converts the number of chests from a Mythic+ run into an approximate fractional completion time.
@@ -117,7 +117,7 @@ end
 
 
 
--- MARK: Core Rating Calculations
+-- MARK: Core Rating Calc
 --- Calculates the precise Mythic+ score for a completed run using the MythicPlanner.com formula.
 --- The formula considers the run time, time limit, and keystone level to provide an accurate score.
 ---@param runTime number The time taken to complete the dungeon, in seconds.
@@ -159,7 +159,7 @@ function IOCalculator:CalculateDungeonScore(runTime, timeLimit, keyLevel)
     return math.max(0, rating)
 end
 
--- MARK: Dungeon Metrics Lookup
+-- MARK: Dungeon Metrics
 --- Retrieves the base, minimum, and maximum possible scores for a given keystone level.
 ---@param keyLevel number The keystone level.
 ---@return table|nil A table with base, min, and max scores, or nil if the level is invalid.
@@ -217,7 +217,7 @@ function IOCalculator:GetRequiredKeyLevel(targetScore, dungeonTimeLimit)
     return nil
 end
 
--- MARK: Time Requirement Calculations  
+-- MARK: Time Requirements
 --- Calculates the required completion time for a given keystone level to achieve a specific target score.
 ---@param targetScore number The target Mythic+ score.
 ---@param keyLevel number The keystone level.
@@ -267,7 +267,7 @@ function IOCalculator:GetRequiredTime(targetScore, keyLevel, timeLimit)
     return math.max(0, requiredTime)
 end
 
--- MARK: Player Improvement Analysis
+-- MARK: Player Improvement
 --- Analyzes a player's profile to suggest dungeons they can run to improve their overall Mythic+ score.
 ---@param playerProfile table The player's profile, including their dungeon scores.
 ---@param targetOverallRating number The player's target overall score.
@@ -323,7 +323,7 @@ function IOCalculator:AnalyzePlayerImprovement(playerProfile, targetOverallRatin
     return suggestions
 end
 
--- MARK: Range-Based IO Calculations
+-- MARK: Range-Based IO Calc
 --- Calculates the potential IO gain range (minimum, maximum, and expected) for a player completing a specific keystone.
 --- Returns nil for players without addon data (to exclude them from calculations).
 ---@param keystoneData table The data for the keystone being considered.
@@ -406,7 +406,7 @@ function IOCalculator:CalculateIORange(keystoneData, playerProfile)
     }
 end
 
--- MARK: Keystone Value Analysis (Legacy compatibility)
+-- MARK: Keystone Value
 --- Calculates the expected IO gain from completing a specific keystone for a player.
 --- This is a legacy function for backward compatibility.
 ---@param keystoneData table The data for the keystone.
@@ -418,7 +418,7 @@ function IOCalculator:CalculateKeystoneValue(keystoneData, playerProfile)
     return range.expected
 end
 
--- MARK: Group Range Calculations
+-- MARK: Group Range Calc
 --- Calculates the total IO gain range for a group of players for a specific keystone.
 --- Automatically excludes players without addon data from calculations.
 ---@param keystoneData table The keystone being considered.
@@ -483,7 +483,7 @@ function IOCalculator:CalculateGroupIORange(keystoneData, partyProfiles)
     return groupRange
 end
 
--- MARK: Unified Dungeon Scoring System
+-- MARK: Unified Dungeon Score
 -- Handles both real and fake player dungeon scores in a unified way
 
 --- A helper function to get the keys of a table.
@@ -1132,7 +1132,7 @@ function IOCalculator:ReceivePlayerDungeonScores(playerName, dungeonScores)
     NextKey222.Debug:Dev("IOCalculator", "Received dungeon scores from", playerName)
 end
 
--- MARK: Group Recommendation Logic
+-- MARK: Group Recommendation
 --- Generates and sorts keystone recommendations for a group based on potential IO gain.
 ---@param availableKeystones table A list of available keystones.
 ---@param partyProfiles table A table of player profiles for the party.
@@ -1381,7 +1381,7 @@ function IOCalculator:GetPreferenceScore(playerName, dungeonID, preferenceWeight
     return preferenceScore
 end
 
--- MARK: Addon Data Detection
+-- MARK: Addon Data Detect
 --- Checks if a player has any addon data available (NextKey or RaiderIO).
 --- This is used to distinguish between:
 ---   - Fresh characters (legitimate 0 scores) who have RaiderIO
@@ -1433,7 +1433,7 @@ function IOCalculator:HasPlayerAddonData(playerName)
     return false
 end
 
--- MARK: RaiderIO Batch Processing
+-- MARK: RaiderIO Batch Proc
 --- Retrieves RaiderIO profile and calculates scores for all best runs.
 --- This function is specifically designed to work with players who don't have NextKey installed.
 ---@param playerName string The player's name (Name-Realm format).

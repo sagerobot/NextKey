@@ -1,6 +1,6 @@
--- MARK: Player IO Data Package Structure
--- Standardized structure for sharing IO data between players via AceComm
--- This ensures consistent calculations between dungeon view and tooltips
+-- MARK: Package Structure
+-- Player IO Data Package Structure - standardized format for sharing IO data
+-- Ensures consistent calculations between dungeon view and tooltips
 
 local _, NextKey222 = ...
 

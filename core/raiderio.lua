@@ -1,4 +1,5 @@
--- MARK: RaiderIO Integration Module
+-- MARK: Module
+-- RaiderIO Integration Module - interfaces with RaiderIO addon
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
 
@@ -188,7 +189,8 @@ function RaiderIO:FormatSyncPayload(target)
     }
 end
 
--- MARK: Score Color Functions
+-- MARK: Score Colors
+-- Score color formatting functions
 
 --- Retrieves the appropriate color for a given Mythic+ score, using the Raider.IO addon's color scale if available.
 ---@param score number The Mythic+ score.

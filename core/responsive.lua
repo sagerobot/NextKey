@@ -1,4 +1,4 @@
--- MARK: Responsive Layout Configuration System
+-- MARK: Responsive System
 -- Centralized responsive layout management with adaptive sizing and positioning
 -- Phase 7: Responsive Layout Configuration System
 
@@ -27,7 +27,7 @@ Responsive.layoutModes = {
     AUTO = "auto"             -- Automatically select based on screen size
 }
 
--- MARK: Layout State Management
+-- MARK: State Management
 -- Current layout state and configuration
 
 Responsive.currentMode = Responsive.layoutModes.AUTO
@@ -116,7 +116,7 @@ function Responsive:GetCurrentLayoutMode()
     return self.currentMode
 end
 
--- MARK: Layout Configuration Templates
+-- MARK: Config Templates
 -- Standardized configurations for different layout modes
 
 Responsive.layouts = {
@@ -267,7 +267,7 @@ Responsive.layouts = {
     }
 }
 
--- MARK: Layout Resolution Functions
+-- MARK: Config Resolution
 -- Functions to resolve layout configuration based on current mode
 
 --- Gets layout configuration for the current mode
@@ -484,7 +484,7 @@ function Responsive:AdaptButtonLayouts()
     Debug:Dev("responsive", "Adapted button layouts to:", self:GetLayoutMode())
 end
 
--- MARK: Layout Change Notification
+-- MARK: Change Notify
 -- Functions to notify systems of layout changes
 
 --- Notifies all systems of layout changes
@@ -512,7 +512,7 @@ function Responsive:NotifyLayoutChange()
     Debug:Dev("responsive", "Layout change notification sent for mode:", mode)
 end
 
--- MARK: Layout Persistence
+-- MARK: Persistence
 -- Functions to save and load layout preferences
 
 --- Saves the current layout mode to saved variables
@@ -533,7 +533,7 @@ function Responsive:LoadLayoutMode()
     end
 end
 
--- MARK: Layout Event Handling
+-- MARK: Event Handling
 -- Functions to handle layout-related events
 
 --- Called when screen resolution changes
@@ -556,7 +556,7 @@ function Responsive:OnUIScaleChanged()
     Debug:Dev("responsive", "UI scale changed, layout adapted")
 end
 
--- MARK: Layout Utilities
+-- MARK: Utilities
 -- Utility functions for layout calculations
 
 --- Calculates optimal window position for current layout
@@ -593,7 +593,7 @@ function Responsive:GetMaxItemsWithoutScroll()
     return layoutConfig.maxItems or 12
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
 function Responsive:Initialize()
     Debug:Dev("responsive", "Responsive Layout module initialized")
     

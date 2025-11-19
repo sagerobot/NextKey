@@ -1,4 +1,4 @@
--- MARK: Score Calculation Functions
+-- MARK: Score Calculation
 -- All score calculation now handled by IOCalculator module
 -- This file maintains only the remaining player score tracking functions
 local _, NextKey222 = ...
@@ -8,8 +8,7 @@ if not NextKey then
     return
 end
 
--- MARK: Season Score Functions  
--- MARK: Season Score Functions
+-- MARK: Season Scores
 --- Estimates the Mythic+ score for a given keystone level and timing.
 --- @param level number The keystone level.
 --- @param timed boolean Whether the run was completed within the timer.
@@ -33,7 +32,7 @@ function NextKey:GetSeasonBestLevel(dungeonID)
     return bestRun and bestRun.level or nil
 end
 
--- MARK: Score Functions
+-- MARK: Player Scores
 --- Gets the player's current Mythic+ score.
 --- @return number The player's current score.
 function NextKey:GetCurrentScore()
@@ -65,7 +64,7 @@ function NextKey:UpdatePlayerScore()
     end
 end
 
--- MARK: RaiderIO Integration Functions
+-- MARK: RaiderIO Integration
 --- Gets the player's total Mythic+ score from Raider.IO.
 --- @return number The player's Raider.IO score.
 function NextKey:GetRaiderIOTotalScore()

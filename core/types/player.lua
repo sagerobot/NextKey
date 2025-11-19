@@ -1,4 +1,4 @@
--- MARK: Module Definition
+-- MARK: Module
 -- Type definitions for M+ Group Organizer
 -- Defines data structures for players, keystones, and groups
 
@@ -7,7 +7,7 @@ local _, NextKey222 = ...
 -- Type definitions module - no registration needed as it's just data structures
 local PlayerTypes = {}
 
--- MARK: Player Object Structure
+-- MARK: Player Object
 -- Complete player data structure for Group Organizer
 PlayerTypes.PlayerObject = {
     -- Unique Identifier
@@ -61,7 +61,7 @@ PlayerTypes.PlayerObject = {
     }
 }
 
--- MARK: Keystone Object Structure
+-- MARK: Keystone Object
 -- Keystone data structure
 PlayerTypes.KeystoneObject = {
     dungeonID = 503, -- integer
@@ -69,7 +69,7 @@ PlayerTypes.KeystoneObject = {
     ownerID = "PlayerName-Realm" -- string
 }
 
--- MARK: Group Object Structure
+-- MARK: Group Object
 -- Group composition and scoring data
 PlayerTypes.GroupObject = {
     -- Group Composition
@@ -91,7 +91,7 @@ PlayerTypes.GroupObject = {
     headerText = "M+ Grp. 1" -- or "ARA: +10" when keystone set
 }
 
--- MARK: Survey Response Structure
+-- MARK: Survey Response
 -- Data collected from participant survey
 PlayerTypes.SurveyResponse = {
     pollID = "unique-poll-id",
@@ -113,7 +113,7 @@ PlayerTypes.SurveyResponse = {
     timestamp = 1729742400
 }
 
--- MARK: Communication Message Structures
+-- MARK: Message Structures
 -- Message formats for organizer communication
 
 -- Poll Request Message
@@ -168,7 +168,7 @@ PlayerTypes.RosterDeltaMessage = {
     }
 }
 
--- MARK: Validation Functions
+-- MARK: Validation
 -- Helper functions to validate data structures
 
 --- Validate Player Object structure
@@ -286,7 +286,7 @@ function PlayerTypes.ValidateGroupObject(group)
     return #errors == 0, errors
 end
 
--- MARK: Utility Functions
+-- MARK: Utilities
 -- Helper functions for working with data structures
 
 --- Create a new player object with default values

@@ -6,14 +6,14 @@ Orchestrates the state, application, and UI modules.
 
 local _, NextKey222 = ...
 
--- MARK: Module Definition
+-- MARK: Module
 local PUGHelper = {}
 NextKey222.PUGHelper = PUGHelper
 
--- MARK: Dependencies
+-- MARK: Deps
 local Debug = NextKey222.Debug
 
--- MARK: Private Variables
+-- MARK: Vars
 local pugConfig = {
     enabled = true,
     autoAcceptInvites = false,
@@ -22,10 +22,10 @@ local pugConfig = {
     getawayUI = true
 }
 
--- MARK: Module Registration
+-- MARK: Registration
 NextKey222.RegisterModule("PUGHelper", PUGHelper)
 
--- MARK: Public Interface
+-- MARK: Public
 
 function PUGHelper:Initialize()
     Debug:Dev("pughelper", "PUGHelper:Initialize() called")
@@ -78,7 +78,7 @@ function PUGHelper:GetConfig()
     return configCopy
 end
 
--- MARK: Private Implementation
+-- MARK: Private
 
 function PUGHelper:LoadConfig()
     local db = NextKey222.Addon and NextKey222.Addon.db
@@ -177,7 +177,7 @@ function PUGHelper:SetHookEnabled(enabled)
     end
 end
 
--- MARK: Event Handlers
+-- MARK: Events
 
 function PUGHelper:OnGroupRosterUpdate()
     if self:IsEnabled() and IsInGroup() and self:GetState() == self.STATE.TRACKING then
@@ -245,7 +245,7 @@ function PUGHelper:OnGroupLeft()
     end
 end
 
--- MARK: End-of-Dungeon Handling (Details-style)
+-- MARK: Dungeon Completion
 -- Called from Events:OnChallengeModeCompleted() after any Mythic+ completion.
 -- Responsibilities:
 -- - Only mark RUN_COMPLETE for valid tracked PUG runs.
@@ -312,7 +312,7 @@ function PUGHelper:OnChallengeModeCompleted(mapID, level)
     -- which will open the teleport window once using the context we just set.
 end
 
--- MARK: UI Methods
+-- MARK: UI
 
 function PUGHelper:ShowInviteNotification(invite)
     if NextKey222.PUGInviteNotification then
@@ -332,7 +332,7 @@ function PUGHelper:HandleInviteTimeout()
     self:TransitionToState(self.STATE.TRACKING, "invite_timeout")
 end
 
--- MARK: Helper Methods
+-- MARK: Helpers
 
 -- Get dungeon information for a given dungeon ID
 function PUGHelper:GetDungeonInfo(dungeonID)

@@ -1,12 +1,13 @@
--- MARK: Player Data Service Module
--- Handles all player IO data management, caching, and sharing
+-- MARK: Module
+-- Player Data Service - handles all player IO data management, caching, and sharing
 -- Extracted from Communications module as part of Phase 4 refactoring
 
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
 local AceSerializer = LibStub:GetLibrary("AceSerializer-3.0")
 
--- MARK: Module Definition
+-- MARK: Definition
+-- Module definition and state
 local PlayerDataService = {
     playerIOCache = {},
     lastCacheCleanup = 0,
@@ -17,7 +18,8 @@ local PlayerDataService = {
 NextKey222.PlayerDataService = PlayerDataService
 NextKey222.RegisterModule("PlayerDataService", PlayerDataService)
 
--- MARK: Public API - IO Data Access
+-- MARK: Data Access
+-- Public API for accessing cached player IO data
 
 --- Gets stored IO data for a specific player
 --- @param playerName string Full player name with realm
@@ -56,7 +58,8 @@ function PlayerDataService:HasIODataForPlayer(playerName)
     return self.playerIOCache[playerName] ~= nil
 end
 
--- MARK: Public API - IO Data Creation and Sharing
+-- MARK: Data Sharing
+-- Public API for creating and sharing player IO data packages
 
 --- Creates an IO package for the specified player
 --- @param playerName string Full player name with realm
@@ -297,7 +300,8 @@ function PlayerDataService:AnnounceEvent(eventName, payload)
     end, "PlayerDataService:AnnounceEvent")
 end
 
--- MARK: Cache Management
+-- MARK: Cache
+-- Cache management and cleanup
 
 --- Cleans up old cache entries
 function PlayerDataService:CleanupOldCacheEntries()
@@ -343,7 +347,8 @@ function PlayerDataService:ValidateCachedData()
     end
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
+-- Module initialization and event registration
 
 function PlayerDataService:Initialize()
     NextKey222.Debug:Dev("startup", "PlayerDataService module initializing...")

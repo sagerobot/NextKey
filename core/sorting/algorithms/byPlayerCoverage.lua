@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Player Coverage Algorithm
+-- MARK: Player Coverage
 -- Maximizes the number of players who benefit from IO gains
 
 local Sorting = NextKey222.Sorting

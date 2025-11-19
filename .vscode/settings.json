@@ -106,7 +106,9 @@
         "ChatFrame_SendTell",
         "InspectFrame",
         "TalentUtil",
-        "TalentButtonUtil"
+        "TalentButtonUtil",
+        "GameFontDisable",
+        "GameTooltipText"
     ],
     "Lua.type.weakUnionCheck": true,
     "Lua.diagnostics.disable": [

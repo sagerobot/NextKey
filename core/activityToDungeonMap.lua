@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Activity ID to Challenge Map ID Mapping
+-- MARK: Activity to Map ID
 -- Maps LFG activity IDs to Blizzard challenge mode map IDs
 -- This allows us to convert from C_LFGList activity IDs to portal data keys
 
@@ -8,7 +8,7 @@ local ActivityToDungeonMap = {}
 NextKey222.ActivityToDungeonMap = ActivityToDungeonMap
 NextKey222.RegisterModule("ActivityToDungeonMap", ActivityToDungeonMap)
 
--- MARK: TWW Season 3 Activity Mapping
+-- MARK: TWW S3 Activity Map
 -- Activity IDs from C_LFGList.GetActivityInfoTable() -> Challenge Map IDs from C_ChallengeMode
 local activityToMapID = {
     -- TWW Season 3 dungeons (ALL CONFIRMED from debug output!)
@@ -52,7 +52,7 @@ function ActivityToDungeonMap:GetDungeonNameFromActivityID(activityID)
     return nil
 end
 
--- MARK: Module Initialization
+-- MARK: Module Init
 function ActivityToDungeonMap:Initialize()
     local count = 0
     for _ in pairs(activityToMapID) do count = count + 1 end

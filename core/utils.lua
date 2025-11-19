@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Backward Compatibility Shim
+-- MARK: Compatibility Shim
 -- This file maintains backward compatibility while utils are split into domain-specific modules.
 -- All functions forward to their respective specialized modules.
 -- TODO: Remove this shim after all modules are updated to use specialized utils directly.
@@ -9,7 +9,8 @@ local Utils = {}
 NextKey222.Utils = Utils
 NextKey222.RegisterModule("Utils", Utils)
 
--- MARK: Time Utilities (forwarded to TimeUtils)
+-- MARK: Time Utils
+-- Forwarded to TimeUtils
 
 function Utils.currentTime()
     if NextKey222.TimeUtils then
@@ -35,7 +36,8 @@ function Utils:GetTime()
     return self.currentTime()
 end
 
--- MARK: Player Utilities (forwarded to PlayerUtils)
+-- MARK: Player Utils
+-- Forwarded to PlayerUtils
 
 function Utils.safeGetClass(unit)
     if NextKey222.PlayerUtils then
@@ -83,7 +85,8 @@ function Utils.getShortName(fullName)
     return fullName:match("^([^%-]+)") or fullName
 end
 
--- MARK: Communication Utilities (forwarded to CommunicationUtils)
+-- MARK: Comm Utils
+-- Forwarded to CommunicationUtils
 
 function Utils.encodeTuple(parts)
     if NextKey222.CommunicationUtils then
@@ -131,7 +134,8 @@ function Utils.chooseCommChannel()
     return nil
 end
 
--- MARK: Dungeon Utilities (forwarded to DungeonUtils)
+-- MARK: Dungeon Utils
+-- Forwarded to DungeonUtils
 
 function Utils.normalizeMapID(mapID)
     if NextKey222.DungeonUtils then
@@ -196,7 +200,8 @@ function Utils:GetDungeonFullName(dungeonID)
     return "Unknown Dungeon"
 end
 
--- MARK: Item Utilities (forwarded to ItemUtils)
+-- MARK: Item Utils
+-- Forwarded to ItemUtils
 
 function Utils:GetHeroTrackItemLink(itemID)
     if NextKey222.ItemUtils then
@@ -207,7 +212,8 @@ function Utils:GetHeroTrackItemLink(itemID)
     return string.format("item:%d::::::%d", itemID, itemLevel)
 end
 
--- MARK: Scoring Utilities (forwarded to ScoringUtils)
+-- MARK: Scoring Utils
+-- Forwarded to ScoringUtils
 
 function Utils:GetIOScoreColor(score)
     if NextKey222.ScoringUtils then

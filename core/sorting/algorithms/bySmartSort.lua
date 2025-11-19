@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Smart Sort Algorithm (Borda Count)
+-- MARK: Smart Sort
 -- Balances IO gain, player coverage, key level, and loot preferences using ranked voting
 
 local Sorting = NextKey222.Sorting

@@ -5,7 +5,7 @@ local DungeonUtils = {}
 NextKey222.DungeonUtils = DungeonUtils
 NextKey222.RegisterModule("DungeonUtils", DungeonUtils)
 
--- MARK: Dungeon ID Conversion Functions
+-- MARK: ID Conversion
 
 --- Normalizes map ID to number if possible
 -- @param mapID any Map ID to normalize
@@ -98,7 +98,7 @@ function DungeonUtils:FindNextKeyDungeonID(rioData)
     return reverseMapping[dungeon.keystone_instance] or reverseMapping[dungeon.id]
 end
 
--- MARK: Dungeon Name Helpers
+-- MARK: Name Helpers
 
 --- Gets dungeon abbreviation for compact display
 -- @param dungeonID number Dungeon ID

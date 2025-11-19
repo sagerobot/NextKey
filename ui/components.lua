@@ -12,7 +12,7 @@ NextKey222.UIComponents = Components
 -- Register with module system
 NextKey222.RegisterModule("UIComponents", Components)
 
--- MARK: Dynamic Configuration Integration
+-- MARK: Dynamic Config
 -- Integration with ConfigurationContext for context-aware component creation
 
 --- Gets the current configuration context
@@ -71,7 +71,7 @@ function Components:ApplyDynamicConfiguration(widget, componentType, baseConfig,
     return finalConfig
 end
 
--- MARK: Spec to Role Mapping
+-- MARK: Spec to Role Map
 -- Definitive mapping of all specialization IDs to their roles
 -- This is more reliable than WoW API calls and ensures correct role display
 local SPEC_TO_ROLE = {
@@ -141,14 +141,14 @@ local SPEC_TO_ROLE = {
     [73] = "TANK",      -- Protection
 }
 
--- MARK: Backdrop Type Constants
+-- MARK: Backdrop Constants
 -- Public access to backdrop type constants for external use
 Components.BACKDROP_TOOLTIP = "tooltip"
 Components.BACKDROP_DIALOG = "dialog"
 Components.BACKDROP_DARK_DIALOG = "dark_dialog"
 Components.BACKDROP_COMPACT = "compact"
 
--- MARK: Role Detection Helper
+-- MARK: Role Detection
 -- Shared function for reliable role detection from specID
 
 --- Gets the role for a given specID using the definitive mapping table
@@ -162,7 +162,7 @@ function Components:GetRoleFromSpecID(specID, fallbackRole)
     return fallbackRole or "DAMAGER"
 end
 
--- MARK: Backdrop Configuration
+-- MARK: Backdrop Config
 -- Standardized backdrop configurations for different AceGUI widgets
 
 local BACKDROP_COLORS = {
@@ -259,7 +259,7 @@ function Components:ConfigureBackdrop(widget, backdropType, config)
     end
 end
 
--- MARK: Score Retrieval System
+-- MARK: Score Retrieval
 
 --- Gets player's total IO score from multiple sources
 -- @param playerInfo table Player info containing ownerName, rating, rioScore, etc.
@@ -316,7 +316,7 @@ function Components:NormalizePlayerName(rawName)
     return rawName
 end
 
--- MARK: Button Type Constants
+-- MARK: Button Constants
 Components.BUTTON_PRIMARY_ACTION = "primary_action"
 Components.BUTTON_SECONDARY_ACTION = "secondary_action"
 Components.BUTTON_COMPACT_LIST = "compact_list"
@@ -424,7 +424,7 @@ function Components:ConfigureButton(widget, buttonType, config)
     end
 end
 
--- MARK: Icon Type Constants
+-- MARK: Icon Constants
 Components.ICON_CLASS = "class"
 Components.ICON_ROLE = "role"
 Components.ICON_DUNGEON = "dungeon"
@@ -494,7 +494,7 @@ function Components:ConfigureIcon(widget, iconType, config)
     end
 end
 
--- MARK: Frame Type Constants
+-- MARK: Frame Constants
 Components.FRAME_WINDOW = "window"
 Components.FRAME_PANEL = "panel"
 Components.FRAME_CONTAINER = "container"
@@ -567,7 +567,7 @@ function Components:ConfigureFrame(widget, frameType, config)
     end
 end
 
--- MARK: Text Type Constants
+-- MARK: Text Constants
 Components.TEXT_HEADER = "header"
 Components.TEXT_BODY = "body"
 Components.TEXT_LABEL = "label"
@@ -670,7 +670,7 @@ function Components:ConfigureText(widget, textType, config)
     end
 end
 
--- MARK: Component Factory Functions
+-- MARK: Component Factories
 
 --- Creates a configured button widget
 -- @param buttonType string Button type from constants
@@ -779,7 +779,7 @@ function Components:CreateBackdrop(frame, backdropType, config)
     return frame
 end
 
--- MARK: Complex Widget Type Constants
+-- MARK: Complex Constants
 Components.DROPDOWN_PRIMARY = "primary"
 Components.DROPDOWN_COMPACT = "compact"
 Components.SCROLLFRAME_PRIMARY = "primary"
@@ -927,7 +927,7 @@ function Components:CreateScrollFrame(scrollFrameType, parent, config)
     return widget
 end
 
--- MARK: Native Frame Factory Functions
+-- MARK: Native Factories
 -- These functions create or configure native WoW frames rather than AceGUI widgets.
 -- Used for high-performance or custom-layout components like cards.
 
@@ -1097,7 +1097,7 @@ function Components:CreateNativeButton(parent, buttonType, text, onClick)
     return button
 end
 
--- MARK: Legacy Aliases (Deprecated)
+-- MARK: Legacy Aliases
 
 function Components:CreateClassIcon(...)
     return self:CreateNativeClassIcon(...)
@@ -1111,7 +1111,7 @@ function Components:CreateButtonLegacy(...)
     return self:CreateNativeButton(...)
 end
 
--- MARK: Text Formatting Utilities
+-- MARK: Text Formatting
 
 --- Formats player name with IO score coloring
 -- @param playerName string Player name
@@ -1183,7 +1183,8 @@ function Components:FormatKeystoneDisplay(dungeonName, level)
     end
 end
 
--- MARK: Tooltip System (Phase 7: Enhanced with centralized tooltip management)
+-- MARK: Tooltip System
+-- Phase 7: Enhanced with centralized tooltip management
 
 --- Attaches player tooltip to a frame (Phase 7: Now using centralized tooltip system)
 -- @param frame Frame The frame to attach tooltip to

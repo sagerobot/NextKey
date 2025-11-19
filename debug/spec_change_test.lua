@@ -1,4 +1,4 @@
--- MARK: Spec Change Detection Test
+-- MARK: Spec Change Test
 -- Test that spec changes are detected for group members
 
 local _, NextKey222 = ...

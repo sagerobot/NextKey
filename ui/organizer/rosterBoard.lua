@@ -59,7 +59,8 @@ function RosterBoard:Initialize()
         self.groupKeystones = {}
         self.allInteractiveFrames = {}
         
-        -- MARK: Event-Driven Architecture - Register listeners for OrganizerState events
+        -- MARK: Event Registration
+        -- Event-Driven Architecture - Register listeners for OrganizerState events
         if NextKey222.Addon and NextKey222.Addon.RegisterMessage then
             -- Register listener for player added events
             NextKey222.Addon:RegisterMessage("ORGANIZER_PLAYER_ADDED", function(event, payload)
@@ -101,7 +102,7 @@ function RosterBoard:Initialize()
     end, "RosterBoard:Initialize")
 end
 
--- MARK: Event Registration & Card Refresh
+-- MARK: Event & Refresh
 -- Note: Spec change events are handled by ProfilesService (core/profiles.lua:132-302)
 -- ProfilesService automatically invalidates cache and triggers UI refresh when specs change
 -- This prevents duplicate event handlers and ensures consistent behavior across all UI components
@@ -131,7 +132,8 @@ function RosterBoard:IsParticipant()
     return self.viewMode == "PARTICIPANT"
 end
 
--- MARK: Main Frame Creation (FULLY NATIVE INTERIOR)
+-- MARK: Main Frame
+-- FULLY NATIVE INTERIOR
 function RosterBoard:CreateMainFrame()
     return NextKey222.SafeRun(function()
         Debug:Dev("organizer_ui", "CreateMainFrame called - clearing caches")
@@ -405,7 +407,8 @@ function RosterBoard:CleanupNativeFrames()
     Debug:Dev("ui_contamination", "[ORGANIZER] CleanupNativeFrames COMPLETE - memory leak fixes applied")
 end
 
--- MARK: Layout Calculation (Uses UIConfig constants)
+-- MARK: Layout Calculation
+-- Uses UIConfig constants
 function RosterBoard:CalculateOptimalLayout()
     local benchPlayers = self:GetBenchPlayers() or {}
     local groupedPlayers = self:GetGroupedPlayers() or {}
@@ -556,7 +559,8 @@ function RosterBoard:PopulateAllSections()
     end, "RosterBoard:PopulateAllSections")
 end
 
--- MARK: Header Section (Uses UIConfig constants)
+-- MARK: Header Section
+-- Uses UIConfig constants
 function RosterBoard:CreateHeaderSection(nativeParent)
     return NextKey222.SafeRun(function()
         -- Use centralized button size constants
@@ -707,7 +711,8 @@ function RosterBoard:CreateHeaderSection(nativeParent)
     end, "RosterBoard:CreateHeaderSection")
 end
 
--- MARK: Obsolete Header Button Helpers (REMOVED)
+-- MARK: Obsolete Helpers
+-- Header Button Helpers (REMOVED)
 -- These functions are no longer needed as buttons are now contextual:
 -- - Poll/End/Clear buttons: Inline with bench title (created in benchManager)
 -- - Organize button: In bottom bar (created in CreateBottomBar)
@@ -1111,7 +1116,8 @@ function RosterBoard:OnAddFakeRaidClicked()
     end, "RosterBoard:OnAddFakeRaidClicked")
 end
 
--- MARK: OnOptimizeClicked (REMOVED - replaced by OnOrganizeClicked)
+-- MARK: OnOptimizeClicked
+-- REMOVED - replaced by OnOrganizeClicked
 -- This function is obsolete - organize mode is now selected via dropdown
 -- and executed via unified OnOrganizeClicked handler
 
@@ -1424,8 +1430,9 @@ function RosterBoard:OnAnnounceClicked()
     end, "RosterBoard:OnAnnounceClicked")
 end
 
--- MARK: Clear Poll Handler (SESSION 4)
--- MARK: End Poll Handler (Immediately Complete Active Poll)
+-- MARK: Clear Poll Handler
+-- MARK: End Poll Handler
+-- Immediately Complete Active Poll
 function RosterBoard:OnEndPollClicked()
     return NextKey222.SafeRun(function()
         Debug:Dev("organizer_ui", "End Poll button clicked")
@@ -1500,10 +1507,12 @@ function RosterBoard:OnClearPollClicked()
     end, "RosterBoard:OnClearPollClicked")
 end
 
--- MARK: Action Bar (REMOVED - moved to header)
+-- MARK: Action Bar
+-- REMOVED - moved to header
 -- All organize/announce controls are now in the header section (row 2)
 
--- MARK: Unified Organize Handler (replaces separate Sort and Optimize)
+-- MARK: Organize Handler
+-- Unified handler (replaces separate Sort and Optimize)
 function RosterBoard:OnOrganizeClicked()
     return NextKey222.SafeRun(function()
         local mode = self.selectedOrganizeMode or "simple_sort"
@@ -1521,7 +1530,8 @@ function RosterBoard:OnOrganizeClicked()
     end, "RosterBoard:OnOrganizeClicked")
 end
 
--- MARK: Simple Sort Execution (renamed from OnSortClicked)
+-- MARK: Simple Sort
+-- Execution (renamed from OnSortClicked)
 function RosterBoard:ExecuteSimpleSort()
     return NextKey222.SafeRun(function()
         Debug:Dev("organizer", "Sort button clicked - starting sequential sort")
@@ -1650,21 +1660,25 @@ function RosterBoard:DisableOrganizerControls()
     Debug:Dev("organizer_ui", "Disabled organizer controls (participant view)")
 end
 
--- MARK: Active Pool Section (Delegates to SlotManager)
+-- MARK: Active Pool
+-- Delegates to SlotManager
 function RosterBoard:CreateActivePoolSection(nativeParent)
     return NextKey222.SlotManager:create_active_pool_section(self, nativeParent)
 end
 
--- MARK: Flat Role Slot Creation (Delegates to SlotManager)
+-- MARK: Flat Role Slot
+-- Delegates to SlotManager
 function RosterBoard:CreateFlatRoleSlot(parentContainer, groupIndex, role, roleLabel, slotIndex, xPos, yPos)
     return NextKey222.SlotManager:create_flat_role_slot(parentContainer, groupIndex, role, roleLabel, slotIndex, xPos, yPos)
 end
 
--- MARK: Native Bench Column (Delegates to BenchManager)
+-- MARK: Bench Column
+-- Delegates to BenchManager
 function RosterBoard:CreateNativeBenchColumn(width, parentFrame)
     return NextKey222.BenchManager:create_native_bench_column(self, width, parentFrame)
 end
--- MARK: Add Player to Bench (Delegates to BenchManager)
+-- MARK: Add to Bench
+-- Delegates to BenchManager
 function RosterBoard:AddPlayerToBench(playerData)
     return NextKey222.BenchManager:add_player_to_bench(self, playerData)
 end
@@ -1706,22 +1720,26 @@ function RosterBoard:AddAutoDetectedIndicator(playerCard)
     return NextKey222.BenchManager:add_auto_detected_indicator(playerCard)
 end
 
--- MARK: Populate Bench (Delegates to BenchManager)
+-- MARK: Populate Bench
+-- Delegates to BenchManager
 function RosterBoard:PopulateBench(players)
     return NextKey222.BenchManager:populate_bench(self, players)
 end
 
--- MARK: Window Resize Check (Delegates to BenchManager)
+-- MARK: Window Resize
+-- Delegates to BenchManager
 function RosterBoard:CheckAndResizeWindow()
     return NextKey222.BenchManager:check_and_resize_window(self)
 end
 
--- MARK: Layout Bench (Delegates to BenchManager)
+-- MARK: Layout Bench
+-- Delegates to BenchManager
 function RosterBoard:LayoutBench()
     return NextKey222.BenchManager:layout_bench(self)
 end
 
--- MARK: Opt-Out Section (Delegates to SlotManager)
+-- MARK: Opt-Out Section
+-- Delegates to SlotManager
 function RosterBoard:CreateOptOutSection(nativeParent)
     return NextKey222.SlotManager:create_opt_out_section(self, nativeParent)
 end
@@ -1730,57 +1748,68 @@ function RosterBoard:PopulateOptOut(players)
     return NextKey222.SlotManager:populate_opt_out(self, players)
 end
 
--- MARK: Place Card in Opt-Out (Delegates to SlotManager)
+-- MARK: Place in Opt-Out
+-- Delegates to SlotManager
 function RosterBoard:PlaceCardInOptOut(card)
     return NextKey222.SlotManager:place_card_in_opt_out(self, card)
 end
 
--- MARK: Layout Opt-Out (Delegates to SlotManager)
+-- MARK: Layout Opt-Out
+-- Delegates to SlotManager
 function RosterBoard:LayoutOptOut()
     return NextKey222.SlotManager:layout_opt_out(self)
 end
 
--- MARK: Drop Target Detection (Delegates to CardMovement)
+-- MARK: Drop Detection
+-- Delegates to CardMovement
 function RosterBoard:DetectDropTarget()
     return NextKey222.CardMovement:detect_drop_target(self)
 end
 
--- MARK: Card Drop Handler (Delegates to CardMovement)
+-- MARK: Card Drop Handler
+-- Delegates to CardMovement
 function RosterBoard:HandleCardDrop(card, dropTarget)
     return NextKey222.CardMovement:handle_card_drop(self, card, dropTarget)
 end
 
--- MARK: Mark Card For Removal (Delegates to CardMovement)
+-- MARK: Mark For Removal
+-- Delegates to CardMovement
 function RosterBoard:MarkCardForRemoval(card)
     return NextKey222.CardMovement:mark_card_for_removal(self, card)
 end
 
--- MARK: Complete Card Removal (Delegates to CardMovement)
+-- MARK: Complete Removal
+-- Delegates to CardMovement
 function RosterBoard:CompleteCardRemoval(card)
     return NextKey222.CardMovement:complete_card_removal(self, card)
 end
 
--- MARK: Place Card in Slot (Delegates to SlotManager)
+-- MARK: Place in Slot
+-- Delegates to SlotManager
 function RosterBoard:PlaceCardInSlot(card, slot)
     return NextKey222.SlotManager:place_card_in_slot(card, slot)
 end
 
--- MARK: Place Card in Bench (Delegates to CardMovement)
+-- MARK: Place in Bench
+-- Delegates to CardMovement
 function RosterBoard:PlaceCardInBench(card)
     return NextKey222.CardMovement:place_card_in_bench(self, card)
 end
 
--- MARK: Remove Card From Bench Array (Delegates to CardMovement)
+-- MARK: Remove From Bench
+-- Delegates to CardMovement
 function RosterBoard:RemoveCardFromBenchArray(card)
     return NextKey222.CardMovement:remove_card_from_bench_array(self, card)
 end
 
--- MARK: Rejection Animation (Delegates to CardMovement)
+-- MARK: Rejection Animation
+-- Delegates to CardMovement
 function RosterBoard:AnimateRejection(card)
     return NextKey222.CardMovement:animate_rejection(self, card)
 end
 
--- MARK: Role Validation (Delegates to CardMovement)
+-- MARK: Role Validation
+-- Delegates to CardMovement
 function RosterBoard:CanPlayerFillRole(playerRoles, slotRole)
     return NextKey222.CardMovement:can_player_fill_role(playerRoles, slotRole)
 end
@@ -1848,7 +1877,8 @@ function RosterBoard:IsVisible()
     return self.mainFrame and self.mainFrame:IsVisible()
 end
 
--- MARK: Rebuild Main Frame (Preserve Players)
+-- MARK: Rebuild Frame
+-- Preserve Players
 function RosterBoard:RebuildMainFrame()
     return NextKey222.SafeRun(function()
         -- Store visibility state
@@ -1867,7 +1897,8 @@ function RosterBoard:RebuildMainFrame()
     end, "RosterBoard:RebuildMainFrame")
 end
 
--- MARK: Keystone Designation (Delegates to KeystoneManager)
+-- MARK: Keystone Manager
+-- Delegates to KeystoneManager
 function RosterBoard:DesignateGroupKeystone(groupIndex, keystone, playerID)
     return NextKey222.KeystoneManager:designate_group_keystone(self, groupIndex, keystone, playerID)
 end
@@ -1892,12 +1923,14 @@ function RosterBoard:UpdateGroupHeader(groupIndex, keystone)
     return NextKey222.KeystoneManager:update_group_header(self, groupIndex, keystone)
 end
 
--- MARK: Helper Functions (Delegates to KeystoneManager)
+-- MARK: Helper Functions
+-- Delegates to KeystoneManager
 function RosterBoard:FindCardByPlayerID(playerID)
     return NextKey222.KeystoneManager:find_card_by_player_id(self, playerID)
 end
 
--- MARK: Bench Rebuild After Poll (NEW - Forces UI Refresh)
+-- MARK: Rebuild After Poll
+-- Forces UI Refresh
 function RosterBoard:RebuildBenchAfterPoll()
     return NextKey222.SafeRun(function()
         if not self.benchContainer then
@@ -2104,7 +2137,8 @@ function RosterBoard:RefreshAllCards(isSpecChange)
     end, "RosterBoard:RefreshAllCards")
 end
 
--- MARK: Refresh Bench Cards From State (SESSION 3: Poll Data Visual Update)
+-- MARK: Refresh From State
+-- SESSION 3: Poll Data Visual Update
 --- Lightweight refresh that makes bench cards fetch fresh data from OrganizerState
 -- This is called after poll completion to update visual appearance (role icon colors)
 -- without rebuilding the entire bench
@@ -2130,7 +2164,8 @@ function RosterBoard:RefreshBenchCardsFromState()
     end, "RosterBoard:RefreshBenchCardsFromState")
 end
 
--- MARK: Refresh Single Card By PlayerID (SESSION 3: Real-time Poll Updates)
+-- MARK: Refresh By PlayerID
+-- SESSION 3: Real-time Poll Updates
 --- Refreshes a specific player's card after poll response received
 -- Searches bench, slots, and opt-out for the player's card and refreshes it
 function RosterBoard:RefreshSingleCardByPlayerID(playerID)
@@ -2185,7 +2220,8 @@ function RosterBoard:RefreshSingleCardByPlayerID(playerID)
     end, "RosterBoard:RefreshSingleCardByPlayerID")
 end
 
--- MARK: Sync UI to State (SESSION 3: Handle Opt-Out/Alt Movement)
+-- MARK: Sync UI to State
+-- SESSION 3: Handle Opt-Out/Alt Movement
 --- Rebuilds bench and opt-out sections to match OrganizerState
 -- Called after poll responses that change player locations (opt-out, alt selection)
 function RosterBoard:SyncUIToState()
@@ -2270,7 +2306,8 @@ function RosterBoard:SyncUIToState()
     end, "RosterBoard:SyncUIToState")
 end
 
--- MARK: Event Handlers (Event-Driven Architecture)
+-- MARK: Event Handlers
+-- Event-Driven Architecture
 --- Handler for ORGANIZER_PLAYER_ADDED event
 -- @param payload table - Event payload {playerID, playerData, location, source, timestamp}
 function RosterBoard:OnPlayerAdded(payload)

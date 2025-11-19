@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Max Group IO Algorithm
+-- MARK: Max Group IO
 -- Maximizes total IO gain for the entire party
 
 local Sorting = NextKey222.Sorting

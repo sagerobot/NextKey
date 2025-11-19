@@ -1,4 +1,4 @@
--- MARK: Testing and Validation System
+-- MARK: Validation System
 -- Comprehensive testing and validation for Phase 7 implementation
 -- Validates all systems work correctly together
 
@@ -163,7 +163,7 @@ function Validation:GetTestSuiteSummary(suite)
     return summary
 end
 
--- MARK: Configuration Context Tests
+-- MARK: Config Context Tests
 -- Tests for the Configuration Context system
 
 function Validation:TestConfigurationContext()
@@ -239,7 +239,7 @@ function Validation:TestConfigurationContext()
     return self:RunTestSuite(suite)
 end
 
--- MARK: Tooltip System Tests
+-- MARK: Tooltip Tests
 -- Tests for the Tooltip system
 
 function Validation:TestTooltipSystem()
@@ -306,7 +306,7 @@ function Validation:TestTooltipSystem()
     return self:RunTestSuite(suite)
 end
 
--- MARK: Theme System Tests
+-- MARK: Theme Tests
 -- Tests for the Theme system
 
 function Validation:TestThemeSystem()
@@ -365,7 +365,7 @@ function Validation:TestThemeSystem()
     return self:RunTestSuite(suite)
 end
 
--- MARK: UI Scale Tests
+-- MARK: Scale Tests
 -- Tests for the UI Scale system
 
 function Validation:TestUIScaleSystem()
@@ -423,7 +423,7 @@ function Validation:TestUIScaleSystem()
     return self:RunTestSuite(suite)
 end
 
--- MARK: Responsive Layout Tests
+-- MARK: Responsive Tests
 -- Tests for the Responsive Layout system
 
 function Validation:TestResponsiveSystem()
@@ -634,7 +634,7 @@ function Validation:TestIntegration()
     return self:RunTestSuite(suite)
 end
 
--- MARK: Validation Runner
+-- MARK: Runner
 -- Functions to run all validations
 
 --- Runs all validation tests
@@ -738,7 +738,7 @@ function Validation:PrintValidationResults(results, summary)
     Debug:User("=== End Validation Results ===")
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
 function Validation:Initialize()
     Debug:Dev("validation", "Validation module initialized")
     return true

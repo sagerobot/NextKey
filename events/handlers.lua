@@ -7,7 +7,7 @@ local Events = {}
 NextKey222.Events = Events
 NextKey222.RegisterModule("Events", Events)
 
--- MARK: Event Registration
+-- MARK: Registration
 function Events:RegisterCoreEvents()
     NextKey:RegisterEvent("PLAYER_ENTERING_WORLD", function(event, isLogin, isReload)
         self:OnPlayerEnteringWorld(isLogin, isReload)
@@ -57,7 +57,7 @@ function Events:RegisterCoreEvents()
     NextKey222.Debug:Dev("events", "Core and organizer events registered")
 end
 
--- MARK: Core Event Handlers
+-- MARK: Core Handlers
 function Events:OnPlayerEnteringWorld(isLogin, isReload)
     NextKey222.Performance:StartProfile("OnPlayerEnteringWorld")
     
@@ -89,7 +89,7 @@ function Events:OnPlayerEnteringWorld(isLogin, isReload)
     NextKey222.Performance:StopProfile("OnPlayerEnteringWorld")
 end
 
--- MARK: Additional Character Capture Triggers
+-- MARK: Char Capture Schedule
 -- Add more triggers to ensure character data is captured
 function Events:ScheduleCharacterCapture()
     if not NextKey222.CharacterStorage then
@@ -103,7 +103,7 @@ function Events:ScheduleCharacterCapture()
     end, "Scheduled character data capture")
 end
 
--- MARK: Character Data Capture
+-- MARK: Char Data Capture
 --- Captures and saves current character data to CharacterStorage
 -- @param retryOnFailure boolean Whether to retry if dependencies aren't ready
 -- @return boolean True if capture was successful
@@ -309,8 +309,8 @@ function Events:CaptureCurrentCharacterData(retryOnFailure)
     end
 end
 
--- MARK: Performance-Optimized Group Roster Update
--- Prevents cascading updates that cause FPS drops
+-- MARK: Roster Update
+-- Performance-optimized to prevent cascading updates that cause FPS drops
 
 -- Performance throttling variables
 local lastRosterUpdate = 0
@@ -488,7 +488,7 @@ function Events:OnChatMsgAddon(prefix, message, distribution, sender)
     NextKey222.Performance:StopProfile("OnChatMsgAddon")
 end
 
--- MARK: PUG Helper Event Handlers
+-- MARK: PUG Helpers
 -- PUG Helper event handlers are now self-contained within the PUG Helper module.
 -- The core event handler is now only responsible for broadcasting generic messages.
 
@@ -577,7 +577,7 @@ function Events:Enable()
     return true
 end
 
--- MARK: PHASE 3 - Offline Player Optimization
+-- MARK: Offline Optimization
 --- Counts online group members to optimize performance for mixed groups
 -- @return number Number of online group members
 function Events:GetOnlineGroupMembers()

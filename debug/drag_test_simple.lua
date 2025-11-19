@@ -1,4 +1,4 @@
--- MARK: Simple Drag Test - Pure Native Frames
+-- MARK: Simple Drag Test
 local _, NextKey222 = ...
 
 local SimpleDragTest = {}
@@ -554,7 +554,7 @@ function SimpleDragTest:LayoutList(list)
     print("[LAYOUT] Bench layout complete")
 end
 
--- MARK: Rejection Animation System
+-- MARK: Rejection Animation
 function SimpleDragTest:AnimateRejection(card, targetList, reason)
     -- Flash red to indicate rejection
     card:SetBackdropColor(1.0, 0.2, 0.2, 1.0)  -- Red background

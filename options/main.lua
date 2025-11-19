@@ -49,7 +49,7 @@ local function get_active_season_dungeons()
     return values
 end
 
--- MARK: Developer Tools Helpers (Fake Players etc.)
+-- MARK: Dev Tools Helpers
 
 local function ensure_debug()
     if not addon.EnsureDebug then
@@ -187,7 +187,7 @@ local function create_developer_tools_group()
         end,
     }
     
-    -- MARK: Section 1 - Quick Teams
+    -- MARK: Section 1 - Teams
     dev_args.quickteams_header = {
         type = "header",
         name = "Quick Teams",
@@ -392,7 +392,7 @@ local function create_developer_tools_group()
         end,
     }
     
-    -- MARK: Section 2 - Algorithm Test Scenarios
+    -- MARK: Section 2 - Algo Tests
     dev_args.algorithmtests_header = {
         type = "header",
         name = "Algorithm Test Scenarios",
@@ -498,7 +498,7 @@ local function create_developer_tools_group()
         end,
     }
     
-    -- MARK: Section 3 - Custom Player Builder (FLATTENED)
+    -- MARK: Section 3 - Builder
     dev_args.custombuilder_header = {
         type = "header",
         name = "Custom Player Builder",
@@ -727,7 +727,7 @@ local function create_developer_tools_group()
         end,
     }
     
-    -- MARK: Per-Dungeon Tuning (Phase 2.1)
+    -- MARK: Per-Dungeon Tuning
     dev_args.perdungeontuning = {
         type = "group",
         name = "Per-Dungeon Tuning",
@@ -798,7 +798,7 @@ local function create_developer_tools_group()
         }
     end
     
-    -- MARK: Loot Targeting Section (Phase 2.2)
+    -- MARK: Loot Targeting
     dev_args.loottargeting = {
         type = "group",
         name = "Loot Targeting",
@@ -1127,7 +1127,7 @@ local function create_developer_tools_group()
         end,
     }
     
-    -- MARK: Section 4 - Keystone Scenarios
+    -- MARK: Section 4 - Keys
     dev_args.keystonescenarios = {
         type = "group",
         name = "Keystone Scenarios",
@@ -1175,7 +1175,7 @@ local function create_developer_tools_group()
         },
     }
     
-    -- MARK: Section 5 - Advanced Operations
+    -- MARK: Section 5 - Advanced
     dev_args.advancedops = {
         type = "group",
         name = "Advanced Operations",
@@ -1409,7 +1409,7 @@ local function create_developer_tools_group()
         },
     }
     
-    -- MARK: Section 6 - Debug & Validation
+    -- MARK: Section 6 - Debug
     dev_args.debugvalidation = {
         type = "group",
         name = "Debug & Validation",
@@ -1468,7 +1468,7 @@ if NextKey222.Addon then
     NextKey222.Addon.CreateDeveloperToolsGroup = create_developer_tools_group
 end
 
--- MARK: SetupOptions (Single Canonical Entry)
+-- MARK: SetupOptions
 
 function NextKey222.SetupOptions()
     local Debug = NextKey222.Debug

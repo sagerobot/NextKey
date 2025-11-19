@@ -40,7 +40,8 @@ function SurveyDialog:Show(pollData)
     end, "SurveyDialog:Show")
 end
 
--- MARK: Manual Entry Point (Right-Click on Cards)
+-- MARK: Manual Entry
+-- Right-Click on Cards
 function SurveyDialog:ShowManualEntry(pollData, playerData)
     return NextKey222.SafeRun(function()
         self.pollData = pollData
@@ -64,7 +65,8 @@ function SurveyDialog:ShowManualEntry(pollData, playerData)
     end, "SurveyDialog:ShowManualEntry")
 end
 
--- MARK: Phase 1 - Participation Question
+-- MARK: Participation UI
+-- First survey step
 function SurveyDialog:ShowPhase1()
     return NextKey222.SafeRun(function()
         -- Close existing dialog if open
@@ -135,7 +137,7 @@ function SurveyDialog:ShowPhase1()
     end, "SurveyDialog:ShowPhase1")
 end
 
--- MARK: Create Participation Card
+-- MARK: Participation Card
 function SurveyDialog:CreateParticipationCard(parent, cardType, yOffset)
     local cfg = UIConfig.POLL_WINDOW
     
@@ -251,7 +253,7 @@ function SurveyDialog:CreateParticipationCard(parent, cardType, yOffset)
     return card
 end
 
--- MARK: Phase 1 Click Handler
+-- MARK: Participation Click
 function SurveyDialog:OnPhase1CardClick(participation)
     return NextKey222.SafeRun(function()
         self.responseData.phase1 = { participation = participation, timestamp = GetTime() }
@@ -274,7 +276,8 @@ function SurveyDialog:OnPhase1CardClick(participation)
     end, "SurveyDialog:OnPhase1CardClick")
 end
 
--- MARK: Phase 2 - Alt Character Selection
+-- MARK: Character Select UI
+-- Alt selection step
 function SurveyDialog:ShowPhase2()
     return NextKey222.SafeRun(function()
         -- Close existing dialog
@@ -382,7 +385,7 @@ function SurveyDialog:ShowPhase2()
     end, "SurveyDialog:ShowPhase2")
 end
 
--- MARK: Create Character Card
+-- MARK: Character Card
 function SurveyDialog:CreateCharacterCard(parent, charEntry, yOffset, hasScrollbar)
     local cfg = UIConfig.POLL_WINDOW
     local charData = charEntry.data
@@ -532,7 +535,7 @@ function SurveyDialog:CreateCharacterCard(parent, charEntry, yOffset, hasScrollb
     return card
 end
 
--- MARK: Phase 2 Click Handler
+-- MARK: Character Click
 function SurveyDialog:OnPhase2CardClick(charEntry)
     return NextKey222.SafeRun(function()
         self.responseData.phase2 = {
@@ -553,7 +556,8 @@ function SurveyDialog:OnPhase2CardClick(charEntry)
     end, "SurveyDialog:OnPhase2CardClick")
 end
 
--- MARK: Phase 3 - Spec Selection
+-- MARK: Spec Select UI
+-- Final survey step
 function SurveyDialog:ShowPhase3(characterID)
     return NextKey222.SafeRun(function()
         -- Close existing dialog
@@ -962,7 +966,7 @@ function SurveyDialog:CreateSpecCard(parent, specInfo, yOffset, defaultState)
     return card
 end
 
--- MARK: Phase 3 Submit Handler
+-- MARK: Spec Submit
 function SurveyDialog:OnPhase3SubmitClicked(frame, characterID)
     return NextKey222.SafeRun(function()
         -- Collect spec preferences from card states
@@ -1096,7 +1100,8 @@ function SurveyDialog:SubmitFinalResponse(optedIn)
     end, "SurveyDialog:SubmitFinalResponse")
 end
 
--- MARK: Submit Manual Response (Right-Click Entry)
+-- MARK: Manual Response
+-- Right-Click Entry
 function SurveyDialog:SubmitManualResponse(optedIn)
     return NextKey222.SafeRun(function()
         local response = {

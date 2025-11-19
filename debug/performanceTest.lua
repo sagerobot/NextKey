@@ -1,4 +1,4 @@
--- MARK: Performance Test Suite
+-- MARK: Performance Tests
 -- Tests the performance optimizations implemented to fix FPS drops
 
 local _, NextKey222 = ...

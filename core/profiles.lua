@@ -1,5 +1,5 @@
--- MARK: Centralized Profiles Service
--- This module provides a unified interface for building player profiles from multiple data sources
+-- MARK: Service
+-- Centralized Profiles Service - unified interface for building player profiles
 -- All UI and calculation systems should use this service instead of building profiles locally
 
 local _, NextKey222 = ...
@@ -48,8 +48,8 @@ local DEFAULT_CLASS_ROLE = {
     EVOKER = "DAMAGER"
 }
 
--- MARK: PlayerProfile Contract
--- Standardized format for all player profile data
+-- MARK: Contract
+-- PlayerProfile Contract - standardized format for all player profile data
 --[[
 PlayerProfile = {
     name = "PlayerName-Realm",
@@ -73,7 +73,8 @@ PlayerProfile = {
 }
 --]]
 
--- MARK: Profiles Service
+-- MARK: Module Definition
+-- Profiles Service module definition and state
 local ProfilesService = {}
 NextKey222.ProfilesService = ProfilesService
 NextKey222.RegisterModule("ProfilesService", ProfilesService)
@@ -96,7 +97,8 @@ ProfilesService.perfStats = {
 
 -- Feature flag for rollout safety (checked dynamically)
 
--- MARK: Cache Management
+-- MARK: Cache
+-- Cache management with LRU eviction
 function ProfilesService:GetCacheKey(playerName, season)
     local currentSeason = season or (NextKey222.Addon and NextKey222.Addon.CurrentSeasonKey) or "TWW_S3"
     return string.format("%s:%s", playerName, currentSeason)
@@ -342,7 +344,8 @@ function ProfilesService:RefreshUIComponents(event, playerName)
     end
 end
 
--- MARK: Core Profile Building
+-- MARK: Profile Builder
+-- Core profile building from multiple data sources
 function ProfilesService:BuildProfileForPlayer(playerName)
     -- Check feature flag
     local enabled = true
@@ -478,7 +481,8 @@ function ProfilesService:BuildProfileForPlayer(playerName)
     return profile
 end
 
--- MARK: Profile Data Sources
+-- MARK: Data Sources
+-- Profile data source adapters
 function ProfilesService:GetDebugProfile(playerName)
     return NextKey222.DebugAdapter and NextKey222.DebugAdapter:GetProfile(playerName) or nil
 end
@@ -495,7 +499,8 @@ function ProfilesService:GetBlizzardProfile(playerName)
     return NextKey222.BlizzardAdapter and NextKey222.BlizzardAdapter:GetProfile(playerName) or nil
 end
 
--- MARK: Profile Data Merging
+-- MARK: Data Merging
+-- Intelligent profile data merging with precedence rules
 function ProfilesService:MergeProfileData(target, source)
     -- Merge profile data with intelligent precedence rules
     if not source then return end
@@ -591,7 +596,8 @@ function ProfilesService:MergeProfileData(target, source)
     end
 end
 
--- MARK: High-Level Interface Methods
+-- MARK: Public API
+-- High-level interface methods for profile retrieval
 function ProfilesService:GetPartyProfiles(mode, customMembers)
     mode = mode or "mythicplus"
     local profiles = {}
@@ -641,7 +647,8 @@ function ProfilesService:GetPartyMembers()
     return members
 end
 
--- MARK: Diagnostics and Debugging  
+-- MARK: Diagnostics
+-- Diagnostics and debugging utilities
 function ProfilesService:GetCacheStats()
     return {
         enabled = self.enabled,
@@ -722,8 +729,8 @@ function ProfilesService:Initialize()
     end
 end
 
--- MARK: Dungeon Preference Management
--- Functions for managing user dungeon preferences (liked/disliked dungeons)
+-- MARK: Preferences
+-- Dungeon preference management (liked/disliked dungeons)
 
 --- Gets the current preference for a specific dungeon
 -- @param dungeonID number The dungeon ID
@@ -786,7 +793,8 @@ function ProfilesService:ToggleDungeonPreference(dungeonID, isLike)
     end
 end
 
--- MARK: Export to NextKey222 namespace
+-- MARK: Export
+-- Export to NextKey222 namespace
 NextKey222.ProfilesService = ProfilesService
 
 -- Initialize when loaded

@@ -1,4 +1,4 @@
--- MARK: Loot Tracking Test Script
+-- MARK: Loot Tracking Test
 -- Test script to verify loot tracking persistence and run counting functionality
 
 local _, NextKey222 = ...

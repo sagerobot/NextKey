@@ -1,4 +1,4 @@
--- MARK: Communications Module (Pure Message Router - Phase 4 Refactor)
+-- MARK: Communications Module
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
 local AceSerializer = LibStub:GetLibrary("AceSerializer-3.0")
@@ -33,7 +33,7 @@ local Communications = {
 NextKey222.Communications = Communications
 NextKey222.RegisterModule("Communications", Communications)
 
--- MARK: Event Announcement Helper (Phase 4)
+-- MARK: Event Announcement
 --- Announces communication events via AceEvent system
 --- @param eventName string The event name from COMM_EVENTS
 --- @param payload table The event payload data
@@ -49,7 +49,7 @@ function Communications:AnnounceEvent(eventName, payload)
     end, "Communications:AnnounceEvent")
 end
 
--- MARK: Teleport Selection Broadcast (Leader → Party)
+-- MARK: Teleport Broadcast
 -- Broadcasts the currently selected teleport key from the leader so all clients
 -- can align their teleport window with the leader's choice.
 -- Single-source-of-truth: all flows MUST call NextKey:SetTeleportTargetKey(key, { broadcast = true })
@@ -302,7 +302,7 @@ function Communications:GetDungeonRunDetails(dungeonID)
     return bestLevel, chests, isInTime
 end
 
--- MARK: IO Data Access Methods
+-- MARK: IO Data Access
 --- Gets stored IO data for a specific player
 --- @param playerName string Full player name with realm
 --- @return table|nil The player's IO data package
@@ -392,7 +392,7 @@ function Communications:EnsureCurrentPlayerIOData()
     return success
 end
 
--- MARK: Dungeon Score Sharing (Legacy - maintained for compatibility)
+-- MARK: Dungeon Score Sharing
 function Communications:ShareDungeonScores()
     -- Delegate to new IO data sharing method
     return self:SharePlayerIOData()
@@ -427,7 +427,7 @@ function Communications:SendSync()
     return true
 end
 
--- MARK: Message Processing (Phase 4: Event-Driven Router)
+-- MARK: Message Processing
 function Communications:ProcessMessage(prefix, message, distribution, sender)
     if prefix ~= NextKey222.Constants.COMM_PREFIX then
         return
@@ -536,7 +536,7 @@ function Communications:ProcessMessage(prefix, message, distribution, sender)
     end
 end
 
--- MARK: Opcode to Event Name Mapping (Phase 4)
+-- MARK: Opcode to Event Map
 --- Maps communication opcodes to event names
 --- @param opcode string The communication opcode
 --- @return string|nil The event name or nil if no mapping exists
@@ -575,7 +575,7 @@ function Communications:ProcessPreferenceUpdate(payload, sender)
     end
 end
 
--- MARK: IO Data Message Handlers
+-- MARK: IO Data Handlers
 function Communications:ProcessPlayerIOUpdate(payload, sender)
     NextKey222.Debug:Dev("comms", "Received IO data from", sender)
     
@@ -633,7 +633,7 @@ function Communications:ProcessDungeonScores(payload, sender)
     end
 end
 
--- MARK: Score Access Functions
+-- MARK: Score Access
 function Communications:GetPartyMemberDungeonScore(playerName, dungeonID)
     if not self.partyDungeonScores or not self.partyDungeonScores[playerName] then
         return 0
@@ -671,7 +671,7 @@ function Communications:CountTable(tbl)
     return count
 end
 
--- MARK: NextKey222 Module Interface
+-- MARK: Module Interface
 function Communications:Initialize()
     NextKey222.Debug:Dev("startup", "Communications module initializing...")
     
@@ -727,7 +727,7 @@ function Communications:Initialize()
     return true
 end
 
--- MARK: Event Listener Registration (Phase 4)
+-- MARK: Event Listener Reg
 --- Registers event listeners for communication events
 --- This allows Communications to maintain backward compatibility during migration
 function Communications:RegisterEventListeners()
@@ -749,7 +749,7 @@ function Communications:RegisterEventListeners()
     return true
 end
 
--- MARK: Event Handlers (Phase 4)
+-- MARK: Event Handlers
 --- Handles PLAYER_IO_RECEIVED events
 --- Maintains backward compatibility by triggering UI refresh
 function Communications:OnPlayerIOReceived(payload)
@@ -770,7 +770,7 @@ function Communications:OnPlayerIOReceived(payload)
     end, "Communications:OnPlayerIOReceived")
 end
 
--- MARK: PHASE 3 - Communication Batching System
+-- MARK: Communication Batching
 function Communications:ShouldBatchOperation(operationType)
     -- PHASE 3: Batch expensive operations in large groups (considering online players only)
     local groupSize = GetNumGroupMembers() or 1
@@ -879,7 +879,7 @@ function Communications:_ExecuteSync()
     return true
 end
 
--- MARK: PHASE 3 - Expensive Operations Throttling
+-- MARK: Operations Throttling
 function Communications:ProcessExpensiveOperations()
     local now = GetTime()
     if now - self.lastExpensiveOp < self.expensiveOpInterval then
@@ -924,7 +924,7 @@ function Communications:CleanupOldCacheEntries()
     end
 end
 
--- MARK: PHASE 3 - Frame Pacing System
+-- MARK: Frame Pacing System
 function Communications:UpdateFramePacing()
     local now = GetTime()
     local frameDelta = now - self.lastFrameTime
@@ -1028,7 +1028,7 @@ function Communications:CanSendMessage(messageType)
     return true
 end
 
--- MARK: Guild Keystone Communication
+-- MARK: Guild Keystone Comm
 function Communications:ProcessKeystoneRequest(payload, sender)
     NextKey222.Debug:Dev("comms", "Received keystone request from", sender)
     
@@ -1130,7 +1130,7 @@ function Communications:RequestGuildKeystones()
     return true
 end
 
--- MARK: Visual Testing Functions
+-- MARK: Visual Testing
 
 ---Visual test for communication system
 ---Follows "In-Game First" testing protocol
@@ -1377,7 +1377,7 @@ function Communications:ProcessOrganizerData(payload, sender)
     end
 end
 
--- MARK: Phase 2 - Participant Survey System Handlers
+-- MARK: Survey System Handlers
 --- Processes organizer poll request messages
 -- @param payload table The message payload
 -- @param sender string The message sender
@@ -1426,7 +1426,7 @@ function Communications:RegisterOrganizerHandlers()
     return true
 end
 
--- MARK: Addon Discovery Handlers
+-- MARK: Addon Discovery
 function Communications:ProcessAddonPing(payload, sender)
     -- Forward to ParticipantSurvey module
     if NextKey222.ParticipantSurvey then

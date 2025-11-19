@@ -1,4 +1,4 @@
--- MARK: Test Card Movement Refactoring (Task 2.2)
+-- MARK: Card Movement Test
 local _, NextKey222 = ...
 
 -- Test the simplified card movement system

@@ -140,7 +140,7 @@ function PUGHelper:ResetState()
     Debug:Dev("pughelper", "PUG Helper state reset to IDLE (including primary invite)")
 end
 
--- MARK: Primary Invite Lock Helpers
+-- MARK: Invite Lock
 
 function PUGHelper:SetPrimaryInvite(app_data)
     if not app_data or not app_data.id then

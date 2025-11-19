@@ -423,7 +423,7 @@ function UI:Initialize()
     end, "UI:Initialize")
 end
 
--- MARK: Keystone Event Listeners
+-- MARK: Keystone Events
 
 --- Registers event listeners for keystone state changes
 function UI:RegisterKeystoneEventListeners()
@@ -456,7 +456,7 @@ function UI:RegisterKeystoneEventListeners()
     end, "UI:RegisterKeystoneEventListeners")
 end
 
--- MARK: Profile Event Listeners
+-- MARK: Profile Events
 
 -- RegisterProfileEventListeners is DEPRECATED/REMOVED
 -- Event registration is now handled directly in Initialize() via embedded AceEvent-3.0
@@ -745,12 +745,12 @@ function UI:PlayerProvidesBattleRes(profile, classToken, specID)
 end
 
 
--- MARK: Main Frame Creation (delegated to MainWindow/UIControls)
+-- MARK: Frame Creation
 -- ui/main.lua no longer owns frame construction; see:
 -- - NextKey222.MainWindow:CreateMainFrame(ui)
 -- - NextKey222.UIControls:AttachHeaderControls(ui, frame)
 
--- MARK: Frame Visibility Management
+-- MARK: Frame Visibility
 --
 -- Functions responsible for showing, hiding, and managing the visibility
 -- state of the main UI frame and related components.
@@ -908,7 +908,7 @@ function UI:BuildIOTooltipTotals(keyInfo, ioRange)
     return nil
 end
 
--- MARK: Individual Player Analysis
+-- MARK: Player Analysis
 --
 -- Functions for analyzing and displaying individual player IO improvement potential
 
@@ -1074,7 +1074,7 @@ function UI:UpdateSortDropdownOptions()
     end
 end
 
--- MARK: Main Rendering Functions
+-- MARK: Rendering
 --
 -- Core functions responsible for rendering the primary UI content,
 -- including keystone lists, player cards, and dungeon information.
@@ -1084,7 +1084,7 @@ end
 -- NextKey222.UIRendering with a SafeRun-wrapped fallback path.
 -- No additional RenderResults implementation is defined here.
 
--- MARK: Keystone Card Rendering
+-- MARK: Keystone Cards
 --
 -- Functions responsible for creating and displaying individual keystone cards
 -- with player information, scores, and interactive elements.
@@ -1111,11 +1111,11 @@ function UI:AddKeyRowCompact(entry)
     Debug:Error("KeystoneCards module not available")
 end
 
--- MARK: Cleanup & Utility Functions
+-- MARK: Cleanup & Utility
 --
 -- Helper functions for frame management, cleanup, and auxiliary operations.
 
--- MARK: Cleanup & Utility Functions
+-- MARK: Cleanup & Utility
 
 function UI:ClearAuxFrames()
     -- NOTE: Do NOT call FrameRegistry:ClearAll() here - it's shared with the dungeon window
@@ -1136,7 +1136,7 @@ end
 -- NOTE: RefreshKeystoneList facade is defined near the top of this file.
 -- The duplicate legacy implementation has been removed to avoid divergence.
 
--- MARK: View Mode Management
+-- MARK: View Management
 --
 -- Functions for switching between different display modes (players vs dungeons)
 -- and managing the related UI state and button text updates.
@@ -1207,7 +1207,7 @@ function UI:ToggleGuildFilter()
     end
 end
 
--- MARK: Dungeon Card Rendering
+-- MARK: Dungeon Cards
 --
 -- Functions for rendering dungeon information cards including scores,
 -- levels, and seasonal data for each available dungeon.
@@ -1237,7 +1237,7 @@ function UI:AddDungeonRow(dungeonID, dungeonData)
     end
 end
 
--- MARK: Score & Data Functions Moved
+-- MARK: Score Functions
 -- Score functions moved to core/scoring.lua
 -- ID conversion functions moved to core/utils.lua
 
@@ -1352,7 +1352,7 @@ function UI:GetDungeonIOScore(dungeonID)
     return 0
 end
 
--- MARK: IO Calculation Functions Moved
+-- MARK: IO Calculations
 -- IO calculation logic moved to core/ioCalculator.lua
 -- Dungeon preference functions moved to core/profiles.lua
 
@@ -1482,7 +1482,7 @@ end
 -- implementation near the top of this file and delegated modules.
 -- This legacy inline implementation has been removed to avoid divergence.
 
--- MARK: PHASE 3 - Frame Pacing System
+-- MARK: Frame Pacing
 -- Thin wrappers delegating frame pacing behavior to NextKey222.UIPerformance.
 -- Keeps ui/main.lua free of pacing internals.
 
@@ -1551,7 +1551,7 @@ function UI:IsPartySensitiveSortMode()
     return currentMode == "IOGainPotential"
 end
 
--- MARK: Configuration & Settings Management
+-- MARK: Configuration
 --
 -- Functions for managing UI configuration settings including sort modes,
 -- preferences, and initialization state.
@@ -1570,11 +1570,11 @@ function UI:SetCurrentSortMode(mode)
     end
 end
 
--- MARK: Fake Keystone Teleport System
+-- MARK: Teleport System
 --
 -- Uses the existing working keystone selection logic for dungeon teleports
 
--- MARK: Module Initialization
+-- MARK: Initialization
 --
 -- Initialization function called during addon startup to prepare the UI module.
 
@@ -1646,7 +1646,7 @@ end
 -- UI-related debug/test slash commands have been moved into NextKey222.UIDebugHelpers
 -- via UIDebugHelpers:RegisterSlashCommands(). No SLASH_* handlers are declared here.
 
--- MARK: Loot Window Integration
+-- MARK: Loot Integration
 -- Handle loot button clicks from dungeon cards
 
 function NextKey:HandleLootClick(dungeonID, dungeonData)

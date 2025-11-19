@@ -68,7 +68,8 @@ local function ClearCardRegions(card)
     Debug:Trace("organizer_ui", "Cleared all regions from card with proper cleanup:", card.playerData and card.playerData.name or "Unknown")
 end
 
--- MARK: Region Creation Helpers (with tracking)
+-- MARK: Region Helpers
+-- Region creation with tracking
 local function CreateTrackedTexture(card, ...)
     local texture = card:CreateTexture(...)
     table.insert(card.regions.textures, texture)
@@ -83,7 +84,7 @@ local function CreateTrackedFontString(card, ...)
     return fontString
 end
 
--- MARK: Shared Tooltip Handler
+-- MARK: Tooltip Handler
 local function ShowRoleTooltip(roleButton, roleInfo, playerData)
     GameTooltip:SetOwner(roleButton, "ANCHOR_RIGHT")
     
@@ -118,7 +119,7 @@ local function ShowRoleTooltip(roleButton, roleInfo, playerData)
     GameTooltip:Show()
 end
 
--- MARK: Shared Rendering Helpers
+-- MARK: Render Helpers
 
 -- Helper: Render multi-role icons with preference colors
 -- NOTE: For compact cards, pass yOffset=nil or 0 to use CENTER anchoring
@@ -342,7 +343,8 @@ local function RenderIOScore(card, playerData, xOffset, yOffset, isCompact)
 end
 
 
--- MARK: Native Card Creation (STATE-DRIVEN - Session 3 Refactor)
+-- MARK: Card Creation
+-- STATE-DRIVEN - Session 3 Refactor
 function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayMode)
     return NextKey222.SafeRun(function()
         if not playerData then
@@ -417,7 +419,8 @@ function PlayerCard:CreateNativeCard(playerData, parentFrame, location, displayM
     end, "PlayerCard:CreateNativeCard")
 end
 
--- MARK: Dynamic Content Update (STATE-DRIVEN - Session 3 Refactor)
+-- MARK: Content Update
+-- STATE-DRIVEN - Session 3 Refactor
 function PlayerCard:UpdateCardContent(card, newDisplayMode)
     -- CRITICAL: Fetch fresh data from OrganizerState on every render
     if card.playerID and NextKey222.OrganizerState then
@@ -477,7 +480,8 @@ function PlayerCard:UpdateCardContent(card, newDisplayMode)
     end
 end
 
--- MARK: Compact Card Content (Native Frame Version - Region Tracked)
+-- MARK: Compact Content
+-- Native Frame Version - Region Tracked
 function PlayerCard:CreateCompactContent(card, playerData)
     -- Check if awaiting poll response (has addon, poll active, no response yet)
     local isAwaitingPollResponse = false
@@ -553,7 +557,8 @@ function PlayerCard:CreateCompactContent(card, playerData)
     RenderIOScore(card, playerData, xOffset, 0, true)
 end
 
--- MARK: Opt-Out Card Content (Two-Line Layout - No IO)
+-- MARK: Opt-Out Content
+-- Two-Line Layout - No IO
 function PlayerCard:CreateOptOutContent(card, playerData)
     -- Get configuration
     local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
@@ -605,7 +610,8 @@ function PlayerCard:CreateOptOutContent(card, playerData)
     end
 end
 
--- MARK: Expanded Card Content (Native Frame Version)
+-- MARK: Expanded Content
+-- Native Frame Version
 function PlayerCard:CreateExpandedContent(card, playerData)
     local yOffset = 5
     local xOffset = 5
@@ -708,7 +714,7 @@ function PlayerCard:CreateExpandedContent(card, playerData)
     end
 end
 
--- MARK: Keystone Designation Button
+-- MARK: Keystone Button
 function PlayerCard:CreateKeystoneButton(card, playerData)
     -- Only create if card is in a group slot
     if not card.location or
@@ -797,7 +803,8 @@ function PlayerCard:CreateKeystoneButton(card, playerData)
     return keystoneButton
 end
 
--- MARK: Native Drag Handlers (Based on drag_test_simple.lua)
+-- MARK: Drag Handlers
+-- Based on drag_test_simple.lua
 function PlayerCard:EnableNativeDragging(card)
     card:SetScript("OnDragStart", function(self)
         -- CRITICAL: Store ALL original frame properties
@@ -843,7 +850,7 @@ function PlayerCard:EnableNativeDragging(card)
     Debug:Dev("organizer_ui", "Enabled native dragging for:", card.playerData.name)
 end
 
--- MARK: Right-Click Preference Setting
+-- MARK: Right-Click Prefs
 function PlayerCard:EnableRightClickPreferences(card)
     -- Only enable for organizers
     if not self:IsOrganizerView() then
@@ -901,7 +908,7 @@ function PlayerCard:EnableRightClickPreferences(card)
     Debug:Dev("organizer_ui", "Enabled right-click preferences for:", card.playerData.name)
 end
 
--- MARK: Manual Preference Dialog
+-- MARK: Preference Dialog
 function PlayerCard:ShowManualPreferenceDialog(playerData)
     return NextKey222.SafeRun(function()
         if not playerData then

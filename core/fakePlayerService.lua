@@ -569,7 +569,7 @@ local function determineCapabilities(classToken, specID)
     }
 end
 
--- MARK: Public API - Player Management
+-- MARK: Players API
 
 --- Initializes the fake player service
 -- @return boolean Success status
@@ -935,7 +935,7 @@ function FakePlayerService:IsFakePlayer(playerName)
     return fakePlayerStorage[playerName] ~= nil
 end
 
--- MARK: Public API - Profile Generation
+-- MARK: Profiles API
 
 --- Gets a standard PlayerProfile for a fake player
 -- @param playerName string The player name
@@ -1003,7 +1003,7 @@ function FakePlayerService:GetKeystone(playerName)
     return playerData.keystone
 end
 
--- MARK: Public API - Preset Generation
+-- MARK: Presets API
 
 --- Generates a preset team of fake players
 -- @param presetType string Type of preset (mixed_skill, beginner, expert, high_keys)
@@ -1228,7 +1228,7 @@ function FakePlayerService:GetRandomClassForRole(role)
     end
 end
 
--- MARK: Public API - Keystone-Focused Generation
+-- MARK: Keystone API
 
 --- Generates players with diverse keystones at the same level
 -- @param level number The keystone level for all players
@@ -1404,7 +1404,7 @@ function FakePlayerService:GenerateDuplicateKeys(dungeonID, level, count)
     end, "FakePlayerService:GenerateDuplicateKeys") or 0
 end
 
--- MARK: Public API - Role Composition Generation
+-- MARK: Role Composition API
 
 --- Generates players with specific role composition
 -- @param tanks number Number of tanks (0-4)
@@ -1792,7 +1792,7 @@ function FakePlayerService:GenerateOrganizerTeam()
     end, "FakePlayerService:GenerateOrganizerTeam") or 0
 end
 
--- MARK: Algorithm Testing Scenarios (Phase 2.3)
+-- MARK: Algorithm Testing Scenarios
 
 --- Algorithm scenario templates that create edge cases to differentiate sorting algorithms
 -- Each scenario is a structured definition with metadata and generator function
@@ -2136,7 +2136,7 @@ function FakePlayerService:ShowAlgorithmComparison()
     end, "FakePlayerService:ShowAlgorithmComparison")
 end
 
--- MARK: Legacy Algorithm Testing Team Generators (Deprecated - Use RunScenario instead)
+-- MARK: Legacy Algorithm Testing
 
 --- Generate team that exposes Max Player Coverage vs Max Group IO difference
 -- DEPRECATED: Use RunScenario("io_gap") instead
@@ -2417,7 +2417,7 @@ function FakePlayerService:GenerateAlgorithmTestTeam()
     end, "FakePlayerService:GenerateAlgorithmTestTeam") or 0
 end
 
--- MARK: Public API - Data Modification
+-- MARK: Data Modification API
 
 --- Sets a fake player's best run for a dungeon
 -- @param playerName string The player name
@@ -2514,7 +2514,7 @@ function FakePlayerService:SetAddonStatus(playerName, addonStatus)
     end, "FakePlayerService:SetAddonStatus")
 end
 
--- MARK: Public API - Status and Diagnostics
+-- MARK: Status API
 
 --- Gets service status and statistics
 -- @return table Status information
@@ -2582,7 +2582,7 @@ function FakePlayerService:ListAllSpecs()
     return specs
 end
 
--- MARK: Loot Targeting (Phase 2.2)
+-- MARK: Loot Targeting
 
 --- Assign random loot targets to a player
 -- @param playerData table The player data structure
@@ -2665,12 +2665,12 @@ function FakePlayerService:assignRandomLootTargets(playerData, config)
     ))
 end
 
--- MARK: Module Initialization Check
+-- MARK: Module Init Check
 function FakePlayerService:IsInitialized()
     return isInitialized
 end
 
--- MARK: Poll Protocol (Unified System - Lazy Initialization)
+-- MARK: Poll Protocol
 
 --- Enable automatic PONG responses for poll protocol
 -- Makes fake players respond to ADDON_PING messages automatically

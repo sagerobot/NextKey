@@ -347,7 +347,7 @@ function PollSimulator:SimulatePoll(patternType, pollID)
     end, "PollSimulator:SimulatePoll")
 end
 
--- MARK: Poll Protocol (Unified System - Lazy Initialization)
+-- MARK: Poll Protocol
 
 --- Enable automatic poll response simulation
 -- Makes fake players respond to POLL_REQUEST messages automatically
@@ -477,7 +477,7 @@ function PollSimulator:GetPatterns()
     return patterns
 end
 
--- MARK: Module Initialization Check
+-- MARK: Init Check
 function PollSimulator:IsInitialized()
     return isInitialized
 end

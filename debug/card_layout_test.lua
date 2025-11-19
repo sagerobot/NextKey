@@ -1,10 +1,10 @@
--- MARK: Card Layout Test Suite
+-- MARK: Card Layout Tests
 -- Tests the dynamic card layout system with progressive data disclosure
 
 local _, NextKey222 = ...
 local Debug = NextKey222.Debug
 
--- MARK: Test Card Content Updates
+-- MARK: Card Content Tests
 local function TestCardContentUpdates()
     print("=== Testing Card Content Updates ===")
     
@@ -116,7 +116,7 @@ local function TestRegionCleanup()
     return true
 end
 
--- MARK: Test Progressive Disclosure
+-- MARK: Progressive Disclosure
 local function TestProgressiveDisclosure()
     print("\n=== Testing Progressive Data Disclosure ===")
     

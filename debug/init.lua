@@ -1,7 +1,7 @@
--- MARK: Debug Initialization & Setup
+-- MARK: Debug Init & Setup
 local _, NextKey222 = ...
 
--- MARK: Migration Wrappers for FakePlayerService
+-- MARK: FakePlayer Wrappers
 -- These functions maintain backward compatibility while delegating to the new service
 
 --- Wrapper: AddRandomFakePlayers - delegates to FakePlayerService
@@ -245,7 +245,8 @@ function NextKey222.Addon:ClearFakePlayerBests(playerIndex)
     self:NotifyOptionsChanged()
 end
 
--- MARK: Deprecated - All legacy fake player functions removed (286 lines deleted)
+-- MARK: Deprecated Functions
+-- All legacy fake player functions removed (286 lines deleted)
 -- Use FakePlayerService directly for all fake player operations
 -- See Documentation/FAKE_PLAYER_QUICK_REFERENCE.md for API
 -- 

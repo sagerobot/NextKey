@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Module Definition
+-- MARK: Module
 
 local Sorting = {
     -- Algorithm registry
@@ -17,7 +17,7 @@ local Sorting = {
 NextKey222.Sorting = Sorting
 NextKey222.RegisterModule("Sorting", Sorting)
 
--- MARK: Public Interface
+-- MARK: Public
 
 --- Registers a sorting algorithm with metadata
 -- @param name string Unique algorithm identifier (e.g., "HighestKeyLevel")
@@ -191,7 +191,7 @@ function Sorting:GetAllAlgorithms()
     return results
 end
 
--- MARK: Initialization
+-- MARK: Init
 
 function Sorting:Initialize()
     if NextKey222.Debug then

@@ -4,7 +4,7 @@
 -- Replaces preboot.lua + boot.lua + startup.lua for simplified architecture
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
--- MARK: Early Module Registry Setup
+-- MARK: Module Registry
 -- Initialize basic module registry immediately (from preboot.lua)
 local addonName, NextKey222 = ...
 NextKey222 = NextKey222 or {}
@@ -26,7 +26,7 @@ function NextKey222.GetModule(name)
     return NextKey222.moduleRegistry and NextKey222.moduleRegistry[name]
 end
 
--- MARK: Global Addon Initialization
+-- MARK: Addon Initialization
 -- Global addon declaration with proper namespace management
 _G.NextKey = LibStub("AceAddon-3.0"):NewAddon("NextKey", "AceConsole-3.0", "AceComm-3.0", "AceEvent-3.0")
 
@@ -36,7 +36,7 @@ local AceDB = LibStub("AceDB-3.0")
 -- Store reference to addon in namespace (available immediately)
 NextKey222.Addon = NextKey
 
--- MARK: Attach Configuration Functions
+-- MARK: Config Functions
 -- Attach config functions that were loaded before the addon was created
 if NextKey222.ConfigFunctions then
     for funcName, func in pairs(NextKey222.ConfigFunctions) do
@@ -176,7 +176,7 @@ NextKey222.Performance = {
 -- NextKey222.Debug should already be available
 -- Access via NextKey222.Debug or global Debug variable
 
--- MARK: Configuration Defaults  
+-- MARK: Config Defaults
 -- Defaults loaded from core/config.lua (loaded before this file in .toc)
 -- NextKey222.Defaults should be available from core/config.lua
 
@@ -256,7 +256,7 @@ NextKey.eventFrame:SetFrameLevel(1)
 
 -- Utility functions live in core/utils.lua; avoid duplicating here
 
--- MARK: Initialization Phase Handlers
+-- MARK: Phase Handlers
 -- Register database initialization for Init phase
 NextKey222.StartUp:RegisterPhaseHandler("Init", function()
     NextKey222.Debug:Dev("startup", "=== Init Phase ===")
@@ -523,7 +523,7 @@ NextKey222.StartUp:RegisterPhaseHandler("Finalize", function()
     NextKey222.Debug:Dev("startup", "Finalize phase completed")
 end)
 
--- MARK: Slash Command Registration
+-- MARK: Slash Commands
 -- Slash commands have been moved to core\slashCommands.lua for better organization
 -- This keeps boot.lua focused on initialization while making commands easy to modify
 -- See core\slashCommands.lua for all command definitions and handlers
@@ -533,7 +533,7 @@ SLASH_NEXTKEY1 = "/nextkey"
 SLASH_NEXTKEY2 = "/nk"
 -- SlashCmdList["NEXTKEY"] registered by core\slashCommands.lua
 
--- MARK: Enhanced Module Registration
+-- MARK: Module Registration
 -- Mark boot as ready and enhance RegisterModule
 NextKey222.BootReady = true
 

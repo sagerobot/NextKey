@@ -47,7 +47,7 @@ local function _reset_render_cache(self_ref)
     self_ref.cached_items_count = 0
 end
 
--- MARK: Keystone Sorting & Metadata
+-- MARK: Sorting & Metadata
 
 -- Sorts incoming keystone data into a list of entries suitable for rendering.
 -- Uses the pluggable sorting system to apply the selected algorithm.
@@ -109,7 +109,7 @@ function UIRendering:enrich_entry_metadata(ui, entry)
     end
 end
 
--- MARK: Keystone Render Orchestration
+-- MARK: Render Orchestration
 
 -- Orchestrates keystone rendering into ui.resultsFrame.
 -- Keeps all existing behavior but centralizes logic for clarity.

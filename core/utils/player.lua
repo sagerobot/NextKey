@@ -5,7 +5,7 @@ local PlayerUtils = {}
 NextKey222.PlayerUtils = PlayerUtils
 NextKey222.RegisterModule("PlayerUtils", PlayerUtils)
 
--- MARK: Player/Unit Utilities
+-- MARK: Player Utils
 
 --- Safely gets class token for a unit
 -- @param unit string Unit identifier (e.g., "player", "party1")

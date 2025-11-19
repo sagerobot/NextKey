@@ -451,7 +451,7 @@ function SlotManager:layout_opt_out(rosterBoard)
         return
     end
     
-    -- MARK: Opt-Out Button Management
+    -- MARK: Opt-Out Buttons
     --- Update the enabled/disabled state of the Return All button
     -- @param rosterBoard RosterBoard instance
     function SlotManager:update_return_button_state(rosterBoard)
@@ -576,7 +576,8 @@ function SlotManager:layout_opt_out(rosterBoard)
     Debug:Dev("organizer_ui", "Opt-out layout complete, total width:", xOffset)
 end
 
--- MARK: Group Control Buttons (Add/Remove)
+-- MARK: Group Controls
+-- Add/Remove group buttons
 --- Add control buttons to group title bar (only on last group)
 -- @param groupFrame Parent group frame
 -- @param groupIndex Current group index

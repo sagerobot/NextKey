@@ -1,4 +1,4 @@
--- MARK: RaiderIO Profile Adapter
+-- MARK: RaiderIO Adapter
 -- Adapter for converting RaiderIO player data into standard PlayerProfile format
 
 local _, NextKey222 = ...
@@ -54,7 +54,7 @@ function RaiderIOAdapter:GetProfile(playerName)
     return profile
 end
 
--- MARK: Dungeon Score Conversion
+-- MARK: Dungeon Score Conv.
 function RaiderIOAdapter:ConvertDungeonScores(profile, mkProfile)
     -- CRITICAL: RaiderIO does NOT provide per-dungeon scores directly
     -- We must calculate them from level, chests, and fractionalTime data

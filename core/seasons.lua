@@ -4,7 +4,7 @@ local Utils = NextKey222.Utils
 
 local Seasons = {}
 
--- MARK: Season Data Management
+-- MARK: Data Management
 function NextKey:GetCurrentSeasonKey()
     if self.CurrentSeasonKey then
         return self.CurrentSeasonKey
@@ -147,7 +147,8 @@ function NextKey:GetSeasonBestLevels(seasonKey)
     return seasonData.bestLevels
 end
 
--- MARK: Deprecated - Removed duplicate EstimateRunScore function
+-- MARK: Deprecated 
+-- Removed duplicate EstimateRunScore function
 -- Use NextKey222.IOCalculator:EstimateRunScore() or NextKey:EstimateRunScore() instead
 -- The duplicate implementation has been consolidated to avoid drift
 

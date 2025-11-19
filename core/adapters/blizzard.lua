@@ -1,4 +1,4 @@
--- MARK: Blizzard API Profile Adapter
+-- MARK: Blizzard API Adapter
 -- Adapter for converting Blizzard Challenge Mode APIs into standard PlayerProfile format
 
 local _, NextKey222 = ...
@@ -8,7 +8,7 @@ local BlizzardAdapter = {}
 -- Get LibGroupInSpecT if available
 local LibGroupInSpecT = LibStub and LibStub:GetLibrary("LibGroupInSpecT-1.1", true)
 
--- MARK: Blizzard API Integration
+-- MARK: API Integration
 function BlizzardAdapter:IsAvailable()
     return C_ChallengeMode and 
            C_ChallengeMode.GetMapUIInfo and 
@@ -124,7 +124,7 @@ function BlizzardAdapter:GetProfile(playerName)
     return profile
 end
 
--- MARK: Mythic Plus Data Loading
+-- MARK: Mythic+ Data Loading
 function BlizzardAdapter:LoadMythicPlusData(profile)
     local currentSeason = C_MythicPlus.GetCurrentSeason()
     if not currentSeason then
@@ -173,7 +173,7 @@ function BlizzardAdapter:LoadMythicPlusData(profile)
     profile.io = totalIO
 end
 
--- MARK: Challenge Mode Data Access
+-- MARK: Challenge Mode Access
 function BlizzardAdapter:GetBestRunForMap(challengeMapID)
     -- Try different methods to get best run data
     

@@ -1,12 +1,12 @@
 -- NextKey constants and configuration
 local _, NextKey222 = ...
 
--- MARK: Constants Module Definition
+-- MARK: Constants Module
 -- Following NextKey222 standards for centralized constants
 -- Phase 1 Refactor: Enhanced domain namespacing for better organization
 
 local Constants = {
-    -- MARK: Communication Constants
+    -- MARK: Communication
     -- Single source of truth for all communication settings
     COMM_PREFIX = "NKEY1", -- NextKey communication prefix (versioned)
     
@@ -31,7 +31,8 @@ local Constants = {
         DUNGEON_SCORES = "DUNGEON_SCORES"
     },
     
-    -- Phase 4 Refactor: Communication events for event-driven architecture
+    -- MARK: Communication Events
+    -- Phase 4 Refactor: Event-driven architecture
     -- These events are announced by Communications and consumed by domain modules
     COMM_EVENTS = {
         -- Player IO Events
@@ -61,7 +62,8 @@ local Constants = {
         SYNC = "COMM_SYNC"
     },
     
-    -- Phase 4.2: Keystone state change events for event-driven architecture
+    -- MARK: Keystone Events
+    -- Phase 4.2: Event-driven architecture
     -- These events are announced by Keystones module when keystone state changes
     KEYSTONE_EVENTS = {
         -- Player Keystone Events
@@ -103,7 +105,7 @@ local Constants = {
         MAX_WORK_ITEMS_PER_FRAME = 5, -- Maximum operations per frame tick
     },
     
-    -- MARK: Performance Constants
+    -- MARK: Performance
     -- Performance limits and optimization thresholds
     PERFORMANCE = {
         -- Memory management
@@ -123,7 +125,7 @@ local Constants = {
         LFG_UPDATE_THROTTLE = 0.5,     -- LFG list update throttle (seconds)
     },
     
-    -- MARK: Keystone Constants
+    -- MARK: Keystone
     -- Mythic+ keystone and dungeon configuration
     KEYSTONES = {
         -- Level ranges
@@ -134,7 +136,8 @@ local Constants = {
         HERO_TRACK_MIN_LEVEL = 7,   -- Minimum level for Hero track rewards
         MYTH_TRACK_MIN_LEVEL = 10,  -- Minimum level for Myth track rewards
         
-        -- MARK: Item Bonus IDs (The War Within Season 3)
+        -- MARK: Item Bonus IDs
+        -- The War Within Season 3
         -- Based on real in-game item data analysis
         -- Using common bonus IDs that mark items as Hero track without forcing specific ilvls
         ITEM_BONUS_IDS = {
@@ -150,7 +153,7 @@ local Constants = {
         },
     },
     
-    -- MARK: Organizer Constants
+    -- MARK: Organizer
     -- M+ Group Organizer configuration
     ORGANIZER = {
         -- Group composition

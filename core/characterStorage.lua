@@ -511,7 +511,7 @@ function CharacterStorage:UpdateCurrentCharacterItemLevel()
     end, "CharacterStorage:UpdateCurrentCharacterItemLevel")
 end
 
--- MARK: Module Database Reference
+-- MARK: Database Reference
 -- This will be set during initialization
 CharacterStorage.db = nil
 

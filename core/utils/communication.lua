@@ -5,7 +5,7 @@ local CommunicationUtils = {}
 NextKey222.CommunicationUtils = CommunicationUtils
 NextKey222.RegisterModule("CommunicationUtils", CommunicationUtils)
 
--- MARK: Communication Utilities
+-- MARK: Comm Utils
 
 --- Encodes array of values into pipe-delimited string
 -- @param parts table Array of values to encode

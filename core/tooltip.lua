@@ -1,4 +1,4 @@
--- MARK: Tooltip Configuration System
+-- MARK: Tooltip Config
 -- Centralized tooltip management with consistent styling and positioning
 -- Phase 7: Enhanced tooltip configuration system
 
@@ -16,7 +16,7 @@ local Debug = NextKey222.Debug
 -- Register with module system
 NextKey222.RegisterModule("Tooltip", Tooltip)
 
--- MARK: Tooltip Type Constants
+-- MARK: Tooltip Types
 -- Standardized tooltip types for consistent configuration
 
 Tooltip.TYPE_PLAYER = "player"
@@ -26,7 +26,7 @@ Tooltip.TYPE_IO_GAIN = "io_gain"
 Tooltip.TYPE_ITEM = "item"
 Tooltip.TYPE_GENERIC = "generic"
 
--- MARK: Tooltip Configuration Templates
+-- MARK: Tooltip Templates
 -- Standardized configurations for different tooltip types
 
 Tooltip.configs = {
@@ -138,7 +138,7 @@ Tooltip.configs = {
     }
 }
 
--- MARK: Tooltip Content Builders
+-- MARK: Content Builders
 -- Functions to build content for different tooltip types
 
 Tooltip.contentBuilders = {
@@ -488,7 +488,7 @@ Tooltip.contentBuilders = {
     end
 }
 
--- MARK: Tooltip Positioning System
+-- MARK: Positioning System
 -- Smart positioning to avoid screen edges
 
 Tooltip.positioning = {
@@ -553,7 +553,7 @@ Tooltip.positioning = {
     end
 }
 
--- MARK: Tooltip Creation and Management
+-- MARK: Create & Manage
 -- Main functions for creating and managing tooltips
 
 --- Creates a tooltip with the specified type and data
@@ -715,7 +715,7 @@ function Tooltip:Detach(frame)
     end
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
 function Tooltip:Initialize()
     Debug:Dev("tooltip", "Tooltip module initialized")
     return true

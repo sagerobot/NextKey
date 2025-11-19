@@ -9,12 +9,12 @@ end
 
 PUGHelper.trackedApplications = {}
 
--- MARK: Search Result Cache
+-- MARK: Search Cache
 -- Maps searchResultID -> dungeon info (from LFG_LIST_SEARCH_RESULTS_UPDATED)
 -- This cache is rebuilt every time search results update
 local SearchResultCache = {}
 
--- MARK: Search Result Caching
+-- MARK: Cache Function
 -- Called when LFG_LIST_SEARCH_RESULTS_UPDATED fires
 -- Caches dungeon names for all visible search results
 function PUGHelper:CacheSearchResults()
@@ -71,7 +71,7 @@ function PUGHelper:GetApplicationsAsArray()
     return applications
 end
 
--- MARK: Performance-Optimized LFG Application Processing
+-- MARK: LFG Processing
 -- Prevents excessive processing during rapid LFG updates
 
 -- Performance throttling variables

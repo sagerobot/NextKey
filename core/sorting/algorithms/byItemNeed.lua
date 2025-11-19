@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Item Need Algorithm
+-- MARK: Item Need
 -- Prioritizes dungeons with tracked loot items
 
 local Sorting = NextKey222.Sorting

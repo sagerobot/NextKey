@@ -1,4 +1,5 @@
--- MARK: LibOpenRaid Integration Module
+-- MARK: Module
+-- LibOpenRaid Integration Module - handles keystone sharing via LibOpenRaid
 local _, NextKey222 = ...
 
 -- LibOpenRaid Integration module
@@ -33,7 +34,8 @@ function LibOpenRaidIntegration:Initialize()
     return false
 end
 
--- MARK: Callback Registration
+-- MARK: Callbacks
+-- Register LibOpenRaid callbacks for keystone updates
 function LibOpenRaidIntegration:RegisterCallbacks()
     if not openRaidLib then return end
     
@@ -44,7 +46,8 @@ function LibOpenRaidIntegration:RegisterCallbacks()
     NextKey222.Debug:Dev("libopenraid", "Callbacks registered")
 end
 
--- MARK: Keystone Data Access
+-- MARK: Data Access
+-- Retrieve all keystones from LibOpenRaid
 function LibOpenRaidIntegration:GetAllKeystones()
     NextKey222.Debug:Dev("libopenraid", "=== GetAllKeystones() called ===")
     if not openRaidLib then 
@@ -173,7 +176,8 @@ function LibOpenRaidIntegration:GetPlayerKeystone(unitId)
     }
 end
 
--- MARK: Keystone Requests
+-- MARK: Requests
+-- Request keystone data from party/raid/guild
 function LibOpenRaidIntegration:RequestKeystones()
     if not openRaidLib then 
         NextKey222.Debug:Dev("libopenraid", "Cannot request keystones - LibOpenRaid not available")
@@ -209,7 +213,8 @@ function LibOpenRaidIntegration:GetLibOpenRaid()
     return openRaidLib
 end
 
--- MARK: Callback Handlers
+-- MARK: Handlers
+-- LibOpenRaid callback handlers for keystone events
 function LibOpenRaidIntegration:OnKeystoneUpdate(unitName, keystoneInfo, allKeystoneInfo)
     NextKey222.Debug:Dev("libopenraid", "Keystone update received from", unitName)
     
@@ -271,7 +276,8 @@ function LibOpenRaidIntegration:OnKeystoneWipe(allKeystoneInfo)
     end
 end
 
--- MARK: Utility Functions
+-- MARK: Utilities
+-- Helper utility functions
 function LibOpenRaidIntegration:IsAvailable()
     return openRaidLib ~= nil
 end
@@ -284,7 +290,8 @@ function LibOpenRaidIntegration:CountTable(tbl)
     return count
 end
 
--- MARK: Public Interface
+-- MARK: Public API
+-- Public interface for accessing LibOpenRaid
 function LibOpenRaidIntegration:GetLibrary()
     return openRaidLib
 end

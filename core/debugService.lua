@@ -19,7 +19,7 @@
 
 local addonName, NextKey222 = ...
 
--- MARK: - Debug Levels
+-- MARK: Debug Levels
 NextKey222.DebugLevel = {
     NONE = 0,   -- Production (silent)
     ERROR = 1,  -- Critical errors (always show)
@@ -28,7 +28,7 @@ NextKey222.DebugLevel = {
     TRACE = 4   -- Ultra-verbose tracing (stripped from release)
 }
 
--- MARK: - Debug Category Groups Configuration
+-- MARK: Debug Category Groups
 local DEBUG_CATEGORY_GROUPS = {
     ["Core Systems"] = {
         description = "Fundamental addon functionality and initialization",
@@ -115,7 +115,7 @@ local DEBUG_CATEGORY_GROUPS = {
     }
 }
 
--- MARK: - Debug Service Configuration
+-- MARK: Debug Service Config
 local DebugService = {
     -- [!] CRITICAL: SET TO FALSE BEFORE RELEASE!
     -- When false, Dev() and Trace() become no-ops (zero performance cost)
@@ -188,7 +188,7 @@ local DebugService = {
     }
 }
 
--- MARK: - Private Helpers
+-- MARK: Private Helpers
 
 -- Debug channel for Elephant logging compatibility
 local DEBUG_CHANNEL_NAME = "NextKeyDebug"
@@ -354,7 +354,7 @@ local debugPerformanceStats = {
     lastCleanup = time()
 }
 
--- MARK: - Public API
+-- MARK: Public API
 
 -- Performance-optimized print with explicit level and optional category
 function DebugService:Print(level, category, ...)
@@ -449,7 +449,7 @@ else
     end
 end
 
--- MARK: - Configuration Management
+-- MARK: Config Management
 
 -- Set debug level (0-4)
 function DebugService:SetLevel(level)
@@ -557,7 +557,7 @@ function DebugService:ToggleCategory(category)
     return true
 end
 
--- MARK: - Group Management Functions
+-- MARK: Group Management
 
 -- Get all category groups
 function DebugService:GetCategoryGroups()
@@ -663,7 +663,7 @@ function DebugService:GetCategoryGroup(categoryName)
     return nil
 end
 
--- MARK: - Enhanced Statistics Functions
+-- MARK: Statistics Functions
 
 -- Get comprehensive statistics with performance metrics
 function DebugService:GetStatistics()
@@ -835,7 +835,7 @@ end
 
 
 
--- MARK: - Status & Diagnostics
+-- MARK: Status & Diagnostics
 
 -- Print current debug status
 function DebugService:PrintStatus()
@@ -884,7 +884,7 @@ function DebugService:ListCategories()
     end
 end
 
--- MARK: - Initialization
+-- MARK: Initialization
 
 -- Initialize debug service from SavedVariables
 function DebugService:Initialize(db)
@@ -981,7 +981,7 @@ function DebugService:Initialize(db)
     return true
 end
 
--- MARK: - Registration
+-- MARK: Registration
 
 -- Register debug service directly (before RegisterModule is enhanced with Debug logging)
 NextKey222.Debug = DebugService

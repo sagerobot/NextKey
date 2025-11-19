@@ -1,4 +1,4 @@
--- MARK: UI Scale Configuration System
+-- MARK: UI Scale Config
 -- Centralized UI scale management with responsive scaling and user preferences
 -- Phase 7: UI Scale Configuration System
 
@@ -25,7 +25,7 @@ UIScale.currentScale = UIScale.DEFAULT_SCALE
 UIScale.autoScaleEnabled = false
 UIScale.baseUIScale = UIParent:GetScale()
 
--- MARK: Scale Resolution Functions
+-- MARK: Resolution Functions
 -- Functions to calculate and apply UI scaling
 
 --- Gets the current UI scale
@@ -211,7 +211,7 @@ function UIScale:GetPresets()
     return presets
 end
 
--- MARK: Scale Animation
+-- MARK: Animation
 -- Smooth scale transitions
 
 UIScale.animationDuration = 0.3
@@ -264,7 +264,7 @@ function UIScale:AnimateScale(targetScale, duration, easing)
     Debug:Dev("uiScale", "Scale animation started:", startScale, "->", targetScale)
 end
 
--- MARK: Scale Persistence
+-- MARK: Persistence
 -- Functions to save and load scale preferences
 
 --- Saves the current scale to saved variables
@@ -292,7 +292,7 @@ function UIScale:LoadScale()
     end
 end
 
--- MARK: Scale Utilities
+-- MARK: Utilities
 -- Utility functions for scale calculations
 
 --- Scales a dimension value by the current scale factor
@@ -335,7 +335,7 @@ function UIScale:Reset()
     Debug:Dev("uiScale", "UI scale reset to defaults")
 end
 
--- MARK: Scale Event Handling
+-- MARK: Event Handling
 -- Functions to handle scale-related events
 
 --- Called when screen resolution changes
@@ -356,7 +356,7 @@ function UIScale:OnUIScaleSettingsChanged()
     Debug:Dev("uiScale", "Base UI scale changed, reapplying scale")
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
 function UIScale:Initialize()
     Debug:Dev("uiScale", "UI Scale module initialized")
     

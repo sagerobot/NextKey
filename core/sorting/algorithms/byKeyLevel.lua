@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Highest Key Level Algorithm
+-- MARK: Highest Key
 -- Sorts keystones by level in descending order (highest first)
 
 local Sorting = NextKey222.Sorting

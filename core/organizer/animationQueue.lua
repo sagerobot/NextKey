@@ -7,7 +7,7 @@ NextKey222.RegisterModule("AnimationQueue", AnimationQueue)
 
 local Debug = NextKey222.Debug
 
--- MARK: Animation Configuration
+-- MARK: Animation Config
 AnimationQueue.config = {
     highlightDuration = 0.3,     -- Green flash duration (seconds)
     flashCount = 2,               -- Number of flashes
@@ -183,7 +183,7 @@ function AnimationQueue:AnimateFlight(card, targetSlot, onComplete)
     animateStep()
 end
 
--- MARK: Recall Animation System
+-- MARK: Recall Animation
 --- Executes recall animation sequence with cascading wave highlight and simultaneous flight
 -- @param cardsByGroup Table of {[groupIndex] = {card1, card2, ...}}
 -- @param onComplete Callback function to execute when all animations finish
@@ -365,7 +365,7 @@ function AnimationQueue:AnimateRecallFlight(card, onComplete)
     animateStep()
 end
 
--- MARK: Simple Sort (Role Wave) Animation System
+-- MARK: Simple Sort Animation
 --- Executes role-based wave animation with simultaneous flight per role
 --- Much faster than sequential animation - completes in ~1.2s for any group size
 -- @param assignments Array of {card, targetSlot, player} objects

@@ -1,6 +1,6 @@
 local _, NextKey222 = ...
 
--- MARK: Lowest Key Level Algorithm
+-- MARK: Lowest Key
 -- Sorts keystones by level in ascending order (lowest first)
 
 local Sorting = NextKey222.Sorting

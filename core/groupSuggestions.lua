@@ -16,9 +16,9 @@
 
 local _, NextKey222 = ...
 
--- MARK: Group Suggestions Module
--- Intelligent grouping system for NextKey
--- Provides Best Key and Best Groups mode suggestions
+-- MARK: Group Suggestions
+-- Intelligent grouping system
+-- Provides Best Key/Groups modes
 
 local GroupSuggestions = {}
 NextKey222.GroupSuggestions = GroupSuggestions
@@ -26,7 +26,7 @@ NextKey222.GroupSuggestions = GroupSuggestions
 local NextKey = NextKey222.Addon
 local Debug = NextKey222.Debug
 
--- MARK: Core Data Structures
+-- MARK: Data Structures
 
 --- Enhanced player profile for group suggestions
 ---@class PlayerProfile
@@ -379,7 +379,7 @@ function GroupSuggestions:GetAllKeystones()
     return keystones
 end
 
--- MARK: Best Key Mode Implementation
+-- MARK: Best Key Mode
 
 --- Generates all possible roster combinations of a specified size from a list of players.
 --- This is a simplified implementation and does not generate all permutations for performance reasons.
@@ -613,7 +613,7 @@ function GroupSuggestions:SuggestBestKey()
     return result
 end
 
--- MARK: Best Groups Mode Implementation
+-- MARK: Best Groups Mode
 
 --- Calculates a synergy matrix between all players.
 --- Synergy is defined as the mutual IO gain between two players from running each other's keystones.
@@ -986,7 +986,7 @@ function GroupSuggestions:GenerateRecruitSuggestions(group)
     end
 end
 
--- MARK: Main Interface Functions
+-- MARK: Main Interface
 
 --- The main entry point for generating group suggestions.
 --- It auto-detects the best mode ("best_key" or "best_groups") based on the number of available players.
@@ -1185,7 +1185,7 @@ function GroupSuggestions:FormatSuggestionForChat(suggestion)
     return table.concat(lines, "\n")
 end
 
--- MARK: Module Initialization
+-- MARK: Module Init
 
 --- Initializes the GroupSuggestions module.
 function GroupSuggestions:Initialize()

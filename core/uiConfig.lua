@@ -1,11 +1,11 @@
--- MARK: UI Configuration Module
+-- MARK: UI Config
 -- Centralized UI dimensions and styling configuration for NextKey
 -- Extracted from ui/main.lua to improve maintainability
 
 local _, NextKey222 = ...
 
 local UIConfig = {
-    -- MARK: Main Window Configuration
+    -- MARK: Window Config
     -- Now that windows are separate, each has its own dimensions
     WINDOW = {
         WIDTH = 600,                    -- Overall window width (both windows)
@@ -26,7 +26,7 @@ local UIConfig = {
         BACKDROP_OPACITY = 1.0,        -- Global backdrop opacity for all windows
     },
     
-    -- MARK: Card Layout Configuration
+    -- MARK: Card Layout
     CARD = {
         HEIGHT = 88,                    -- Standard keystone card height (matches UI factory)
         HEIGHT_COMPACT = 28,            -- Compact keystone card height
@@ -38,7 +38,7 @@ local UIConfig = {
         CONTENT_INSET_BOTTOM = 12       -- Bottom inset for card content area
     },
     
-    -- MARK: Icon Configuration
+    -- MARK: Icon Config
     ICON = {
         SIZE = 48,                      -- Icon image size (64x64px)
         WIDTH = 60,                     -- Icon container width
@@ -46,13 +46,13 @@ local UIConfig = {
         ROLE_WIDTH = 20                 -- Role icon container width
     },
     
-    -- MARK: Text Element Widths
+    -- MARK: Text Widths
     TEXT = {
         NAME_LABEL_WIDTH = 260,         -- Dungeon name display width
         SCORE_LABEL_WIDTH = 90          -- IO score display width
     },
     
-    -- MARK: Button Dimensions
+    -- MARK: Button Sizes
     BUTTON = {
         HEIGHT = 28,                    -- Standard height for all buttons
         TELEPORT_WIDTH = 100,           -- Teleport button width
@@ -60,7 +60,7 @@ local UIConfig = {
         PREFERENCE_WIDTH = 50           -- Like/Dislike button width
     },
     
-    -- MARK: Main Window Control Buttons
+    -- MARK: Control Buttons
     CONTROLS = {
         -- Button dimensions
         SORT_DROPDOWN_WIDTH = 150,      -- Sort mode dropdown width
@@ -76,7 +76,7 @@ local UIConfig = {
         ORGANIZER_TEXT = "Organizer",
     },
     
-    -- MARK: Layout Configuration
+    -- MARK: Layout Config
     LAYOUT = {
         CONTAINER_PADDING = 0,          -- Padding inside the main results container
         USE_TIGHT_LAYOUT = true,        -- Use SimpleGroup for minimal padding
@@ -85,7 +85,8 @@ local UIConfig = {
     },
     
     
-    -- MARK: Teleport Card Configuration (from ui/teleport.lua)
+    -- MARK: Teleport Card
+    -- Configuration from ui/teleport.lua
     TELEPORT_CARD = {
         CARD_ICON_SIZE = 48,            -- Icon size for teleport cards
         CARD_HEIGHT = 68,               -- Height of teleport cards (reduced from 72)
@@ -96,7 +97,8 @@ local UIConfig = {
         COMPACT_SPACING = 4,            -- Spacing between compact icons
     },
     
-    -- MARK: Hearthstone Selector Configuration (from ui/hearthstoneSelector.lua)
+    -- MARK: Hearthstone Selector
+    -- Configuration from ui/hearthstoneSelector.lua
     HEARTHSTONE_SELECTOR = {
         WINDOW_WIDTH = 340,             -- Width of hearthstone selector window
         WINDOW_HEIGHT = 300,            -- Height of hearthstone selector window
@@ -105,14 +107,16 @@ local UIConfig = {
         SAVE_BUTTON_HEIGHT = 30         -- Height of save button
     },
     
-    -- MARK: Loot Window Configuration (from ui/lootWindow.lua)
+    -- MARK: Loot Window
+    -- Configuration from ui/lootWindow.lua
     LOOT_WINDOW = {
         WINDOW_WIDTH = 400,             -- Width of loot window (wider for long titles)
         WINDOW_HEIGHT = 305,            -- Height of loot window
         LIST_ITEM_HEIGHT = 65           -- Height of list items in loot window
     },
     
-    -- MARK: Dungeon Cards Configuration (from ui/dungeonCards.lua)
+    -- MARK: Dungeon Cards
+    -- Configuration from ui/dungeonCards.lua
     DUNGEON_CARDS = {
         CARD_WIDTH = 350,               -- Width of dungeon cards
         CARD_HEIGHT = 90,               -- Height of dungeon cards
@@ -123,7 +127,8 @@ local UIConfig = {
         CARDS_PER_ROW_COMPACT = 3       -- Number of compact cards per row
     },
     
-    -- MARK: Poll Window Configuration (from ui/organizer/surveyDialog.lua)
+    -- MARK: Poll Window
+    -- Configuration from ui/organizer/surveyDialog.lua
     POLL_WINDOW = {
         -- Phase 1: Participation
         PHASE1_WIDTH = 380,
@@ -160,18 +165,20 @@ local UIConfig = {
         COLOR_YELLOW_BG = {0.35, 0.3, 0.05, 0.9}      -- Lighter dark yellow background for "fill" state
     },
     
-    -- MARK: Spell Configuration (from ui/teleport.lua)
+    -- MARK: Spell Config
+    -- Configuration from ui/teleport.lua
     SPELL = {
         BANK_PLAYER = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0,
         BANK_PET = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet or 1
     },
     
-    -- MARK: Item Configuration (from ui/teleport.lua)
+    -- MARK: Item Config
+    -- Configuration from ui/teleport.lua
     ITEM = {
         HEARTHSTONE_ID = 6948            -- Standard Hearthstone item ID
     },
     
-    -- MARK: M+ Organizer Configuration
+    -- MARK: M+ Organizer
     ORGANIZER = {
         -- Window dimensions
         COLUMN_WIDTH = 195,              -- Width of each group column (increased from 180 to accommodate wider expanded cards)
@@ -230,7 +237,8 @@ local UIConfig = {
         GROUP_BUTTON_RIGHT_MARGIN = 2    -- Distance from right edge
     },
     
-    -- MARK: Window Status Messages (Rotating Tips)
+    -- MARK: Status Messages
+    -- Rotating tips for each window
     STATUS_MESSAGES = {
         -- Main Keystone Window
         MAIN_WINDOW = {
@@ -281,7 +289,7 @@ function UIConfig:Initialize()
     return true
 end
 
--- MARK: Get Rotating Status Message
+-- MARK: Get Status Message
 --- Gets a rotating status message for a specific window with version prefix
 -- @param windowKey string - Which window's messages to use (MAIN_WINDOW, DUNGEON_WINDOW, etc.)
 -- @return string - Version + rotating message

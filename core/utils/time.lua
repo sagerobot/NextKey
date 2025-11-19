@@ -5,7 +5,7 @@ local TimeUtils = {}
 NextKey222.TimeUtils = TimeUtils
 NextKey222.RegisterModule("TimeUtils", TimeUtils)
 
--- MARK: Time/Date Utilities
+-- MARK: Time Utils
 
 --- Gets current server time with fallbacks
 -- @return number Current server timestamp or local time

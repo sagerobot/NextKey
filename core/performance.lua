@@ -1,5 +1,5 @@
--- MARK: Performance Optimization System
--- Centralized performance monitoring and optimization for UI systems
+-- MARK: System
+-- Performance Optimization System - centralized monitoring and optimization
 -- Phase 7: Performance Optimization System
 
 local _, NextKey222 = ...
@@ -10,8 +10,8 @@ NextKey222.Performance = Performance
 -- Register with module system
 NextKey222.RegisterModule("Performance", Performance)
 
--- MARK: Performance Constants
--- Standardized performance settings and thresholds
+-- MARK: Constants
+-- Performance constants, settings, and thresholds
 
 Performance.THROTTLE_INTERVAL = 0.1 -- Default throttle interval in seconds
 Performance.BATCH_SIZE = 10 -- Default batch size for operations
@@ -35,8 +35,8 @@ Performance.THRESHOLDS = {
     MEMORY_CRITICAL = 100 -- Memory usage critical (MB)
 }
 
--- MARK: Performance State
--- Current performance state and metrics
+-- MARK: State
+-- Performance state and metrics tracking
 
 Performance.enabled = false
 Performance.metrics = {}
@@ -46,8 +46,8 @@ Performance.throttledFunctions = {}
 Performance.batchQueue = {}
 Performance.lazyLoadQueue = {}
 
--- MARK: Performance Profiling
--- Functions to profile and measure performance
+-- MARK: Profiling
+-- Profile and measure function performance
 
 --- Starts profiling a function
 -- @param functionName string The name of the function to profile
@@ -146,8 +146,8 @@ function Performance:ResetMetrics(functionName)
     Debug:Dev("performance", "Performance metrics reset for:", functionName or "all")
 end
 
--- MARK: Function Throttling
--- Functions to throttle expensive operations
+-- MARK: Throttling
+-- Throttle expensive function operations
 
 --- Creates a throttled version of a function
 -- @param func function The function to throttle
@@ -191,8 +191,8 @@ function Performance:ClearThrottledFunctions()
     self.throttledFunctions = {}
 end
 
--- MARK: Batch Processing
--- Functions to batch operations for better performance
+-- MARK: Batching
+-- Batch operations for better performance
 
 --- Adds a function to the batch queue
 -- @param func function The function to batch
@@ -414,8 +414,8 @@ function Performance:LazyLoadClear()
     Debug:Dev("performance", "Lazy load queue cleared")
 end
 
--- MARK: Memory Management
--- Functions to monitor and optimize memory usage
+-- MARK: Memory
+-- Monitor and optimize memory usage
 
 --- Gets current memory usage
 -- @return number Memory usage in MB
@@ -449,8 +449,8 @@ function Performance:MonitorMemory()
     return memoryUsage
 end
 
--- MARK: Performance Monitoring
--- Functions to monitor overall performance
+-- MARK: Monitoring
+-- Monitor overall system performance
 
 --- Starts performance monitoring
 function Performance:StartMonitoring()
@@ -557,7 +557,8 @@ function Performance:PrintReport()
     Debug:User("=== End Report ===")
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
+-- Module initialization and setup
 function Performance:Initialize()
     Debug:Dev("performance", "Performance module initialized")
     

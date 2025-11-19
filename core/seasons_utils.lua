@@ -20,7 +20,7 @@ function NextKey:TryLoadRaiderIO(opts)
     return false
 end
 
--- MARK: Season Data Management
+-- MARK: Data Management
 function NextKey:ClearMythicPlusData()
     local seasonData = self:EnsureSeasonData()
     if not seasonData then

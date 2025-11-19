@@ -30,7 +30,7 @@ function ParticipantSurvey:RegisterHandlers()
     Debug:Dev("organizer", "Survey communication handlers ready (routed via Communications module)")
 end
 
--- MARK: Discovery Phase (Addon Detection Handshake)
+-- MARK: Discovery Phase
 
 --- Send addon detection ping to discover who has NextKey installed
 -- @param pollID string The poll ID for this discovery session
@@ -192,7 +192,7 @@ function ParticipantSurvey:CountTable(tbl)
     return count
 end
 
--- MARK: Poll Request (Organizer → Participants)
+-- MARK: Poll Request
 function ParticipantSurvey:SendPollRequest(pollID)
     return NextKey222.SafeRun(function()
         local message = {
@@ -226,7 +226,7 @@ function ParticipantSurvey:OnPollRequestReceived(message, sender)
     end, "ParticipantSurvey:OnPollRequestReceived")
 end
 
--- MARK: Poll Response (Participant → Organizer)
+-- MARK: Poll Response
 function ParticipantSurvey:SendPollResponse(response, organizerName)
     return NextKey222.SafeRun(function()
         -- Use OrganizerComms module instead of Communications

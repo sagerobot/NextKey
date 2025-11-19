@@ -1,4 +1,4 @@
--- MARK: Performance Monitor Debug Tool
+-- MARK: Performance Monitor
 -- Provides commands to monitor and diagnose performance issues
 
 local _, NextKey222 = ...

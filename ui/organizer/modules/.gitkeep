@@ -1,9 +1,0 @@
-# NextKey Organizer Modules
-
-This directory contains specialized modules split from rosterBoard.lua for better maintainability.
-
-## Modules
-- benchManager.lua - Bench operations (player management, layout)
-- slotManager.lua - Slot creation and management
-- cardMovement.lua - Drag/drop operations and validation
-- keystoneManager.lua - Keystone designation and highlighting

@@ -1,11 +1,12 @@
--- MARK: LibOpenRaid Profile Adapter
+-- MARK: Adapter
 -- Adapter for converting LibOpenRaid player data into standard PlayerProfile format
 
 local _, NextKey222 = ...
 
 local LibOpenRaidAdapter = {}
 
--- MARK: LibOpenRaid Integration
+-- MARK: Integration
+-- LibOpenRaid library reference and initialization
 local openRaidLib = nil
 
 function LibOpenRaidAdapter:Initialize()
@@ -20,7 +21,8 @@ function LibOpenRaidAdapter:Initialize()
     return false
 end
 
--- MARK: Profile Building
+-- MARK: Profile Builder
+-- Build player profile from LibOpenRaid data
 function LibOpenRaidAdapter:GetProfile(playerName)
     if not openRaidLib then
         self:Initialize()
@@ -87,7 +89,7 @@ function LibOpenRaidAdapter:GetProfile(playerName)
     return profile
 end
 
--- MARK: LibOpenRaid Data Access
+-- MARK: Data Access
 function LibOpenRaidAdapter:GetPlayerKeystones(playerName)
     if not openRaidLib then return nil end
     
@@ -140,7 +142,8 @@ function LibOpenRaidAdapter:GetPlayerKeystones(playerName)
     return (#keystones > 0) and keystones or nil
 end
 
--- MARK: Player Detection
+-- MARK: Detection
+-- Check if player data is available in LibOpenRaid
 function LibOpenRaidAdapter:HasPlayerData(playerName)
     if not openRaidLib then
         self:Initialize()
@@ -153,7 +156,8 @@ function LibOpenRaidAdapter:HasPlayerData(playerName)
            (openRaidLib.GetUnitInfo and openRaidLib:GetUnitInfo(playerName) ~= nil)
 end
 
--- MARK: Group Data Access
+-- MARK: Group Data
+-- Access group member data from LibOpenRaid
 function LibOpenRaidAdapter:GetGroupMembers()
     if not openRaidLib then return {} end
     

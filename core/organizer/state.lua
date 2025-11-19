@@ -7,7 +7,7 @@ NextKey222.RegisterModule("OrganizerState", OrganizerState)
 
 local Debug = NextKey222.Debug
 
--- MARK: Event Announcement Helper
+-- MARK: Event Announcement
 --- Announces an event to listeners via AceEvent system
 -- @param eventName string - Event name (e.g., "ORGANIZER_PLAYER_ADDED")
 -- @param payload table - Event payload with all necessary context
@@ -880,7 +880,7 @@ function OrganizerState:CompletePoll()
     end, "OrganizerState:CompletePoll")
 end
 
--- MARK: Persistence (SESSION 4: Hybrid Approach)
+-- MARK: Persistence
 --- Check if a player is a fake player (debug only)
 -- Fake players match patterns: "NNN-NNNNFP-Realm" or "AltNNN-NNNNFP-Realm"
 -- @param playerID string - Player identifier

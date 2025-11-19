@@ -1,4 +1,4 @@
--- MARK: Organizer Survey System Tests
+-- MARK: Organizer Survey Tests
 local _, NextKey222 = ...
 
 local Debug = NextKey222.Debug
@@ -66,7 +66,7 @@ function OrganizerSurveyTests:CreateMockPollResponse(playerName, optedIn, charac
     }
 end
 
--- MARK: Test 1 - Poll Request Sending
+-- MARK: Poll Request Test
 function OrganizerSurveyTests:TestPollRequestSending()
     Debug:Dev("test", "=== Test 1: Poll Request Sending ===")
     
@@ -90,7 +90,7 @@ function OrganizerSurveyTests:TestPollRequestSending()
     end
 end
 
--- MARK: Test 2 - Survey Dialog Display
+-- MARK: Survey Dialog Test
 function OrganizerSurveyTests:TestSurveyDialogDisplay()
     Debug:Dev("test", "=== Test 2: Survey Dialog Display ===")
     
@@ -119,7 +119,7 @@ function OrganizerSurveyTests:TestSurveyDialogDisplay()
     end
 end
 
--- MARK: Test 3 - Poll Response Processing
+-- MARK: Poll Response Test
 function OrganizerSurveyTests:TestPollResponseProcessing()
     Debug:Dev("test", "=== Test 3: Poll Response Processing ===")
     
@@ -164,7 +164,7 @@ function OrganizerSurveyTests:TestPollResponseProcessing()
     return successCount == #TEST_CONFIG.testPlayers
 end
 
--- MARK: Test 4 - Poll Progress Tracking
+-- MARK: Poll Progress Test
 function OrganizerSurveyTests:TestPollProgressTracking()
     Debug:Dev("test", "=== Test 4: Poll Progress Tracking ===")
     
@@ -191,7 +191,7 @@ function OrganizerSurveyTests:TestPollProgressTracking()
     end
 end
 
--- MARK: Test 5 - Poll Timeout Handling
+-- MARK: Poll Timeout Test
 function OrganizerSurveyTests:TestPollTimeoutHandling()
     Debug:Dev("test", "=== Test 5: Poll Timeout Handling ===")
     
@@ -225,7 +225,7 @@ function OrganizerSurveyTests:TestPollTimeoutHandling()
     return true -- Async test, result logged later
 end
 
--- MARK: Test 6 - Bench/Opt-Out Population
+-- MARK: Bench/OptOut Test
 function OrganizerSurveyTests:TestBenchOptOutPopulation()
     Debug:Dev("test", "=== Test 6: Bench/Opt-Out Population ===")
     

@@ -13,7 +13,7 @@ local lootData = {
     ["TWW_S3"] = {
         name = "The War Within Season 3",
         dungeons = {
-            -- MARK: Halls of Atonement
+            -- MARK: Halls
             [378] = {
                 name = "Halls of Atonement",
                 items = {
@@ -187,7 +187,7 @@ local lootData = {
                     },
                 }
             },
-            -- MARK: Priory of the Sacred Flame
+            -- MARK: Priory
             [499] = {
                 name = "Priory of the Sacred Flame",
                 items = {
@@ -325,7 +325,7 @@ local lootData = {
                     },
                 }
             },
-            -- MARK: Operation: Floodgate
+            -- MARK: Floodgate
             [525] = {
                 name = "Operation: Floodgate",
                 items = {
@@ -493,7 +493,7 @@ local lootData = {
                     },
                 }
             },
-            -- MARK: The Dawnbreaker
+            -- MARK: Dawnbreaker
             [505] = {
                 name = "The Dawnbreaker",
                 items = {
@@ -583,7 +583,7 @@ local lootData = {
                     },
                 }
             },
-            -- MARK: Ara-Kara, City of Echoes
+            -- MARK: Ara-Kara
             [503] = {
                 name = "Ara-Kara, City of Echoes",
                 items = {
@@ -703,7 +703,7 @@ local lootData = {
                     },
                 }
             },
-            -- MARK: Eco-Dome Al'dani
+            -- MARK: Eco-Dome
             [542] = {
                 name = "Eco-Dome Al'dani",
                 items = {
@@ -841,7 +841,7 @@ local lootData = {
                     },
                 }
             },
-            -- MARK: Tazavesh: Streets of Wonder
+            -- MARK: Taz Streets
             [391] = {
                 name = "Tazavesh: Streets of Wonder",
                 items = {
@@ -1051,7 +1051,7 @@ local lootData = {
                     },
                 }
             },
-            -- MARK: Tazavesh: So'leah's Gambit
+            -- MARK: Taz Gambit
             [392] = {
                 name = "Tazavesh: So'leah's Gambit",
                 items = {

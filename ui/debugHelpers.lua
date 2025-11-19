@@ -1,14 +1,14 @@
 local _, NextKey222 = ...
 local Debug = NextKey222 and NextKey222.Debug
 
--- MARK: Module Definition
+-- MARK: Module
 
 local UIDebugHelpers = {}
 
 NextKey222.UIDebugHelpers = UIDebugHelpers
 NextKey222.RegisterModule("UIDebugHelpers", UIDebugHelpers)
 
--- MARK: Private Helpers
+-- MARK: Private
 
 local function log_dev(...)
     if Debug and Debug.Dev then
@@ -31,7 +31,7 @@ local function _ensure_ui()
     return ui
 end
 
--- MARK: Fake Player Management
+-- MARK: Fake Players
 
 --- Add a fake player using the current UI debug tier selection.
 function UIDebugHelpers:AddFakePlayer()
@@ -120,7 +120,7 @@ function UIDebugHelpers:RemoveFakePlayer(player_name)
     end
 end
 
--- MARK: Debug Controls Integration
+-- MARK: Debug Controls
 
 --- Attach debug controls into an existing controls container.
 -- The actual widgets are created by UIControls; this helper wires behavior.
@@ -159,7 +159,8 @@ function UIDebugHelpers:OnDebugModeChanged(ui)
     log_dev("UIDebugHelpers: debug mode change applied")
 end
 
--- MARK: Public Debug Helper API (invoked by core/slashCommands.lua)
+-- MARK: Public API
+-- Invoked by core/slashCommands.lua
 
 --- Manual debug controls refresh (called from /nextkeyrefreshdebug).
 function UIDebugHelpers:RefreshDebugControls()
@@ -249,7 +250,7 @@ function UIDebugHelpers:OpenRosterBoard()
     end
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
 
 function UIDebugHelpers:Initialize()
     log_dev("UIDebugHelpers module initialized")

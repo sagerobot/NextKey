@@ -1,4 +1,4 @@
--- MARK: Canonical ID Mapper Module
+-- MARK: ID Mapper Module
 -- This module provides a single source of truth for all dungeon ID mappings
 -- and conversions between different systems (Blizzard APIs, RaiderIO, NextKey internal, etc.)
 
@@ -43,7 +43,7 @@ for nextKeyID, mappings in pairs(IDMappings) do
     end
 end
 
--- MARK: ID Conversion Functions
+-- MARK: ID Conversion
 local IDMapper = {}
 
 -- Convert any source ID to canonical NextKey dungeon ID
@@ -102,7 +102,7 @@ function IDMapper:ToTargetID(nextKeyDungeonID, targetType)
     end
 end
 
--- MARK: Active Season Functions
+-- MARK: Active Season
 -- Get list of active season dungeon IDs (canonical NextKey format)
 function IDMapper:GetActiveSeasonDungeonIDs()
     local dungeonIDs = {}
@@ -172,7 +172,7 @@ function IDMapper:GetMappingInfo(dungeonID)
     } or nil
 end
 
--- MARK: Legacy Compatibility Functions
+-- MARK: Legacy Functions
 -- These maintain compatibility with existing code during transition
 
 -- Legacy function: ConvertToRaiderIOKeystoneID
@@ -186,7 +186,7 @@ function IDMapper:ConvertChallengeMapToKeystoneID(challengeMapID)
     return self:ToTargetID(nextKeyID, "keystone")
 end
 
--- MARK: Export to NextKey222 namespace
+-- MARK: Export to Namespace
 NextKey222.IDMapper = IDMapper
 
 -- Also attach to addon instance when available for backward compatibility

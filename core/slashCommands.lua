@@ -7,7 +7,7 @@
 
 local addonName, NextKey222 = ...
 
--- MARK: - Role Testing Command (Debug)
+-- MARK: Role Test (Debug)
 -- Separate slash command for role detection testing
 SLASH_NKTESTROLE1 = "/nktestrole"
 SlashCmdList["NKTESTROLE"] = function(msg)
@@ -86,7 +86,7 @@ SlashCmdList["NKTESTROLE"] = function(msg)
     end
 end
 
--- MARK: - Bonus ID Finder Helper Functions
+-- MARK: Bonus ID Helpers
 
 --- Extract Bonus IDs from an item link
 local function ExtractBonusIDs(itemLink)
@@ -170,7 +170,7 @@ local function FindHeroTrackBonusIDs()
     end)
 end
 
--- MARK: - Command Definitions
+-- MARK: Commands
 -- This table defines all available commands and their help text
 -- Makes it easy to add new commands and keep help synchronized
 local Commands = {
@@ -681,12 +681,12 @@ local VisualCommands = {
    }
 }
 
--- MARK: - Command Handlers
+-- MARK: Command Handlers
 
 -- Initialize SlashCommands table first
 local SlashCommands = {}
 
--- MARK: - Teleport Window Command Handlers
+-- MARK: Teleport Commands
 
 function SlashCommands:TeleportCommands(sub_cmd, args)
     local addon = NextKey222.Addon
@@ -929,7 +929,7 @@ function SlashCommands:ReloadUI()
     ReloadUI()
 end
 
--- MARK: - Debug Command Handlers
+-- MARK: Debug Commands
 
 function SlashCommands:ShowDebugHelp()
     NextKey222.Debug:User("=== Debug Commands ===")
@@ -1017,7 +1017,7 @@ function SlashCommands:ListDebugCategories()
     end
 end
 
--- MARK: - Test Command Handlers
+-- MARK: Test Commands
 
 function SlashCommands:GenerateRealistic()
     if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
@@ -1267,7 +1267,7 @@ function SlashCommands:GenerateAlgorithmTestTeam()
     NextKey222.Debug:User("This team is designed to show differences across ALL sorting algorithms")
 end
 
--- MARK: - Poll Testing Command Handlers
+-- MARK: Poll Commands
 
 function SlashCommands:ShowPollHelp()
     NextKey222.Debug:User("=== Poll Testing Commands ===")
@@ -1410,7 +1410,7 @@ function SlashCommands:DebugRaiderIO()
     end
 end
 
--- MARK: - PUG Helper Command Handlers
+-- MARK: PUG Commands
 
 function SlashCommands:ShowPUGHelp()
     NextKey222.Debug:User("=== PUG Helper Commands ===")
@@ -1643,7 +1643,7 @@ function SlashCommands:TestPUGHelperFixes()
 end
 
 
--- MARK: - Component Command Handlers
+-- MARK: Component Commands
 
 function SlashCommands:ShowComponentHelp()
     NextKey222.Debug:User("=== Component Testing Commands ===")
@@ -1764,7 +1764,7 @@ function SlashCommands:TestComponentValidation()
     end
 end
 
--- MARK: - Validation Command Handlers
+-- MARK: Validation Commands
 
 function SlashCommands:ShowValidationHelp()
     NextKey222.Debug:User("=== Phase 7 Validation Commands ===")
@@ -1907,7 +1907,7 @@ function SlashCommands:ShowValidationStatus()
     end
 end
 
--- MARK: - Scroll Bar Test Command Handler
+-- MARK: Scroll Bar Test
 
 function SlashCommands:TestScrollBar()
     NextKey222.Debug:User("Testing scroll bar visibility fix...")
@@ -1955,7 +1955,7 @@ function SlashCommands:TestScrollBar()
     NextKey222.Debug:User("If any scroll frames are visible when they shouldn't be, the fix may need adjustment")
 end
 
--- MARK: - Dungeon Cards Test Command Handler
+-- MARK: Dungeon Cards Test
 
 function SlashCommands:TestDungeonCards()
     NextKey222.Debug:User("Testing dungeon cards layout...")
@@ -1974,7 +1974,7 @@ function SlashCommands:TestDungeonCards()
     end
 end
 
--- MARK: - Character Storage Command Handlers
+-- MARK: Char Storage
 function SlashCommands:CharacterStorageCommands(args)
     if not args or args == "" then
         NextKey222.Debug:User("Character Storage Commands:")
@@ -2015,7 +2015,7 @@ function SlashCommands:CharacterStorageCommands(args)
     end
 end
 
--- MARK: - Main Slash Command Handler
+-- MARK: Main Handler
 
 local function HandleSlashCommand(input)
     local command = string.lower(string.trim and string.trim(input) or input or "")
@@ -2083,7 +2083,7 @@ local function HandleSlashCommand(input)
     SlashCommands:ShowHelp()
 end
 
--- MARK: - Registration
+-- MARK: Registration
 
 -- Register slash commands
 SLASH_NEXTKEY1 = "/nextkey"

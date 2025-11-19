@@ -6,7 +6,7 @@ local _, NextKey222 = ...
 
 local DebugAdapter = {}
 
--- MARK: Debug Player Profile Building
+-- MARK: Profile Building
 function DebugAdapter:GetProfile(playerName)
     if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
         return nil
@@ -20,7 +20,7 @@ function DebugAdapter:GetProfile(playerName)
     return profile
 end
 
--- MARK: Debug Player Detection
+-- MARK: Player Detection
 function DebugAdapter:IsDebugPlayer(playerName)
     if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
         return false
@@ -29,7 +29,7 @@ function DebugAdapter:IsDebugPlayer(playerName)
     return NextKey222.FakePlayerService:IsFakePlayer(playerName)
 end
 
--- MARK: Debug Player Management
+-- MARK: Player Management
 function DebugAdapter:GetAllDebugPlayers()
     if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
         return {}

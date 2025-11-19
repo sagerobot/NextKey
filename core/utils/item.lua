@@ -5,7 +5,7 @@ local ItemUtils = {}
 NextKey222.ItemUtils = ItemUtils
 NextKey222.RegisterModule("ItemUtils", ItemUtils)
 
--- MARK: Item Utilities
+-- MARK: Item Utils
 
 --- Builds an enhanced item link with bonus IDs for M+ difficulty display
 --- Following AtlasLoot's exact assembly pattern from Core/ItemInfo.lua

@@ -5,7 +5,7 @@ local ScoringUtils = {}
 NextKey222.ScoringUtils = ScoringUtils
 NextKey222.RegisterModule("ScoringUtils", ScoringUtils)
 
--- MARK: IO Score Color Helper
+-- MARK: Score Color Helper
 
 --- Gets universal IO score color used consistently across the addon
 --- Uses Blizzard API as primary, RaiderIO as fallback (same as main UI)

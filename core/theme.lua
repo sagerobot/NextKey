@@ -1,4 +1,4 @@
--- MARK: Theme Configuration System
+-- MARK: Theme Config
 -- Centralized theme management with consistent styling and color schemes
 -- Phase 7: Basic theme configuration system
 
@@ -10,7 +10,7 @@ NextKey222.Theme = Theme
 -- Register with module system
 NextKey222.RegisterModule("Theme", Theme)
 
--- MARK: Theme Type Constants
+-- MARK: Theme Types
 -- Standardized theme types for consistent configuration
 
 Theme.TYPE_DEFAULT = "default"
@@ -19,7 +19,7 @@ Theme.TYPE_LIGHT = "light"
 Theme.TYPE_COLORBLIND = "colorblind"
 Theme.TYPE_HIGH_CONTRAST = "high_contrast"
 
--- MARK: Theme Configuration Templates
+-- MARK: Theme Templates
 -- Standardized configurations for different theme types
 
 Theme.themes = {
@@ -420,13 +420,13 @@ Theme.themes = {
     }
 }
 
--- MARK: Theme State Management
+-- MARK: State Management
 -- Current theme and caching system
 
 Theme.currentTheme = Theme.TYPE_DEFAULT
 Theme.cache = {}
 
--- MARK: Theme Resolution Functions
+-- MARK: Resolution Functions
 -- Functions to resolve theme colors and styling
 
 --- Gets the current theme
@@ -566,7 +566,7 @@ function Theme:GetQualityColor(quality, fallbackColor)
     return fallbackColor or {1, 1, 1}
 end
 
--- MARK: Theme Application Functions
+-- MARK: Apply Functions
 -- Functions to apply theme styling to UI elements
 
 --- Applies theme styling to a frame
@@ -662,7 +662,7 @@ function Theme:ClearCache()
     Debug:Dev("theme", "Theme cache cleared and reset to default")
 end
 
--- MARK: Theme Persistence
+-- MARK: Persistence
 -- Functions to save and load theme preferences
 
 --- Saves the current theme to saved variables
@@ -683,7 +683,7 @@ function Theme:LoadTheme()
     end
 end
 
--- MARK: Module Initialization
+-- MARK: Initialization
 function Theme:Initialize()
     Debug:Dev("theme", "Theme module initialized")
     

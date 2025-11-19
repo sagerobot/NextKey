@@ -12,7 +12,7 @@ if not PUGHelper then
     return
 end
 
--- MARK: Detection Methods
+-- MARK: Detection
 
 -- Determine if the current group was formed via LFG system (PUG)
 -- Returns: "PUG", "GUILD", "PREMADE", or "SOLO"

@@ -15,7 +15,8 @@ function CardMovement:Initialize()
     end, "CardMovement:Initialize")
 end
 
--- MARK: Role Validation (Static Helpers - No RosterBoard Dependency)
+-- MARK: Role Validation
+-- Static helpers with no RosterBoard dependency
 --- Check if player can fill a role
 -- @param playerRoles Player's roles (array or spec preferences table)
 -- @param slotRole Slot's required role
@@ -210,7 +211,7 @@ function CardMovement:remove_card_from_source(rosterBoard, card)
     end
 end
 
--- MARK: Placement Functions
+-- MARK: Placement
 --- Place card back into bench
 -- @param rosterBoard RosterBoard instance
 -- @param card Player card frame
@@ -277,7 +278,7 @@ function CardMovement:place_card_in_bench(rosterBoard, card)
     end, "CardMovement:place_card_in_bench")
 end
 
--- MARK: Rejection Animation
+-- MARK: Rejection
 --- Animate card rejection (bounce back to original position)
 -- @param rosterBoard RosterBoard instance
 -- @param card Player card frame
@@ -368,7 +369,8 @@ function CardMovement:animate_rejection(rosterBoard, card)
     end, "CardMovement:animate_rejection")
 end
 
--- MARK: Drop Handling (Main Orchestrator)
+-- MARK: Drop Handling
+-- Main orchestrator for card drops
 --- Handle card drop event (orchestrates validation and placement)
 -- @param rosterBoard RosterBoard instance
 -- @param card Player card frame
