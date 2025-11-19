@@ -746,7 +746,7 @@ end
 
 
 -- MARK: Frame Creation
--- ui/main.lua no longer owns frame construction; see:
+-- ui/main/main.lua no longer owns frame construction; see:
 -- - NextKey222.MainWindow:CreateMainFrame(ui)
 -- - NextKey222.UIControls:AttachHeaderControls(ui, frame)
 
@@ -1214,7 +1214,7 @@ end
 
 --- REMOVED: RenderDungeonCards and AddDungeonRowCompact
 -- Dungeon rendering now handled by independent NextKey222.DungeonWindow module
--- See ui/dungeonWindow.lua
+-- See ui/dungeons/dungeonWindow.lua
 
 function UI:RenderDungeonCards()
     -- Deprecated: delegate to DungeonWindow module
@@ -1484,7 +1484,7 @@ end
 
 -- MARK: Frame Pacing
 -- Thin wrappers delegating frame pacing behavior to NextKey222.UIPerformance.
--- Keeps ui/main.lua free of pacing internals.
+-- Keeps ui/main/main.lua free of pacing internals.
 
 --- Queues rendering work to be processed across multiple frames.
 -- NOTE: QueueFramePacedRender facade is defined near the top of this file.

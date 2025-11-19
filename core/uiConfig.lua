@@ -10,11 +10,11 @@ local UIConfig = {
     WINDOW = {
         WIDTH = 600,                    -- Overall window width (both windows)
         
-        -- Keystone Window (ui/main.lua)
+        -- Keystone Window (ui/main/main.lua)
         KEYSTONE_HEIGHT = 632,          -- Keystone window height
         SCROLL_FRAME_HEIGHT_KEYSTONE = 440,  -- Keystone scroll area height
         
-        -- Dungeon Window (ui/dungeonWindow.lua)
+        -- Dungeon Window (ui/dungeons/dungeonWindow.lua)
         DUNGEON_HEIGHT = 788,           -- Dungeon window height (taller for 8 dungeons)
         SCROLL_FRAME_HEIGHT_DUNGEON = 598,   -- Dungeon scroll area height
         
@@ -86,7 +86,7 @@ local UIConfig = {
     
     
     -- MARK: Teleport Card
-    -- Configuration from ui/teleport.lua
+    -- Configuration from ui/teleport/teleport.lua
     TELEPORT_CARD = {
         CARD_ICON_SIZE = 48,            -- Icon size for teleport cards
         CARD_HEIGHT = 68,               -- Height of teleport cards (reduced from 72)
@@ -98,7 +98,7 @@ local UIConfig = {
     },
     
     -- MARK: Hearthstone Selector
-    -- Configuration from ui/hearthstoneSelector.lua
+    -- Configuration from ui/teleport/hearthstoneSelector.lua
     HEARTHSTONE_SELECTOR = {
         WINDOW_WIDTH = 340,             -- Width of hearthstone selector window
         WINDOW_HEIGHT = 300,            -- Height of hearthstone selector window
@@ -108,7 +108,7 @@ local UIConfig = {
     },
     
     -- MARK: Loot Window
-    -- Configuration from ui/lootWindow.lua
+    -- Configuration from ui/views/lootWindow.lua
     LOOT_WINDOW = {
         WINDOW_WIDTH = 400,             -- Width of loot window (wider for long titles)
         WINDOW_HEIGHT = 305,            -- Height of loot window
@@ -116,7 +116,7 @@ local UIConfig = {
     },
     
     -- MARK: Dungeon Cards
-    -- Configuration from ui/dungeonCards.lua
+    -- Configuration from ui/dungeons/dungeonCards.lua
     DUNGEON_CARDS = {
         CARD_WIDTH = 350,               -- Width of dungeon cards
         CARD_HEIGHT = 90,               -- Height of dungeon cards
@@ -166,14 +166,14 @@ local UIConfig = {
     },
     
     -- MARK: Spell Config
-    -- Configuration from ui/teleport.lua
+    -- Configuration from ui/teleport/teleport.lua
     SPELL = {
         BANK_PLAYER = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0,
         BANK_PET = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet or 1
     },
     
     -- MARK: Item Config
-    -- Configuration from ui/teleport.lua
+    -- Configuration from ui/teleport/teleport.lua
     ITEM = {
         HEARTHSTONE_ID = 6948            -- Standard Hearthstone item ID
     },

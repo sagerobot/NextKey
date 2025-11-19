@@ -26,30 +26,30 @@ boot.lua
 core\slashCommands.lua
 
 # UI Components (after boot)
-ui\components.lua
+ui\core\components.lua
 
 # UI Support Modules (must load before main UI)
-ui\frameRegistry.lua
-ui\playerCapabilities.lua
-ui\utilities.lua
-ui\scoreCalculations.lua
+ui\core\frameRegistry.lua
+ui\services\playerCapabilities.lua
+ui\core\utilities.lua
+ui\services\scoreCalculations.lua
 
 # UI Rendering Modules (Phase 2 - must load before main UI)
-ui\tooltips.lua
-ui\keystoneCards.lua
-ui\dungeonView.lua
-ui\dungeonWindow.lua
+ui\services\tooltips.lua
+ui\views\keystoneCards.lua
+ui\dungeons\dungeonView.lua
+ui\dungeons\dungeonWindow.lua
 
 # UI Calculation & Orchestration Modules (Phases 3-6)
-ui\ioCalculations.lua
-ui\rendering.lua
-ui\profiles.lua
-ui\metadata.lua
-ui\performance.lua
-ui\viewManager.lua
-ui\mainWindow.lua
-ui\controls.lua
-ui\debugHelpers.lua
+ui\services\ioCalculations.lua
+ui\core\rendering.lua
+ui\services\profiles.lua
+ui\services\metadata.lua
+ui\core\performance.lua
+ui\core\viewManager.lua
+ui\core\mainWindow.lua
+ui\core\controls.lua
+ui\core\debugHelpers.lua
 
 # Data
 data\portals.lua
@@ -151,11 +151,11 @@ ui\PugHelper\applicationTracker.lua
 # NOTE: ui\ioCalculations.lua, ui\rendering.lua, ui\performance.lua, ui\viewManager.lua,
 #       ui\mainWindow.lua, ui\controls.lua, and ui\debugHelpers.lua are already loaded above.
 #       Do not duplicate them here.
-ui\main.lua
-ui\teleport.lua
-ui\dungeonCards.lua
-ui\lootWindow.lua
-ui\hearthstoneSelector.lua
+ui\main\main.lua
+ui\teleport\teleport.lua
+ui\dungeons\dungeonCards.lua
+ui\views\lootWindow.lua
+ui\teleport\hearthstoneSelector.lua
 
 # Options
 options\mythic_plus.lua

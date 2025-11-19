@@ -312,7 +312,7 @@ function MainWindow:Initialize()
     return true
 end
 
--- MARK: Dungeon Window (REMOVED - now in independent ui/dungeonWindow.lua)
+-- MARK: Dungeon Window (REMOVED - now in independent ui/dungeons/dungeonWindow.lua)
 
 --- Deprecated: Dungeon window is now managed by NextKey222.DungeonWindow module
 -- These functions are kept for backward compatibility only

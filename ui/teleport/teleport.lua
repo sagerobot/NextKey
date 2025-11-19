@@ -444,8 +444,12 @@ local function UpdateTeleportWindowContent(window)
 
     local entries = {}
     local keystoneData = getKeystoneTeleportData()
+    
+    -- Check if we have a VALID keystone (not just any data structure)
+    -- A valid keystone must have dungeonID > 0 and a level > 0
+    local hasKeystone = keystoneData and keystoneData.dungeonID and keystoneData.dungeonID > 0 and keystoneData.level and keystoneData.level > 0
 
-    if keystoneData then
+    if hasKeystone then
         local iconTexture = keystoneData.icon
         if not iconTexture and keystoneData.spellID then
             local _, _, spellTexture = safeGetSpellInfo(keystoneData.spellID)
@@ -475,7 +479,17 @@ local function UpdateTeleportWindowContent(window)
         })
     end
 
-    if isHearthstoneEnabled() then
+    -- Show hearthstone if:
+    -- 1. Explicitly enabled in settings, OR
+    -- 2. No keystone available (fallback behavior for better UX)
+    local shouldShowHearthstone = isHearthstoneEnabled() or (not hasKeystone and isHearthstoneAvailable())
+    
+    if shouldShowHearthstone then
+        -- Debug: Log why hearthstone is being shown
+        if not isHearthstoneEnabled() and not hasKeystone then
+            NextKey222.Debug:Dev("teleport", "Showing hearthstone as fallback (no keystone available)")
+        end
+        
         local hearthstone = getSelectedHearthstone()
         local hearthTexture
         local hearthName
