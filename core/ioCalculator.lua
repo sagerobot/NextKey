@@ -115,7 +115,38 @@ function IOCalculator:EstimateRunScore(level, timed, fractionalTime)
     return math.max(0, math.floor(score + 0.5))
 end
 
+-- Helper function to calculate Mythic+ score from level and chests
+--- Calculates an approximate Mythic+ score based on keystone level and number of chests.
+--- @param level number The keystone level.
+--- @param chests number The number of chests earned (0-3).
+--- @return number The calculated score.
+function IOCalculator:CalculateMythicPlusScore(level, chests)
+    if not level or level < 2 then
+        return 0
+    end
 
+    local baseScore = 0
+    if level <= 10 then
+        baseScore = level * 15
+    elseif level <= 15 then
+        baseScore = 150 + (level - 10) * 20
+    elseif level <= 20 then
+        baseScore = 250 + (level - 15) * 25
+    else
+        baseScore = 375 + (level - 20) * 30
+    end
+
+    local chestMultiplier = {
+        [0] = 0.6, -- Untimed penalty
+        [1] = 1.0, -- Full score
+        [2] = 1.2, -- 2+ chest bonus
+        [3] = 1.2  -- 3 chest bonus (same as 2)
+    }
+
+    local multiplier = chestMultiplier[chests] or 1.0
+
+    return math.floor(baseScore * multiplier)
+end
 
 -- MARK: Core Rating Calc
 --- Calculates the precise Mythic+ score for a completed run using the MythicPlanner.com formula.

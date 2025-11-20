@@ -33,10 +33,6 @@ local function GetNextKey()
     return NextKey222.Addon
 end
 
-local function GetUtils()
-    return NextKey222.Utils
-end
-
 ---@class KeystoneEntry
 ---@field dungeonID number Dungeon identifier
 ---@field level number Keystone level
@@ -119,7 +115,7 @@ local function createKeyEntry(dungeonID, level, ownerName, ownerShort, class, so
             ownerShort = ownerShort or ownerName or "Unknown",
             class = class or "WARRIOR",
             source = source or "other",
-            timestamp = GetUtils().currentTime()
+            timestamp = NextKey222.TimeUtils.currentTime()
         }
         
         -- Try to get score from Blizzard API first (most up-to-date)
@@ -217,7 +213,7 @@ function NextKey:ScanPartyRaiderIO()
     
     for i = 1, maxMembers do
         local unit = i == 1 and "player" or memberType .. i
-        local name = GetUtils().safeGetName(unit)
+        local name = NextKey222.PlayerUtils.safeGetName(unit)
         NextKey222.Debug:Dev("keystones", "Checking party member", i, "unit:", unit, "name:", name or "nil")
         
         if name and not seen[name] and UnitExists(unit) then
@@ -255,8 +251,8 @@ function NextKey:ScanPartyRaiderIO()
                 keystoneMapID, -- Use detected mapID or 0
                 keystoneLevel, -- Use detected level or 0
                 name,
-                GetUtils().getShortName(name),
-                GetUtils().safeGetClass(unit),
+                NextKey222.PlayerUtils.getShortName(name),
+                NextKey222.PlayerUtils.safeGetClass(unit),
                 keystoneLevel > 0 and "blizzard" or (profile and "rio" or "party")
             )
                 
@@ -300,8 +296,8 @@ function NextKey:ScanPlayerKeystone()
             -- No conversion needed - GetOwnedKeystoneChallengeMapID() returns the correct ID
             NextKey222.Debug:Dev("keystones", "Found keystone via Blizzard API - dungeonID:", mapID, "level:", level)
             -- Fall back to runtime name/short if boot hasn't populated playerFullName yet
-            local runtimeName = GetUtils().safeGetName("player")
-            local runtimeShort = GetUtils().getShortName(runtimeName)
+            local runtimeName = NextKey222.PlayerUtils.safeGetName("player")
+            local runtimeShort = NextKey222.PlayerUtils.getShortName(runtimeName)
             return {
                 dungeonID = mapID,  -- Use challenge mode ID directly (matches portal data)
                 level = level,
@@ -309,7 +305,7 @@ function NextKey:ScanPlayerKeystone()
                 ownerShort = self.playerShortName or runtimeShort,
                 class = self.playerClass,
                 source = "blizzard-api",
-                timestamp = GetUtils().currentTime()
+                timestamp = NextKey222.TimeUtils.currentTime()
             }
         else
             if NextKey222.Debug and NextKey222.Debug.DEV_MODE then
@@ -399,8 +395,8 @@ function NextKey:ScanPlayerKeystone()
         print(string.format("NextKey DEBUG: Found key %s, Level %d", self:GetDungeonName(mapID), level or 0))
     end
 
-    local owner = self.playerFullName or GetUtils().safeGetName("player")
-    local class = self.playerClass ~= "" and self.playerClass or GetUtils().safeGetClass("player") or ""
+    local owner = self.playerFullName or NextKey222.PlayerUtils.safeGetName("player")
+    local class = self.playerClass ~= "" and self.playerClass or NextKey222.PlayerUtils.safeGetClass("player") or ""
 
     -- Detect if keystone changed
     local previousKeystone = self.playerKeystone
@@ -419,7 +415,7 @@ function NextKey:ScanPlayerKeystone()
         ownerShort = self.playerShortName,
         class = class ~= "" and class or "EVOKER",
         source = "player",
-        timestamp = GetUtils().currentTime(),
+        timestamp = NextKey222.TimeUtils.currentTime(),
     }
     
     -- Announce PLAYER_DETECTED event if keystone detected or changed
@@ -438,7 +434,7 @@ function NextKey:ScanPlayerKeystone()
                     dungeonID = previousKeystone.dungeonID,
                     level = previousKeystone.level
                 } or nil,
-                timestamp = GetUtils().currentTime()
+                timestamp = NextKey222.TimeUtils.currentTime()
             }
         )
     end
@@ -705,7 +701,7 @@ function NextKey:CollectPartyKeys()
                         class = player.class,
                         io = player.io or 0,
                         source = "debug",
-                        timestamp = GetUtils().currentTime(),
+                        timestamp = NextKey222.TimeUtils.currentTime(),
                         dungeonScores = player.dungeonScores,  -- Include dungeon scores for detailed IO data
                         addonStatus = player.addonStatus,      -- Include addon status
                     })
@@ -720,7 +716,7 @@ function NextKey:CollectPartyKeys()
                         class = player.class,
                         io = player.io or 0,
                         source = "debug",
-                        timestamp = GetUtils().currentTime(),
+                        timestamp = NextKey222.TimeUtils.currentTime(),
                         dungeonScores = player.dungeonScores,
                         addonStatus = player.addonStatus,
                     })
@@ -941,7 +937,7 @@ function NextKey:GetAvailableKeys()
     if NextKey222.UI and NextKey222.UI.showGuildKeys then
         NextKey222.Debug:Dev("keystones", "Guild view enabled, filtering keys")
         local onlineGuild = self:GetOnlineGuildMemberNames(false) -- include player in the set
-        local myShort = self.playerShortName or (GetUtils().getShortName(GetUtils().safeGetName("player")))
+        local myShort = self.playerShortName or (NextKey222.PlayerUtils.getShortName(NextKey222.PlayerUtils.safeGetName("player")))
         
         NextKey222.Debug:Dev("keystones", "Online guild members:")
         local guildCount = 0
@@ -1090,7 +1086,7 @@ function NextKey:GetAvailableKeys()
                     class = classToken,
                     io = meta and meta.io or 0,
                     source = "party-nokey",
-                    timestamp = GetUtils().currentTime(),
+                    timestamp = NextKey222.TimeUtils.currentTime(),
                 })
             end
         end
@@ -1197,7 +1193,7 @@ function NextKey:GetOnlineGuildMemberNames(excludePlayer)
         pcall(C_GuildInfo.GuildRoster)
     end
     local num = GetNumGuildMembers and GetNumGuildMembers() or 0
-    local myShort = self.playerShortName or (GetUtils().getShortName(GetUtils().safeGetName("player")))
+    local myShort = self.playerShortName or (NextKey222.PlayerUtils.getShortName(NextKey222.PlayerUtils.safeGetName("player")))
     for i = 1, num do
         local name, _, _, _, _, _, _, _, online = GetGuildRosterInfo(i)
         if name and online then
@@ -1246,7 +1242,7 @@ function NextKey:SetTeleportTargetKey(key, opts)
             io = key.io,
             source = opts.source or key.source,
             receivedFrom = opts.receivedFrom,
-            timestamp = GetUtils().currentTime(),
+            timestamp = NextKey222.TimeUtils.currentTime(),
         })
         
         -- Announce teleport selected event
@@ -1268,7 +1264,7 @@ function NextKey:SetTeleportTargetKey(key, opts)
                     level = previousKey.level,
                     ownerName = previousKey.ownerName
                 } or nil,
-                timestamp = GetUtils().currentTime()
+                timestamp = NextKey222.TimeUtils.currentTime()
             }
         )
         

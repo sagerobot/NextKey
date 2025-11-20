@@ -59,8 +59,6 @@ end
 
 -- MARK: Core Handlers
 function Events:OnPlayerEnteringWorld(isLogin, isReload)
-    NextKey222.Performance:StartProfile("OnPlayerEnteringWorld")
-    
     if isLogin or isReload then
         NextKey222.Debug:Dev("events", "Player entering world - login/reload")
         
@@ -85,8 +83,6 @@ function Events:OnPlayerEnteringWorld(isLogin, isReload)
             NextKey.SafeRun(NextKey222.UI.Initialize, "Initialize UI on login")
         end
     end
-    
-    NextKey222.Performance:StopProfile("OnPlayerEnteringWorld")
 end
 
 -- MARK: Char Capture Schedule
@@ -341,8 +337,6 @@ function Events:OnGroupRosterUpdate()
 end
 
 function Events:ProcessRosterUpdate()
-    NextKey222.Performance:StartProfile("ProcessRosterUpdate")
-    
     -- Event coalescing: Batch rapid-fire roster updates
     if not self.rosterUpdateTimer then
         self.rosterUpdateTimer = {}
@@ -416,12 +410,9 @@ function Events:ProcessRosterUpdate()
         
         self.rosterUpdateTimer.handle = nil
     end)
-    
-    NextKey222.Performance:StopProfile("ProcessRosterUpdate")
 end
 
 function Events:OnGroupJoined()
-    NextKey222.Performance:StartProfile("OnGroupJoined")
     NextKey222.Debug:Dev("events", "Player joined a group")
     
     -- Force immediate keystone scan when joining group
@@ -442,12 +433,9 @@ function Events:OnGroupJoined()
             NextKey.SafeRun(NextKey222.UI.RefreshResults, "Refresh UI on group join", NextKey222.UI)
         end)
     end
-    
-    NextKey222.Performance:StopProfile("OnGroupJoined")
 end
 
 function Events:OnGroupLeft()
-    NextKey222.Performance:StartProfile("OnGroupLeft")
     NextKey222.Debug:Dev("events", "Player left group")
     
     -- Reset PUG Helper state when leaving group
@@ -462,30 +450,20 @@ function Events:OnGroupLeft()
     if NextKey222.UI and NextKey222.UI.IsMainFrameVisible and NextKey222.UI:IsMainFrameVisible() then
         NextKey.SafeRun(NextKey222.UI.RefreshResults, "Refresh UI on group leave", NextKey222.UI)
     end
-    
-    NextKey222.Performance:StopProfile("OnGroupLeft")
 end
 
 function Events:OnBagUpdateDelayed()
-    NextKey222.Performance:StartProfile("OnBagUpdateDelayed")
-    
     -- Scan for new keystones
     if NextKey.Keystones and NextKey.Keystones.ScanPlayerKeystones then
         NextKey.SafeRun(NextKey.Keystones.ScanPlayerKeystones, "Scan keystones on bag update")
     end
-    
-    NextKey222.Performance:StopProfile("OnBagUpdateDelayed")
 end
 
 function Events:OnChatMsgAddon(prefix, message, distribution, sender)
-    NextKey222.Performance:StartProfile("OnChatMsgAddon")
-    
     -- Route addon messages to communications
     if NextKey222.Communications and NextKey222.Communications.ProcessMessage then
         NextKey.SafeRun(NextKey222.Communications.ProcessMessage, "Process addon message", prefix, message, distribution, sender)
     end
-    
-    NextKey222.Performance:StopProfile("OnChatMsgAddon")
 end
 
 -- MARK: PUG Helpers
@@ -493,12 +471,9 @@ end
 -- The core event handler is now only responsible for broadcasting generic messages.
 
 function Events:OnChallengeModeCompleted(mapID, level)
-    NextKey222.Performance:StartProfile("OnChallengeModeCompleted")
-    
     -- Only count runs at +7 or higher
     if not level or level < 7 then
         NextKey222.Debug:Dev("events", "Skipping run counter for level", level, "- only +7 and higher count")
-        NextKey222.Performance:StopProfile("OnChallengeModeCompleted")
         return
     end
     
@@ -508,7 +483,6 @@ function Events:OnChallengeModeCompleted(mapID, level)
             local card = NextKey.DungeonCards.dungeons[mapID]
             if not card then
                 NextKey222.Debug:Dev("events", "No dungeon card found for mapID", mapID)
-                NextKey222.Performance:StopProfile("OnChallengeModeCompleted")
                 return
             end
             
@@ -561,8 +535,6 @@ function Events:OnChallengeModeCompleted(mapID, level)
     else
         NextKey222.Debug:Dev("teleport", "Auto-show teleport window after completion disabled by configuration")
     end
-    
-    NextKey222.Performance:StopProfile("OnChallengeModeCompleted")
 end
 
 -- MARK: Module Interface
@@ -620,7 +592,6 @@ end
 -- @param sender string The player who sent the data
 -- @param organizerData table The organizer data received
 function Events:OnOrganizerDataUpdated(sender, organizerData)
-    NextKey222.Performance:StartProfile("OnOrganizerDataUpdated")
     NextKey222.Debug:Dev("events", "Received organizer data from", sender)
     
     -- Store organizer data if available
@@ -632,44 +603,35 @@ function Events:OnOrganizerDataUpdated(sender, organizerData)
     if NextKey222.UI and NextKey222.UI.OnOrganizerDataUpdated then
         NextKey222.UI:OnOrganizerDataUpdated(sender, organizerData)
     end
-    
-    NextKey222.Performance:StopProfile("OnOrganizerDataUpdated")
 end
 
 --- Handles organizer data requests from communications
 -- @param sender string The player who requested the data
 function Events:OnOrganizerDataRequested(sender)
-    NextKey222.Performance:StartProfile("OnOrganizerDataRequested")
     NextKey222.Debug:Dev("events", "Received organizer data request from", sender)
     
     -- Respond by sharing our organizer data
     if NextKey222.Communications and NextKey222.Communications.ShareOrganizerData then
         NextKey222.Communications:ShareOrganizerData()
     end
-    
-    NextKey222.Performance:StopProfile("OnOrganizerDataRequested")
 end
 
 --- Handles group optimization requests from communications
 -- @param sender string The player who requested optimization
 -- @param optimizationData table The optimization parameters
 function Events:OnGroupOptimizationRequested(sender, optimizationData)
-    NextKey222.Performance:StartProfile("OnGroupOptimizationRequested")
     NextKey222.Debug:Dev("events", "Received group optimization request from", sender)
     
     -- Process optimization request if available
     if NextKey222.Organizer then
         NextKey222.Organizer:ProcessOptimizationRequest(sender, optimizationData)
     end
-    
-    NextKey222.Performance:StopProfile("OnGroupOptimizationRequested")
 end
 
 --- Handles group optimization results from communications
 -- @param sender string The player who sent the results
 -- @param optimizationResults table The optimization results
 function Events:OnGroupOptimizationResults(sender, optimizationResults)
-    NextKey222.Performance:StartProfile("OnGroupOptimizationResults")
     NextKey222.Debug:Dev("events", "Received group optimization results from", sender)
     
     -- Store optimization results if available
@@ -681,8 +643,6 @@ function Events:OnGroupOptimizationResults(sender, optimizationResults)
     if NextKey222.UI and NextKey222.UI.OnGroupOptimizationResults then
         NextKey222.UI:OnGroupOptimizationResults(sender, optimizationResults)
     end
-    
-    NextKey222.Performance:StopProfile("OnGroupOptimizationResults")
 end
 
 --- Registers organizer-specific events

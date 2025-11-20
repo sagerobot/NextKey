@@ -1745,13 +1745,7 @@ function SlashCommands:TestComponentIntegration()
 end
 
 function SlashCommands:TestComponentPerformance()
-    if NextKey222.ComponentTests and NextKey222.ComponentTests.TestComponentPerformance then
-        NextKey222.Debug:User("Testing component performance...")
-        local success = NextKey222.ComponentTests:TestComponentPerformance()
-        NextKey222.Debug:User(success and "✓ Performance tests passed" or "✗ Performance tests failed")
-    else
-        NextKey222.Debug:User("Performance tests not available")
-    end
+    NextKey222.Debug:User("Component performance tests removed.")
 end
 
 function SlashCommands:TestComponentValidation()
@@ -1833,25 +1827,7 @@ function SlashCommands:RunIntegrationTests()
 end
 
 function SlashCommands:RunPerformanceTests()
-    if not NextKey222.Validation then
-        NextKey222.Debug:User("Validation system not available")
-        return
-    end
-    
-    NextKey222.Debug:User("=== Running Performance Tests ===")
-    
-    -- Run performance-specific tests
-    local results = {}
-    results.performance = NextKey222.Validation:TestPerformanceSystem()
-    
-    local summary = NextKey222.Validation:GenerateValidationSummary(results, 0)
-    NextKey222.Validation:PrintValidationResults(results, summary)
-    
-    if summary.success then
-        NextKey222.Debug:User("✓ All performance tests passed!")
-    else
-        NextKey222.Debug:User("✗ Some performance tests failed")
-    end
+    NextKey222.Debug:User("Performance tests are removed.")
 end
 
 function SlashCommands:RunUITests()

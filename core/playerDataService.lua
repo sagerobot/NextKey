@@ -91,7 +91,7 @@ function PlayerDataService:CreateIOPackage(playerName)
             score = NextKey222.UI:GetDungeonScore(dungeonID) or 0
         else
             -- Fallback to WoW API directly
-            local mapID = NextKey222.Utils and NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID) or dungeonID
+            local mapID = NextKey222.DungeonUtils and NextKey222.DungeonUtils:ConvertToRaiderIOKeystoneID(dungeonID) or dungeonID
             local intimeInfo, overtimeInfo = C_MythicPlus.GetSeasonBestForMap(mapID)
             if intimeInfo and intimeInfo.level then
                 score = intimeInfo.level * 10 + (intimeInfo.level > 10 and (intimeInfo.level - 10) * 5 or 0)
@@ -121,7 +121,7 @@ end
 --- @return boolean isInTime Whether the best run was completed in time
 function PlayerDataService:GetDungeonRunDetails(dungeonID)
     -- Convert NextKey dungeon ID to Challenge Mode map ID
-    local mapID = NextKey222.Utils and NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID) or dungeonID
+    local mapID = NextKey222.DungeonUtils and NextKey222.DungeonUtils:ConvertToRaiderIOKeystoneID(dungeonID) or dungeonID
     
     -- Use WoW API to get detailed run information
     local intimeInfo, overtimeInfo = C_MythicPlus.GetSeasonBestForMap(mapID)

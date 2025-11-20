@@ -1,6 +1,5 @@
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
-local Utils = NextKey222.Utils
 local ItemUtils = NextKey222.ItemUtils
 local DungeonCards = NextKey.DungeonCards
 local UIComponents = NextKey222.UIComponents

@@ -77,7 +77,7 @@ NextKey222.RaiderIO = {}
 NextKey222.Communications = {}
 NextKey222.UI = {}
 -- NextKey222.Debug is set by core/debugService.lua (loaded before this file)
-NextKey222.Performance = {}
+-- NextKey222.Performance is removed (bloat)
 NextKey222.Events = {}
 NextKey222.Config = {}
 NextKey222.Season = {}
@@ -120,56 +120,6 @@ end
 
 -- Expose SafeRun through NextKey222 namespace as well
 NextKey222.SafeRun = NextKey.SafeRun
-
--- MARK: Performance Monitoring
-NextKey222.Performance = {
-    profiles = {},
-    enabled = false,
-    
-    StartProfile = function(self, functionName)
-        if not self.enabled then return end
-        
-        local profile = self.profiles[functionName]
-        if not profile then
-            self.profiles[functionName] = {
-                elapsed = 0,
-                startTime = 0,
-                runs = 0,
-                averageTime = 0
-            }
-            profile = self.profiles[functionName]
-        end
-        
-        profile.startTime = debugprofilestop()
-        profile.runs = profile.runs + 1
-    end,
-    
-    StopProfile = function(self, functionName)
-        if not self.enabled then return end
-        
-        local profile = self.profiles[functionName]
-        if profile and profile.startTime > 0 then
-            local elapsed = debugprofilestop() - profile.startTime
-            profile.elapsed = profile.elapsed + elapsed
-            profile.averageTime = profile.elapsed / profile.runs
-        end
-    end,
-    
-    GetReport = function(self)
-        local report = {}
-        for name, profile in pairs(self.profiles) do
-            table.insert(report, {
-                name = name,
-                totalTime = profile.elapsed,
-                runs = profile.runs,
-                averageTime = profile.averageTime
-            })
-        end
-        
-        table.sort(report, function(a, b) return a.totalTime > b.totalTime end)
-        return report
-    end
-}
 
 -- MARK: Debug System
 -- Debug system now loaded from core/debugService.lua (loaded before this file)

@@ -2,34 +2,7 @@
 local _, NextKey222 = ...
 
 -- MARK: FakePlayer Wrappers
--- These functions maintain backward compatibility while delegating to the new service
-
---- Wrapper: AddRandomFakePlayers - delegates to FakePlayerService
-function NextKey222.Addon:AddRandomFakePlayers(count, addonMix)
-    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
-        print("NextKey Error: FakePlayerService not available. Check addon load order.")
-        return 0
-    end
-    return NextKey222.FakePlayerService:GenerateRandomPlayers(count, addonMix)
-end
-
---- Wrapper: ClearFakePlayers - delegates to FakePlayerService
-function NextKey222.Addon:ClearFakePlayers()
-    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
-        print("NextKey Error: FakePlayerService not available. Check addon load order.")
-        return 0
-    end
-    return NextKey222.FakePlayerService:ClearAllPlayers()
-end
-
---- Wrapper: GeneratePresetTeam - delegates to FakePlayerService
-function NextKey222.Addon:GeneratePresetTeam(presetType)
-    if not NextKey222.FakePlayerService or not NextKey222.FakePlayerService:IsEnabled() then
-        print("NextKey Error: FakePlayerService not available. Check addon load order.")
-        return 0
-    end
-    return NextKey222.FakePlayerService:GeneratePreset(presetType)
-end
+-- Removed legacy wrappers. Use FakePlayerService directly.
 
 -- MARK: Core Debug Functions
 -- Ensure we have a list of active season dungeon IDs cached; returns array (possibly fallback)

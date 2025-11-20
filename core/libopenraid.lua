@@ -158,7 +158,7 @@ function LibOpenRaidIntegration:GetPlayerKeystone(unitId)
     end
     
     local playerName = UnitName(unitId or "player")
-    local fullName = NextKey222.Utils.safeGetName(unitId or "player")
+    local fullName = NextKey222.PlayerUtils.safeGetName(unitId or "player")
     
     return {
         dungeonID = dungeonID,
@@ -169,7 +169,7 @@ function LibOpenRaidIntegration:GetPlayerKeystone(unitId)
         ownerName = fullName,
         ownerShort = playerName,
         classID = keystoneInfo.classID,
-        class = keystoneInfo.classID and select(2, GetClassInfo(keystoneInfo.classID)) or NextKey222.Utils.safeGetClass(unitId or "player"),
+        class = keystoneInfo.classID and select(2, GetClassInfo(keystoneInfo.classID)) or NextKey222.PlayerUtils.safeGetClass(unitId or "player"),
         rating = keystoneInfo.rating or 0,
         source = "libopenraid",
         timestamp = GetTime()

@@ -486,58 +486,11 @@ function Validation:TestPerformanceSystem()
     local suite = self:CreateTestSuite("Performance System Tests", 
         "Tests for the Performance system")
     
-    -- Test 1: Performance Module Initialization
-    self:AddTest(suite, "Performance Module Initialization", function()
-        if not NextKey222.Performance then
-            return false, "Performance module not available"
+    -- Performance system removed (bloat cleanup)
+    self:AddTest(suite, "Performance Module Removed", function()
+        if NextKey222.Performance then
+            return false, "Performance module should be removed"
         end
-        
-        if not NextKey222.Performance.profiles then
-            return false, "Performance profiles not initialized"
-        end
-        
-        return true
-    end, self.TEST_CATEGORIES.PERFORMANCE)
-    
-    -- Test 2: Performance Profiling
-    self:AddTest(suite, "Performance Profiling", function()
-        local performance = NextKey222.Performance
-        
-        -- Test profiling a function
-        local testFunc = function() return "test" end
-        local result = performance:ProfileFunction(testFunc, "test_function")
-        
-        if result ~= "test" then
-            return false, "Profiled function returned unexpected result"
-        end
-        
-        -- Check if profile was created
-        local profile = performance:GetMetrics("test_function")
-        if not profile then
-            return false, "Performance profile not created"
-        end
-        
-        return true
-    end, self.TEST_CATEGORIES.PERFORMANCE)
-    
-    -- Test 3: Caching System
-    self:AddTest(suite, "Caching System", function()
-        local performance = NextKey222.Performance
-        
-        -- Test cache set/get
-        performance:CacheSet("test_key", "test_value")
-        local value = performance:CacheGet("test_key")
-        
-        if value ~= "test_value" then
-            return false, "Cache set/get failed"
-        end
-        
-        -- Test cache statistics
-        local stats = performance:CacheGetStats()
-        if not stats then
-            return false, "Failed to get cache statistics"
-        end
-        
         return true
     end, self.TEST_CATEGORIES.PERFORMANCE)
     

@@ -70,7 +70,7 @@ core\tooltip.lua
 core\theme.lua
 core\uiScale.lua
 core\responsive.lua
-core\performance.lua
+# core\performance.lua
 core\validation.lua
 core\fakePlayerService.lua
 core\profiles.lua
@@ -88,8 +88,8 @@ core\utils\dungeon.lua
 core\utils\item.lua
 core\utils\scoring.lua
 
-# Backward Compatibility Shim (forwards to domain-specific utils)
-core\utils.lua
+# Backward Compatibility Shim (removed)
+# core\utils.lua
 
 # Sorting System (Phase 2 Refactor - must load before UI)
 core\sorting\main.lua
@@ -110,7 +110,7 @@ core\playerDataService.lua
 core\groupSuggestions.lua
 core\keystones.lua
 core\raiderio.lua
-core\scoring.lua
+# core\scoring.lua
 core\comms.lua
 core\dungeonCards.lua
 
@@ -167,21 +167,3 @@ events\handlers.lua
 # Debug
 debug\init.lua
 debug\tools.lua
-debug\memoryProfile.lua
-debug\test_io_tooltips.lua
-debug\pugHelper_tests.lua
-debug\loot_tracking_test.lua
-debug\simple_test.lua
-debug\organizer_foundation_tests.lua
-debug\organizer_ui_tests.lua
-debug\drag_test_simple.lua
-debug\card_layout_test.lua
-debug\pugPerformanceTest.lua
-debug\organizer_survey_tests.lua
-debug\pollSimulator.lua
-debug\spec_change_test.lua
-debug\check_card_state.lua
-debug\test_card_movement.lua
-debug\test_priority_sorting.lua
-debug\test_lfg_apis.lua
-debug\pugHelper_testUI.lua
