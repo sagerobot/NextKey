@@ -379,7 +379,7 @@ function DungeonWindow:RenderDungeonCard(dungeonID, dungeonData)
     end
 
     if not iconSet and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
-        local challengeModeMapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
+        local challengeModeMapID = NextKey222.DungeonUtils:ConvertToRaiderIOKeystoneID(dungeonID)
         if challengeModeMapID then
             local _, _, _, iconFileID = C_ChallengeMode.GetMapUIInfo(challengeModeMapID)
             if iconFileID and iconFileID > 0 then

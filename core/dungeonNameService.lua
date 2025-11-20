@@ -160,8 +160,8 @@ end
 --- @return number The keystone dungeon ID
 function DungeonNameService:ConvertChallengeMapID(mapID)
     -- Use Utils conversion if available
-    if NextKey222.Utils and NextKey222.Utils.ConvertChallengeMapToKeystoneID then
-        local converted = NextKey222.Utils:ConvertChallengeMapToKeystoneID(mapID)
+    if NextKey222.DungeonUtils and NextKey222.DungeonUtils.ConvertChallengeMapToKeystoneID then
+        local converted = NextKey222.DungeonUtils:ConvertChallengeMapToKeystoneID(mapID)
         Debug:Trace("dungeonNameService", "ConvertChallengeMapID(" .. tostring(mapID) .. ") =", converted)
         return converted
     end

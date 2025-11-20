@@ -5,10 +5,6 @@ local function GetNextKey()
     return NextKey222.Addon
 end
 
-local function GetUtils()
-    return NextKey222.Utils
-end
-
 ---@class DungeonCard
 ---@field dungeonID number Dungeon identifier
 ---@field name string Localized dungeon name
@@ -140,12 +136,12 @@ function DungeonCards:GetPreferenceTooltip(dungeonID)
     
     local likes = {}
     for name in pairs(card.likes) do
-        table.insert(likes, GetUtils().getShortName(name))
+        table.insert(likes, NextKey222.PlayerUtils.getShortName(name))
     end
     
     local dislikes = {}
     for name in pairs(card.dislikes) do
-        table.insert(dislikes, GetUtils().getShortName(name))
+        table.insert(dislikes, NextKey222.PlayerUtils.getShortName(name))
     end
     
     return table.concat(likes, ", "), table.concat(dislikes, ", ")
