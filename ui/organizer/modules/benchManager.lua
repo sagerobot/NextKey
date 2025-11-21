@@ -23,14 +23,14 @@ function BenchManager:get_bench_players(rosterBoard)
     local allPlayers = {}
     local seenPlayers = {}
     
-    -- STEP 1: Get bench players from OrganizerState (SINGLE SOURCE OF TRUTH)
-    local benchPlayerIDs = NextKey222.OrganizerState:GetBenchPlayers()
+    -- STEP 1: Get bench players from OrganizerModel (SINGLE SOURCE OF TRUTH)
+    local benchPlayerIDs = NextKey222.OrganizerModel:GetBench()
     
     Debug:Dev("organizer_ui", "OrganizerState reports", #benchPlayerIDs, "bench players")
     
     -- STEP 2: Fetch full data for each player from state
     for _, playerID in ipairs(benchPlayerIDs) do
-        local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
+        local playerData = NextKey222.OrganizerModel:GetPlayer(playerID)
         
         if playerData then
             table.insert(allPlayers, playerData)
@@ -51,19 +51,19 @@ function BenchManager:get_bench_players(rosterBoard)
             for _, fakeData in ipairs(fakePlayers) do
                 if not seenPlayers[fakeData.name] then
                     -- Check if player exists in state
-                    local exists = NextKey222.OrganizerState:PlayerExists(fakeData.name)
+                    local exists = (NextKey222.OrganizerModel:GetPlayer(fakeData.name) ~= nil)
                     
                     if not exists then
                         -- Player is NEW (not in state at all) - check if should add
-                        local location = NextKey222.OrganizerState:GetPlayerLocation(fakeData.name)
+                        local location = NextKey222.OrganizerModel:GetAssignment(fakeData.name)
                         
                         if location == "opt_out" then
                             Debug:Dev("organizer_ui", "Skipping opted-out player:", fakeData.name)
                         else
                             -- Add new player to bench
                             local playerData = self:BuildPlayerDataFromFake(fakeData)
-                            NextKey222.OrganizerState:SetPlayer(fakeData.name, playerData)
-                            NextKey222.OrganizerState:MoveToBench(fakeData.name)
+                            NextKey222.OrganizerModel:AddPlayer(playerData)
+                            NextKey222.OrganizerModel:SetAssignment(fakeData.name, "bench")
                             
                             table.insert(allPlayers, playerData)
                             seenPlayers[fakeData.name] = true
@@ -83,11 +83,11 @@ function BenchManager:get_bench_players(rosterBoard)
         for _, memberName in ipairs(partyMembers) do
             if not seenPlayers[memberName] then
                 -- Check if player exists in state
-                local exists = NextKey222.OrganizerState:PlayerExists(memberName)
+                local exists = (NextKey222.OrganizerModel:GetPlayer(memberName) ~= nil)
                 
                 if not exists then
                     -- Player is NEW (not in state at all) - check if should add
-                    local location = NextKey222.OrganizerState:GetPlayerLocation(memberName)
+                    local location = NextKey222.OrganizerModel:GetAssignment(memberName)
                     
                     if location == "opt_out" then
                         Debug:Dev("organizer_ui", "Skipping opted-out player:", memberName)
@@ -95,8 +95,8 @@ function BenchManager:get_bench_players(rosterBoard)
                         -- Add new player to bench
                         local playerData = self:BuildPlayerDataFromParty(memberName)
                         if playerData then
-                            NextKey222.OrganizerState:SetPlayer(memberName, playerData)
-                            NextKey222.OrganizerState:MoveToBench(memberName)
+                            NextKey222.OrganizerModel:AddPlayer(playerData)
+                            NextKey222.OrganizerModel:SetAssignment(memberName, "bench")
                             
                             table.insert(allPlayers, playerData)
                             seenPlayers[memberName] = true
@@ -592,7 +592,7 @@ function BenchManager:recall_all_cards(rosterBoard)
             -- FINAL STEP (same as manual drag): Update state, event rebuilds UI
             Debug:Dev("organizer", "Animation complete - updating state for", #playerIDs, "players")
             for _, playerID in ipairs(playerIDs) do
-                NextKey222.OrganizerState:MoveToBench(playerID)
+                NextKey222.OrganizerModel:SetAssignment(playerID, "bench")
             end
             -- ORGANIZER_PLAYER_MOVED events will fire and rebuild UI automatically
             

@@ -140,6 +140,148 @@ end
 -- @param rosterBoard RosterBoard instance
 -- @param card Player card frame
 -- @param groupIndex Group number
+-- MARK: Module Definition
+local _, NextKey222 = ...
+
+local CardMovement = {}
+NextKey222.CardMovement = CardMovement
+NextKey222.RegisterModule("CardMovement", CardMovement)
+
+local Debug = NextKey222.Debug
+
+-- MARK: Initialization
+function CardMovement:Initialize()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer", "CardMovement module initialized")
+        return true
+    end, "CardMovement:Initialize")
+end
+
+-- MARK: Role Validation
+-- Static helpers with no RosterBoard dependency
+--- Check if player can fill a role
+-- @param playerRoles Player's roles (array or spec preferences table)
+-- @param slotRole Slot's required role
+-- @return boolean True if player can fill role
+function CardMovement:can_player_fill_role(playerRoles, slotRole)
+    if not playerRoles then
+        return false
+    end
+    
+    local normalizedSlotRole = slotRole
+    if slotRole == "DAMAGER" then
+        normalizedSlotRole = "DPS"
+    end
+    
+    -- ENHANCED: Support both array and table formats
+    -- Array format: {"TANK", "HEALER"} (legacy)
+    -- Table format: {Tank = "play", Healer = "fill", DPS = "none"} (new spec preferences)
+    
+    -- Check if it's a spec preferences table (key-value pairs)
+    local isSpecPreferencesTable = false
+    for k, v in pairs(playerRoles) do
+        if type(k) == "string" and type(v) == "string" then
+            isSpecPreferencesTable = true
+            break
+        end
+    end
+    
+    if isSpecPreferencesTable then
+        -- New format: check spec preferences
+        for role, preference in pairs(playerRoles) do
+            -- Skip "none" preferences
+            if preference ~= "none" then
+                local normalizedRole = role:upper()
+                if normalizedRole == "DAMAGER" then
+                    normalizedRole = "DPS"
+                end
+                
+                if normalizedRole == normalizedSlotRole:upper() or
+                   normalizedRole == slotRole:upper() then
+                    return true
+                end
+            end
+        end
+    else
+        -- Legacy format: array of role strings
+        for _, role in ipairs(playerRoles) do
+            local normalizedPlayerRole = role:upper()
+            if normalizedPlayerRole == "DAMAGER" then
+                normalizedPlayerRole = "DPS"
+            end
+            
+            if normalizedPlayerRole == normalizedSlotRole or
+               normalizedPlayerRole == slotRole:upper() or
+               normalizedPlayerRole == normalizedSlotRole:upper() then
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
+--- Remove card from bench array
+-- @param rosterBoard RosterBoard instance
+-- @param card Player card frame
+-- @return boolean True if removed successfully
+function CardMovement:remove_card_from_bench_array(rosterBoard, card)
+    if not rosterBoard.benchCards then return false end
+    
+    for i = #rosterBoard.benchCards, 1, -1 do
+        if rosterBoard.benchCards[i] == card then
+            table.remove(rosterBoard.benchCards, i)
+            Debug:Dev("organizer_ui", "Removed card from benchCards array at index", i)
+            return true
+        end
+    end
+    
+    Debug:Dev("organizer_ui", "Card not found in benchCards array")
+    return false
+end
+
+-- MARK: Drop Detection
+--- Detect which target the mouse is over during drop
+-- @param rosterBoard RosterBoard instance
+-- @return table|nil Drop target information
+function CardMovement:detect_drop_target(rosterBoard)
+    -- Check role slots first (highest priority)
+    if rosterBoard.groupSlots then
+        for groupIndex, slots in pairs(rosterBoard.groupSlots) do
+            for slotIndex, slot in pairs(slots) do
+                if slot and slot.frame and slot.frame:IsMouseOver() then
+                    Debug:Dev("organizer_ui", "Mouse over slot:", groupIndex, slotIndex, slot.roleLabel)
+                    return {
+                        type = "role_slot",
+                        slot = slot,
+                        groupIndex = groupIndex,
+                        slotIndex = slotIndex,
+                        role = slot.role
+                    }
+                end
+            end
+        end
+    end
+    
+    -- Check bench scroll frame (entire area including empty space)
+    if rosterBoard.benchScrollFrame and rosterBoard.benchScrollFrame:IsMouseOver() then
+        Debug:Dev("organizer_ui", "Mouse over bench")
+        return {type = "bench"}
+    end
+    
+    -- Check opt-out scroll frame (entire area including empty space)
+    if rosterBoard.optOutSection and rosterBoard.optOutSection.scrollFrame and rosterBoard.optOutSection.scrollFrame:IsMouseOver() then
+        Debug:Dev("organizer_ui", "Mouse over opt-out")
+        return {type = "opt_out"}
+    end
+    
+    return nil
+end
+
+--- Find a compatible slot in a group for a card
+-- @param rosterBoard RosterBoard instance
+-- @param card Player card frame
+-- @param groupIndex Group number
 -- @return table|nil Compatible slot if found
 function CardMovement:find_compatible_slot_in_group(rosterBoard, card, groupIndex)
     if not rosterBoard.groupSlots[groupIndex] then
@@ -147,7 +289,7 @@ function CardMovement:find_compatible_slot_in_group(rosterBoard, card, groupInde
     end
     
     -- Fetch player data from state
-    local playerData = card.playerID and NextKey222.OrganizerState:GetPlayer(card.playerID)
+    local playerData = card.playerID and NextKey222.OrganizerModel:GetPlayer(card.playerID)
     if not playerData then return nil end
     
     -- ENHANCED: Check spec preferences if available, otherwise fall back to roles array
@@ -225,7 +367,7 @@ end
 -- @param card Player card frame
 function CardMovement:animate_rejection(rosterBoard, card)
     return NextKey222.SafeRun(function()
-        local playerData = card.playerID and NextKey222.OrganizerState:GetPlayer(card.playerID)
+        local playerData = card.playerID and NextKey222.OrganizerModel:GetPlayer(card.playerID)
         Debug:Dev("organizer_ui", "Animating rejection for:", playerData and playerData.name or card.playerID)
         
         -- Flash red to indicate rejection
@@ -327,7 +469,7 @@ function CardMovement:handle_card_drop(rosterBoard, card, dropTarget)
             return
         end
         
-        local playerData = NextKey222.OrganizerState:GetPlayer(card.playerID)
+        local playerData = NextKey222.OrganizerModel:GetPlayer(card.playerID)
         if not playerData then
             Debug:Error("Player data not found in state:", card.playerID)
             return
@@ -368,7 +510,7 @@ function CardMovement:handle_card_drop(rosterBoard, card, dropTarget)
         -- VALIDATION PASSED - Now check for same-location drop
         
         -- Get current location from state (most reliable)
-        local currentLocation = NextKey222.OrganizerState:GetPlayerLocation(card.playerID)
+        local currentLocation = NextKey222.OrganizerModel:GetAssignment(card.playerID)
         
         -- Check if dropping in same location
         local isSameLocation = false
@@ -433,13 +575,17 @@ function CardMovement:handle_card_drop(rosterBoard, card, dropTarget)
         
         -- EVENT-DRIVEN PATTERN: Only update state, let event handler do UI work
         if dropTarget.type == "role_slot" then
-            NextKey222.OrganizerState:MoveToSlot(card.playerID, dropTarget.groupIndex, dropTarget.slotIndex)
+            NextKey222.OrganizerModel:SetAssignment(card.playerID, {
+                zone = "slot",
+                group = dropTarget.groupIndex,
+                slot = dropTarget.slotIndex
+            })
             Debug:Dev("organizer_ui", "State updated - moving to slot", dropTarget.groupIndex, dropTarget.slotIndex)
         elseif dropTarget.type == "bench" then
-            NextKey222.OrganizerState:MoveToBench(card.playerID)
+            NextKey222.OrganizerModel:SetAssignment(card.playerID, "bench")
             Debug:Dev("organizer_ui", "State updated - moving to bench")
         elseif dropTarget.type == "opt_out" then
-            NextKey222.OrganizerState:MoveToOptOut(card.playerID)
+            NextKey222.OrganizerModel:SetAssignment(card.playerID, "opt_out")
             Debug:Dev("organizer_ui", "State updated - moving to opt-out")
         end
         

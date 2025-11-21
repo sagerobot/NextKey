@@ -263,18 +263,6 @@ local function _create_teleport_button(ui, parent)
     })
 
     parent:AddChild(btn)
-    ui.headerWidgets.teleportWindowBtn = btn
-end
-
-local function _get_effective_player_count(ui)
-    -- 1) OrganizerState: canonical source when present (Organizer / poll flows)
-    if NextKey222.OrganizerState and NextKey222.OrganizerState.GetAllPlayers then
-        local ok, players = pcall(function()
-            return NextKey222.OrganizerState:GetAllPlayers()
-        end)
-        if ok and type(players) == "table" and #players > 0 then
-            return #players
-        end
     end
 
     -- 2) FakePlayerService: used by /nk opt presets and debug tools

@@ -486,6 +486,8 @@ end
 
 --- Return all opt-out player cards back to the bench
 -- @param rosterBoard RosterBoard instance
+--- Return all opt-out player cards back to the bench
+-- @param rosterBoard RosterBoard instance
 function SlotManager:return_all_opt_out_cards(rosterBoard)
     return NextKey222.SafeRun(function()
         if not rosterBoard.optOutSection or not rosterBoard.optOutSection.playerCards then
@@ -522,44 +524,23 @@ function SlotManager:return_all_opt_out_cards(rosterBoard)
         
         -- Move all players in state FIRST (batch state updates)
         for _, playerID in ipairs(playerIDsToMove) do
-            NextKey222.OrganizerState:MoveToBench(playerID)
+            NextKey222.OrganizerModel:SetAssignment(playerID, "bench")
         end
         
-        -- Now move cards visually
-        for i = #cards, 1, -1 do
-            local card = cards[i]
-            
-            if card and card.playerID then
-                    -- Move card to bench visually
-                    if NextKey222.CardMovement and NextKey222.CardMovement.place_card_in_bench then
-                        NextKey222.CardMovement:place_card_in_bench(rosterBoard, card)
-                    end
-                    
-                    local playerData = NextKey222.OrganizerState:GetPlayer(card.playerID)
-                    Debug:Dev("organizer_ui", "Returned player to bench:", playerData and playerData.name or card.playerID)
-                end
-                
-                -- Remove from opt-out array
-                table.remove(cards, i)
-            end
-            
-            -- Re-layout opt-out section (should be empty now)
-            self:layout_opt_out(rosterBoard)
-            
-            -- Re-layout bench with returned cards
-            if NextKey222.BenchManager and NextKey222.BenchManager.layout_bench then
-                NextKey222.BenchManager:layout_bench(rosterBoard)
-            end
-            
-            -- Update button state (should be disabled now)
-            self:update_return_button_state(rosterBoard)
-            
-            -- Clear bulk operation flag
-            rosterBoard.isBulkOperating = false
-            
-            Debug:User("Return complete!")
-            
-        end, "SlotManager:return_all_opt_out_cards")
+        -- Clear bulk operation flag
+        rosterBoard.isBulkOperating = false
+        
+        -- Trigger full UI rebuild to reflect changes
+        if rosterBoard.RebuildAllSections then
+            rosterBoard:RebuildAllSections()
+        else
+            -- Fallback if RebuildAllSections missing (shouldn't happen with recent fix)
+            Debug:Error("RebuildAllSections missing in RosterBoard")
+        end
+        
+        Debug:User("Return complete!")
+        
+    end, "SlotManager:return_all_opt_out_cards")
 end
 
 -- MARK: Group Controls
@@ -693,7 +674,7 @@ function SlotManager:on_remove_group_clicked(groupIndex, rosterBoard)
         if hasPlayers then
             for _, slot in pairs(rosterBoard.groupSlots[groupIndex]) do
                 if slot.playerCard and slot.playerCard.playerID then
-                    NextKey222.OrganizerState:MoveToBench(slot.playerCard.playerID)
+                    NextKey222.OrganizerModel:SetAssignment(slot.playerCard.playerID, "bench")
                 end
             end
             Debug:User("Moved players from group " .. groupIndex .. " to bench")

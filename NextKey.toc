@@ -123,7 +123,7 @@ core\organizer\validation.lua
 core\organizer\comms.lua
 core\organizer\survey.lua
 core\organizer\location.lua
-core\organizer\state.lua
+core\organizer\model.lua
 core\organizer\sorting.lua
 core\organizer\animationQueue.lua
 
@@ -135,9 +135,7 @@ ui\organizer\dragController.lua
 ui\organizer\surveyDialog.lua
 ui\organizer\modules\benchManager.lua
 ui\organizer\modules\slotManager.lua
-ui\organizer\modules\cardMovement.lua
 ui\organizer\modules\keystoneManager.lua
-ui\organizer\dragManager.lua
 
 # PUG Helper
 core\PugHelper\main.lua

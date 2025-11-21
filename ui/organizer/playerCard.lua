@@ -440,8 +440,8 @@ end
 -- STATE-DRIVEN - Session 3 Refactor
 function PlayerCard:UpdateCardContent(card, newDisplayMode)
     -- CRITICAL: Fetch fresh data from OrganizerState on every render
-    if card.playerID and NextKey222.OrganizerState then
-        local freshData = NextKey222.OrganizerState:GetPlayer(card.playerID)
+    if card.playerID and NextKey222.OrganizerModel then
+        local freshData = NextKey222.OrganizerModel:GetPlayer(card.playerID)
         if freshData then
             card.playerData = freshData  -- Update with latest state
             Debug:Dev("organizer_ui", "Refreshed card data from state:", card.playerID)
@@ -936,8 +936,8 @@ function PlayerCard:ShowManualPreferenceDialog(playerData)
         Debug:Dev("organizer_ui", "Showing manual preference dialog for:", playerData.name, "class:", playerData.class)
         
         -- CRITICAL FIX: Fetch fresh player data from OrganizerState to ensure we have correct class info
-        if playerData.id and NextKey222.OrganizerState then
-            local freshData = NextKey222.OrganizerState:GetPlayer(playerData.id)
+        if playerData.id and NextKey222.OrganizerModel then
+            local freshData = NextKey222.OrganizerModel:GetPlayer(playerData.id)
             if freshData then
                 playerData = freshData
                 Debug:Dev("organizer_ui", "Refreshed player data from state - class:", playerData.class)
