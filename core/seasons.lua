@@ -1,6 +1,5 @@
 local _, NextKey222 = ...
 local NextKey = NextKey222.Addon
-local Utils = NextKey222.Utils
 
 local Seasons = {}
 
@@ -93,7 +92,7 @@ function NextKey:UpdateSeasonBest(mapID, data)
         return false, nil
     end
 
-    local normalizedMapID = Utils.normalizeMapID(mapID)
+    local normalizedMapID = NextKey222.DungeonUtils.normalizeMapID(mapID)
     if not normalizedMapID then
         return false, seasonData
     end
@@ -108,7 +107,7 @@ function NextKey:UpdateSeasonBest(mapID, data)
         fractionalTime = tonumber(data.fractionalTime),
         timed = data.timed == true,
         source = data.source,
-        updatedAt = data.updatedAt or Utils.currentTime(),
+        updatedAt = data.updatedAt or NextKey222.TimeUtils.currentTime(),
         io = data.io and tonumber(data.io) or nil,
     }
 
@@ -131,7 +130,7 @@ function NextKey:GetSeasonBestEntry(mapID, seasonKey)
     if not seasonData then
         return nil
     end
-    return seasonData.bestLevels and seasonData.bestLevels[Utils.normalizeMapID(mapID)] or nil
+    return seasonData.bestLevels and seasonData.bestLevels[NextKey222.DungeonUtils.normalizeMapID(mapID)] or nil
 end
 
 function NextKey:GetSeasonBestLevel(mapID, seasonKey)

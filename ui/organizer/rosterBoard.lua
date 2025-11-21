@@ -1155,9 +1155,9 @@ function RosterBoard:FormatGroupHeader(groupIndex, keystoneData)
         local dungeonName = "Unknown"
         
         -- Get dungeon name
-        if NextKey222.Utils and keystone.dungeonID then
+        if NextKey222.DungeonUtils and keystone.dungeonID then
             local success, name = pcall(function()
-                return NextKey222.Utils:GetDungeonAbbreviation(keystone.dungeonID)
+                return NextKey222.DungeonUtils:GetDungeonAbbreviation(keystone.dungeonID)
             end)
             if success and name then
                 dungeonName = name

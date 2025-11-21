@@ -18,7 +18,6 @@ NextKey222.PUGTravelAssistant = PUGTravelAssistant
 -- MARK: Dependencies
 local Debug = NextKey222.Debug
 local Constants = NextKey222.Constants
-local Utils = NextKey222.Utils
 
 -- MARK: Private Variables
 local frame = nil

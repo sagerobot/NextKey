@@ -237,7 +237,7 @@ function UI:PopulateCard(cardContainer, card)
         
         -- Try ChallengeMode API if spell didn't work
         if not iconSet and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
-            local challengeModeMapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(card.dungeonID)
+        local challengeModeMapID = NextKey222.DungeonUtils:ConvertToRaiderIOKeystoneID(card.dungeonID)
             if challengeModeMapID then
                 local _, _, _, iconFileID = C_ChallengeMode.GetMapUIInfo(challengeModeMapID)
                 if iconFileID and iconFileID > 0 then
@@ -349,7 +349,7 @@ function UI:PopulateCardCompact(cardContainer, card)
         
         -- Try ChallengeMode API if spell didn't work
         if not iconSet and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
-            local challengeModeMapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(card.dungeonID)
+            local challengeModeMapID = NextKey222.DungeonUtils:ConvertToRaiderIOKeystoneID(card.dungeonID)
             if challengeModeMapID then
                 local _, _, _, iconFileID = C_ChallengeMode.GetMapUIInfo(challengeModeMapID)
                 if iconFileID and iconFileID > 0 then

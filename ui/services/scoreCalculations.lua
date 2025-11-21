@@ -118,7 +118,7 @@ function ScoreCalculations:GetRaiderIODungeonScore(dungeonID)
     local shouldDebug = (dungeonID == 503) -- Only Ara-Kara for cleaner output
     
     -- Convert NextKey dungeon ID to Challenge Mode map ID
-    local mapID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
+    local mapID = NextKey222.DungeonUtils:ConvertToRaiderIOKeystoneID(dungeonID)
     
     if shouldDebug then
         local playerName = UnitName("player")
@@ -260,7 +260,7 @@ function ScoreCalculations:GetRaiderIOBestLevel(dungeonID)
             
             -- Method 2: Try dungeon level arrays
             if mp.dungeonTimes and mp.dungeonUpgrades then
-                local seasonIndex = NextKey222.Utils:GetSeasonDungeonIndex(dungeonID)
+                local seasonIndex = NextKey222.DungeonUtils:GetSeasonDungeonIndex(dungeonID)
                 if seasonIndex then
                     -- Get level from upgrades (which correlates to key level)
                     local upgrades = mp.dungeonUpgrades[seasonIndex] or 0
@@ -378,7 +378,7 @@ function ScoreCalculations:GetDungeonLevelAndChests(dungeonID)
             
             -- Use sortedDungeons to find best level and chests
             if mp.sortedDungeons and type(mp.sortedDungeons) == "table" then
-                local rioKeystoneID = NextKey222.Utils:ConvertToRaiderIOKeystoneID(dungeonID)
+                local rioKeystoneID = NextKey222.DungeonUtils:ConvertToRaiderIOKeystoneID(dungeonID)
                 for _, dungeonProfile in ipairs(mp.sortedDungeons) do
                     if dungeonProfile.dungeon then
                         local dungeon = dungeonProfile.dungeon
