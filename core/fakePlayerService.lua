@@ -2672,86 +2672,167 @@ end
 
 -- MARK: Poll Protocol
 
---- Enable automatic PONG responses for poll protocol
--- Makes fake players respond to ADDON_PING messages automatically
+--- Enable automatic PONG and POLL responses for poll protocol
+-- Makes fake players respond to ADDON_PING and ORG_POLL_REQUEST messages automatically
 -- Uses lazy initialization to avoid module load order issues
 -- @return boolean Success status
 function FakePlayerService:EnablePollProtocol()
-    if self.pollProtocolInitialized then
-        Debug:Dev("fake_players", "Poll protocol already initialized")
-        return true  -- Already initialized
-    end
-    
-    if not NextKey222.ParticipantSurvey then
-        Debug:Error("FakePlayerService:EnablePollProtocol - ParticipantSurvey not available")
-        return false
-    end
-    
-    Debug:Dev("fake_players", "Enabling poll protocol - wrapping SendAddonPing method")
-    
-    -- Store original SendAddonPing method
-    self.originalSendAddonPing = NextKey222.ParticipantSurvey.SendAddonPing
-    
-    -- Wrap SendAddonPing to intercept and simulate fake player PONGs
-    NextKey222.ParticipantSurvey.SendAddonPing = function(survey, pollID)
-        -- Call original method (sends PING to real players)
-        FakePlayerService.originalSendAddonPing(survey, pollID)
-        
-        -- Simulate fake players responding with PONGs
-        FakePlayerService:SimulatePongResponses(pollID)
-    end
-    
-    self.pollProtocolInitialized = true
-    Debug:Dev("fake_players", "Poll protocol enabled - fake players will auto-respond to PINGs")
-    return true
+	if self.pollProtocolInitialized then
+		Debug:Dev("fake_players", "Poll protocol already initialized")
+		return true  -- Already initialized
+	end
+	
+	if not NextKey222.ParticipantSurvey then
+		Debug:Error("FakePlayerService:EnablePollProtocol - ParticipantSurvey not available")
+		return false
+	end
+	
+	Debug:Dev("fake_players", "Enabling poll protocol - wrapping SendAddonPing and SendPollRequest methods")
+	
+	-- Store original SendAddonPing method
+	self.originalSendAddonPing = NextKey222.ParticipantSurvey.SendAddonPing
+	
+	-- Wrap SendAddonPing to intercept and simulate fake player PONGs
+	NextKey222.ParticipantSurvey.SendAddonPing = function(survey, pollID)
+		-- Call original method (sends PING to real players)
+		FakePlayerService.originalSendAddonPing(survey, pollID)
+		
+		-- Simulate fake players responding with PONGs
+		FakePlayerService:SimulatePongResponses(pollID)
+	end
+	
+	-- Store original SendPollRequest method
+	self.originalSendPollRequest = NextKey222.ParticipantSurvey.SendPollRequest
+	
+	-- Wrap SendPollRequest to intercept and simulate fake player poll responses
+	NextKey222.ParticipantSurvey.SendPollRequest = function(survey, pollID)
+		-- Call original method (sends POLL_REQUEST to real players)
+		FakePlayerService.originalSendPollRequest(survey, pollID)
+		
+		-- Simulate fake players responding with poll responses
+		FakePlayerService:SimulatePollResponses(pollID)
+	end
+	
+	self.pollProtocolInitialized = true
+	Debug:Dev("fake_players", "Poll protocol enabled - fake players will auto-respond to PINGs and POLL_REQUESTs")
+	return true
 end
 
 --- Simulate PONG responses from all fake players
 -- @param pollID string Poll identifier
 function FakePlayerService:SimulatePongResponses(pollID)
-    local fakePlayers = self:GetAllPlayerNames()
-    
-    if #fakePlayers == 0 then
-        Debug:Dev("fake_players", "No fake players - skipping PONG simulation")
-        return -- No fake players to simulate
-    end
-    
-    Debug:Dev("fake_players", string.format("Simulating PONGs from %d fake players", #fakePlayers))
-    
-    for _, playerName in ipairs(fakePlayers) do
-        -- Realistic network delay: 0-500ms
-        local delay = math.random(0, 500) / 1000
-        
-        C_Timer.After(delay, function()
-            NextKey222.SafeRun(function()
-                -- Build PONG message (identical structure to real player)
-                local pongMessage = {
-                    pollID = pollID,
-                    version = "0.5.32-fake"
-                }
-                
-                -- Send directly to ParticipantSurvey as if received over network
-                if NextKey222.ParticipantSurvey and NextKey222.ParticipantSurvey.OnAddonPong then
-                    NextKey222.ParticipantSurvey:OnAddonPong(pongMessage, playerName)
-                    Debug:Dev("fake_players", string.format("Simulated ADDON_PONG from %s (delay: %dms)", 
-                        playerName, delay * 1000))
-                end
-            end, "FakePlayerService:SimulatePongResponses:Timer")
-        end)
-    end
+	local fakePlayers = self:GetAllPlayerNames()
+	
+	if #fakePlayers == 0 then
+		Debug:Dev("fake_players", "No fake players - skipping PONG simulation")
+		return -- No fake players to simulate
+	end
+	
+	Debug:Dev("fake_players", string.format("Simulating PONGs from %d fake players", #fakePlayers))
+	
+	for _, playerName in ipairs(fakePlayers) do
+		-- Realistic network delay: 0-500ms
+		local delay = math.random(0, 500) / 1000
+		
+		C_Timer.After(delay, function()
+			NextKey222.SafeRun(function()
+				-- Build PONG message (identical structure to real player)
+				local pongMessage = {
+					pollID = pollID,
+					version = "0.5.32-fake"
+				}
+				
+				-- Send directly to ParticipantSurvey as if received over network
+				if NextKey222.ParticipantSurvey and NextKey222.ParticipantSurvey.OnAddonPong then
+					NextKey222.ParticipantSurvey:OnAddonPong(pongMessage, playerName)
+					Debug:Dev("fake_players", string.format("Simulated ADDON_PONG from %s (delay: %dms)",
+						playerName, delay * 1000))
+				end
+			end, "FakePlayerService:SimulatePongResponses:Timer")
+		end)
+	end
+end
+
+--- Simulate POLL responses from all fake players
+-- @param pollID string Poll identifier
+function FakePlayerService:SimulatePollResponses(pollID)
+	local fakePlayers = self:GetAllPlayerNames()
+	
+	if #fakePlayers == 0 then
+		Debug:Dev("fake_players", "No fake players - skipping POLL_RESPONSE simulation")
+		return
+	end
+	
+	Debug:Dev("fake_players", string.format("Simulating POLL_RESPONSEs from %d fake players", #fakePlayers))
+	
+	for _, playerName in ipairs(fakePlayers) do
+		-- Realistic response delay: 1-5 seconds (simulates user interaction)
+		local delay = math.random(1000, 5000) / 1000
+		
+		C_Timer.After(delay, function()
+			NextKey222.SafeRun(function()
+				-- Generate spec preferences using PlayerDataBuilder
+				-- CRITICAL: Call outside SafeRun context to get actual return values
+				local success, specPreferences, specDetails = pcall(
+					NextKey222.OrganizerPlayerDataBuilder.GenerateSpecPreferences,
+					NextKey222.OrganizerPlayerDataBuilder,
+					playerName,
+					{randomize = true}
+				)
+				
+				-- Validate the call succeeded and returned tables
+				if not success or type(specPreferences) ~= "table" then
+					Debug:Error("GenerateSpecPreferences failed for", playerName, "error:", tostring(specPreferences))
+					specPreferences = {}
+					specDetails = {}
+				elseif type(specDetails) ~= "table" then
+					Debug:Error("GenerateSpecPreferences returned invalid specDetails for", playerName)
+					specDetails = {}
+				end
+				
+				-- Build poll response (matches structure from surveyDialog.lua)
+				local pollResponse = {
+					pollID = pollID,
+					optedIn = true,  -- Fake players always opt in (90% chance could be added later)
+					selectedCharacter = playerName,
+					characterData = nil,  -- Current character, no alt data needed
+					specPreferences = specPreferences,
+					specDetails = specDetails,
+					timestamp = GetTime()
+				}
+				
+				-- Send directly to ParticipantSurvey as if received over network
+				if NextKey222.ParticipantSurvey and NextKey222.ParticipantSurvey.OnPollResponseReceived then
+					NextKey222.ParticipantSurvey:OnPollResponseReceived(pollResponse, playerName)
+					Debug:Dev("fake_players", string.format("Simulated ORG_POLL_RESPONSE from %s (delay: %.1fs, specs: %d)",
+						playerName, delay, self:CountTable(specPreferences)))
+				end
+			end, "FakePlayerService:SimulatePollResponses:Timer")
+		end)
+	end
 end
 
 --- Disable poll protocol (restore original methods)
 -- @return boolean Success status
 function FakePlayerService:DisablePollProtocol()
-    if self.originalSendAddonPing and NextKey222.ParticipantSurvey then
-        NextKey222.ParticipantSurvey.SendAddonPing = self.originalSendAddonPing
-        self.originalSendAddonPing = nil
-        self.pollProtocolInitialized = false
-        Debug:Dev("fake_players", "Poll protocol disabled - restored original SendAddonPing")
-        return true
-    end
-    return false
+	if NextKey222.ParticipantSurvey then
+		-- Restore SendAddonPing if wrapped
+		if self.originalSendAddonPing then
+			NextKey222.ParticipantSurvey.SendAddonPing = self.originalSendAddonPing
+			self.originalSendAddonPing = nil
+		end
+		
+		-- Restore SendPollRequest if wrapped
+		if self.originalSendPollRequest then
+			NextKey222.ParticipantSurvey.SendPollRequest = self.originalSendPollRequest
+			self.originalSendPollRequest = nil
+		end
+		
+		self.pollProtocolInitialized = false
+		Debug:Dev("fake_players", "Poll protocol disabled - restored original methods")
+		return true
+	end
+	return false
 end
 
 -- MARK: Export

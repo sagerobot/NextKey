@@ -1678,6 +1678,18 @@ function RosterBoard:ExecuteSimpleSort()
         
         -- Execute ROLE WAVE animation sequence (fast thematic animation)
         NextKey222.AnimationQueue:ExecuteRoleWaveSequence(validAssignments, function()
+            -- FINAL STEP (same as manual drag): Update state, event rebuilds UI
+            Debug:Dev("organizer", "Animation complete - updating state for all assignments")
+            for _, assignment in ipairs(validAssignments) do
+                local location = {
+                    zone = "slot",
+                    group = assignment.targetSlot.groupIndex,
+                    slot = assignment.targetSlot.slotIndex
+                }
+                NextKey222.OrganizerState:SetLocation(assignment.card.playerID, location)
+            end
+            -- ORGANIZER_PLAYER_MOVED events will fire and rebuild UI automatically
+            
             self:OnSortComplete()
         end)
         
@@ -1820,6 +1832,35 @@ function RosterBoard:RebuildBench()
         end
         self.benchCards = {}
         
+        -- CRITICAL FIX: Clean up any orphaned cards floating in UIParent
+        -- These are cards that were hidden during animation but never properly destroyed
+        local orphanedCards = {}
+        for i = 1, UIParent:GetNumChildren() do
+            local child = select(i, UIParent:GetChildren())
+            -- Only target player cards that are directly parented to UIParent
+            if child and child.playerID then
+                local parent = child:GetParent()
+                if parent == UIParent then
+                    table.insert(orphanedCards, child)
+                    Debug:Dev("organizer_ui", "Found orphaned card in UIParent:", child.playerID)
+                end
+            end
+        end
+        
+        -- Destroy orphaned cards completely
+        for _, card in ipairs(orphanedCards) do
+            Debug:Dev("organizer_ui", "Destroying orphaned card:", card.playerID)
+            card:Hide()
+            card:SetParent(nil)
+            card:ClearAllPoints()
+            -- Clear properties to ensure garbage collection
+            card.playerID = nil
+            card.playerData = nil
+            card.location = nil
+            card.displayMode = nil
+            card.classColor = nil
+        end
+        
         -- Get players from state
         local benchPlayerIDs = NextKey222.OrganizerState:GetBenchPlayers()
         
@@ -1942,39 +1983,39 @@ function RosterBoard:RebuildOptOut()
 end
 
 function RosterBoard:GetAffectedSections(fromLocation, toLocation)
-    local sections = {}
-    
-    -- Check fromLocation
-    if fromLocation == "bench" then
-        table.insert(sections, "bench")
-    elseif fromLocation == "opt_out" then
-        table.insert(sections, "opt_out")
-    elseif type(fromLocation) == "table" and fromLocation.zone == "slot" then
-        table.insert(sections, "slots")
-    end
-    
-    -- Check toLocation (if different from fromLocation)
-    if toLocation ~= fromLocation then
-        if toLocation == "bench" and fromLocation ~= "bench" then
-            table.insert(sections, "bench")
-        elseif toLocation == "opt_out" and fromLocation ~= "opt_out" then
-            table.insert(sections, "opt_out")
-        elseif type(toLocation) == "table" and toLocation.zone == "slot" then
-            -- Check if we already added "slots"
-            local alreadyAdded = false
-            for _, section in ipairs(sections) do
-                if section == "slots" then
-                    alreadyAdded = true
-                    break
-                end
-            end
-            if not alreadyAdded then
-                table.insert(sections, "slots")
-            end
-        end
-    end
-    
-    return sections
+local sections = {}
+
+-- Check fromLocation
+if fromLocation == "bench" then
+	table.insert(sections, "bench")
+elseif fromLocation == "opt_out" then
+	table.insert(sections, "opt_out")
+elseif type(fromLocation) == "table" and (fromLocation.zone == "slot" or fromLocation.type == "role_slot") then
+	table.insert(sections, "slots")
+end
+
+-- Check toLocation (if different from fromLocation)
+if toLocation ~= fromLocation then
+	if toLocation == "bench" and fromLocation ~= "bench" then
+		table.insert(sections, "bench")
+	elseif toLocation == "opt_out" and fromLocation ~= "opt_out" then
+		table.insert(sections, "opt_out")
+	elseif type(toLocation) == "table" and (toLocation.zone == "slot" or toLocation.type == "role_slot") then
+		-- Check if we already added "slots"
+		local alreadyAdded = false
+		for _, section in ipairs(sections) do
+			if section == "slots" then
+				alreadyAdded = true
+				break
+			end
+		end
+		if not alreadyAdded then
+			table.insert(sections, "slots")
+		end
+	end
+end
+
+return sections
 end
 
 -- MARK: Opt-Out Section

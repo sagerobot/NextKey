@@ -558,7 +558,8 @@ function BenchManager:recall_all_cards(rosterBoard)
             for slotIndex, slot in pairs(slots) do
                 if not slot.isEmpty and slot.playerCard then
                     local card = slot.playerCard
-                    local playerID = card.playerData.id
+                    -- CRITICAL FIX: CardView stores playerID directly, not playerData
+                    local playerID = card.playerID
                     
                     table.insert(cardsByGroup[groupIndex], card)
                     table.insert(playerIDs, playerID)
@@ -586,15 +587,16 @@ function BenchManager:recall_all_cards(rosterBoard)
         Debug:User("Recalling " .. totalCards .. " players to bench...")
         
         -- Execute animated recall sequence
-        -- CRITICAL: Animation completes, THEN we update state
+        -- CRITICAL: Animation completes, THEN we update state, THEN rebuild
         NextKey222.AnimationQueue:ExecuteRecallSequence(cardsByGroup, function()
-            -- AFTER animation completes, update state (event-driven)
+            -- FINAL STEP (same as manual drag): Update state, event rebuilds UI
             Debug:Dev("organizer", "Animation complete - updating state for", #playerIDs, "players")
             for _, playerID in ipairs(playerIDs) do
                 NextKey222.OrganizerState:MoveToBench(playerID)
             end
+            -- ORGANIZER_PLAYER_MOVED events will fire and rebuild UI automatically
             
-            -- Re-enable button after state updates
+            -- Re-enable button after rebuild
             if rosterBoard.benchRecallButton then
                 C_Timer.After(0.1, function()
                     self:update_recall_button_state(rosterBoard)

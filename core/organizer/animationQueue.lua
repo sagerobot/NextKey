@@ -346,11 +346,20 @@ function AnimationQueue:AnimateRecallFlight(card, onComplete)
         card:SetPoint("CENTER", UIParent, "BOTTOMLEFT", newX, newY)
         
         if currentStep >= steps then
-            -- CRITICAL: Animation complete - just hide the card
-            -- The state update callback will trigger SyncUIToState which rebuilds bench from state
+            -- CRITICAL: Animation complete - properly destroy the card
+            -- This ensures no orphaned cards remain with stale properties
             card:Hide()
+            card:SetParent(nil)
+            card:ClearAllPoints()
             
-            Debug:Dev("organizer", "RecallFlight: Card animation landed, hidden for rebuild")
+            -- Clear all card properties to prevent memory leaks and stale data
+            card.playerID = nil
+            card.playerData = nil
+            card.location = nil
+            card.displayMode = nil
+            card.classColor = nil
+            
+            Debug:Dev("organizer", "RecallFlight: Card properly destroyed after animation")
             
             if onComplete then
                 onComplete()
@@ -542,10 +551,8 @@ function AnimationQueue:AnimateRoleWaveFlight(card, targetSlot, arcHeight, onCom
         card:SetPoint("CENTER", UIParent, "BOTTOMLEFT", newX, newY)
         
         if currentStep >= steps then
-            -- Animation complete - remove from bench FIRST, then place in slot
-            NextKey222.RosterBoard:RemoveCardFromBenchArray(card)
-            NextKey222.RosterBoard:PlaceCardInSlot(card, targetSlot)
-            
+            -- Animation complete - just call completion callback
+            -- State updates happen in the main callback, not here
             if onComplete then
                 onComplete()
             end

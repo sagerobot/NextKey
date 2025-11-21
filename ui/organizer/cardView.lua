@@ -323,7 +323,7 @@ local function RenderIOScore(card, playerData, xOffset, yOffset, isCompact)
     ioText:SetText("[" .. (playerData.overallScore or 0) .. "]")
     
     -- Use universal IO score color system
-    local r, g, b = NextKey222.Utils:GetIOScoreColor(playerData.overallScore or 0)
+    local r, g, b = NextKey222.ScoringUtils:GetIOScoreColor(playerData.overallScore or 0)
     ioText:SetTextColor(r, g, b)
 end
 
@@ -591,7 +591,7 @@ function CardView:RenderContent(card, playerData, displayMode)
 			ioText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -5, -yOffset)
 			ioText:SetText(playerData.overallScore or 0)
 			
-			local r, g, b = NextKey222.Utils:GetIOScoreColor(playerData.overallScore or 0)
+			local r, g, b = NextKey222.ScoringUtils:GetIOScoreColor(playerData.overallScore or 0)
 			ioText:SetTextColor(r, g, b)
 			
 			yOffset = yOffset + 25
