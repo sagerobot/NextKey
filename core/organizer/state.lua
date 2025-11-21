@@ -42,34 +42,36 @@ OrganizerState.optOut = {}       -- {[playerID] = true} - Set for opt-out tracki
 OrganizerState.groups = {}       -- {[groupIndex][slotIndex] = playerID} - Group assignments
 OrganizerState.keystones = {}    -- {[groupIndex] = {keystone, playerID}} - Designated keystones
 OrganizerState.activePoll = nil  -- {id, startTime, responses, timeout} - Active poll state
+OrganizerState.locations = {}    -- {[playerID] = Location} - NEW: Unified location tracking
 
 -- MARK: Initialization
 function OrganizerState:Initialize()
-    return NextKey222.SafeRun(function()
-        Debug:User("⚠️ OrganizerState:Initialize() called - THIS SHOULD ONLY HAPPEN ONCE ON ADDON LOAD!")
-        Debug:Dev("organizer_state", "Initializing OrganizerState module")
-        
-        -- Initialize data structures ONLY IF NOT ALREADY INITIALIZED
-        if not self._initialized then
-            self.players = {}
-            self.bench = {}
-            self.optOut = {}
-            self.groups = {}
-            self.keystones = {}
-            self.activePoll = nil
-            
-            -- SESSION 4: Load persisted data
-            self:LoadFromPersistence()
-            
-            self._initialized = true
-            Debug:User("✓ OrganizerState initialized for the first time")
-        else
-            Debug:User("⚠️ OrganizerState:Initialize() called AGAIN - skipping reinitialization to preserve data!")
-        end
-        
-        Debug:Dev("organizer_state", "OrganizerState initialized successfully")
-        return true
-    end, "OrganizerState:Initialize")
+	return NextKey222.SafeRun(function()
+		Debug:User("⚠️ OrganizerState:Initialize() called - THIS SHOULD ONLY HAPPEN ONCE ON ADDON LOAD!")
+		Debug:Dev("organizer_state", "Initializing OrganizerState module")
+		
+		-- Initialize data structures ONLY IF NOT ALREADY INITIALIZED
+		if not self._initialized then
+			self.players = {}
+			self.bench = {}
+			self.optOut = {}
+			self.groups = {}
+			self.keystones = {}
+			self.activePoll = nil
+			self.locations = {}  -- NEW: Unified location tracking
+			
+			-- SESSION 4: Load persisted data
+			self:LoadFromPersistence()
+			
+			self._initialized = true
+			Debug:User("✓ OrganizerState initialized for the first time")
+		else
+			Debug:User("⚠️ OrganizerState:Initialize() called AGAIN - skipping reinitialization to preserve data!")
+		end
+		
+		Debug:Dev("organizer_state", "OrganizerState initialized successfully")
+		return true
+	end, "OrganizerState:Initialize")
 end
 
 -- MARK: Player Management
@@ -360,6 +362,72 @@ function OrganizerState:GetPlayerLocation(playerID)
         
         return nil
     end, "OrganizerState:GetPlayerLocation")
+end
+
+--- Get player's current location (NEW FORMAT with backward compatibility)
+--- @param playerID string - Player identifier
+--- @return string|table - "bench", "opt_out", or {zone="slot", group=N, slot=N}
+--- @usage local location = OrganizerState:GetLocation("PlayerName-Realm")
+function OrganizerState:GetLocation(playerID)
+	return NextKey222.SafeRun(function()
+		if not playerID then
+			return nil
+		end
+		
+		-- NEW: Try locations table first
+		if self.locations[playerID] then
+			return self.locations[playerID]
+		end
+		
+		-- LEGACY: Fall back to old system
+		local Location = NextKey222.Location
+		if Location and Location.FromLegacy then
+			return Location.FromLegacy(self.bench, self.optOut, self.groups, playerID)
+		end
+		
+		return nil
+	end, "OrganizerState:GetLocation")
+end
+
+--- Set player's location (NEW FORMAT with backward compatibility)
+--- @param playerID string - Player identifier
+--- @param location string|table - "bench", "opt_out", or {zone="slot", group=N, slot=N}
+--- @return boolean - True if successful
+--- @usage OrganizerState:SetLocation("PlayerName-Realm", "bench")
+function OrganizerState:SetLocation(playerID, location)
+	return NextKey222.SafeRun(function()
+		if not playerID then
+			return false
+		end
+		
+		-- Capture previous location for event
+		local fromLocation = self:GetLocation(playerID)
+		
+		-- NEW: Update locations table
+		self.locations[playerID] = location
+		
+		-- LEGACY: Also update old system for backward compatibility
+		local Location = NextKey222.Location
+		if Location and Location.ToLegacy then
+			Location.ToLegacy(location, self.bench, self.optOut, self.groups, playerID)
+		end
+		
+		Debug:Dev("organizer_state", "SetLocation:", playerID, "->", Location and Location.ToString(location) or tostring(location))
+		
+		-- EVENT: Announce player moved
+		local playerData = self.players[playerID]
+		if playerData then
+			self:AnnounceEvent("ORGANIZER_PLAYER_MOVED", {
+				playerID = playerID,
+				fromLocation = fromLocation,
+				toLocation = location,
+				playerData = playerData,
+				reason = "manual"
+			})
+		end
+		
+		return true
+	end, "OrganizerState:SetLocation")
 end
 
 --- Move player to bench
@@ -937,13 +1005,14 @@ function OrganizerState:SaveToPersistence()
         
         -- Initialize organizerState if needed
         if not db_ref.char.organizerState then
-            db_ref.char.organizerState = {
-                players = {},
-                groups = {},
-                keystones = {},
-                optOut = {},
-                lastPoll = nil
-            }
+        	db_ref.char.organizerState = {
+        		players = {},
+        		groups = {},
+        		keystones = {},
+        		optOut = {},
+        		locations = {},  -- NEW: Unified location tracking
+        		lastPoll = nil
+        	}
         end
         
         local db = db_ref.char.organizerState
@@ -982,6 +1051,12 @@ function OrganizerState:SaveToPersistence()
         db.optOut = {}
         for playerID, _ in pairs(self.optOut) do
             db.optOut[playerID] = true
+        end
+        
+        -- NEW: Save locations table
+        db.locations = {}
+        for playerID, location in pairs(self.locations) do
+        	db.locations[playerID] = location
         end
         
         -- Save poll metadata
@@ -1061,6 +1136,23 @@ function OrganizerState:LoadFromPersistence()
             end
         end
         
+        -- NEW: Restore locations table (if present)
+        if db.locations then
+        	for playerID, location in pairs(db.locations) do
+        		self.locations[playerID] = location
+        	end
+        	Debug:Dev("organizer_state", "LoadFromPersistence: Restored locations table")
+        else
+        	-- MIGRATION: Populate locations from old system
+        	for playerID, _ in pairs(self.players) do
+        		local Location = NextKey222.Location
+        		if Location and Location.FromLegacy then
+        			self.locations[playerID] = Location.FromLegacy(self.bench, self.optOut, self.groups, playerID)
+        		end
+        	end
+        	Debug:Dev("organizer_state", "LoadFromPersistence: Migrated locations from legacy format")
+        end
+        
         -- Restore poll state
         self.activePoll = db.lastPoll
         
@@ -1097,17 +1189,19 @@ function OrganizerState:ClearPersistedData()
         self.optOut = {}
         self.groups = {}
         self.keystones = {}
+        self.locations = {}  -- NEW
         self.activePoll = nil
         
         -- Clear SavedVariables (use NextKey.db, not NextKey222.db)
         local db_ref = NextKey222.Addon and NextKey222.Addon.db or NextKey.db
         if db_ref and db_ref.char and db_ref.char.organizerState then
             db_ref.char.organizerState = {
-                players = {},
-                groups = {},
-                keystones = {},
-                optOut = {},
-                lastPoll = nil
+            	players = {},
+            	groups = {},
+            	keystones = {},
+            	optOut = {},
+            	locations = {},  -- NEW
+            	lastPoll = nil
             }
         end
         

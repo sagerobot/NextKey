@@ -577,13 +577,17 @@ function SurveyDialog:ShowPhase3(characterID)
                 return
             end
             
+            Debug:Dev("organizer", "Manual entry for player:", characterID, "class:", playerData.class)
+            
             -- Get class ID from class token
             local classID = nil
             local numClasses = GetNumClasses()
             for i = 1, numClasses do
                 local className, classToken = GetClassInfo(i)
+                Debug:Dev("organizer", "Checking class", i, ":", classToken, "against", playerData.class)
                 if classToken == playerData.class then
                     classID = i
+                    Debug:Dev("organizer", "Found matching classID:", classID, "for class:", playerData.class)
                     break
                 end
             end
@@ -594,26 +598,33 @@ function SurveyDialog:ShowPhase3(characterID)
             end
             
             -- Query ALL specializations for this class
-            -- Use C_SpecializationInfo namespace with fallback
-            local numSpecs = (C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID)
-                and C_SpecializationInfo.GetNumSpecializationsForClassID(classID)
-                or GetNumSpecializations()
+            -- CRITICAL: Must use GetSpecializationInfoForClassID to get target player's class specs
+            -- DO NOT use GetSpecializationInfo() as it returns the CURRENT PLAYER's specs, not the target player's
+            
+            -- Use global WoW API functions (available in all versions)
+            local GetNumSpecsFunc = _G.GetNumSpecializationsForClassID
+            local GetSpecInfoFunc = _G.GetSpecializationInfoForClassID
+            
+            if not GetNumSpecsFunc or not GetSpecInfoFunc then
+                Debug:Error("Phase 3 - GetSpecializationInfoForClassID API not available in _G")
+                return
+            end
+            
+            local numSpecs = GetNumSpecsFunc(classID)
+            Debug:Dev("organizer", "Found", numSpecs, "specializations for classID:", classID, "class:", playerData.class)
             
             for i = 1, numSpecs do
-                local specID, specName, _, iconTexture, role
-                if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfoForClassID then
-                    specID, specName, _, iconTexture, role = C_SpecializationInfo.GetSpecializationInfoForClassID(classID, i)
-                else
-                    -- Fallback: use GetSpecializationInfo for current player's specs
-                    specID, specName, _, iconTexture, role = GetSpecializationInfo(i)
-                end
+                local specID, specName, _, iconTexture, role = GetSpecInfoFunc(classID, i)
                 if specID then
+                    Debug:Dev("organizer", "  Spec", i, ":", specName, "role:", role, "specID:", specID)
                     table.insert(availableSpecs, {
                         specID = specID,
                         specName = specName,
                         role = role,
                         iconTexture = iconTexture
                     })
+                else
+                    Debug:Dev("organizer", "  Spec", i, "returned nil - skipping")
                 end
             end
         else
@@ -843,11 +854,14 @@ function SurveyDialog:CreateSpecCard(parent, specInfo, yOffset, defaultState)
     local roleIconPath = "Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES"
     roleIcon:SetTexture(roleIconPath)
     
-    if specInfo.role == "Tank" then
+    -- CRITICAL FIX: Normalize role to uppercase for proper icon selection
+    local normalizedRole = specInfo.role:upper()
+    
+    if normalizedRole == "TANK" then
         roleIcon:SetTexCoord(0, 19/64, 22/64, 41/64)
-    elseif specInfo.role == "Healer" then
+    elseif normalizedRole == "HEALER" then
         roleIcon:SetTexCoord(20/64, 39/64, 1/64, 20/64)
-    else  -- DPS
+    else  -- DAMAGER/DPS
         roleIcon:SetTexCoord(20/64, 39/64, 22/64, 41/64)
     end
     
@@ -1019,9 +1033,10 @@ function SurveyDialog:OnPhase3SubmitClicked(frame, characterID)
         
         Debug:Dev("organizer", "Final spec preferences being sent:", specPreferences)
         
-        -- Validate that at least one spec is selected
+        -- Check if all specs are set to "none" (no preferences selected)
         if not hasAnyPreference then
-            Debug:User("Please select at least one spec preference (click cards to cycle states)")
+            -- Show confirmation dialog before moving to opt-out
+            self:ShowAllNoneConfirmation(frame, characterID, specPreferences, specDetails)
             return
         end
         
@@ -1049,6 +1064,105 @@ function SurveyDialog:OnPhase3SubmitClicked(frame, characterID)
     end, "SurveyDialog:OnPhase3SubmitClicked")
 end
 
+-- MARK: All None Confirmation
+function SurveyDialog:ShowAllNoneConfirmation(parentFrame, characterID, specPreferences, specDetails)
+    return NextKey222.SafeRun(function()
+        local cfg = UIConfig.POLL_WINDOW
+        
+        -- Hide parent frame while showing confirmation dialog
+        if parentFrame then
+            parentFrame:Hide()
+        end
+        
+        -- Create frame matching poll window style
+        local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        frame:SetSize(400, 220)
+        frame:SetPoint("CENTER")
+        frame:SetFrameStrata("FULLSCREEN_DIALOG")  -- Same strata as poll windows
+        frame:SetFrameLevel(10000)  -- Higher level than poll windows (9999)
+        frame:SetToplevel(true)  -- CRITICAL: This ensures frame rises above others in same strata
+        frame:SetMovable(false)  -- Not draggable - it's a modal confirmation dialog
+        frame:EnableMouse(false)  -- Don't capture mouse - let buttons handle it
+        frame:Raise()  -- Explicitly raise to front
+        
+        -- Backdrop matching poll windows
+        frame:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true,
+            tileSize = 32,
+            edgeSize = 32,
+            insets = { left = 11, right = 12, top = 12, bottom = 11 }
+        })
+        frame:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
+        frame:SetBackdropBorderColor(0.8, 0.4, 0, 1)  -- Warning orange
+        
+        -- Warning Icon (large, centered at top)
+        local warningIcon = frame:CreateTexture(nil, "ARTWORK")
+        warningIcon:SetSize(48, 48)
+        warningIcon:SetPoint("TOP", 0, -20)
+        warningIcon:SetTexture("Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew")
+        
+        -- Title
+        local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        title:SetPoint("TOP", 0, -75)
+        title:SetText("No Specs Selected")
+        title:SetTextColor(1, 0.82, 0)
+        
+        -- Message
+        local message = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        message:SetPoint("TOP", 0, -110)
+        message:SetWidth(360)
+        message:SetJustifyH("CENTER")
+        message:SetText("You haven't selected any specs to play.\n\nThis will place you in the \"Not Playing\" section.\n\nAre you sure?")
+        message:SetTextColor(1, 1, 1)
+        
+        -- CRITICAL: Create buttons BEFORE frame:Show()
+        local backButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        backButton:SetSize(100, 24)
+        backButton:SetPoint("BOTTOMLEFT", 20, 15)
+        backButton:SetText("Go Back")
+        backButton:SetScript("OnClick", function()
+            frame:Hide()
+            -- Restore parent frame visibility
+            if parentFrame then
+                parentFrame:Show()
+            end
+        end)
+        
+        local optOutButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        optOutButton:SetSize(160, 24)
+        optOutButton:SetPoint("BOTTOMRIGHT", -20, 15)
+        optOutButton:SetText("Opt Out (Not Playing)")
+        optOutButton:SetScript("OnClick", function()
+            frame:Hide()
+            
+            -- Store Phase 3 data with empty preferences
+            self.responseData.phase3 = {
+                specPreferences = {},
+                specDetails = specDetails,
+                timestamp = GetTime()
+            }
+            
+            -- Submit as opt-out
+            if self.isManualEntry then
+                self:SubmitManualResponse(false)
+            else
+                self:SubmitFinalResponse(false)
+            end
+            
+            -- Close survey dialog
+            self:CloseDialog()
+            
+            Debug:Dev("organizer", "Player confirmed opt-out (no specs selected)")
+        end)
+        
+        -- Show frame AFTER all elements are created
+        frame:Show()
+        
+    end, "SurveyDialog:ShowAllNoneConfirmation")
+end
+
 -- MARK: Submit Final Response
 function SurveyDialog:SubmitFinalResponse(optedIn)
     return NextKey222.SafeRun(function()
@@ -1071,6 +1185,12 @@ function SurveyDialog:SubmitFinalResponse(optedIn)
             -- Process our own response directly
             if NextKey222.ParticipantSurvey then
                 NextKey222.ParticipantSurvey:ProcessResponse(currentPlayer, response)
+            end
+            
+            -- If opted out (no specs selected), move to opt-out section
+            if not optedIn and NextKey222.OrganizerState then
+                NextKey222.OrganizerState:MoveToOptOut(currentPlayer)
+                Debug:Dev("organizer", "Moved player to opt-out (no specs selected):", currentPlayer)
             end
             
             -- SESSION 3: Sync UI to state immediately (same as other responses)
@@ -1129,6 +1249,12 @@ function SurveyDialog:SubmitManualResponse(optedIn)
         -- Update OrganizerState directly
         if NextKey222.OrganizerState then
             NextKey222.OrganizerState:UpdatePlayerFromPollResponse(targetPlayerID, response)
+            
+            -- If opted out (no specs selected), move to opt-out section
+            if not optedIn then
+                NextKey222.OrganizerState:MoveToOptOut(targetPlayerID)
+                Debug:Dev("organizer", "Moved player to opt-out (no specs selected):", targetPlayerID)
+            end
         end
         
         -- Sync UI to show changes
@@ -1144,8 +1270,12 @@ function SurveyDialog:SubmitManualResponse(optedIn)
             end
         end
         
-        Debug:User("Manually set preferences for " .. (self.targetPlayerData and self.targetPlayerData.name or "player"))
-        Debug:Dev("organizer", "Submitted manual response for:", targetPlayerID)
+        if not optedIn then
+            Debug:User("Set " .. (self.targetPlayerData and self.targetPlayerData.name or "player") .. " to Not Playing (no specs selected)")
+        else
+            Debug:User("Manually set preferences for " .. (self.targetPlayerData and self.targetPlayerData.name or "player"))
+        end
+        Debug:Dev("organizer", "Submitted manual response for:", targetPlayerID, "opted in:", optedIn)
         
         -- Clear manual entry flags
         self.isManualEntry = false

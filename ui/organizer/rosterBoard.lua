@@ -281,14 +281,14 @@ function RosterBoard:CleanupNativeFrames()
     local benchCardCount = 0
     for _, card in ipairs(self.benchCards) do
         if card then
-            -- Nil ALL script handlers to break circular references
-            card:SetScript("OnDragStart", nil)
-            card:SetScript("OnDragStop", nil)
-            card:SetScript("OnMouseDown", nil)
-            card:SetScript("OnMouseUp", nil)
-            card:SetScript("OnEnter", nil)
-            card:SetScript("OnLeave", nil)
-            card:SetScript("OnClick", nil)
+            -- Nil ALL script handlers to break circular references (use pcall to safely handle non-existent handlers)
+            pcall(function() card:SetScript("OnDragStart", nil) end)
+            pcall(function() card:SetScript("OnDragStop", nil) end)
+            pcall(function() card:SetScript("OnMouseDown", nil) end)
+            pcall(function() card:SetScript("OnMouseUp", nil) end)
+            pcall(function() card:SetScript("OnEnter", nil) end)
+            pcall(function() card:SetScript("OnLeave", nil) end)
+            pcall(function() card:SetScript("OnClick", nil) end)
             
             -- Clear all child frames and textures
             for _, child in ipairs({card:GetChildren()}) do
@@ -318,14 +318,14 @@ function RosterBoard:CleanupNativeFrames()
     for groupIndex, slots in pairs(self.groupSlots) do
         for slotIndex, slot in pairs(slots) do
             if slot.playerCard then
-                -- Nil all script handlers
-                slot.playerCard:SetScript("OnDragStart", nil)
-                slot.playerCard:SetScript("OnDragStop", nil)
-                slot.playerCard:SetScript("OnMouseDown", nil)
-                slot.playerCard:SetScript("OnMouseUp", nil)
-                slot.playerCard:SetScript("OnEnter", nil)
-                slot.playerCard:SetScript("OnLeave", nil)
-                slot.playerCard:SetScript("OnClick", nil)
+                -- Nil all script handlers (use pcall to safely handle non-existent handlers)
+                pcall(function() slot.playerCard:SetScript("OnDragStart", nil) end)
+                pcall(function() slot.playerCard:SetScript("OnDragStop", nil) end)
+                pcall(function() slot.playerCard:SetScript("OnMouseDown", nil) end)
+                pcall(function() slot.playerCard:SetScript("OnMouseUp", nil) end)
+                pcall(function() slot.playerCard:SetScript("OnEnter", nil) end)
+                pcall(function() slot.playerCard:SetScript("OnLeave", nil) end)
+                pcall(function() slot.playerCard:SetScript("OnClick", nil) end)
                 
                 slot.playerCard:Hide()
                 slot.playerCard:SetParent(nil)
@@ -334,8 +334,12 @@ function RosterBoard:CleanupNativeFrames()
             end
             
             if slot.frame then
-                slot.frame:SetScript("OnEnter", nil)
-                slot.frame:SetScript("OnLeave", nil)
+                -- Use pcall to safely nil script handlers (WoW API can throw errors even with GetScript checks)
+                pcall(function() slot.frame:SetScript("OnEnter", nil) end)
+                pcall(function() slot.frame:SetScript("OnLeave", nil) end)
+                pcall(function() slot.frame:SetScript("OnClick", nil) end)
+                pcall(function() slot.frame:SetScript("OnMouseDown", nil) end)
+                pcall(function() slot.frame:SetScript("OnMouseUp", nil) end)
                 slot.frame:Hide()
                 slot.frame:SetParent(nil)
                 slot.frame:ClearAllPoints()
@@ -363,10 +367,10 @@ function RosterBoard:CleanupNativeFrames()
         if self.optOutSection.playerCards then
             for _, card in ipairs(self.optOutSection.playerCards) do
                 if card then
-                    card:SetScript("OnDragStart", nil)
-                    card:SetScript("OnDragStop", nil)
-                    card:SetScript("OnMouseDown", nil)
-                    card:SetScript("OnMouseUp", nil)
+                    pcall(function() card:SetScript("OnDragStart", nil) end)
+                    pcall(function() card:SetScript("OnDragStop", nil) end)
+                    pcall(function() card:SetScript("OnMouseDown", nil) end)
+                    pcall(function() card:SetScript("OnMouseUp", nil) end)
                     card:Hide()
                     card:SetParent(nil)
                     card:ClearAllPoints()
@@ -380,22 +384,22 @@ function RosterBoard:CleanupNativeFrames()
     
     -- CRITICAL FIX: Remove strong references and nil script handlers
     if self.allInteractiveFrames then
-        for _, frame in ipairs(self.allInteractiveFrames) do
-            if frame then
-                -- Nil all possible script handlers (use pcall to avoid errors on non-existent handlers)
-                pcall(function() frame:SetScript("OnMouseDown", nil) end)
-                pcall(function() frame:SetScript("OnMouseUp", nil) end)
-                pcall(function() frame:SetScript("OnDragStart", nil) end)
-                pcall(function() frame:SetScript("OnDragStop", nil) end)
-                pcall(function() frame:SetScript("OnEnter", nil) end)
-                pcall(function() frame:SetScript("OnLeave", nil) end)
-                pcall(function() frame:SetScript("OnClick", nil) end)
-                
-                frame:Hide()
-                frame:SetParent(nil)
-                frame:ClearAllPoints()
-            end
-        end
+    	for _, frame in ipairs(self.allInteractiveFrames) do
+    		if frame then
+    			-- Nil all possible script handlers (use pcall to safely handle non-existent handlers)
+    			pcall(function() frame:SetScript("OnMouseDown", nil) end)
+    			pcall(function() frame:SetScript("OnMouseUp", nil) end)
+    			pcall(function() frame:SetScript("OnDragStart", nil) end)
+    			pcall(function() frame:SetScript("OnDragStop", nil) end)
+    			pcall(function() frame:SetScript("OnEnter", nil) end)
+    			pcall(function() frame:SetScript("OnLeave", nil) end)
+    			pcall(function() frame:SetScript("OnClick", nil) end)
+    			
+    			frame:Hide()
+    			frame:SetParent(nil)
+    			frame:ClearAllPoints()
+    		end
+    	end
     end
     self.allInteractiveFrames = {}
     
@@ -514,28 +518,18 @@ function RosterBoard:PopulateAllSections()
                     -- We only want string playerIDs
                     if type(playerID) == "string" and playerID ~= "" then
                         Debug:Dev("organizer_ui", "Found player in group", groupIndex, "slot", slotIndex, "- playerID:", playerID)
-                        -- Fetch full player data object using the playerID
-                        local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
                         
-                        if playerData and type(playerData) == "table" then
-                            -- Create card for this slot using the FULL player data object
-                            local card = NextKey222.PlayerCard:CreateNativeCard(
-                                playerData,
-                                slot,
-                                "role_slot",
-                                "compact"  -- Start compact, will expand on placement
-                            )
-                            
-                            if card then
-                                -- Place card in slot using SlotManager
-                                NextKey222.SlotManager:place_card_in_slot(card, slot)
-                                restoredCount = restoredCount + 1
-                                Debug:Dev("organizer_ui", "Restored player to group", groupIndex, "slot", slotIndex, ":", playerID)
-                            else
-                                Debug:Error("Failed to create card for slot player:", playerID)
-                            end
+                        -- NEW: Create card using CardView (lightweight, no conflicting drag handlers)
+                        local card = NextKey222.CardView:Create(playerID, slot.frame, "slot")
+                        
+                        if card then
+                            -- CRITICAL: Place in slot FIRST (sets size), then update content (preserves size)
+                            NextKey222.SlotManager:place_card_in_slot(card, slot, true)
+                            NextKey222.CardView:Update(card)
+                            restoredCount = restoredCount + 1
+                            Debug:Dev("organizer_ui", "Restored player to group", groupIndex, "slot", slotIndex, ":", playerID)
                         else
-                            Debug:Error("GetPlayer returned invalid data for playerID:", playerID, "- type:", type(playerData))
+                            Debug:Error("Failed to create CardView for slot player:", playerID)
                         end
                     end
                 end
@@ -1623,11 +1617,14 @@ function RosterBoard:ExecuteSimpleSort()
             self.organizeButton:SetText("Organizing...")
         end
         
-        -- Get bench players
+        -- Get bench players from OrganizerState (cards only have playerID)
         local benchPlayers = {}
         for _, card in ipairs(self.benchCards) do
-            if card.playerData then
-                table.insert(benchPlayers, card.playerData)
+            if card.playerID then
+                local playerData = NextKey222.OrganizerState:GetPlayer(card.playerID)
+                if playerData then
+                    table.insert(benchPlayers, playerData)
+                end
             end
         end
         
@@ -1757,15 +1754,12 @@ function RosterBoard:AddPlayerToOptOut(playerData)
             return
         end
         
-        -- Create native card for opt-out
-        local card = NextKey222.PlayerCard:CreateNativeCard(
-            playerData,
-            self.optOutSection.scrollChild,
-            "opt_out",
-            "opt_out"
-        )
+        -- NEW: Create card using CardView
+        local playerID = playerData.id
+        local card = NextKey222.CardView:Create(playerID, self.optOutSection.scrollChild, "opt_out")
         
         if card then
+            NextKey222.CardView:Update(card)
             table.insert(self.optOutSection.playerCards, card)
             
             -- Re-layout opt-out section
@@ -1803,6 +1797,184 @@ end
 -- Delegates to BenchManager
 function RosterBoard:LayoutBench()
     return NextKey222.BenchManager:layout_bench(self)
+end
+
+-- MARK: Rebuild Methods
+-- Phase 2: Card-as-View Refactor - Rebuild sections from state
+function RosterBoard:RebuildBench()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "RebuildBench - rebuilding bench from state")
+        
+        if not self.benchContainer then
+            Debug:Error("Cannot rebuild bench - container not initialized")
+            return
+        end
+        
+        -- Clear old cards
+        for _, card in ipairs(self.benchCards) do
+            if card then
+                card:Hide()
+                card:SetParent(nil)
+                card:ClearAllPoints()
+            end
+        end
+        self.benchCards = {}
+        
+        -- Get players from state
+        local benchPlayerIDs = NextKey222.OrganizerState:GetBenchPlayers()
+        
+        Debug:Dev("organizer_ui", "Creating", #benchPlayerIDs, "bench cards from state")
+        
+        -- Create new cards with CardView
+        for _, playerID in ipairs(benchPlayerIDs) do
+            local card = NextKey222.CardView:Create(playerID, self.benchContainer, "bench")
+            if card then
+                NextKey222.CardView:Update(card)
+                table.insert(self.benchCards, card)
+            else
+                Debug:Error("Failed to create CardView for:", playerID)
+            end
+        end
+        
+        -- Layout
+        self:LayoutBench()
+        
+        Debug:Dev("organizer_ui", "RebuildBench complete -", #self.benchCards, "cards")
+        
+    end, "RosterBoard:RebuildBench")
+end
+
+function RosterBoard:RebuildSlots()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "RebuildSlots - rebuilding all slot cards from state")
+        
+        if not self.groupSlots then
+            Debug:Error("Cannot rebuild slots - groupSlots not initialized")
+            return
+        end
+        
+        local rebuiltCount = 0
+        
+        -- Clear existing slot cards
+        for groupIndex, slots in pairs(self.groupSlots) do
+            for slotIndex, slot in pairs(slots) do
+                if slot.playerCard then
+                    slot.playerCard:Hide()
+                    slot.playerCard:SetParent(nil)
+                    slot.playerCard:ClearAllPoints()
+                    slot.playerCard = nil
+                    slot.isEmpty = true
+                    if slot.emptyLabel then
+                        slot.emptyLabel:Show()
+                    end
+                end
+            end
+        end
+        
+        -- Get slot assignments from state
+        for groupIndex, slots in pairs(self.groupSlots) do
+            for slotIndex, slot in pairs(slots) do
+                local playerID = NextKey222.OrganizerState:GetSlotPlayer(groupIndex, slotIndex)
+                
+                if type(playerID) == "string" and playerID ~= "" then
+                    -- Create card with CardView
+                    local card = NextKey222.CardView:Create(playerID, slot.frame, "slot")
+                    if card then
+                        -- CRITICAL: Place in slot FIRST (sets size), then update content (preserves size)
+                        NextKey222.SlotManager:place_card_in_slot(card, slot, true)
+                        NextKey222.CardView:Update(card)
+                        rebuiltCount = rebuiltCount + 1
+                    else
+                        Debug:Error("Failed to create CardView for slot player:", playerID)
+                    end
+                end
+            end
+        end
+        
+        Debug:Dev("organizer_ui", "RebuildSlots complete -", rebuiltCount, "cards")
+        
+    end, "RosterBoard:RebuildSlots")
+end
+
+function RosterBoard:RebuildOptOut()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "RebuildOptOut - rebuilding opt-out from state")
+        
+        if not self.optOutSection or not self.optOutSection.scrollChild then
+            Debug:Error("Cannot rebuild opt-out - section not initialized")
+            return
+        end
+        
+        -- Clear old cards
+        if self.optOutSection.playerCards then
+            for _, card in ipairs(self.optOutSection.playerCards) do
+                if card then
+                    card:Hide()
+                    card:SetParent(nil)
+                    card:ClearAllPoints()
+                end
+            end
+        end
+        self.optOutSection.playerCards = {}
+        
+        -- Get players from state
+        local optOutPlayerIDs = NextKey222.OrganizerState:GetOptOutPlayers()
+        
+        Debug:Dev("organizer_ui", "Creating", #optOutPlayerIDs, "opt-out cards from state")
+        
+        -- Create new cards with CardView
+        for _, playerID in ipairs(optOutPlayerIDs) do
+            local card = NextKey222.CardView:Create(playerID, self.optOutSection.scrollChild, "opt_out")
+            if card then
+                NextKey222.CardView:Update(card)
+                table.insert(self.optOutSection.playerCards, card)
+            else
+                Debug:Error("Failed to create CardView for opt-out player:", playerID)
+            end
+        end
+        
+        -- Layout
+        self:LayoutOptOut()
+        
+        Debug:Dev("organizer_ui", "RebuildOptOut complete -", #self.optOutSection.playerCards, "cards")
+        
+    end, "RosterBoard:RebuildOptOut")
+end
+
+function RosterBoard:GetAffectedSections(fromLocation, toLocation)
+    local sections = {}
+    
+    -- Check fromLocation
+    if fromLocation == "bench" then
+        table.insert(sections, "bench")
+    elseif fromLocation == "opt_out" then
+        table.insert(sections, "opt_out")
+    elseif type(fromLocation) == "table" and fromLocation.zone == "slot" then
+        table.insert(sections, "slots")
+    end
+    
+    -- Check toLocation (if different from fromLocation)
+    if toLocation ~= fromLocation then
+        if toLocation == "bench" and fromLocation ~= "bench" then
+            table.insert(sections, "bench")
+        elseif toLocation == "opt_out" and fromLocation ~= "opt_out" then
+            table.insert(sections, "opt_out")
+        elseif type(toLocation) == "table" and toLocation.zone == "slot" then
+            -- Check if we already added "slots"
+            local alreadyAdded = false
+            for _, section in ipairs(sections) do
+                if section == "slots" then
+                    alreadyAdded = true
+                    break
+                end
+            end
+            if not alreadyAdded then
+                table.insert(sections, "slots")
+            end
+        end
+    end
+    
+    return sections
 end
 
 -- MARK: Opt-Out Section
@@ -1854,7 +2026,7 @@ end
 -- MARK: Place in Slot
 -- Delegates to SlotManager
 function RosterBoard:PlaceCardInSlot(card, slot)
-    return NextKey222.SlotManager:place_card_in_slot(card, slot)
+    return NextKey222.SlotManager:place_card_in_slot(card, slot, true)
 end
 
 -- MARK: Place in Bench
@@ -2022,16 +2194,13 @@ function RosterBoard:RebuildBenchAfterPoll()
         
         Debug:Dev("organizer_ui", "Creating fresh cards for", #benchPlayers, "bench players")
         
-        -- Create brand new cards with updated data
+        -- NEW: Create brand new cards with CardView
         for i, playerData in ipairs(benchPlayers) do
-            local card = NextKey222.PlayerCard:CreateNativeCard(
-                playerData,
-                self.benchContainer,
-                "bench",
-                "compact"
-            )
+            local playerID = playerData.id
+            local card = NextKey222.CardView:Create(playerID, self.benchContainer, "bench")
             
             if card then
+                NextKey222.CardView:Update(card)
                 table.insert(self.benchCards, card)
                 Debug:Dev("organizer_ui", "Recreated bench card", i, "for:", playerData.name,
                          "- has specPreferences:", playerData.specPreferences ~= nil)
@@ -2148,8 +2317,8 @@ local function RefreshSingleCard(card, displayMode, locationContext, isSpecChang
         end
     end
     
-    -- Update card content to reflect new data
-    NextKey222.PlayerCard:UpdateCardContent(card, displayMode)
+    -- NEW: Update card using CardView
+    NextKey222.CardView:Update(card)
     
     Debug:Dev("organizer_ui", "Refreshed card for:", playerID,
              locationContext and ("(" .. locationContext .. ")") or "",
@@ -2218,10 +2387,11 @@ function RosterBoard:RefreshBenchCardsFromState()
             return
         end
         
+        -- NEW: Refresh bench cards using CardView
         local refreshedCount = 0
         for _, card in ipairs(self.benchCards) do
-            if card and NextKey222.PlayerCard and NextKey222.PlayerCard.UpdateCardContent then
-                NextKey222.PlayerCard:UpdateCardContent(card, "compact")
+            if card and card.playerID then
+                NextKey222.CardView:Update(card)
                 refreshedCount = refreshedCount + 1
             end
         end
@@ -2241,11 +2411,11 @@ function RosterBoard:RefreshSingleCardByPlayerID(playerID)
         
         local cardFound = false
         
-        -- Search bench cards
+        -- NEW: Search bench cards and update with CardView
         if self.benchCards then
             for _, card in ipairs(self.benchCards) do
                 if card and card.playerID == playerID then
-                    NextKey222.PlayerCard:UpdateCardContent(card, "compact")
+                    NextKey222.CardView:Update(card)
                     Debug:Dev("organizer_ui", "Refreshed bench card for:", playerID)
                     cardFound = true
                     break
@@ -2253,12 +2423,12 @@ function RosterBoard:RefreshSingleCardByPlayerID(playerID)
             end
         end
         
-        -- Search slot cards if not found on bench
+        -- NEW: Search slot cards if not found on bench
         if not cardFound and self.groupSlots then
             for groupIndex, slots in pairs(self.groupSlots) do
                 for slotIndex, slot in pairs(slots) do
                     if slot.playerCard and slot.playerCard.playerID == playerID then
-                        NextKey222.PlayerCard:UpdateCardContent(slot.playerCard, "expanded")
+                        NextKey222.CardView:Update(slot.playerCard)
                         Debug:Dev("organizer_ui", "Refreshed slot card for:", playerID, "in group", groupIndex)
                         cardFound = true
                         break
@@ -2268,11 +2438,11 @@ function RosterBoard:RefreshSingleCardByPlayerID(playerID)
             end
         end
         
-        -- Search opt-out cards if not found yet
+        -- NEW: Search opt-out cards if not found yet
         if not cardFound and self.optOutSection and self.optOutSection.playerCards then
             for _, card in ipairs(self.optOutSection.playerCards) do
                 if card and card.playerID == playerID then
-                    NextKey222.PlayerCard:UpdateCardContent(card, "opt_out")
+                    NextKey222.CardView:Update(card)
                     Debug:Dev("organizer_ui", "Refreshed opt-out card for:", playerID)
                     cardFound = true
                     break
@@ -2289,11 +2459,11 @@ end
 
 -- MARK: Sync UI to State
 -- SESSION 3: Handle Opt-Out/Alt Movement
---- Rebuilds bench and opt-out sections to match OrganizerState
--- Called after poll responses that change player locations (opt-out, alt selection)
+--- Rebuilds ALL sections to match OrganizerState (bench, opt-out, AND slots)
+-- Called after player movement to ensure UI matches state
 function RosterBoard:SyncUIToState()
     return NextKey222.SafeRun(function()
-        Debug:Dev("organizer_ui", "SyncUIToState - rebuilding bench and opt-out from state")
+        Debug:Dev("organizer_ui", "SyncUIToState - rebuilding ALL sections from state")
         
         if not self.benchContainer or not self.optOutSection then
             Debug:Error("Cannot sync UI - containers not initialized")
@@ -2326,34 +2496,56 @@ function RosterBoard:SyncUIToState()
         end
         self.optOutSection.playerCards = {}
         
-        -- Rebuild bench from state
-        for _, playerID in ipairs(benchPlayerIDs) do
-            local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
-            if playerData then
-                local card = NextKey222.PlayerCard:CreateNativeCard(
-                    playerData,
-                    self.benchContainer,
-                    "bench",
-                    "compact"
-                )
-                if card then
-                    table.insert(self.benchCards, card)
+        -- CRITICAL: Clear existing slot cards
+        if self.groupSlots then
+            for groupIndex, slots in pairs(self.groupSlots) do
+                for slotIndex, slot in pairs(slots) do
+                    if slot.playerCard then
+                        slot.playerCard:Hide()
+                        slot.playerCard:SetParent(nil)
+                        slot.playerCard:ClearAllPoints()
+                        slot.playerCard = nil
+                        slot.isEmpty = true
+                        if slot.emptyLabel then
+                            slot.emptyLabel:Show()
+                        end
+                    end
                 end
             end
         end
         
-        -- Rebuild opt-out from state
+        -- NEW: Rebuild bench from state using CardView
+        for _, playerID in ipairs(benchPlayerIDs) do
+            local card = NextKey222.CardView:Create(playerID, self.benchContainer, "bench")
+            if card then
+                NextKey222.CardView:Update(card)
+                table.insert(self.benchCards, card)
+            end
+        end
+        
+        -- NEW: Rebuild opt-out from state using CardView
         for _, playerID in ipairs(optOutPlayerIDs) do
-            local playerData = NextKey222.OrganizerState:GetPlayer(playerID)
-            if playerData then
-                local card = NextKey222.PlayerCard:CreateNativeCard(
-                    playerData,
-                    self.optOutSection.scrollChild,
-                    "opt_out",
-                    "opt_out"
-                )
-                if card then
-                    table.insert(self.optOutSection.playerCards, card)
+            local card = NextKey222.CardView:Create(playerID, self.optOutSection.scrollChild, "opt_out")
+            if card then
+                NextKey222.CardView:Update(card)
+                table.insert(self.optOutSection.playerCards, card)
+            end
+        end
+        
+        -- CRITICAL: Rebuild slot cards from state
+        if self.groupSlots then
+            for groupIndex, slots in pairs(self.groupSlots) do
+                for slotIndex, slot in pairs(slots) do
+                    local playerID = NextKey222.OrganizerState:GetSlotPlayer(groupIndex, slotIndex)
+                    if type(playerID) == "string" and playerID ~= "" then
+                        -- NEW: Create card using CardView
+                        local card = NextKey222.CardView:Create(playerID, slot.frame, "slot")
+                        if card then
+                            -- CRITICAL: Place in slot FIRST (sets size), then update content (preserves size)
+                            NextKey222.SlotManager:place_card_in_slot(card, slot, true)
+                            NextKey222.CardView:Update(card)
+                        end
+                    end
                 end
             end
         end
@@ -2368,9 +2560,99 @@ function RosterBoard:SyncUIToState()
         end
         
         Debug:Dev("organizer_ui", "Synced UI to state -", #self.benchCards, "bench,",
-                 #self.optOutSection.playerCards, "opt-out")
+                 #self.optOutSection.playerCards, "opt-out, and all slots")
         
     end, "RosterBoard:SyncUIToState")
+end
+
+--- Rebuilds ONLY bench and opt-out sections (not slots)
+-- Called when movement is only between bench and opt-out
+function RosterBoard:SyncBenchAndOptOutOnly()
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "SyncBenchAndOptOutOnly - rebuilding bench and opt-out only")
+        
+        if not self.benchContainer or not self.optOutSection then
+            Debug:Error("Cannot sync UI - containers not initialized")
+            return
+        end
+        
+        -- Get current state
+        local benchPlayerIDs = NextKey222.OrganizerState:GetBenchPlayers()
+        local optOutPlayerIDs = NextKey222.OrganizerState:GetOptOutPlayers()
+        
+        -- CRITICAL: Find and destroy ONLY truly orphaned cards (directly parented to UIParent)
+        -- Cards in slots/bench/opt-out have different parents and should NOT be destroyed
+        local orphanedCards = {}
+        for i = 1, UIParent:GetNumChildren() do
+            local child = select(i, UIParent:GetChildren())
+            -- FIXED: Only destroy cards that are DIRECTLY parented to UIParent
+            -- Cards in slots/bench/opt-out have benchContainer or scrollChild as parent
+            if child and child.playerData and child.playerID then
+                local parent = child:GetParent()
+                if parent == UIParent then
+                    -- This is a truly orphaned card floating in UIParent - mark for cleanup
+                    table.insert(orphanedCards, child)
+                    Debug:Dev("organizer_ui", "Found orphaned card (direct UIParent child):", child.playerID)
+                end
+            end
+        end
+        
+        -- Destroy orphaned cards
+        for _, card in ipairs(orphanedCards) do
+            Debug:Dev("organizer_ui", "Destroying orphaned card:", card.playerID)
+            card:Hide()
+            card:SetParent(nil)
+            card:ClearAllPoints()
+        end
+        
+        -- Clear existing bench cards
+        for _, card in ipairs(self.benchCards) do
+            if card then
+                card:Hide()
+                card:SetParent(nil)
+                card:ClearAllPoints()
+            end
+        end
+        self.benchCards = {}
+        
+        -- Clear existing opt-out cards
+        if self.optOutSection.playerCards then
+            for _, card in ipairs(self.optOutSection.playerCards) do
+                if card then
+                    card:Hide()
+                    card:SetParent(nil)
+                    card:ClearAllPoints()
+                end
+            end
+        end
+        self.optOutSection.playerCards = {}
+        
+        -- NEW: Rebuild bench from state using CardView
+        for _, playerID in ipairs(benchPlayerIDs) do
+            local card = NextKey222.CardView:Create(playerID, self.benchContainer, "bench")
+            if card then
+                NextKey222.CardView:Update(card)
+                table.insert(self.benchCards, card)
+            end
+        end
+        
+        -- NEW: Rebuild opt-out from state using CardView
+        for _, playerID in ipairs(optOutPlayerIDs) do
+            local card = NextKey222.CardView:Create(playerID, self.optOutSection.scrollChild, "opt_out")
+            if card then
+                NextKey222.CardView:Update(card)
+                table.insert(self.optOutSection.playerCards, card)
+            end
+        end
+        
+        -- Re-layout sections
+        self:LayoutBench()
+        self:LayoutOptOut()
+        
+        Debug:Dev("organizer_ui", "Synced bench and opt-out only -", #self.benchCards, "bench,",
+                 #self.optOutSection.playerCards, "opt-out")
+        
+    end, "RosterBoard:SyncBenchAndOptOutOnly")
 end
 
 -- MARK: Event Handlers
@@ -2397,14 +2679,11 @@ function RosterBoard:OnPlayerAdded(payload)
             local slotIndex = payload.location.slotIndex
             if self.groupSlots and self.groupSlots[groupIndex] and self.groupSlots[groupIndex][slotIndex] then
                 local slot = self.groupSlots[groupIndex][slotIndex]
-                local card = NextKey222.PlayerCard:CreateNativeCard(
-                    payload.playerData,
-                    slot,
-                    "role_slot",
-                    "compact"
-                )
+                -- NEW: Create card using CardView
+                local card = NextKey222.CardView:Create(payload.playerID, slot.frame, "slot")
                 if card then
-                    NextKey222.SlotManager:place_card_in_slot(card, slot)
+                    NextKey222.CardView:Update(card)
+                    NextKey222.SlotManager:place_card_in_slot(card, slot, true)
                 end
             end
         end
@@ -2415,30 +2694,37 @@ end
 --- Handler for ORGANIZER_PLAYER_MOVED event
 -- @param payload table - Event payload {playerID, fromLocation, toLocation, playerData, reason, timestamp}
 function RosterBoard:OnPlayerMoved(payload)
-    return NextKey222.SafeRun(function()
-        Debug:Dev("organizer_events", "OnPlayerMoved:", payload.playerID,
-                 "from:", payload.fromLocation, "to:", payload.toLocation)
-        
-        -- Only update UI if window is visible
-        if not self:IsVisible() then
-            return
-        end
-        
-        -- CRITICAL: Don't sync UI during animations - it destroys cards being animated
-        if self.isAnimating then
-            Debug:Dev("organizer_events", "OnPlayerMoved - skipping sync (animation in progress)")
-            return
-        end
-        
-        -- CRITICAL: Event handlers should ONLY update UI, not call state mutations
-        -- The state has already changed - we just need to refresh the visual representation
-        Debug:Dev("organizer_events", "OnPlayerMoved - triggering full UI sync (state already updated)")
-        
-        -- Instead of trying to move individual cards (which causes recursion),
-        -- just rebuild the UI from the current state
-        self:SyncUIToState()
-        
-    end, "RosterBoard:OnPlayerMoved")
+	return NextKey222.SafeRun(function()
+		Debug:Dev("organizer_events", "OnPlayerMoved:", payload.playerID,
+		         "from:", payload.fromLocation, "to:", payload.toLocation)
+		
+		-- Only update UI if window is visible
+		if not self:IsVisible() then
+			return
+		end
+		
+		-- Skip during animations (prevents event handling during sort)
+		if self.isAnimating then
+			Debug:Dev("organizer_events", "OnPlayerMoved - skipping (animation in progress)")
+			return
+		end
+		
+		-- Rebuild affected sections from state
+		local sections = self:GetAffectedSections(payload.fromLocation, payload.toLocation)
+		
+		Debug:Dev("organizer_events", "Rebuilding sections:", table.concat(sections, ", "))
+		
+		for _, section in ipairs(sections) do
+			if section == "bench" then
+				self:RebuildBench()
+			elseif section == "slots" then
+				self:RebuildSlots()
+			elseif section == "opt_out" then
+				self:RebuildOptOut()
+			end
+		end
+		
+	end, "RosterBoard:OnPlayerMoved")
 end
 
 --- Handler for ORGANIZER_PLAYER_UPDATED event
@@ -2496,6 +2782,177 @@ function RosterBoard:OnProfileUpdated(payload)
         self:RefreshAllCards(true)  -- Pass true to indicate spec change
         
     end, "RosterBoard:OnProfileUpdated")
+end
+
+-- MARK: Drag State Reset
+-- Reset visual drag state on a card
+function RosterBoard:ResetDragState(card)
+    if not card then return end
+    
+    -- Reset drag flag
+    card.isDragging = false
+    
+    -- Reset backdrop colors to normal (class color background, dark border)
+    if card.classColor then
+        card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
+        card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
+    end
+    
+    -- Reset frame strata if it was stored
+    if card.originalFrameStrata then
+        card:SetFrameStrata(card.originalFrameStrata)
+        card.originalFrameStrata = nil
+    end
+    
+    -- Reset frame level if it was stored
+    if card.originalFrameLevel and card:GetParent() then
+        card:SetFrameLevel(card.originalFrameLevel)
+        card.originalFrameLevel = nil
+    end
+    
+    Debug:Dev("organizer_ui", "Reset drag state for card:", card.playerID)
+end
+
+-- MARK: Surgical Card Movement
+-- Move a single card without rebuilding all cards
+function RosterBoard:MoveSingleCard(playerID, fromLocation, toLocation)
+    return NextKey222.SafeRun(function()
+        Debug:Dev("organizer_ui", "MoveSingleCard:", playerID, "from:", fromLocation, "to:", toLocation)
+        
+        -- Check if source and destination are the same (dropped back in same location)
+        local fromLoc = type(fromLocation) == "table" and fromLocation.type or fromLocation
+        local toLoc = type(toLocation) == "table" and toLocation.type or toLocation
+        
+        local isSameLocation = false
+        if type(fromLocation) == "table" and type(toLocation) == "table" then
+            -- Both are role slots - check if same slot
+            isSameLocation = (fromLocation.type == toLocation.type and
+                            fromLocation.groupIndex == toLocation.groupIndex and
+                            fromLocation.slotIndex == toLocation.slotIndex)
+        else
+            -- Simple string comparison for bench/opt_out
+            isSameLocation = (fromLoc == toLoc)
+        end
+        
+        if isSameLocation then
+            Debug:Dev("organizer_ui", "Same location drop - just resetting drag state")
+            -- Find the card without removing it
+            local card = nil
+            if fromLoc == "bench" then
+                for _, benchCard in ipairs(self.benchCards) do
+                    if benchCard.playerID == playerID then
+                        card = benchCard
+                        break
+                    end
+                end
+            elseif fromLoc == "opt_out" then
+                if self.optOutSection and self.optOutSection.playerCards then
+                    for _, optCard in ipairs(self.optOutSection.playerCards) do
+                        if optCard.playerID == playerID then
+                            card = optCard
+                            break
+                        end
+                    end
+                end
+            elseif fromLoc == "role_slot" then
+                local slot = self.groupSlots[fromLocation.groupIndex] and
+                            self.groupSlots[fromLocation.groupIndex][fromLocation.slotIndex]
+                if slot and slot.playerCard and slot.playerCard.playerID == playerID then
+                    card = slot.playerCard
+                end
+            end
+            
+            if card then
+                self:ResetDragState(card)
+                -- Re-layout to fix positioning after drag
+                if fromLoc == "bench" then
+                    NextKey222.BenchManager:layout_bench(self)
+                elseif fromLoc == "opt_out" then
+                    NextKey222.SlotManager:layout_opt_out(self)
+                end
+            end
+            return
+        end
+        
+        -- Different location - find and remove card from source
+        local card = nil
+        
+        if fromLoc == "bench" then
+            for i, benchCard in ipairs(self.benchCards) do
+                if benchCard.playerID == playerID then
+                    card = benchCard
+                    table.remove(self.benchCards, i)
+                    Debug:Dev("organizer_ui", "Found card in bench at index", i)
+                    break
+                end
+            end
+        elseif fromLoc == "opt_out" then
+            if self.optOutSection and self.optOutSection.playerCards then
+                for i, optCard in ipairs(self.optOutSection.playerCards) do
+                    if optCard.playerID == playerID then
+                        card = optCard
+                        table.remove(self.optOutSection.playerCards, i)
+                        Debug:Dev("organizer_ui", "Found card in opt-out at index", i)
+                        break
+                    end
+                end
+            end
+        elseif fromLoc == "role_slot" then
+            local slot = self.groupSlots[fromLocation.groupIndex] and
+                        self.groupSlots[fromLocation.groupIndex][fromLocation.slotIndex]
+            if slot and slot.playerCard and slot.playerCard.playerID == playerID then
+                card = slot.playerCard
+                slot.playerCard = nil
+                slot.isEmpty = true
+                if slot.emptyLabel then
+                    slot.emptyLabel:Show()
+                end
+                Debug:Dev("organizer_ui", "Found card in slot", fromLocation.groupIndex, fromLocation.slotIndex)
+            end
+        end
+        
+        if not card then
+            Debug:Error("MoveSingleCard: Card not found for", playerID)
+            return
+        end
+        
+        -- CRITICAL: Reset drag state before moving to clear yellow border
+        self:ResetDragState(card)
+        
+        -- Move card to destination
+        if toLoc == "bench" then
+            -- Add to bench
+            card:SetParent(self.benchContainer)
+            card.location = "bench"
+            card.displayMode = "compact"
+            table.insert(self.benchCards, card)
+            NextKey222.CardView:Update(card)
+            NextKey222.BenchManager:layout_bench(self)
+            Debug:Dev("organizer_ui", "Moved card to bench")
+        elseif toLoc == "opt_out" then
+            -- Add to opt-out
+            card:SetParent(self.optOutSection.scrollChild)
+            card.location = "opt_out"
+            card.displayMode = "opt_out"
+            table.insert(self.optOutSection.playerCards, card)
+            NextKey222.CardView:Update(card)
+            NextKey222.SlotManager:layout_opt_out(self)
+            Debug:Dev("organizer_ui", "Moved card to opt-out")
+        elseif toLoc == "role_slot" then
+            -- Add to slot
+            local slot = self.groupSlots[toLocation.groupIndex] and
+                        self.groupSlots[toLocation.groupIndex][toLocation.slotIndex]
+            if slot then
+                card:SetParent(slot.frame)
+                card.location = toLocation
+                card.displayMode = "expanded"
+                NextKey222.CardView:Update(card)
+                NextKey222.SlotManager:place_card_in_slot(card, slot, true)
+                Debug:Dev("organizer_ui", "Moved card to slot", toLocation.groupIndex, toLocation.slotIndex)
+            end
+        end
+        
+    end, "RosterBoard:MoveSingleCard")
 end
 
 --- Handler for ORGANIZER_STATE_CLEARED event

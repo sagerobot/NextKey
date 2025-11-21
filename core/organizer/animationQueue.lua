@@ -285,7 +285,7 @@ function AnimationQueue:ExecuteSimultaneousFlight(allCards, onComplete)
     end
 end
 
---- Animate single card flight with parabolic arc
+--- Animate single card flight with parabolic arc (VISUAL ONLY - no state updates)
 -- @param card Player card frame
 -- @param onComplete Callback when card lands
 function AnimationQueue:AnimateRecallFlight(card, onComplete)
@@ -346,12 +346,11 @@ function AnimationQueue:AnimateRecallFlight(card, onComplete)
         card:SetPoint("CENTER", UIParent, "BOTTOMLEFT", newX, newY)
         
         if currentStep >= steps then
-            -- Flight complete - place in bench
-            if NextKey222.CardMovement and NextKey222.CardMovement.place_card_in_bench then
-                NextKey222.CardMovement:place_card_in_bench(rosterBoard, card)
-            end
+            -- CRITICAL: Animation complete - just hide the card
+            -- The state update callback will trigger SyncUIToState which rebuilds bench from state
+            card:Hide()
             
-            Debug:Dev("organizer", "RecallFlight: Card landed")
+            Debug:Dev("organizer", "RecallFlight: Card animation landed, hidden for rebuild")
             
             if onComplete then
                 onComplete()

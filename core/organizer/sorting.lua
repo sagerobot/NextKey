@@ -27,51 +27,98 @@ local function collect_players_by_role_preference(players, role, allowDPSOnlyFle
     
     for _, player in ipairs(players) do
         local preference = nil
-        local canPlayRole = false
+        local canPlayRole = nil  -- nil means "not determined yet"
         
         -- Check if player has spec preferences from poll
+        -- CRITICAL: Empty table {} is NOT the same as no poll response
+        local hasAnsweredPoll = false
         if player.specPreferences then
-            -- Player answered poll - use their explicit preferences
+            -- Check if the table has any actual preferences
+            for _ in pairs(player.specPreferences) do
+                hasAnsweredPoll = true
+                break
+            end
+        end
+        
+        if hasAnsweredPoll then
+            -- Player answered poll - check their preference for this specific role
+            -- CRITICAL: Handle both "DAMAGER" and "DPS" naming (WoW API inconsistency)
             preference = player.specPreferences[role]
-            canPlayRole = (preference == "play" or preference == "fill")
             
-            Debug:Dev("organizer", "Poll data for", player.name, "role", role, "preference:", preference or "none")
-        else
-            -- Fallback: Check if player's roles array includes this role
-            -- (used for players who haven't answered poll yet)
-            if player.roles then
-                -- Check if player is DPS-only (for flex filtering)
-                local isDPSOnly = false
-                if not allowDPSOnlyFlex then
-                    -- Check if player only has DPS role
-                    local hasNonDPSRole = false
-                    for _, playerRole in ipairs(player.roles) do
-                        local normalized = playerRole:upper()
-                        if normalized == "TANK" or normalized == "HEALER" then
-                            hasNonDPSRole = true
-                            break
-                        end
+            -- Fallback for DPS/DAMAGER synonym
+            if not preference and role == "DAMAGER" then
+                preference = player.specPreferences["DPS"]
+            elseif not preference and role == "DPS" then
+                preference = player.specPreferences["DAMAGER"]
+            end
+            
+            if preference == "play" or preference == "fill" then
+                -- Player wants to play this role
+                canPlayRole = true
+                Debug:Dev("organizer", "Poll data for", player.name, "role", role, "preference:", preference)
+            elseif preference == "none" then
+                -- Player explicitly does NOT want this role
+                canPlayRole = false
+                Debug:Dev("organizer", "Poll data for", player.name, "role", role, "preference: none - excluding")
+            else
+                -- preference is nil - player didn't select anything for this role in poll
+                -- Check if ALL their preferences are nil (didn't answer poll properly)
+                local hasAnyPreference = false
+                for _, pref in pairs(player.specPreferences) do
+                    if pref == "play" or pref == "fill" or pref == "none" then
+                        hasAnyPreference = true
+                        break
                     end
-                    isDPSOnly = not hasNonDPSRole
                 end
                 
-                -- Skip DPS-only players for Tank/Healer roles if filtering is enabled
-                if isDPSOnly and (role:upper() == "TANK" or role:upper() == "HEALER") then
-                    Debug:Dev("organizer", "Skipping DPS-only player", player.name, "for", role, "role")
+                if hasAnyPreference then
+                    -- They answered poll but skipped this role - treat as "none"
+                    canPlayRole = false
+                    Debug:Dev("organizer", "Poll data for", player.name, "role", role, "not selected in poll - excluding")
                 else
-                    for _, playerRole in ipairs(player.roles) do
-                        local normalizedRole = playerRole:upper()
-                        local normalizedTargetRole = role:upper()
-                        
-                        -- Match TANK, HEALER, or DAMAGER/DPS
-                        if normalizedRole == normalizedTargetRole or
-                           (normalizedTargetRole == "DPS" and normalizedRole == "DAMAGER") or
-                           (normalizedTargetRole == "DAMAGER" and normalizedRole == "DPS") then
-                            canPlayRole = true
-                            preference = "play" -- Default to "play" when using roles array
-                            Debug:Dev("organizer", "Fallback roles for", player.name, "role", role, "matched")
-                            break
-                        end
+                    -- Poll data exists but is empty - fall back to roles array
+                    Debug:Dev("organizer", "Poll data for", player.name, "role", role, "empty poll - checking roles")
+                end
+            end
+        end
+        
+        -- Fallback: Check if player's roles array includes this role
+        -- (only used when player didn't answer poll OR poll data was completely empty)
+        if canPlayRole == nil and player.roles then
+            -- Check if player is DPS-only (for flex filtering)
+            local isDPSOnly = false
+            if not allowDPSOnlyFlex then
+                -- Check if player only has DPS role
+                local hasNonDPSRole = false
+                for _, playerRole in ipairs(player.roles) do
+                    local normalized = playerRole:upper()
+                    if normalized == "TANK" or normalized == "HEALER" then
+                        hasNonDPSRole = true
+                        break
+                    end
+                end
+                isDPSOnly = not hasNonDPSRole
+            end
+            
+            -- Check if this is a DPS-only player being evaluated for Tank/Healer
+            if isDPSOnly and (role:upper() == "TANK" or role:upper() == "HEALER") then
+                -- DPS-only players cannot fill Tank/Healer roles, skip role matching
+                Debug:Dev("organizer", "Skipping DPS-only player", player.name, "for", role, "role (not eligible)")
+                canPlayRole = false
+            else
+                -- Check if player has the requested role
+                for _, playerRole in ipairs(player.roles) do
+                    local normalizedRole = playerRole:upper()
+                    local normalizedTargetRole = role:upper()
+                    
+                    -- Match TANK, HEALER, or DAMAGER/DPS
+                    if normalizedRole == normalizedTargetRole or
+                       (normalizedTargetRole == "DPS" and normalizedRole == "DAMAGER") or
+                       (normalizedTargetRole == "DAMAGER" and normalizedRole == "DPS") then
+                        canPlayRole = true
+                        preference = "play" -- Default to "play" when using roles array
+                        Debug:Dev("organizer", "Fallback roles for", player.name, "role", role, "matched")
+                        break
                     end
                 end
             end

@@ -315,8 +315,8 @@ function SlotManager:place_card_in_slot(card, slot, skipStateUpdate)
             role = slot.role
         }
         
-        -- Update card content to expanded mode
-        NextKey222.PlayerCard:UpdateCardContent(card, "expanded")
+        -- NEW: Update card using CardView
+        NextKey222.CardView:Update(card)
         
         -- Store in slot
         slot.playerCard = card
@@ -328,14 +328,9 @@ function SlotManager:place_card_in_slot(card, slot, skipStateUpdate)
         
         card:Show()
         
-        -- CRITICAL: Only update state if this is a user-initiated action
-        -- Event-driven updates should skip this to prevent infinite loops
-        if not skipStateUpdate and card.playerData and card.playerData.id then
-            NextKey222.OrganizerState:MoveToSlot(card.playerData.id, slot.groupIndex, slot.slotIndex)
-            Debug:Dev("organizer_ui", "Saved player to OrganizerState - group", slot.groupIndex, "slot", slot.slotIndex)
-        else
-            Debug:Dev("organizer_ui", "Skipped state update (event-driven placement)")
-        end
+        -- NOTE: State updates happen in drag-drop handler only
+        -- This function is now purely for UI placement (event-driven)
+        Debug:Dev("organizer_ui", "Card placed in slot (UI only, state already updated)")
         
         Debug:Dev("organizer_ui", "Card placed in slot successfully")
         
@@ -361,7 +356,7 @@ function SlotManager:place_card_in_opt_out(rosterBoard, card)
             
             local groupIndex = card.location.groupIndex
             
-            if NextKey222.KeystoneManager:is_keystone_designated(rosterBoard, groupIndex, card.playerData.id) then
+            if card.playerID and NextKey222.KeystoneManager:is_keystone_designated(rosterBoard, groupIndex, card.playerID) then
                 NextKey222.KeystoneManager:clear_group_keystone(rosterBoard, groupIndex)
                 Debug:Dev("organizer", "Cleared keystone - card removed from group")
             end
@@ -381,8 +376,8 @@ function SlotManager:place_card_in_opt_out(rosterBoard, card)
             type = "opt_out"
         }
         
-        -- Update card content to opt_out mode
-        NextKey222.PlayerCard:UpdateCardContent(card, "opt_out")
+        -- NEW: Update card using CardView
+        NextKey222.CardView:Update(card)
         
         -- Add to opt-out array
         table.insert(rosterBoard.optOutSection.playerCards, card)
@@ -421,15 +416,13 @@ function SlotManager:populate_opt_out(rosterBoard, players)
     rosterBoard.optOutSection.playerCards = {}
     
     -- Create native cards for opted-out players
+    -- NEW: Create cards using CardView
     for i, playerData in ipairs(players) do
-        local card = NextKey222.PlayerCard:CreateNativeCard(
-            playerData,
-            rosterBoard.optOutSection.scrollChild,
-            "opt_out",
-            "opt_out"  -- Use opt_out mode (simple two-line layout)
-        )
+        local playerID = playerData.id
+        local card = NextKey222.CardView:Create(playerID, rosterBoard.optOutSection.scrollChild, "opt_out")
         
         if card then
+            NextKey222.CardView:Update(card)
             table.insert(rosterBoard.optOutSection.playerCards, card)
         end
     end
@@ -449,106 +442,6 @@ end
 function SlotManager:layout_opt_out(rosterBoard)
     if not rosterBoard.optOutSection or not rosterBoard.optOutSection.scrollChild or not rosterBoard.optOutSection.playerCards then
         return
-    end
-    
-    -- MARK: Opt-Out Buttons
-    --- Update the enabled/disabled state of the Return All button
-    -- @param rosterBoard RosterBoard instance
-    function SlotManager:update_return_button_state(rosterBoard)
-        if not rosterBoard.optOutSection or not rosterBoard.optOutSection.returnButton then
-            return
-        end
-        
-        local hasOptOutCards = rosterBoard.optOutSection.playerCards and
-                              #rosterBoard.optOutSection.playerCards > 0
-        
-        rosterBoard.optOutSection.returnButton:SetEnabled(hasOptOutCards)
-        Debug:Dev("organizer_ui", "Return button state:", hasOptOutCards and "ENABLED" or "DISABLED")
-    end
-    
-    --- Return all opt-out player cards back to the bench
-    -- @param rosterBoard RosterBoard instance
-    function SlotManager:return_all_opt_out_cards(rosterBoard)
-        return NextKey222.SafeRun(function()
-            if not rosterBoard.optOutSection or not rosterBoard.optOutSection.playerCards then
-                return
-            end
-            
-            local cards = rosterBoard.optOutSection.playerCards
-            local totalCards = #cards
-            
-            if totalCards == 0 then
-                Debug:User("No opt-out players to return")
-                return
-            end
-            
-            -- Disable button during operation
-            if rosterBoard.optOutSection.returnButton then
-                rosterBoard.optOutSection.returnButton:SetEnabled(false)
-            end
-            
-            Debug:User("Returning " .. totalCards .. " opt-out players to bench...")
-            
-            -- Move each card back to bench
-            for i = #cards, 1, -1 do
-                local card = cards[i]
-                
-                if card and card.playerData then
-                    -- Update state in OrganizerState
-                    NextKey222.OrganizerState:MoveToBench(card.playerData.id)
-                    
-                    -- CRITICAL: Refresh card data from state before moving
-                    -- This ensures role icons and preferences are up-to-date
-                    local freshPlayerData = NextKey222.OrganizerState:GetPlayer(card.playerData.id)
-                    if freshPlayerData then
-                        -- BUG FIX: roles field reconstruction
-                        -- OrganizerState may not preserve the roles array, so rebuild it
-                        if not freshPlayerData.roles or #freshPlayerData.roles == 0 then
-                            -- Try to get roles from multiple sources
-                            if freshPlayerData.role then
-                                -- Use singular role field if present
-                                freshPlayerData.roles = {freshPlayerData.role}
-                            else
-                                -- Fallback: Get current role from profile
-                                local profile = NextKey222.ProfilesService and NextKey222.ProfilesService:GetProfile(card.playerData.id)
-                                if profile and profile.role then
-                                    freshPlayerData.roles = {profile.role}
-                                else
-                                    -- Last resort: preserve existing roles or use default
-                                    freshPlayerData.roles = card.playerData.roles or {"DAMAGER"}
-                                end
-                            end
-                        end
-                        
-                        card.playerData = freshPlayerData
-                    end
-                    
-                    -- Move card to bench visually
-                    if NextKey222.CardMovement and NextKey222.CardMovement.place_card_in_bench then
-                        NextKey222.CardMovement:place_card_in_bench(rosterBoard, card)
-                    end
-                    
-                    Debug:Dev("organizer_ui", "Returned player to bench:", card.playerData.name)
-                end
-                
-                -- Remove from opt-out array
-                table.remove(cards, i)
-            end
-            
-            -- Re-layout opt-out section (should be empty now)
-            self:layout_opt_out(rosterBoard)
-            
-            -- Re-layout bench with returned cards
-            if NextKey222.BenchManager and NextKey222.BenchManager.layout_bench then
-                NextKey222.BenchManager:layout_bench(rosterBoard)
-            end
-            
-            -- Update button state (should be disabled now)
-            self:update_return_button_state(rosterBoard)
-            
-            Debug:User("Return complete!")
-            
-        end, "SlotManager:return_all_opt_out_cards")
     end
     
     local config = NextKey222.UIConfig and NextKey222.UIConfig.ORGANIZER or {}
@@ -574,6 +467,99 @@ function SlotManager:layout_opt_out(rosterBoard)
     rosterBoard.optOutSection.scrollChild:SetHeight(cardHeight + innerPadding)
     
     Debug:Dev("organizer_ui", "Opt-out layout complete, total width:", xOffset)
+end
+
+-- MARK: Opt-Out Buttons
+--- Update the enabled/disabled state of the Return All button
+-- @param rosterBoard RosterBoard instance
+function SlotManager:update_return_button_state(rosterBoard)
+    if not rosterBoard.optOutSection or not rosterBoard.optOutSection.returnButton then
+        return
+    end
+    
+    local hasOptOutCards = rosterBoard.optOutSection.playerCards and
+                          #rosterBoard.optOutSection.playerCards > 0
+    
+    rosterBoard.optOutSection.returnButton:SetEnabled(hasOptOutCards)
+    Debug:Dev("organizer_ui", "Return button state:", hasOptOutCards and "ENABLED" or "DISABLED")
+end
+
+--- Return all opt-out player cards back to the bench
+-- @param rosterBoard RosterBoard instance
+function SlotManager:return_all_opt_out_cards(rosterBoard)
+    return NextKey222.SafeRun(function()
+        if not rosterBoard.optOutSection or not rosterBoard.optOutSection.playerCards then
+            return
+        end
+        
+        local cards = rosterBoard.optOutSection.playerCards
+        local totalCards = #cards
+        
+        if totalCards == 0 then
+            Debug:User("No opt-out players to return")
+            return
+        end
+        
+        -- Disable button during operation
+        if rosterBoard.optOutSection.returnButton then
+            rosterBoard.optOutSection.returnButton:SetEnabled(false)
+        end
+        
+        -- CRITICAL FIX: Set bulk operation flag to prevent event-driven SyncUIToState
+        -- from interfering with our manual card movements
+        rosterBoard.isBulkOperating = true
+        
+        Debug:User("Returning " .. totalCards .. " opt-out players to bench...")
+        
+        -- Collect playerIDs to move
+        local playerIDsToMove = {}
+        for i = 1, #cards do
+            local card = cards[i]
+            if card and card.playerID then
+                table.insert(playerIDsToMove, card.playerID)
+            end
+        end
+        
+        -- Move all players in state FIRST (batch state updates)
+        for _, playerID in ipairs(playerIDsToMove) do
+            NextKey222.OrganizerState:MoveToBench(playerID)
+        end
+        
+        -- Now move cards visually
+        for i = #cards, 1, -1 do
+            local card = cards[i]
+            
+            if card and card.playerID then
+                    -- Move card to bench visually
+                    if NextKey222.CardMovement and NextKey222.CardMovement.place_card_in_bench then
+                        NextKey222.CardMovement:place_card_in_bench(rosterBoard, card)
+                    end
+                    
+                    local playerData = NextKey222.OrganizerState:GetPlayer(card.playerID)
+                    Debug:Dev("organizer_ui", "Returned player to bench:", playerData and playerData.name or card.playerID)
+                end
+                
+                -- Remove from opt-out array
+                table.remove(cards, i)
+            end
+            
+            -- Re-layout opt-out section (should be empty now)
+            self:layout_opt_out(rosterBoard)
+            
+            -- Re-layout bench with returned cards
+            if NextKey222.BenchManager and NextKey222.BenchManager.layout_bench then
+                NextKey222.BenchManager:layout_bench(rosterBoard)
+            end
+            
+            -- Update button state (should be disabled now)
+            self:update_return_button_state(rosterBoard)
+            
+            -- Clear bulk operation flag
+            rosterBoard.isBulkOperating = false
+            
+            Debug:User("Return complete!")
+            
+        end, "SlotManager:return_all_opt_out_cards")
 end
 
 -- MARK: Group Controls

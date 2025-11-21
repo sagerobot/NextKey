@@ -310,6 +310,23 @@ function ParticipantSurvey:ProcessResponse(playerID, response)
             optedIn = (response.participation == "in")
         end
         
+        -- CRITICAL: Check if player selected "none" for all roles -> auto opt-out
+        local hasAnyRoleSelected = false
+        if response.specPreferences then
+            for role, preference in pairs(response.specPreferences) do
+                if preference ~= "none" then
+                    hasAnyRoleSelected = true
+                    break
+                end
+            end
+        end
+        
+        -- If player selected "none" for all roles, force opt-out
+        if not hasAnyRoleSelected and response.specPreferences and next(response.specPreferences) ~= nil then
+            Debug:Dev("organizer", "Player", playerID, "selected 'none' for all roles - auto opt-out")
+            optedIn = false
+        end
+        
         -- CRITICAL: Store poll response in OrganizerState (prevents data loss!)
         NextKey222.OrganizerState:UpdatePlayerFromPollResponse(playerID, response)
         

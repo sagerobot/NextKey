@@ -933,7 +933,16 @@ function PlayerCard:ShowManualPreferenceDialog(playerData)
             return
         end
         
-        Debug:Dev("organizer_ui", "Showing manual preference dialog for:", playerData.name)
+        Debug:Dev("organizer_ui", "Showing manual preference dialog for:", playerData.name, "class:", playerData.class)
+        
+        -- CRITICAL FIX: Fetch fresh player data from OrganizerState to ensure we have correct class info
+        if playerData.id and NextKey222.OrganizerState then
+            local freshData = NextKey222.OrganizerState:GetPlayer(playerData.id)
+            if freshData then
+                playerData = freshData
+                Debug:Dev("organizer_ui", "Refreshed player data from state - class:", playerData.class)
+            end
+        end
         
         -- Create a fake poll message for the survey dialog
         local pollMessage = {

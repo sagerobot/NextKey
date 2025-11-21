@@ -146,8 +146,12 @@ function CardMovement:find_compatible_slot_in_group(rosterBoard, card, groupInde
         return nil
     end
     
+    -- Fetch player data from state
+    local playerData = card.playerID and NextKey222.OrganizerState:GetPlayer(card.playerID)
+    if not playerData then return nil end
+    
     -- ENHANCED: Check spec preferences if available, otherwise fall back to roles array
-    local rolesToCheck = card.playerData.specPreferences or card.playerData.roles
+    local rolesToCheck = playerData.specPreferences or playerData.roles
     
     for _, slot in ipairs(rosterBoard.groupSlots[groupIndex]) do
         if slot.isEmpty and self:can_player_fill_role(rolesToCheck, slot.role) then
@@ -212,71 +216,8 @@ function CardMovement:remove_card_from_source(rosterBoard, card)
 end
 
 -- MARK: Placement
---- Place card back into bench
--- @param rosterBoard RosterBoard instance
--- @param card Player card frame
-function CardMovement:place_card_in_bench(rosterBoard, card)
-    return NextKey222.SafeRun(function()
-        Debug:Dev("organizer_ui", "Placing card in bench")
-        
-        -- Check if card's keystone was designated
-        if card.location and
-           type(card.location) == "table" and
-           card.location.type == "role_slot" then
-            
-            local groupIndex = card.location.groupIndex
-            
-            -- Access KeystoneManager via NextKey222 namespace
-            if NextKey222.KeystoneManager:is_keystone_designated(rosterBoard, groupIndex, card.playerData.id) then
-                NextKey222.KeystoneManager:clear_group_keystone(rosterBoard, groupIndex)
-                Debug:Dev("organizer", "Cleared keystone - card removed from group")
-            end
-        end
-        
-        -- BUG FIX: Update state before moving card to bench
-        -- This ensures OrganizerState knows this player is on bench
-        if card.playerData and card.playerData.id then
-            NextKey222.OrganizerState:MoveToBench(card.playerData.id)
-            
-            -- CRITICAL: Fetch fresh data from state to ensure roles array is present
-            local freshData = NextKey222.OrganizerState:GetPlayer(card.playerData.id)
-            if freshData then
-                card.playerData = freshData
-                Debug:Dev("organizer_ui", "Refreshed card data from state before bench placement")
-            end
-        end
-        
-        -- Update card size for compact mode
-        card:SetSize(180, 20)  -- Compact size
-        card:SetParent(rosterBoard.benchContainer)
-        
-        -- Update metadata
-        card.location = {
-            type = "bench"
-        }
-        
-        -- Update card content to compact mode
-        NextKey222.PlayerCard:UpdateCardContent(card, "compact")
-        
-        -- Add to bench array
-        table.insert(rosterBoard.benchCards, card)
-        
-        -- Reset colors
-        card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
-        card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
-        
-        -- Re-layout bench
-        NextKey222.BenchManager:layout_bench(rosterBoard)
-        
-        Debug:Dev("organizer_ui", "Card placed in bench successfully")
-        
-        -- Update Recall All button state
-        if NextKey222.BenchManager and NextKey222.BenchManager.update_recall_button_state then
-            NextKey222.BenchManager:update_recall_button_state(rosterBoard)
-        end
-        
-    end, "CardMovement:place_card_in_bench")
-end
+-- NOTE: Placement logic removed - now handled entirely by event-driven architecture
+-- Drag-drop updates state only, event handlers update UI
 
 -- MARK: Rejection
 --- Animate card rejection (bounce back to original position)
@@ -284,7 +225,8 @@ end
 -- @param card Player card frame
 function CardMovement:animate_rejection(rosterBoard, card)
     return NextKey222.SafeRun(function()
-        Debug:Dev("organizer_ui", "Animating rejection for:", card.playerData.name)
+        local playerData = card.playerID and NextKey222.OrganizerState:GetPlayer(card.playerID)
+        Debug:Dev("organizer_ui", "Animating rejection for:", playerData and playerData.name or card.playerID)
         
         -- Flash red to indicate rejection
         card:SetBackdropColor(1.0, 0.2, 0.2, 1.0)
@@ -379,10 +321,22 @@ function CardMovement:handle_card_drop(rosterBoard, card, dropTarget)
     return NextKey222.SafeRun(function()
         Debug:Dev("organizer_ui", "HandleCardDrop - type:", dropTarget.type)
         
+        -- Fetch player data from state
+        if not card.playerID then
+            Debug:Error("Card has no playerID - cannot handle drop")
+            return
+        end
+        
+        local playerData = NextKey222.OrganizerState:GetPlayer(card.playerID)
+        if not playerData then
+            Debug:Error("Player data not found in state:", card.playerID)
+            return
+        end
+        
         -- VALIDATE FIRST (before any state changes)
         if dropTarget.type == "role_slot" then
             -- Validate role compatibility
-            local canFill = self:can_player_fill_role(card.playerData.roles, dropTarget.role)
+            local canFill = self:can_player_fill_role(playerData.roles, dropTarget.role)
             
             if not canFill then
                 -- Try to find compatible slot in same group
@@ -411,7 +365,54 @@ function CardMovement:handle_card_drop(rosterBoard, card, dropTarget)
             end
         end
         
-        -- VALIDATION PASSED - Now execute the move
+        -- VALIDATION PASSED - Now check for same-location drop
+        
+        -- Get current location from state (most reliable)
+        local currentLocation = NextKey222.OrganizerState:GetPlayerLocation(card.playerID)
+        
+        -- Check if dropping in same location
+        local isSameLocation = false
+        if type(currentLocation) == "table" and type(dropTarget.type) == "string" and dropTarget.type == "role_slot" then
+            -- Both are role slots - compare group and slot indices
+            isSameLocation = (currentLocation.type == "role_slot" and
+                            currentLocation.groupIndex == dropTarget.groupIndex and
+                            currentLocation.slotIndex == dropTarget.slotIndex)
+        elseif type(currentLocation) == "string" and type(dropTarget.type) == "string" then
+            -- Both are simple locations (bench/opt_out)
+            isSameLocation = (currentLocation == dropTarget.type)
+        end
+        
+        if isSameLocation then
+            Debug:Dev("organizer_ui", "Same location drop detected - resetting drag state only")
+            -- Reset drag state and reparent to correct container
+            if currentLocation == "bench" then
+                card:SetParent(rosterBoard.benchContainer)
+                card:SetFrameStrata("MEDIUM")
+                card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
+                card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
+                NextKey222.BenchManager:layout_bench(rosterBoard)
+            elseif currentLocation == "opt_out" then
+                card:SetParent(rosterBoard.optOutSection.scrollChild)
+                card:SetFrameStrata("MEDIUM")
+                card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
+                card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
+                NextKey222.SlotManager:layout_opt_out(rosterBoard)
+            elseif type(currentLocation) == "table" and currentLocation.type == "role_slot" then
+                local slot = rosterBoard.groupSlots[currentLocation.groupIndex] and
+                            rosterBoard.groupSlots[currentLocation.groupIndex][currentLocation.slotIndex]
+                if slot then
+                    card:SetParent(slot.frame)
+                    card:SetFrameStrata("MEDIUM")
+                    card:SetBackdropColor(card.classColor.r, card.classColor.g, card.classColor.b, 0.8)
+                    card:SetBackdropBorderColor(0.3, 0.3, 0.3, 1.0)
+                    card:ClearAllPoints()
+                    card:SetPoint("CENTER", slot.frame, "CENTER")
+                end
+            end
+            return  -- Don't update state - nothing changed
+        end
+        
+        -- Different location - proceed with move
         
         -- Clear keystone if moving from a slot
         if card.location and
@@ -420,22 +421,26 @@ function CardMovement:handle_card_drop(rosterBoard, card, dropTarget)
             
             local prevGroupIndex = card.location.groupIndex
             
-            if NextKey222.KeystoneManager:is_keystone_designated(rosterBoard, prevGroupIndex, card.playerData.id) then
+            if NextKey222.KeystoneManager:is_keystone_designated(rosterBoard, prevGroupIndex, card.playerID) then
                 NextKey222.KeystoneManager:clear_group_keystone(rosterBoard, prevGroupIndex)
                 Debug:Dev("organizer", "Cleared keystone - card moved to different group")
             end
         end
         
-        -- Remove from source
-        self:remove_card_from_source(rosterBoard, card)
+        -- CRITICAL: Do NOT remove card from source arrays here!
+        -- SyncUIToState will clean up ALL cards when it rebuilds from state
+        -- If we remove it here, SyncUIToState won't find it to destroy it
         
-        -- Place in target
+        -- EVENT-DRIVEN PATTERN: Only update state, let event handler do UI work
         if dropTarget.type == "role_slot" then
-            NextKey222.SlotManager:place_card_in_slot(card, dropTarget.slot)
+            NextKey222.OrganizerState:MoveToSlot(card.playerID, dropTarget.groupIndex, dropTarget.slotIndex)
+            Debug:Dev("organizer_ui", "State updated - moving to slot", dropTarget.groupIndex, dropTarget.slotIndex)
         elseif dropTarget.type == "bench" then
-            self:place_card_in_bench(rosterBoard, card)
+            NextKey222.OrganizerState:MoveToBench(card.playerID)
+            Debug:Dev("organizer_ui", "State updated - moving to bench")
         elseif dropTarget.type == "opt_out" then
-            NextKey222.SlotManager:place_card_in_opt_out(rosterBoard, card)
+            NextKey222.OrganizerState:MoveToOptOut(card.playerID)
+            Debug:Dev("organizer_ui", "State updated - moving to opt-out")
         end
         
     end, "CardMovement:handle_card_drop")

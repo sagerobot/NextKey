@@ -240,15 +240,12 @@ function BenchManager:add_player_to_bench(rosterBoard, playerData)
             return
         end
         
-        -- Create native card
-        local card = NextKey222.PlayerCard:CreateNativeCard(
-            playerData,
-            rosterBoard.benchContainer,
-            "bench",
-            "compact"
-        )
+        -- NEW: Create card using CardView
+        local playerID = playerData.id
+        local card = NextKey222.CardView:Create(playerID, rosterBoard.benchContainer, "bench")
         
         if card then
+            NextKey222.CardView:Update(card)
             table.insert(rosterBoard.benchCards, card)
             
             -- Add visual indicator if auto-detected
@@ -282,7 +279,7 @@ function BenchManager:remove_player_from_bench(rosterBoard, playerID)
         -- Find and remove the player card
         for i = #rosterBoard.benchCards, 1, -1 do
             local card = rosterBoard.benchCards[i]
-            if card.playerData and card.playerData.id == playerID then
+            if card.playerID and card.playerID == playerID then
                 -- Hide and remove card
                 card:Hide()
                 card:SetParent(nil)
@@ -323,20 +320,17 @@ function BenchManager:populate_bench(rosterBoard, players)
     
     Debug:Dev("organizer_ui", "Populating bench with", #players, "players")
     
-    -- Create native cards
+    -- NEW: Create cards using CardView
     for i, playerData in ipairs(players) do
-        local card = NextKey222.PlayerCard:CreateNativeCard(
-            playerData,
-            rosterBoard.benchContainer,
-            "bench",
-            "compact"
-        )
+        local playerID = playerData.id
+        local card = NextKey222.CardView:Create(playerID, rosterBoard.benchContainer, "bench")
         
         if card then
+            NextKey222.CardView:Update(card)
             table.insert(rosterBoard.benchCards, card)
             Debug:Dev("organizer_ui", "Created bench card", i, "for:", playerData.name)
         else
-            Debug:Error("Failed to create card for:", playerData.name)
+            Debug:Error("Failed to create CardView for:", playerData.name)
         end
     end
     
@@ -542,7 +536,7 @@ function BenchManager:update_recall_button_state(rosterBoard)
 end
 
 -- MARK: Recall All
---- Recalls all player cards from M+ group slots back to the bench with animation
+--- Recalls all player cards from M+ group slots back to the bench with animation (EVENT-DRIVEN)
 -- @param rosterBoard RosterBoard instance
 function BenchManager:recall_all_cards(rosterBoard)
     return NextKey222.SafeRun(function()
@@ -553,8 +547,9 @@ function BenchManager:recall_all_cards(rosterBoard)
             rosterBoard.benchRecallButton:SetEnabled(false)
         end
         
-        -- Collect cards by group
+        -- Collect cards by group AND their player IDs
         local cardsByGroup = {}
+        local playerIDs = {}
         local totalCards = 0
         
         for groupIndex, slots in pairs(rosterBoard.groupSlots) do
@@ -563,22 +558,18 @@ function BenchManager:recall_all_cards(rosterBoard)
             for slotIndex, slot in pairs(slots) do
                 if not slot.isEmpty and slot.playerCard then
                     local card = slot.playerCard
+                    local playerID = card.playerData.id
+                    
                     table.insert(cardsByGroup[groupIndex], card)
+                    table.insert(playerIDs, playerID)
                     totalCards = totalCards + 1
                     
                     -- Clear keystone if designated
                     if NextKey222.KeystoneManager:is_keystone_designated(
-                        rosterBoard, groupIndex, card.playerData.id) then
+                        rosterBoard, groupIndex, playerID) then
                         NextKey222.KeystoneManager:clear_group_keystone(
                             rosterBoard, groupIndex)
-                        Debug:Dev("organizer", "Cleared keystone for:", card.playerData.name)
-                    end
-                    
-                    -- Clear slot state (will be restored if animation fails)
-                    slot.playerCard = nil
-                    slot.isEmpty = true
-                    if slot.emptyLabel then
-                        slot.emptyLabel:Show()
+                        Debug:Dev("organizer", "Cleared keystone for:", playerID)
                     end
                 end
             end
@@ -595,13 +586,19 @@ function BenchManager:recall_all_cards(rosterBoard)
         Debug:User("Recalling " .. totalCards .. " players to bench...")
         
         -- Execute animated recall sequence
+        -- CRITICAL: Animation completes, THEN we update state
         NextKey222.AnimationQueue:ExecuteRecallSequence(cardsByGroup, function()
-            -- Re-layout bench after all animations complete
-            self:layout_bench(rosterBoard)
+            -- AFTER animation completes, update state (event-driven)
+            Debug:Dev("organizer", "Animation complete - updating state for", #playerIDs, "players")
+            for _, playerID in ipairs(playerIDs) do
+                NextKey222.OrganizerState:MoveToBench(playerID)
+            end
             
-            -- Re-enable button (will check if any cards remain in slots)
+            -- Re-enable button after state updates
             if rosterBoard.benchRecallButton then
-                self:update_recall_button_state(rosterBoard)
+                C_Timer.After(0.1, function()
+                    self:update_recall_button_state(rosterBoard)
+                end)
             end
             
             Debug:User("Recall complete!")
@@ -638,21 +635,18 @@ function BenchManager:rebuild_bench_after_poll(rosterBoard)
         
         Debug:Dev("organizer_ui", "Creating fresh cards for", #benchPlayers, "bench players")
         
-        -- Create brand new cards with updated data
+        -- NEW: Create brand new cards using CardView
         for i, playerData in ipairs(benchPlayers) do
-            local card = NextKey222.PlayerCard:CreateNativeCard(
-                playerData,
-                rosterBoard.benchContainer,
-                "bench",
-                "compact"
-            )
+            local playerID = playerData.id
+            local card = NextKey222.CardView:Create(playerID, rosterBoard.benchContainer, "bench")
             
             if card then
+                NextKey222.CardView:Update(card)
                 table.insert(rosterBoard.benchCards, card)
                 Debug:Dev("organizer_ui", "Recreated bench card", i, "for:", playerData.name,
                          "- has specPreferences:", playerData.specPreferences ~= nil)
             else
-                Debug:Error("Failed to recreate card for:", playerData.name)
+                Debug:Error("Failed to recreate CardView for:", playerData.name)
             end
         end
         

@@ -193,7 +193,7 @@ function KeystoneManager:find_card_by_player_id(rosterBoard, playerID)
     -- Search bench
     if rosterBoard.benchCards then
         for _, card in ipairs(rosterBoard.benchCards) do
-            if card.playerData and card.playerData.id == playerID then
+            if card.playerID and card.playerID == playerID then
                 return card
             end
         end
@@ -203,10 +203,19 @@ function KeystoneManager:find_card_by_player_id(rosterBoard, playerID)
     if rosterBoard.groupSlots then
         for _, slots in pairs(rosterBoard.groupSlots) do
             for _, slot in pairs(slots) do
-                if slot.playerCard and slot.playerCard.playerData and
-                   slot.playerCard.playerData.id == playerID then
+                if slot.playerCard and slot.playerCard.playerID and
+                   slot.playerCard.playerID == playerID then
                     return slot.playerCard
                 end
+            end
+        end
+    end
+    
+    -- Search opt-out cards
+    if rosterBoard.optOutSection and rosterBoard.optOutSection.playerCards then
+        for _, card in ipairs(rosterBoard.optOutSection.playerCards) do
+            if card.playerID and card.playerID == playerID then
+                return card
             end
         end
     end

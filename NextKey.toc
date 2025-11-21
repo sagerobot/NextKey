@@ -122,6 +122,7 @@ core\organizer\playerDataBuilder.lua
 core\organizer\validation.lua
 core\organizer\comms.lua
 core\organizer\survey.lua
+core\organizer\location.lua
 core\organizer\state.lua
 core\organizer\sorting.lua
 core\organizer\animationQueue.lua
@@ -129,6 +130,8 @@ core\organizer\animationQueue.lua
 # Organizer UI
 ui\organizer\rosterBoard.lua
 ui\organizer\playerCard.lua
+ui\organizer\cardView.lua
+ui\organizer\dragController.lua
 ui\organizer\surveyDialog.lua
 ui\organizer\modules\benchManager.lua
 ui\organizer\modules\slotManager.lua
