@@ -1448,6 +1448,73 @@ function RosterBoard:OnEndPollClicked()
         
         Debug:User("Poll ended manually: " .. totalResponses .. "/" .. totalMembers .. " members responded")
         
+        -- CRITICAL FIX: Ensure all non-respondents have sortable spec preferences
+        -- When poll ends early, players who didn't respond still need their current spec
+        -- preferences to be sortable by the organize algorithm
+        if NextKey222.OrganizerState then
+            -- Get all players from OrganizerState
+            local allPlayers = NextKey222.OrganizerState:GetAllPlayers()
+            local respondedPlayerIDs = {}
+            
+            -- Build set of players who already responded
+            for _, response in ipairs(self.activePoll.responses) do
+                respondedPlayerIDs[response.sender] = true
+            end
+            
+            -- For each non-respondent, ensure they have sortable spec preferences
+            for _, playerData in ipairs(allPlayers) do
+                local playerID = playerData.id
+                
+                if playerID and not respondedPlayerIDs[playerID] then
+                    -- Check if they need spec preferences generated
+                    local needsGeneration = false
+                    
+                    if not playerData.specPreferences then
+                        -- No spec preferences at all
+                        needsGeneration = true
+                        Debug:Dev("organizer", "Non-respondent has no specPreferences:", playerID)
+                    else
+                        -- Check if all preferences are "none"
+                        local hasNonNonePreference = false
+                        for role, preference in pairs(playerData.specPreferences) do
+                            if preference ~= "none" then
+                                hasNonNonePreference = true
+                                break
+                            end
+                        end
+                        
+                        if not hasNonNonePreference then
+                            needsGeneration = true
+                            Debug:Dev("organizer", "Non-respondent has all 'none' preferences:", playerID)
+                        else
+                            Debug:Dev("organizer", "Non-respondent already has valid spec preferences:", playerID)
+                        end
+                    end
+                    
+                    if needsGeneration then
+                        Debug:Dev("organizer", "Generating default spec preferences for non-respondent:", playerID)
+                        
+                        -- Generate default spec preferences (current spec only)
+                        if NextKey222.OrganizerPlayerDataBuilder and
+                           NextKey222.OrganizerPlayerDataBuilder.GenerateSpecPreferences then
+                            local success, specPrefs, specDetails = NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(playerID, {randomize = false})
+                            
+                            if success and specPrefs then
+                                -- Update player data in OrganizerState
+                                NextKey222.OrganizerState:UpdatePlayer(playerID, {
+                                    specPreferences = specPrefs,
+                                    specDetails = specDetails
+                                })
+                                Debug:Dev("organizer", "Added default spec preferences for non-respondent:", playerID)
+                            else
+                                Debug:Error("Failed to generate spec preferences for non-respondent:", playerID)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
         -- Call CompletePoll to handle cleanup
         self:CompletePoll()
         

@@ -59,52 +59,72 @@ function PlayerDataBuilder:GenerateSpecPreferences(playerID, options)
         local currentRole = profile.role  -- CRITICAL: Fallback to role if specID is invalid
         Debug:Dev("organizer", "Player", playerID, "current specID:", currentSpecID, "specName:", currentSpecName, "role:", currentRole)
         
-        -- Get class ID for API call
-        local classID = nil
-        local numClasses = GetNumClasses()
-        for i = 1, numClasses do
-            local className, classToken = GetClassInfo(i)
-            if classToken == profile.class then
-                classID = i
-                break
-            end
-        end
+        -- APPROACH: For deterministic mode (pre-poll), only track current spec
+        --           For randomized mode (poll simulation), use role-based generation
         
-        if not classID then
-            Debug:Error("Could not find classID for class:", profile.class)
-            return specPreferences, specDetails
-        end
-        
-        -- Query ALL specializations for this class
-        -- CRITICAL: Use correct WoW API with C_SpecializationInfo namespace and fallback
-        local numSpecs = (C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID)
-            and C_SpecializationInfo.GetNumSpecializationsForClassID(classID)
-            or GetNumSpecializations()
-        
-        for i = 1, numSpecs do
-            local specID, specName, _, iconTexture, role
-            if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfoForClassID then
-                specID, specName, _, iconTexture, role = C_SpecializationInfo.GetSpecializationInfoForClassID(classID, i)
-            else
-                -- Fallback: use GetSpecializationInfo for current player's specs
-                specID, specName, _, iconTexture, role = GetSpecializationInfo(i)
-            end
-            
-            -- BUGFIX: If role is nil from API, derive it from specID using GetSpecializationRoleByID
-            if specID and not role then
-                if GetSpecializationRoleByID then
-                    role = GetSpecializationRoleByID(specID)
-                    Debug:Dev("organizer", "Derived role from specID", specID, "for", specName, "->", role)
+        if not randomize then
+            -- DETERMINISTIC MODE: Only track current spec
+            if currentSpecID and currentSpecID > 0 then
+                -- We have a valid spec ID - get its info
+                local specName = currentSpecName
+                local role = currentRole
+                
+                -- Try to get more info if available
+                if GetSpecializationInfoByID then
+                    local _, name, _, iconTexture, specRole = GetSpecializationInfoByID(currentSpecID)
+                    specName = name or specName
+                    role = specRole or role
                 end
+                
+                if specName and role then
+                    table.insert(availableSpecs, {
+                        specID = currentSpecID,
+                        specName = specName,
+                        role = role,
+                        iconTexture = nil
+                    })
+                    Debug:Dev("organizer", string.format("Added current spec to availableSpecs: specID=%d specName=%s role=%s",
+                        currentSpecID, specName, role))
+                end
+            elseif currentRole then
+                -- Fallback: No valid spec ID, but we have a role
+                -- Create a synthetic spec entry using role
+                table.insert(availableSpecs, {
+                    specID = 0,  -- Placeholder
+                    specName = currentSpecName or currentRole,
+                    role = currentRole,
+                    iconTexture = nil
+                })
+                Debug:Dev("organizer", string.format("Added synthetic spec from role: role=%s specName=%s",
+                    currentRole, tostring(currentSpecName)))
+            else
+                Debug:Error("No valid spec or role data for player:", playerID)
+                return specPreferences, specDetails
+            end
+        else
+            -- RANDOMIZED MODE (poll simulation): Use role-based generation for multi-role classes
+            -- Get all possible roles for this class from CharacterStorage
+            local classRoles = {}
+            if NextKey222.CharacterStorage then
+                classRoles = NextKey222.CharacterStorage:GetClassRoles(profile.class)
             end
             
-            if specID then
+            -- Fallback if CharacterStorage doesn't have data
+            if #classRoles == 0 then
+                classRoles = {currentRole or "DAMAGER"}
+            end
+            
+            Debug:Dev("organizer", string.format("RANDOMIZED mode - class %s has %d roles", profile.class, #classRoles))
+            
+            -- Create synthetic specs for each role
+            for _, role in ipairs(classRoles) do
                 table.insert(availableSpecs, {
-                    specID = specID,
-                    specName = specName,
+                    specID = 0,  -- Placeholder
+                    specName = role,  -- Use role as name
                     role = role,
-                    iconTexture = iconTexture
+                    iconTexture = nil
                 })
+                Debug:Dev("organizer", string.format("  Added role-based spec: role=%s", role))
             end
         end
         

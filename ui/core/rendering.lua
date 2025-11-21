@@ -75,6 +75,34 @@ function UIRendering:build_sorted_entries(keys, mode, ui)
     -- NOTE: We calculate ioGainRange (detailed player breakdown) but NOT ioGainPotential
     -- Each algorithm will calculate its own score from the breakdown data
     if algorithm and algorithm.showIOTooltips then
+        -- CRITICAL: Ensure party profiles are cached for all players before calculating IO ranges
+        -- This ensures Smart Sort and other algorithms have complete player data
+        local NextKey = NextKey222.Addon
+        if NextKey and NextKey.GetPartyMemberNames then
+            local partyMembers = NextKey:GetPartyMemberNames()
+            local partyProfiles = {}
+            
+            for _, memberName in pairs(partyMembers) do
+                if NextKey222.ProfilesService and NextKey222.ProfilesService.GetProfile then
+                    local profile = NextKey222.ProfilesService:GetProfile(memberName)
+                    if profile then
+                        partyProfiles[memberName] = profile
+                        safe_dev("sorting", "Loaded profile for", memberName, "class:", profile.class or "nil", "role:", profile.role or "nil")
+                    else
+                        safe_dev("sorting", "WARNING: No profile found for", memberName)
+                    end
+                else
+                    safe_dev("sorting", "WARNING: ProfilesService not available")
+                end
+            end
+            
+            -- Cache party profiles on UI for use by CalculateIOGainRange
+            if ui then
+                ui.cachedPartyProfiles = partyProfiles
+                safe_dev("sorting", "Cached", ui:CountTable(partyProfiles), "party profiles for IO calculations")
+            end
+        end
+        
         for _, entry in ipairs(entries) do
             entry.ioGainRange = ui:CalculateIOGainRange(entry.key)
             -- Do NOT pre-calculate ioGainPotential - let algorithms compute their own scores

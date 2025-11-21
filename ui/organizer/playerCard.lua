@@ -145,13 +145,16 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
     
     -- Collect roles with preferences (up to maxRoles)
     if playerData.specPreferences then
+        Debug:Dev("organizer_ui", "Player", playerData.name, "has specPreferences - checking for non-none roles")
         -- If we have poll data, show roles based on preference order
         for role, preference in pairs(playerData.specPreferences) do
+            Debug:Dev("organizer_ui", "  Role:", role, "Preference:", preference)
             if preference ~= "none" then
                 table.insert(rolesToShow, {
                     role = role,
                     preference = preference
                 })
+                Debug:Dev("organizer_ui", "    Added to rolesToShow")
             end
         end
         
@@ -166,12 +169,18 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
             end
         end
     else
+        Debug:Dev("organizer_ui", "Player", playerData.name, "has NO specPreferences - using roles array")
         -- Fallback: show current roles without preference data
-        for i, role in ipairs(playerData.roles) do
-            table.insert(rolesToShow, {
-                role = role,
-                preference = "play"  -- Default to "want to play"
-            })
+        if playerData.roles then
+            for i, role in ipairs(playerData.roles) do
+                Debug:Dev("organizer_ui", "  Adding role from roles array:", role)
+                table.insert(rolesToShow, {
+                    role = role,
+                    preference = "play"  -- Default to "want to play"
+                })
+            end
+        else
+            Debug:Dev("organizer_ui", "Player", playerData.name, "has NO roles array either!")
         end
     end
     
@@ -189,6 +198,9 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
     for i = 1, roleCount do
         local roleInfo = rolesToShow[i]
         
+        Debug:Dev("organizer_ui", string.format("Creating role button %d/%d for %s - role: %s preference: %s",
+            i, roleCount, playerData.name, roleInfo.role, roleInfo.preference))
+        
         -- Create invisible button frame for tooltip support
         local roleButton = CreateFrame("Button", nil, card)
         roleButton:SetSize(18, 18)
@@ -196,15 +208,20 @@ local function RenderRoleIcons(card, playerData, xOffset, yOffset, maxRoles)
         if isCompact then
             -- Compact mode: use LEFT anchor for vertical centering (y=0)
             roleButton:SetPoint("LEFT", card, "LEFT", xOffset, 0)
+            Debug:Dev("organizer_ui", string.format("  Positioned at xOffset=%d (compact mode)", xOffset))
         else
             -- Expanded mode: use TOPLEFT anchor with yOffset
             roleButton:SetPoint("TOPLEFT", card, "TOPLEFT", xOffset, -yOffset)
+            Debug:Dev("organizer_ui", string.format("  Positioned at xOffset=%d yOffset=%d (expanded mode)", xOffset, yOffset))
         end
         
         roleButton:EnableMouse(true)
+        roleButton:Show()  -- CRITICAL: Explicitly show the button!
         
         -- CRITICAL: Track role button for cleanup
         table.insert(card.roleButtons, roleButton)
+        
+        Debug:Dev("organizer_ui", string.format("  Button created and shown - total roleButtons: %d", #card.roleButtons))
         
         -- Create colored circle background
         local bgCircle = roleButton:CreateTexture(nil, "BACKGROUND")

@@ -119,14 +119,26 @@ end
 -- @param fakeData Fake player service data
 -- @return table PlayerData object
 function BenchManager:BuildPlayerDataFromFake(fakeData)
+    -- CRITICAL: Get profile from ProfilesService for accurate spec/role data
+    local profile = NextKey222.ProfilesService and
+                   NextKey222.ProfilesService:GetProfile(fakeData.name)
+    
+    if profile then
+        Debug:Dev("organizer", "BuildPlayerDataFromFake: Got profile for", fakeData.name, "role:", profile.role, "specID:", profile.specID)
+    else
+        Debug:Error("BuildPlayerDataFromFake: NO PROFILE for", fakeData.name)
+    end
+    
     local playerData = {
         id = fakeData.name,
         name = fakeData.name:match("^([^%-]+)") or fakeData.name,
         class = fakeData.class,
-        roles = {fakeData.role or "DAMAGER"},
+        -- CRITICAL FIX: Use profile role if available, fallback to fakeData
+        roles = {(profile and profile.role) or fakeData.role or "DAMAGER"},
         keystone = fakeData.keystone,
         overallScore = fakeData.io or 0,
-        specName = fakeData.specName,
+        specName = (profile and profile.specName) or fakeData.specName,
+        specID = profile and profile.specID,
         utilities = {}
     }
     
@@ -138,15 +150,28 @@ function BenchManager:BuildPlayerDataFromFake(fakeData)
         table.insert(playerData.utilities, "battleRes")
     end
     
-    -- Generate default spec preferences if none exist
+    -- CRITICAL FIX: ALWAYS generate spec preferences for sorting to work
     if NextKey222.OrganizerPlayerDataBuilder then
+        Debug:Dev("organizer", "BuildPlayerDataFromFake: Calling GenerateSpecPreferences for", fakeData.name)
         local success, specPrefs, specDetails =
             NextKey222.OrganizerPlayerDataBuilder:GenerateSpecPreferences(fakeData.name, {randomize = false})
         if success and specPrefs then
             playerData.specPreferences = specPrefs
             playerData.specDetails = specDetails
+            Debug:Dev("organizer", "BuildPlayerDataFromFake: Generated specPreferences for", fakeData.name,
+                     "- TANK:", specPrefs.TANK or "none",
+                     "HEALER:", specPrefs.HEALER or "none",
+                     "DAMAGER:", specPrefs.DAMAGER or "none")
+        else
+            Debug:Error("BuildPlayerDataFromFake: Failed to generate specPreferences for", fakeData.name)
         end
+    else
+        Debug:Error("BuildPlayerDataFromFake: OrganizerPlayerDataBuilder NOT AVAILABLE")
     end
+    
+    Debug:Dev("organizer", "BuildPlayerDataFromFake: Returning playerData for", fakeData.name,
+             "with roles:", playerData.roles and table.concat(playerData.roles, ",") or "NONE",
+             "hasSpecPrefs:", playerData.specPreferences ~= nil)
     
     return playerData
 end
